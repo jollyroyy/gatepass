@@ -23,7 +23,7 @@ const ACTION_DOT: Record<VerifyAction, string> = {
   flagged: 'bg-flagged-500',
   returned: 'bg-brand-600',
   held: 'bg-pending-500',
-  // Neutral: a void is the HOD withdrawing their own paperwork, not a finding.
+  hod_reviewed: 'bg-accent-500',
   cancelled: 'bg-navy-400',
 };
 
@@ -32,8 +32,7 @@ const ACTION_LABEL: Record<VerifyAction, string> = {
   flagged: 'Flagged at gate',
   returned: 'Returned',
   held: 'Held at gate',
-  // Says who acted, because this is the one timeline entry written by the HOD
-  // rather than by security — every other action here happened at the gate.
+  hod_reviewed: 'HOD approved override',
   cancelled: 'Voided by HOD',
 };
 
@@ -198,11 +197,60 @@ export default function PassDetail(): React.ReactElement {
       </div>
 
       {pass.status === 'flagged' && (
-        <div className="alert-error flex-col items-start gap-1">
+        <div className="alert-error flex-col items-start gap-2">
           <p className="font-semibold">
             Flagged by {pass.verified_by_name ?? 'security'} — {formatDateTime(pass.verified_at)}
           </p>
           <p>{pass.flag_reason ?? 'No reason recorded.'}</p>
+          {userId !== null && pass.raised_by === userId && (
+            <div className="flex flex-wrap gap-2 mt-1">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={async () => {
+                  try {
+                    const { error: rpcErr } = await gp().rpc('hod_review_flagged_pass', {
+                      p_pass_id: pass.id,
+                      p_action: 'approve',
+                    });
+                    if (rpcErr) throw rpcErr;
+                    setReloadKey((k) => k + 1);
+                  } catch (err) {
+                    setError(safeErrorMessage(err));
+                  }
+                }}
+              >
+                Approve Override
+              </button>
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={async () => {
+                  try {
+                    const { error: rpcErr } = await gp().rpc('hod_review_flagged_pass', {
+                      p_pass_id: pass.id,
+                      p_action: 'reject',
+                      p_reason: 'HOD rejected after security flag',
+                    });
+                    if (rpcErr) throw rpcErr;
+                    setReloadKey((k) => k + 1);
+                  } catch (err) {
+                    setError(safeErrorMessage(err));
+                  }
+                }}
+              >
+                Reject & Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {pass.status === 'hod_reviewed' && (
+        <div className="alert-success flex-col items-start gap-1">
+          <p className="font-semibold">
+            HOD approved — awaiting dispatch at the gate
+          </p>
         </div>
       )}
 

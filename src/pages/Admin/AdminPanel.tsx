@@ -3,13 +3,21 @@
 import React, { useState } from 'react';
 import DepartmentsTab from './DepartmentsTab';
 import UsersTab from './UsersTab';
+import AIAnalyticsTab from './AIAnalyticsTab';
 
-type Tab = 'departments' | 'users';
+type Tab = 'departments' | 'users' | 'analytics';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'departments', label: 'Departments' },
   { key: 'users', label: 'Users' },
+  { key: 'analytics', label: 'AI Analytics' },
 ];
+
+const TAB_RENDER: Record<Tab, React.ReactElement> = {
+  departments: <DepartmentsTab />,
+  users: <UsersTab />,
+  analytics: <AIAnalyticsTab />,
+};
 
 export default function AdminPanel(): React.ReactElement {
   const [tab, setTab] = useState<Tab>('departments');
@@ -34,7 +42,7 @@ export default function AdminPanel(): React.ReactElement {
         ))}
       </div>
 
-      {tab === 'departments' ? <DepartmentsTab /> : <UsersTab />}
+      {TAB_RENDER[tab]}
     </div>
   );
 }

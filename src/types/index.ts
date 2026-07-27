@@ -39,7 +39,7 @@ export type PassDirection = 'in' | 'out';
 /** `held` (migration 014) is the guard's third answer at the gate: material
  *  stopped, nothing released and nothing alleged. Unlike matched/flagged it is
  *  NOT terminal — `match_pass` and `flag_pass` both accept a held pass. */
-export type PassStatus = 'pending' | 'held' | 'matched' | 'flagged' | 'cancelled';
+export type PassStatus = 'pending' | 'held' | 'matched' | 'flagged' | 'hod_reviewed' | 'cancelled';
 
 /** `partially_returned` (migration 013) exists because returns became per-line.
  *  It still counts as an outstanding obligation — `kpis()` includes it in
@@ -50,7 +50,7 @@ export type ReturnStatus =
   | 'partially_returned'
   | 'returned';
 
-export type VerifyAction = 'matched' | 'flagged' | 'held' | 'returned' | 'cancelled';
+export type VerifyAction = 'matched' | 'flagged' | 'held' | 'returned' | 'cancelled' | 'hod_reviewed';
 
 /** Due-date urgency, computed in `gatepass.v_gate_passes` and nowhere else.
  *  `is_overdue` remains the binary form of the same fact; this is the graded

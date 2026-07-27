@@ -116,39 +116,17 @@ export default function Login(): React.ReactElement {
 
         <form
           onSubmit={submit}
-          className="relative rounded-3xl p-7 space-y-5 backdrop-blur-2xl overflow-hidden"
-          // The card is deliberately DARKER and more opaque than the photo it sits
-          // on, rather than lighter: the background is a dark corridor lit by cyan
-          // and amber, so a pale panel would fight both accents, while a near-solid
-          // slate plate reads as the same chrome as `.shell-sidebar` (#0F172A) — the
-          // surface the user meets on the very next screen.
-          //
-          // 0.62 opacity was not enough to stop the bright portal behind it showing
-          // through; 0.88 over the veil above puts the fill at roughly #0C1322, which
-          // carries white body text at ~15:1 and the slate-300 sub-copy at ~10:1
-          // regardless of where the photo crops.
+          className="relative rounded-3xl p-7 space-y-5 overflow-hidden"
           style={{
-            background:
-              'linear-gradient(160deg, rgba(16,23,42,0.90) 0%, rgba(9,14,26,0.90) 100%)',
-            border: '1px solid rgba(148,163,184,0.20)',
+            background: '#ffffff',
+            border: '1px solid rgba(203,213,225,0.60)',
             boxShadow:
-              '0 32px 64px -16px rgba(0,0,0,0.75), 0 0 0 1px rgba(34,211,238,0.07), inset 0 1px 0 rgba(255,255,255,0.10)',
+              '0 32px 64px -16px rgba(0,0,0,0.60), 0 0 0 1px rgba(8,145,178,0.10)',
           }}
         >
-          {/* Cyan hairline along the top edge — the one decorative flourish, and it
-              doubles as the card's light source for the inset highlight below it. */}
-          <div
-            aria-hidden
-            className="absolute inset-x-0 top-0 h-px"
-            style={{
-              background:
-                'linear-gradient(90deg, transparent 0%, rgba(34,211,238,0.7) 50%, transparent 100%)',
-            }}
-          />
-
           <div className="mb-1">
-            <h2 className="text-lg font-semibold text-white tracking-tight">Welcome back</h2>
-            <p className="text-xs text-slate-300/85 mt-1">Sign in to continue to the gate console.</p>
+            <h2 className="text-lg font-semibold text-navy-900 tracking-tight">Welcome back</h2>
+            <p className="text-xs text-navy-400 mt-1">Sign in to continue to the gate console.</p>
           </div>
 
           <AuthField
@@ -176,12 +154,10 @@ export default function Login(): React.ReactElement {
           {error && (
             <p
               className="text-sm rounded-xl px-3.5 py-2.5 flex items-start gap-2"
-              // A light tint of flagged red rather than flagged-500 itself: #EF4444 on a
-              // near-black card is only ~4:1. Same hue, readable contrast.
               style={{
-                color: '#fca5a5',
-                background: 'rgba(239,68,68,0.12)',
-                border: '1px solid rgba(239,68,68,0.28)',
+                color: '#b91c1c',
+                background: 'rgba(239,68,68,0.08)',
+                border: '1px solid rgba(239,68,68,0.25)',
               }}
             >
               <svg
@@ -225,7 +201,7 @@ export default function Login(): React.ReactElement {
         </form>
 
         <p
-          className="flex items-center justify-center gap-1.5 text-[11px] text-slate-300/90 mt-6"
+          className="flex items-center justify-center gap-1.5 text-[11px] text-slate-200/80 mt-6"
           style={{ textShadow: '0 1px 8px rgba(0,0,0,0.7)' }}
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>

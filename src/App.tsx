@@ -12,6 +12,7 @@ import NoAccess from './pages/NoAccess';
 import HodDashboard from './pages/HOD/Dashboard';
 import RaisePass from './pages/HOD/RaisePass';
 import MyPasses from './pages/HOD/MyPasses';
+import HodAnalytics from './pages/HOD/HodAnalytics';
 import GateConsole from './pages/Security/GateConsole';
 import Verify from './pages/Security/Verify';
 import PendingReturns from './pages/Security/PendingReturns';
@@ -120,6 +121,7 @@ export default function App(): React.ReactElement {
           <Route path="/dashboard" element={<HodDashboard />} />
           <Route path="/raise" element={<RaisePass />} />
           <Route path="/my-passes" element={<MyPasses />} />
+          <Route path="/analytics" element={<HodAnalytics />} />
 
           {/* Security */}
           <Route path="/console" element={<GateConsole />} />
