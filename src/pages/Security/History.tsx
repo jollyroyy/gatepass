@@ -1,7 +1,8 @@
 // Security's verification history — matched and flagged passes, searchable
-// and exportable. Read-only: no decisions happen here.
+// and exportable. Reads `?status=` and `?today=` from the URL so KPI cards on
+// the GateConsole can deep-link straight into a filtered list.
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { gp } from '../../supabaseClient';
 import type { GatePassView, PassStatus } from '../../types';
 import Badge, { TypeChip } from '../../components/Badge';
@@ -33,25 +34,49 @@ const CSV_COLUMNS: CsvColumn[] = [
   { key: 'flag_reason', header: 'Flag Reason' },
 ];
 
+function startOfTodayIso(): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
 export default function History(): React.ReactElement {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [rows, setRows] = useState<GatePassView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<HistoryStatus | 'all'>('all');
   const [search, setSearch] = useState('');
 
+  // Read initial filter from URL params (set by GateConsole KPI card clicks).
+  const urlStatus = searchParams.get('status') as HistoryStatus | null;
+  const urlTodayOnly = searchParams.get('today') === '1';
+
+  // Sync URL param into local state once on mount.
+  useEffect(() => {
+    if (urlStatus === 'matched' || urlStatus === 'flagged') {
+      setStatusFilter(urlStatus);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
       try {
-        const { data, error: loadErr } = await gp()
+        let query = gp()
           .from('v_gate_passes')
           .select('*')
           .in('status', ['matched', 'flagged'])
           .order('verified_at', { ascending: false })
           .limit(HISTORY_LIMIT);
+
+        if (urlTodayOnly) {
+          query = query.gte('verified_at', startOfTodayIso());
+        }
+
+        const { data, error: loadErr } = await query;
         if (loadErr) throw loadErr;
         if (!cancelled) setRows((data as GatePassView[] | null) ?? []);
       } catch (err) {
