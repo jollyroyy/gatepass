@@ -25,6 +25,14 @@ function startOfTodayIso(): string {
   return d.toISOString();
 }
 
+function formatAge(createdAt: string): string {
+  const ms = Date.now() - new Date(createdAt).getTime();
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
 export default function GateConsole(): React.ReactElement {
   const navigate = useNavigate();
   const location = useLocation();
@@ -127,6 +135,10 @@ export default function GateConsole(): React.ReactElement {
     return true;
   });
 
+  const oldestWaitMs = queue.length > 0 ? Date.now() - new Date(queue[0].created_at).getTime() : 0;
+  const oldestWaitValue = queue.length > 0 ? formatAge(queue[0].created_at) : '—';
+  const oldestWaitTone: 'overdue' | 'pending' = oldestWaitMs > TWO_HOURS_MS ? 'overdue' : 'pending';
+
   return (
     <div>
       <div className="page-header">
@@ -140,8 +152,10 @@ export default function GateConsole(): React.ReactElement {
 
       {error && <div className="alert-error mb-6">{error}</div>}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 mb-8">
         <KpiCard label="Pending Now" value={pendingCount} tone="pending" loading={loading} />
+        <KpiCard label="Queue Size" value={queue.length} tone="pending" loading={loading} />
+        <KpiCard label="Oldest Wait" value={oldestWaitValue} tone={oldestWaitTone} loading={loading} />
         <KpiCard label="Matched Today" value={matchedToday} tone="matched" loading={loading} />
         <KpiCard label="Flagged Today" value={flaggedToday} tone="flagged" loading={loading} />
       </div>

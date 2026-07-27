@@ -49,6 +49,8 @@ export default function GateLookup(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [blacklistMatch, setBlacklistMatch] = useState<string | null>(null);
+  const [pendingPassId, setPendingPassId] = useState<string | null>(null);
 
   const resolve = useCallback(
     async (code: string) => {
@@ -57,6 +59,8 @@ export default function GateLookup(): React.ReactElement {
       setBusy(true);
       setError(null);
       setOutcome(null);
+      setBlacklistMatch(null);
+      setPendingPassId(null);
       try {
         const { data, error: rpcErr } = await gp().rpc('lookup_pass', { p_code: raw });
         if (rpcErr) throw rpcErr;
@@ -69,6 +73,11 @@ export default function GateLookup(): React.ReactElement {
         }
 
         if (row.outcome === 'ok' && row.pass_id) {
+          if (row.blacklist_match) {
+            setBlacklistMatch(row.blacklist_match);
+            setPendingPassId(row.pass_id);
+            return;
+          }
           navigate(`/verify/${row.pass_id}`);
           return;
         }
@@ -76,6 +85,9 @@ export default function GateLookup(): React.ReactElement {
           outcome: row.outcome as Exclude<ScanOutcome, 'ok'>,
           passId: row.pass_id,
         });
+        if (row.blacklist_match) {
+          setBlacklistMatch(row.blacklist_match);
+        }
       } catch (err) {
         setError(safeErrorMessage(err));
       } finally {
@@ -136,6 +148,12 @@ export default function GateLookup(): React.ReactElement {
 
       {error && <div className="alert-error">{error}</div>}
 
+      {blacklistMatch && (
+        <div className="border-2 border-red-400 bg-amber-50 text-red-800 px-4 py-3 rounded-md font-semibold text-sm">
+          {'⚠ BLACKLIST ALERT: '}{blacklistMatch}
+        </div>
+      )}
+
       {message && (
         <div className={message.tone === 'error' ? 'alert-error' : 'alert-warning'}>
           {message.text}{' '}
@@ -145,6 +163,16 @@ export default function GateLookup(): React.ReactElement {
             </Link>
           )}
         </div>
+      )}
+
+      {pendingPassId && blacklistMatch && (
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => navigate(`/verify/${pendingPassId}`)}
+        >
+          Proceed anyway
+        </button>
       )}
     </div>
   );

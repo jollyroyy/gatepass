@@ -212,20 +212,24 @@ export interface GatePassView extends GatePass {
 }
 
 /** One row of `gatepass.lookup_pass()`. `pass_id` is null when `outcome` is
- *  `not_found` — there was nothing to point at. */
+ *  `not_found` — there was nothing to point at. `blacklist_match` carries the
+ *  blacklist reason text when the pass's company or vehicle is blacklisted. */
 export interface ScanResult {
   outcome: ScanOutcome;
   pass_id: string | null;
+  blacklist_match: string | null;
 }
 
 /** `gatepass.scan_attempts` — every scan, including the failures.
- *  `gatepass.verifications` records what succeeded; this records what was tried. */
+ *  `gatepass.verifications` records what succeeded; this records what was tried.
+ *  `blacklist_note` records why a scan triggered a blacklist warning. */
 export interface ScanAttempt {
   id: string;
   scanned_code: string;
   gate_pass_id: string | null;
   scanned_by: string;
   outcome: ScanOutcome;
+  blacklist_note: string | null;
   created_at: string;
 }
 
@@ -309,6 +313,9 @@ export interface PassKpis {
   awaitingReturn: number;
   overdue: number;
   raisedToday: number;
+  overdueValue: number;
+  flaggedRate: number;
+  returnRate: number;
 }
 
 export const EMPTY_KPIS: PassKpis = {
@@ -319,4 +326,52 @@ export const EMPTY_KPIS: PassKpis = {
   awaitingReturn: 0,
   overdue: 0,
   raisedToday: 0,
+  overdueValue: 0,
+  flaggedRate: 0,
+  returnRate: 0,
 };
+
+// ─── Returnable aging ─────────────────────────────────────────────────────
+export interface ReturnableAgingBucket {
+  bucket: string;
+  item_count: number;
+  total_value: number;
+}
+
+// ─── Vendor profiles ──────────────────────────────────────────────────────
+export interface VendorProfile {
+  id: string;
+  company_name: string;
+  contact_person: string | null;
+  phone: string | null;
+  vehicle_number: string | null;
+  typical_material: string | null;
+  department_id: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Blacklist ────────────────────────────────────────────────────────────
+export type BlacklistType = 'company' | 'vehicle' | 'driver';
+
+export interface BlacklistEntry {
+  id: string;
+  list_type: BlacklistType;
+  list_value: string;
+  reason: string;
+  blocked_by: string;
+  created_at: string;
+}
+
+export interface BlacklistMatch {
+  list_type: BlacklistType;
+  list_value: string;
+  reason: string;
+}
+
+// ─── Bulk create result ───────────────────────────────────────────────────
+export interface BulkCreateResult {
+  pass_id: string;
+  pass_number: string;
+}

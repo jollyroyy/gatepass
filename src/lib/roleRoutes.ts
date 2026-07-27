@@ -10,7 +10,7 @@ export const ROLE_ROUTES: Record<UserRole, string[]> = {
   // Security at the gate
   guard: ['/console', '/verify', '/returns', '/history', '/pass'],
   // Department heads raise passes for their own departments
-  hod: ['/dashboard', '/raise', '/my-passes', '/analytics', '/pass'],
+  hod: ['/dashboard', '/raise', '/my-passes', '/analytics', '/vendors', '/pass'],
   // Admin manages departments, users, and sees everything
   admin: ['/admin', '/all-passes', '/pass'],
   super_admin: ['/admin', '/all-passes', '/pass'],

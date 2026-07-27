@@ -4,19 +4,22 @@ import React, { useState } from 'react';
 import DepartmentsTab from './DepartmentsTab';
 import UsersTab from './UsersTab';
 import AIAnalyticsTab from './AIAnalyticsTab';
+import BlacklistTab from './BlacklistTab';
 
-type Tab = 'departments' | 'users' | 'analytics';
+type Tab = 'departments' | 'users' | 'analytics' | 'blacklist';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'departments', label: 'Departments' },
   { key: 'users', label: 'Users' },
   { key: 'analytics', label: 'AI Analytics' },
+  { key: 'blacklist', label: 'Blacklist' },
 ];
 
 const TAB_RENDER: Record<Tab, React.ReactElement> = {
   departments: <DepartmentsTab />,
   users: <UsersTab />,
   analytics: <AIAnalyticsTab />,
+  blacklist: <BlacklistTab />,
 };
 
 export default function AdminPanel(): React.ReactElement {

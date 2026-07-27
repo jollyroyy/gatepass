@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { gp, pub, supabase } from '../../supabaseClient';
-import type { GatePassView, NewGatePass, NewGatePassItem, PassDirection, PassType } from '../../types';
+import type { GatePassView, NewGatePass, NewGatePassItem, PassDirection, PassType, VendorProfile } from '../../types';
 import { EMPTY_ITEM } from '../../types';
 import { PASS_TYPES, allowedDirections, PASS_DIRECTIONS, requiresReturnDate } from '../../lib/passTypes';
 import { fetchMyProfile } from '../../lib/profiles';
@@ -45,6 +45,8 @@ export default function RaisePass(): React.ReactElement {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submittedPass, setSubmittedPass] = useState<GatePassView | null>(null);
+  const [vendors, setVendors] = useState<VendorProfile[]>([]);
+  const [saveVendor, setSaveVendor] = useState(false);
   const deptName = depts.length > 0 ? `${depts[0].name} (${depts[0].code})` : '';
 
   useEffect(() => {
@@ -87,6 +89,14 @@ export default function RaisePass(): React.ReactElement {
       cancelled = true;
     };
   }, []);
+
+  // Load vendor profiles when department changes
+  useEffect(() => {
+    if (!form.department_id) { setVendors([]); return; }
+    gp().rpc('list_vendor_profiles', { p_department_id: form.department_id }).then(({ data }) => {
+      setVendors((data as VendorProfile[]) ?? []);
+    });
+  }, [form.department_id]);
 
   function handleTypeChange(type: PassType) {
     const allowed = allowedDirections(type);
@@ -193,6 +203,13 @@ export default function RaisePass(): React.ReactElement {
       });
       if (error) throw error;
       setSubmittedPass(data as unknown as GatePassView);
+      if (saveVendor && form.visitor_company.trim()) {
+        gp().rpc('save_vendor_profile', {
+          p_company_name: form.visitor_company.trim(),
+          p_vehicle_number: form.vehicle_number.trim() || null,
+          p_department_id: departmentId,
+        });
+      }
     } catch (err) {
       setSubmitError(safeErrorMessage(err));
     } finally {
@@ -261,6 +278,22 @@ export default function RaisePass(): React.ReactElement {
           <div>
             <label className="label">Visitor Company</label>
             <input className="input" value={form.visitor_company} onChange={(e) => update('visitor_company', e.target.value)} />
+            {vendors.length > 0 && (
+              <select className="input mt-2 text-sm" defaultValue=""
+                onChange={(e) => {
+                  const v = vendors.find((x) => x.id === e.target.value);
+                  if (!v) return;
+                  update('visitor_company', v.company_name);
+                  if (v.vehicle_number) update('vehicle_number', v.vehicle_number);
+                }}>
+                <option value="" disabled>Load from vendor…</option>
+                {vendors.map((v) => <option key={v.id} value={v.id}>{v.company_name}</option>)}
+              </select>
+            )}
+            <label className="flex items-center gap-2 mt-2 text-sm text-navy-600 cursor-pointer">
+              <input type="checkbox" checked={saveVendor} onChange={(e) => setSaveVendor(e.target.checked)} />
+              Save as vendor profile
+            </label>
           </div>
         </div>
 

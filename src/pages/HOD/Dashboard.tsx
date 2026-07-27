@@ -4,7 +4,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, gp, pub } from '../../supabaseClient';
-import type { GatePassView, PassKpis } from '../../types';
+import type { GatePassView, PassKpis, ReturnableAgingBucket } from '../../types';
 import { EMPTY_KPIS } from '../../types';
 import KpiCard from '../../components/KpiCard';
 import Badge, { TypeChip } from '../../components/Badge';
@@ -16,6 +16,42 @@ const FLAGGED_LIMIT = 5;
 const RECENT_LIMIT = 10;
 const SKELETON_ROWS = 6;
 
+function formatCurrency(n: number): string {
+  if (n >= 100000) return '₹' + (n / 100000).toFixed(1) + 'L';
+  if (n >= 1000) return '₹' + (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'K';
+  return '₹' + Math.round(n).toLocaleString('en-IN');
+}
+
+function ReturnableAging({ rows, loading }: { rows: ReturnableAgingBucket[]; loading: boolean }): React.ReactElement | null {
+  if (loading || rows.length === 0) return null;
+  const BUCKET_LABEL: Record<string, string> = { '0-7d': '0–7 days', '8-30d': '8–30 days', '31-90d': '31–90 days', '90+': '90+ days' };
+  return (
+    <div className="mb-8">
+      <h2 className="section-title mb-3">Returnable Aging</h2>
+      <div className="table-wrap">
+        <table className="table-base">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th>Items Out</th>
+              <th>Estimated Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.bucket}>
+                <td className="font-semibold text-navy-900">{BUCKET_LABEL[r.bucket] ?? r.bucket}</td>
+                <td className="tabular">{r.item_count}</td>
+                <td className="tabular">{formatCurrency(r.total_value)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 interface KpiRow {
   total: number;
   pending: number;
@@ -24,6 +60,9 @@ interface KpiRow {
   awaiting_return: number;
   overdue: number;
   raised_today: number;
+  overdue_value: number;
+  flagged_rate: number;
+  return_rate: number;
 }
 
 function mapKpiRow(row: KpiRow | undefined): PassKpis {
@@ -36,6 +75,9 @@ function mapKpiRow(row: KpiRow | undefined): PassKpis {
     awaitingReturn: row.awaiting_return ?? 0,
     overdue: row.overdue ?? 0,
     raisedToday: row.raised_today ?? 0,
+    overdueValue: row.overdue_value ?? 0,
+    flaggedRate: row.flagged_rate ?? 0,
+    returnRate: row.return_rate ?? 0,
   };
 }
 
@@ -47,11 +89,12 @@ export default function Dashboard(): React.ReactElement {
   const [kpis, setKpis] = useState<PassKpis>(EMPTY_KPIS);
   const [flagged, setFlagged] = useState<GatePassView[]>([]);
   const [recent, setRecent] = useState<GatePassView[]>([]);
+  const [agingBuckets, setAgingBuckets] = useState<ReturnableAgingBucket[]>([]);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [kpiRes, flaggedRes, recentRes] = await Promise.all([
+      const [kpiRes, flaggedRes, recentRes, agingRes] = await Promise.all([
         gp().rpc('kpis', { p_department_id: null }),
         gp()
           .from('v_gate_passes')
@@ -60,16 +103,19 @@ export default function Dashboard(): React.ReactElement {
           .order('verified_at', { ascending: false })
           .limit(FLAGGED_LIMIT),
         gp().from('v_gate_passes').select('*').order('created_at', { ascending: false }).limit(RECENT_LIMIT),
+        gp().rpc('returnable_aging', { p_department_id: null }),
       ]);
 
       if (kpiRes.error) throw kpiRes.error;
       if (flaggedRes.error) throw flaggedRes.error;
       if (recentRes.error) throw recentRes.error;
+      if (agingRes.error) throw agingRes.error;
 
       const rows = (kpiRes.data as KpiRow[] | null) ?? [];
       setKpis(mapKpiRow(rows[0]));
       setFlagged((flaggedRes.data as GatePassView[] | null) ?? []);
       setRecent((recentRes.data as GatePassView[] | null) ?? []);
+      setAgingBuckets((agingRes.data as ReturnableAgingBucket[] | null) ?? []);
       setError(null);
     } catch (err) {
       setError(safeErrorMessage(err));
@@ -137,7 +183,7 @@ export default function Dashboard(): React.ReactElement {
 
       {error && <div className="alert-error mb-6">{error}</div>}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
         <KpiCard
           label="Total Raised"
           value={kpis.total}
@@ -159,6 +205,13 @@ export default function Dashboard(): React.ReactElement {
           tone="flagged"
           to="/my-passes?status=flagged"
           loading={loading}
+          delta={kpis.flaggedRate > 0 ? `${kpis.flaggedRate}% flag rate` : undefined}
+        />
+        <KpiCard
+          label="Return Rate"
+          value={`${kpis.returnRate}%`}
+          tone="matched"
+          loading={loading}
         />
         <KpiCard
           label="Awaiting Return"
@@ -167,8 +220,16 @@ export default function Dashboard(): React.ReactElement {
           to="/my-passes?ret=awaiting_return"
           loading={loading}
         />
-        <KpiCard label="Overdue" value={kpis.overdue} tone="overdue" loading={loading} />
+        <KpiCard
+          label="Overdue"
+          value={kpis.overdue}
+          tone="overdue"
+          loading={loading}
+          delta={kpis.overdueValue > 0 ? formatCurrency(kpis.overdueValue) : undefined}
+        />
       </div>
+
+      <ReturnableAging rows={agingBuckets} loading={loading} />
 
       {!loading && flagged.length > 0 && (
         <div className="card border border-flagged-500/30 bg-flagged-50/40 p-5 mb-8">
