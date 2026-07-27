@@ -35,9 +35,27 @@ export function isAdmin(role: UserRole | null): boolean {
  */
 export type PassType = 'RGP' | 'NRGP';
 export type PassDirection = 'in' | 'out';
-export type PassStatus = 'pending' | 'matched' | 'flagged' | 'cancelled';
-export type ReturnStatus = 'not_applicable' | 'awaiting_return' | 'returned';
-export type VerifyAction = 'matched' | 'flagged' | 'returned' | 'cancelled';
+
+/** `held` (migration 014) is the guard's third answer at the gate: material
+ *  stopped, nothing released and nothing alleged. Unlike matched/flagged it is
+ *  NOT terminal — `match_pass` and `flag_pass` both accept a held pass. */
+export type PassStatus = 'pending' | 'held' | 'matched' | 'flagged' | 'cancelled';
+
+/** `partially_returned` (migration 013) exists because returns became per-line.
+ *  It still counts as an outstanding obligation — `kpis()` includes it in
+ *  `awaitingReturn`, and it keeps a pass in the overdue reckoning. */
+export type ReturnStatus =
+  | 'not_applicable'
+  | 'awaiting_return'
+  | 'partially_returned'
+  | 'returned';
+
+export type VerifyAction = 'matched' | 'flagged' | 'held' | 'returned' | 'cancelled';
+
+/** Due-date urgency, computed in `gatepass.v_gate_passes` and nowhere else.
+ *  `is_overdue` remains the binary form of the same fact; this is the graded
+ *  one, so a pass can be warned about the day BEFORE it goes overdue. */
+export type DueState = 'not_applicable' | 'ok' | 'due_soon' | 'due_today' | 'overdue';
 
 /**
  * Outcomes of `gatepass.lookup_pass()` — one scan attempt at the gate.
@@ -93,12 +111,15 @@ export interface GatePass {
   department_id: string;
   raised_by: string;
 
-  // Fields the guard physically checks against the visitor and material
+  // Fields the guard physically checks against the visitor and material.
+  //
+  // NOTE: material_description / quantity / unit are GONE as of migration 013.
+  // A pass carries many material lines now, in gatepass.gate_pass_items — one
+  // trolley with a drill, two ladders and a coil of cable is one pass, not
+  // three. Read the lines from `GatePassItem[]`, or the `material_summary`
+  // roll-up on GatePassView for list rows.
   visitor_name: string;
   visitor_company: string | null;
-  material_description: string;
-  quantity: number;
-  unit: string;
   vehicle_number: string | null;
   purpose: string;
 
@@ -127,13 +148,63 @@ export interface GatePass {
   updated_at: string;
 }
 
+/** One material line — `gatepass.gate_pass_items` (migration 013).
+ *
+ *  Written ONLY by `raise_pass`; `returned_qty` moves ONLY through
+ *  `apply_item_returns` / `mark_returned`. No client holds INSERT or UPDATE on
+ *  this table, for the same reason none holds them on `gate_passes`: a client
+ *  that can set `returned_qty` directly can un-return material.
+ *
+ *  `department_id` and `is_open` are trigger-maintained copies of parent state.
+ *  They exist so the "one open pass per material per department" unique index
+ *  can be expressed at all — a unique index cannot join to the parent. Treat
+ *  them as read-only; never send them. */
+export interface GatePassItem {
+  id: string;
+  gate_pass_id: string;
+  /** 1-based, stable. The guard reads the printed slip against the trolley. */
+  line_no: number;
+  description: string;
+  quantity: number;
+  unit: string;
+  /** The asset tag stencilled on the thing. What makes an RGP enforceable:
+   *  without it, "a drill" came back — not necessarily THE drill. */
+  serial_no: string | null;
+  /** Indicative worth, for the write-off conversation after a flag. Never used
+   *  for authorisation: an expensive item is not a suspicious one. */
+  approx_value: number | null;
+  returned_qty: number;
+  department_id: string;
+  is_open: boolean;
+  created_at: string;
+}
+
+/** `gatepass.v_gate_pass_items` — a line plus its parent's identity. */
+export interface GatePassItemView extends GatePassItem {
+  outstanding_qty: number;
+  pass_number: string;
+  pass_status: PassStatus;
+  return_status: ReturnStatus;
+}
+
 /** `gatepass.v_gate_passes` — the table plus derived fields. Every list and KPI
- *  query reads this view so `is_overdue` and `is_expired` each have exactly one
- *  definition. Never recompute either of them in TypeScript: a screen that
- *  disagrees with `match_pass` about expiry is a guard arguing with a driver. */
+ *  query reads this view so `is_overdue`, `is_expired` and `due_state` each
+ *  have exactly one definition. Never recompute any of them in TypeScript: a
+ *  screen that disagrees with `match_pass` about expiry is a guard arguing with
+ *  a driver. */
 export interface GatePassView extends GatePass {
   is_overdue: boolean;
   is_expired: boolean;
+  due_state: DueState;
+
+  /** Item roll-ups, computed in the view so a list row needs no second query. */
+  item_count: number;
+  total_quantity: number;
+  returned_quantity: number;
+  /** Line descriptions joined with ", " — for list rows, search and CSV. The
+   *  detail and print screens read the real rows instead. */
+  material_summary: string | null;
+
   department_name: string;
   department_code: string;
   raised_by_name: string;
@@ -158,30 +229,75 @@ export interface ScanAttempt {
   created_at: string;
 }
 
+/** What the guard ticked before releasing material (migration 014). Stored so
+ *  "the guard says they checked the serial" becomes a record rather than a
+ *  claim. The UI gates the Match button on these; this is the audit copy. */
+export interface VerificationChecks {
+  carrier: boolean;
+  paperwork: boolean;
+  lines: Record<string, { item: boolean; qty: boolean; serial: boolean }>;
+}
+
+/** Per-line breakdown of what was actually counted. Audit evidence only — the
+ *  authoritative per-line state is `GatePassItem.returned_qty`. */
+export interface VerificationLineDetail {
+  item_id: string;
+  description: string;
+  declared_qty: number;
+  verified_qty: number;
+}
+
 export interface Verification {
   id: string;
   gate_pass_id: string;
   action: VerifyAction;
   security_user_id: string;
+  /** The TOTAL counted across every line. Per-line figures are in line_details. */
   verified_quantity: number | null;
   verified_vehicle: string | null;
   remarks: string | null;
+  /** Which entrance. A mall has more than one, and "signed off at 23:40" is a
+   *  different fact at the loading bay than at the basement ramp. */
+  gate_name: string | null;
+  device_info: Record<string, unknown> | null;
+  line_details: VerificationLineDetail[] | null;
+  checks: VerificationChecks | null;
   created_at: string;
 }
 
 // ─── Form payloads ─────────────────────────────────────────────────────────
+
+/** One row of the Raise Pass item repeater. Numbers stay as strings while the
+ *  user is typing — an <input type="number"> mid-edit is legitimately "" or
+ *  "1." and coercing early turns that into NaN. Parsed once, on submit. */
+export interface NewGatePassItem {
+  description: string;
+  quantity: string;
+  unit: string;
+  serial_no: string;
+  approx_value: string;
+}
+
+export const EMPTY_ITEM: NewGatePassItem = {
+  description: '',
+  quantity: '1',
+  unit: 'nos',
+  serial_no: '',
+  approx_value: '',
+};
+
 export interface NewGatePass {
   type: PassType;
   direction: PassDirection;
   department_id: string;
   visitor_name: string;
   visitor_company: string;
-  material_description: string;
-  quantity: string; // kept as string in the form; parsed on submit
-  unit: string;
   vehicle_number: string;
   purpose: string;
   expected_return_date: string;
+  /** At least one. `gatepass.raise_pass` refuses an empty list — a pass number
+   *  issued against no material is a slip the guard cannot check anything by. */
+  items: NewGatePassItem[];
 }
 
 // ─── KPI shape shared by the HOD and admin dashboards ──────────────────────

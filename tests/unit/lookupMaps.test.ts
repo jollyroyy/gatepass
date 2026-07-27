@@ -10,8 +10,8 @@ import { formatDateTime, formatTime, formatDuration, relativeAge, formatDateOnly
 // Hardcoded from src/types/index.ts — cross-checked against the source union
 // on every run via the completeness assertions below, so this list drifting
 // out of date would itself fail the suite.
-const PASS_STATUS_MEMBERS = ['pending', 'matched', 'flagged', 'cancelled'] as const;
-const RETURN_STATUS_MEMBERS = ['not_applicable', 'awaiting_return', 'returned'] as const;
+const PASS_STATUS_MEMBERS = ['pending', 'held', 'matched', 'flagged', 'cancelled'] as const;
+const RETURN_STATUS_MEMBERS = ['not_applicable', 'awaiting_return', 'partially_returned', 'returned'] as const;
 // Migration 010 retired IGP/OGP: type is now RGP | NRGP, with direction (in/out)
 // as its own column. See PASS_CATEGORIES below for the legal type+direction set.
 const PASS_TYPE_MEMBERS = ['RGP', 'NRGP'] as const;

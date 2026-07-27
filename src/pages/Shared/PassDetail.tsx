@@ -22,6 +22,7 @@ const ACTION_DOT: Record<VerifyAction, string> = {
   matched: 'bg-matched-500',
   flagged: 'bg-flagged-500',
   returned: 'bg-brand-600',
+  held: 'bg-pending-500',
   // Neutral: a void is the HOD withdrawing their own paperwork, not a finding.
   cancelled: 'bg-navy-400',
 };
@@ -30,6 +31,7 @@ const ACTION_LABEL: Record<VerifyAction, string> = {
   matched: 'Matched at gate',
   flagged: 'Flagged at gate',
   returned: 'Returned',
+  held: 'Held at gate',
   // Says who acted, because this is the one timeline entry written by the HOD
   // rather than by security — every other action here happened at the gate.
   cancelled: 'Voided by HOD',
@@ -220,9 +222,9 @@ export default function PassDetail(): React.ReactElement {
         <dl className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <DetailRow label="Visitor Name" value={pass.visitor_name} />
           <DetailRow label="Company" value={pass.visitor_company} />
-          <DetailRow label="Material Description" value={pass.material_description} />
+          <DetailRow label="Material Description" value={pass.material_summary ?? ''} />
           <DetailRow label="Direction" value={PASS_DIRECTIONS[pass.direction].label} />
-          <DetailRow label="Quantity" value={`${pass.quantity} ${pass.unit}`} />
+          <DetailRow label="Items" value={`${pass.item_count} line(s)`} />
           <DetailRow label="Vehicle Number" value={pass.vehicle_number} />
           <DetailRow label="Purpose" value={pass.purpose} />
           <DetailRow label="Department" value={pass.department_name} />
@@ -246,7 +248,7 @@ export default function PassDetail(): React.ReactElement {
           <ol className="flex flex-col gap-5">
             {verifications.map((v) => {
               const qtyMismatch =
-                v.verified_quantity !== null && v.verified_quantity !== pass.quantity;
+                v.verified_quantity !== null && v.verified_quantity !== pass.total_quantity;
               return (
                 <li key={v.id} className="flex gap-3">
                   <span className={`mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 ${ACTION_DOT[v.action]}`} />
@@ -257,7 +259,7 @@ export default function PassDetail(): React.ReactElement {
                     <p className="text-xs text-navy-400">{formatDateTime(v.created_at)}</p>
                     {qtyMismatch && (
                       <p className="text-sm font-semibold text-flagged-700">
-                        Counted {v.verified_quantity} — declared {pass.quantity}
+                        Counted {v.verified_quantity} — declared {pass.total_quantity}
                       </p>
                     )}
                     {v.verified_vehicle && (

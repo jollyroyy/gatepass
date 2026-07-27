@@ -59,12 +59,17 @@ export default function AuthField({
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder={placeholder}
-          className="w-full rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder:text-slate-500
+          className="w-full rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder:text-slate-400/70
                      focus:outline-none transition-all duration-200"
+          // The card behind these fields is now near-opaque slate, so a 5%-white fill
+          // no longer reads as a field at all — it needs its own step down from the
+          // card, not up. Hence a dark inset well plus a brighter rim.
           style={{
-            background: focused ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.05)',
-            border: `1px solid ${focused ? 'rgba(34,211,238,0.55)' : 'rgba(255,255,255,0.12)'}`,
-            boxShadow: focused ? '0 0 0 4px rgba(8,145,178,0.18)' : 'none',
+            background: focused ? 'rgba(2,6,16,0.55)' : 'rgba(2,6,16,0.40)',
+            border: `1px solid ${focused ? 'rgba(34,211,238,0.60)' : 'rgba(148,163,184,0.24)'}`,
+            boxShadow: focused
+              ? '0 0 0 4px rgba(8,145,178,0.20), inset 0 1px 2px rgba(0,0,0,0.35)'
+              : 'inset 0 1px 2px rgba(0,0,0,0.30)',
           }}
         />
       </div>

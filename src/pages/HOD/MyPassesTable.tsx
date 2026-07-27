@@ -78,9 +78,9 @@ export default function MyPassesTable({
                 <TypeChip type={p.type} />
               </td>
               <td>{p.visitor_name}</td>
-              <td className="max-w-[220px] truncate">{p.material_description}</td>
+              <td className="max-w-[220px] truncate">{p.material_summary ?? ''}</td>
               <td className="tabular">
-                {p.quantity} {p.unit}
+                {p.item_count} item(s)
               </td>
               <td>
                 <Badge style={STATUS_STYLES[p.status]} />

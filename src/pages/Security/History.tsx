@@ -24,9 +24,9 @@ const CSV_COLUMNS: CsvColumn[] = [
   { key: 'pass_number', header: 'Pass No' },
   { key: 'type', header: 'Type' },
   { key: 'visitor_name', header: 'Visitor' },
-  { key: 'material_description', header: 'Material' },
-  { key: 'quantity', header: 'Quantity' },
-  { key: 'unit', header: 'Unit' },
+  { key: 'material_summary', header: 'Material' },
+  { key: 'total_quantity', header: 'Total Qty' },
+  { key: 'item_count', header: 'Items' },
   { key: 'status', header: 'Status' },
   { key: 'verified_by_name', header: 'Verified By' },
   { key: 'verified_at', header: 'Verified At' },
@@ -74,7 +74,7 @@ export default function History(): React.ReactElement {
         p.pass_number.toLowerCase().includes(q) ||
         p.visitor_name.toLowerCase().includes(q) ||
         (p.vehicle_number ?? '').toLowerCase().includes(q) ||
-        p.material_description.toLowerCase().includes(q);
+        (p.material_summary ?? '').toLowerCase().includes(q);
       if (!hit) return false;
     }
     return true;
@@ -153,9 +153,9 @@ export default function History(): React.ReactElement {
                     <TypeChip type={p.type} />
                   </td>
                   <td>{p.visitor_name}</td>
-                  <td className="max-w-[200px] truncate">{p.material_description}</td>
+                  <td className="max-w-[200px] truncate">{p.material_summary ?? ''}</td>
                   <td className="tabular">
-                    {p.quantity} {p.unit}
+                    {p.item_count} item(s)
                   </td>
                   <td>
                     <Badge style={STATUS_STYLES[p.status]} />

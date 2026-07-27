@@ -200,10 +200,10 @@ export default function GateConsole(): React.ReactElement {
                   <span className="font-semibold">{p.visitor_name}</span>
                   {p.visitor_company && <span className="text-navy-400"> · {p.visitor_company}</span>}
                 </p>
-                <p className="text-sm text-navy-600 truncate">{p.material_description}</p>
+                <p className="text-sm text-navy-600 truncate">{p.material_summary ?? ''}</p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-navy-500">
                   <span className="tabular">
-                    {p.quantity} {p.unit}
+                    {p.item_count} item(s)
                   </span>
                   <span>{p.vehicle_number ?? 'No vehicle'}</span>
                   <span>{p.department_name}</span>

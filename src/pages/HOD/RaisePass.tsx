@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gp, pub, supabase } from '../../supabaseClient';
-import type { NewGatePass, PassDirection, PassType } from '../../types';
+import type { NewGatePass, NewGatePassItem, PassDirection, PassType } from '../../types';
+import { EMPTY_ITEM } from '../../types';
 import { allowedDirections, PASS_DIRECTIONS, requiresReturnDate } from '../../lib/passTypes';
 import { fetchMyProfile } from '../../lib/profiles';
 import { safeErrorMessage } from '../../lib/errors';
@@ -18,31 +19,25 @@ interface DeptOption {
 
 const UNITS = ['nos', 'kg', 'box', 'roll', 'litre', 'metre', 'set'] as const;
 
-type FormErrors = Partial<Record<keyof NewGatePass, string>>;
+type FormErrors = Record<string, string | undefined>;
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function initialForm(): NewGatePass {
-  return {
+export default function RaisePass(): React.ReactElement {
+  const navigate = useNavigate();
+  const [form, setForm] = useState<NewGatePass>({
     type: 'RGP',
     direction: 'out',
     department_id: '',
     visitor_name: '',
     visitor_company: '',
-    material_description: '',
-    quantity: '',
-    unit: 'nos',
     vehicle_number: '',
     purpose: '',
     expected_return_date: '',
-  };
-}
-
-export default function RaisePass(): React.ReactElement {
-  const navigate = useNavigate();
-  const [form, setForm] = useState<NewGatePass>(initialForm);
+    items: [{ ...EMPTY_ITEM }],
+  });
   const [errors, setErrors] = useState<FormErrors>({});
   const [depts, setDepts] = useState<DeptOption[]>([]);
   const [deptLoading, setDeptLoading] = useState(true);
@@ -53,8 +48,6 @@ export default function RaisePass(): React.ReactElement {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
-    // Best-effort: a failed name lookup must never block raising a pass, so the
-    // identity panel just keeps showing "Loading…" rather than an error.
     fetchMyProfile()
       .then((p) => setHodName(p?.full_name ?? null))
       .catch(() => setHodName(null));
@@ -80,7 +73,7 @@ export default function RaisePass(): React.ReactElement {
         if (!cancelled) {
           const list = (deptRows ?? []) as DeptOption[];
           setDepts(list);
-          if (list.length === 1) setForm((f) => ({ ...f, department_id: list[0].id }));
+          if (list.length > 0) setForm((f) => ({ ...f, department_id: list[0].id }));
         }
       } catch (err) {
         if (!cancelled) setSubmitError(safeErrorMessage(err));
@@ -95,9 +88,6 @@ export default function RaisePass(): React.ReactElement {
   }, []);
 
   function handleTypeChange(type: PassType) {
-    // NRGP is outward-only (gate_passes_nrgp_is_outward). If the direction the
-    // HOD already had selected isn't legal for the new type, snap it to the
-    // first allowed value instead of letting the form hold an illegal pair.
     const allowed = allowedDirections(type);
     setForm((f) => ({
       ...f,
@@ -113,16 +103,54 @@ export default function RaisePass(): React.ReactElement {
     setErrors((e) => ({ ...e, [key]: undefined }));
   }
 
+  function updateItem(idx: number, field: keyof NewGatePassItem, value: string) {
+    setForm((f) => ({
+      ...f,
+      items: f.items.map((item, i) => (i === idx ? { ...item, [field]: value } : item)),
+    }));
+    setErrors((e) => ({ ...e, [`item_${idx}_${field}`]: undefined }));
+  }
+
+  function addItem() {
+    setForm((f) => ({ ...f, items: [...f.items, { ...EMPTY_ITEM }] }));
+    setErrors((e) => {
+      const next = { ...e };
+      Object.keys(next).forEach((key) => { if (key.startsWith('item_')) delete next[key]; });
+      delete next.items;
+      return next;
+    });
+  }
+
+  function removeItem(idx: number) {
+    setForm((f) => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
+    setErrors((e) => {
+      const next = { ...e };
+      Object.keys(next).forEach((key) => { if (key.startsWith('item_')) delete next[key]; });
+      return next;
+    });
+  }
+
   function validate(): FormErrors {
     const errs: FormErrors = {};
     if (!form.visitor_name.trim()) errs.visitor_name = 'Visitor name is required.';
-    if (!form.material_description.trim()) errs.material_description = 'Material description is required.';
-    const qty = Number(form.quantity);
-    if (!form.quantity || Number.isNaN(qty) || qty <= 0) errs.quantity = 'Enter a quantity greater than 0.';
+
+    if (form.items.length === 0) {
+      errs.items = 'At least one material item is required.';
+    } else {
+      form.items.forEach((item, idx) => {
+        if (!item.description.trim()) {
+          errs[`item_${idx}_description`] = 'Description is required.';
+        }
+        const qty = Number(item.quantity);
+        if (!item.quantity || Number.isNaN(qty) || qty <= 0) {
+          errs[`item_${idx}_quantity`] = 'Enter a quantity greater than 0.';
+        }
+      });
+    }
+
     if (!form.purpose.trim()) errs.purpose = 'Purpose is required.';
 
     if (depts.length === 0) errs.department_id = 'You are not assigned to any department.';
-    else if (depts.length > 1 && !form.department_id) errs.department_id = 'Select a department.';
 
     if (requiresReturnDate(form.type)) {
       if (!form.expected_return_date) {
@@ -144,22 +172,24 @@ export default function RaisePass(): React.ReactElement {
     setSubmitError(null);
     try {
       if (!userId) throw new Error('Could not determine your user account. Please sign in again.');
-      const departmentId = depts.length === 1 ? depts[0].id : form.department_id;
-      const payload = {
-        type: form.type,
-        direction: form.direction,
-        department_id: departmentId,
-        raised_by: userId,
-        visitor_name: form.visitor_name.trim(),
-        visitor_company: form.visitor_company.trim() || null,
-        material_description: form.material_description.trim(),
-        quantity: Number(form.quantity),
-        unit: form.unit,
-        vehicle_number: form.vehicle_number.trim() || null,
-        purpose: form.purpose.trim(),
-        expected_return_date: requiresReturnDate(form.type) ? form.expected_return_date : null,
-      };
-      const { data, error } = await gp().from('gate_passes').insert(payload).select().single();
+      const departmentId = depts[0].id;
+      const { data, error } = await gp().rpc('raise_pass', {
+        p_type: form.type,
+        p_direction: form.direction,
+        p_department_id: departmentId,
+        p_visitor_name: form.visitor_name.trim(),
+        p_visitor_company: form.visitor_company.trim() || null,
+        p_vehicle_number: form.vehicle_number.trim() || null,
+        p_purpose: form.purpose.trim(),
+        p_expected_return_date: requiresReturnDate(form.type) ? form.expected_return_date : null,
+        p_items: form.items.map((item) => ({
+          description: item.description.trim(),
+          quantity: Number(item.quantity),
+          unit: item.unit,
+          serial_no: item.serial_no.trim() || null,
+          approx_value: item.approx_value ? Number(item.approx_value) : null,
+        })),
+      });
       if (error) throw error;
       navigate(`/pass/${data.id}?created=1`);
     } catch (err) {
@@ -169,9 +199,6 @@ export default function RaisePass(): React.ReactElement {
     }
   }
 
-  // Derived from state, not stored, so it updates live as the HOD changes
-  // type or direction — this is a preview only, the real number comes back
-  // from the `set_pass_number` trigger on insert.
   const directionOptions = allowedDirections(form.type);
   const directionLocked = directionOptions.length === 1;
   const passNumberPrefix = `${form.type}-${form.direction.toUpperCase()}-${todayStr().replace(/-/g, '')}`;
@@ -216,15 +243,8 @@ export default function RaisePass(): React.ReactElement {
           <label className="label">Department</label>
           {deptLoading ? (
             <div className="skeleton h-10 w-full" />
-          ) : depts.length === 1 ? (
+          ) : depts.length > 0 ? (
             <p className="text-sm font-medium text-navy-900 py-2">{depts[0].name} ({depts[0].code})</p>
-          ) : depts.length > 1 ? (
-            <select className="input" value={form.department_id} onChange={(e) => update('department_id', e.target.value)}>
-              <option value="">Select department…</option>
-              {depts.map((d) => (
-                <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
-              ))}
-            </select>
           ) : (
             <p className="text-sm text-flagged-700">You are not assigned to any department. Contact an administrator.</p>
           )}
@@ -244,31 +264,63 @@ export default function RaisePass(): React.ReactElement {
         </div>
 
         <div>
-          <label className="label">Material Description</label>
-          <textarea className="input" rows={3} value={form.material_description} onChange={(e) => update('material_description', e.target.value)} />
-          {errors.material_description && <p className="field-error">{errors.material_description}</p>}
+          <div className="flex items-center justify-between mb-2">
+            <label className="label mb-0">Materials / Items</label>
+            <span className="text-sm text-navy-400">{form.items.length} item{form.items.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="flex flex-col gap-3">
+            {form.items.map((item, idx) => (
+              <div key={idx} className="border border-surface-300 rounded-lg p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <span className="text-sm font-medium text-navy-500">Item #{idx + 1}</span>
+                  {form.items.length > 1 && (
+                    <button type="button" className="text-flagged-600 hover:text-flagged-700 text-sm font-medium" onClick={() => removeItem(idx)}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <div>
+                  <label className="label">Description</label>
+                  <textarea className="input" rows={2} value={item.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} />
+                  {errors[`item_${idx}_description`] && <p className="field-error">{errors[`item_${idx}_description`]}</p>}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                  <div>
+                    <label className="label">Quantity</label>
+                    <input type="number" min="0.01" step="0.01" className="input" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} />
+                    {errors[`item_${idx}_quantity`] && <p className="field-error">{errors[`item_${idx}_quantity`]}</p>}
+                  </div>
+                  <div>
+                    <label className="label">Unit</label>
+                    <select className="input" value={item.unit} onChange={(e) => updateItem(idx, 'unit', e.target.value)}>
+                      {UNITS.map((u) => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                  <div>
+                    <label className="label">Serial No.</label>
+                    <input className="input" value={item.serial_no} onChange={(e) => updateItem(idx, 'serial_no', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Approx. Value</label>
+                    <input type="number" min="0" step="0.01" className="input" value={item.approx_value} onChange={(e) => updateItem(idx, 'approx_value', e.target.value)} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button type="button" className="btn-secondary mt-3" onClick={addItem}>
+            + Add Item
+          </button>
+          {errors.items && <p className="field-error">{errors.items}</p>}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="label">Quantity</label>
-            <input type="number" min="0.01" step="0.01" className="input" value={form.quantity} onChange={(e) => update('quantity', e.target.value)} />
-            {errors.quantity && <p className="field-error">{errors.quantity}</p>}
-          </div>
-          <div>
-            <label className="label">Unit</label>
-            <select className="input" value={form.unit} onChange={(e) => update('unit', e.target.value)}>
-              {UNITS.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label">Vehicle Number</label>
-            <input className="input" value={form.vehicle_number} onChange={(e) => update('vehicle_number', e.target.value)} />
-          </div>
+        <div>
+          <label className="label">Vehicle Number</label>
+          <input className="input" value={form.vehicle_number} onChange={(e) => update('vehicle_number', e.target.value)} />
         </div>
 
         <div>

@@ -103,12 +103,12 @@ export default function PassPrint(): React.ReactElement {
             <tbody>
               <Row label="Visitor" value={pass.visitor_name} />
               <Row label="Company" value={pass.visitor_company} />
-              <Row label="Material" value={pass.material_description} />
+              <Row label="Material" value={pass.material_summary ?? ''} />
               {/* Full word, not the arrow glyph from PASS_DIRECTIONS — this table
                   is mono black/white, so the arrow's meaning must not depend on
                   a reader recognising which way it points. */}
               <Row label="Direction" value={pass.direction === 'in' ? 'INWARD' : 'OUTWARD'} />
-              <Row label="Quantity" value={`${pass.quantity} ${pass.unit}`} />
+              <Row label="Quantity" value={`${pass.item_count} line(s)`} />
               <Row label="Vehicle No" value={pass.vehicle_number} />
               <Row label="Purpose" value={pass.purpose} />
               <Row label="Department" value={pass.department_name} />

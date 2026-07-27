@@ -172,9 +172,9 @@ export default function Verify(): React.ReactElement {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Field label="Visitor Name" value={pass.visitor_name} />
           <Field label="Company" value={pass.visitor_company ?? '—'} />
-          <Field label="Material Description" value={pass.material_description} full />
+          <Field label="Material Description" value={pass.material_summary ?? ''} full />
           <Field label="Direction" value={PASS_DIRECTIONS[pass.direction].label} />
-          <Field label="Quantity" value={`${pass.quantity} ${pass.unit}`} />
+          <Field label="Quantity" value={`${pass.item_count} line(s)`} />
           <Field label="Vehicle Number" value={pass.vehicle_number ?? '—'} />
           <Field label="Purpose" value={pass.purpose} full />
           <Field label="Department" value={pass.department_name} />

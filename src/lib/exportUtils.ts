@@ -3,9 +3,14 @@ export interface CsvColumn {
   header: string;
 }
 
-/** Quote a value only when it contains a comma, quote, or newline (RFC 4180). */
+/**
+ * Quote a value only when it contains a comma, quote, or newline (RFC 4180).
+ * Neutralises CSV injection: if a cell starts with `=`, `+`, `-`, or `@`,
+ * Excel / Google Sheets would interpret it as a formula.
+ */
 function escapeCsvValue(value: unknown): string {
-  const str = value == null ? '' : String(value);
+  let str = value == null ? '' : String(value);
+  if (/^[=+\-@]/.test(str)) str = '\t' + str;
   if (/[",\r\n]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }

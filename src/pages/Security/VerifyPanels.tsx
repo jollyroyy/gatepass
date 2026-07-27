@@ -15,7 +15,7 @@ interface MatchPanelProps {
 }
 
 export function MatchPanel({ pass, submitting, error, onCancel, onConfirm }: MatchPanelProps): React.ReactElement {
-  const [quantity, setQuantity] = useState(String(pass.quantity));
+  const [quantity, setQuantity] = useState(String(pass.total_quantity));
   const [vehicle, setVehicle] = useState(pass.vehicle_number ?? '');
   const [remarks, setRemarks] = useState('');
 

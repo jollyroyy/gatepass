@@ -186,7 +186,7 @@ export default function Dashboard(): React.ReactElement {
                     <TypeChip type={p.type} />
                     <span className="text-sm text-navy-600">{p.visitor_name}</span>
                   </div>
-                  <p className="text-xs text-navy-400 truncate">{p.material_description}</p>
+                   <p className="text-xs text-navy-400 truncate">{p.material_summary ?? ''}</p>
                   <p className="text-sm font-semibold text-flagged-700 mt-0.5">
                     Reason: {p.flag_reason ?? 'No reason recorded'}
                   </p>
@@ -228,9 +228,9 @@ export default function Dashboard(): React.ReactElement {
                     <TypeChip type={p.type} />
                   </td>
                   <td>{p.visitor_name}</td>
-                  <td className="max-w-[220px] truncate">{p.material_description}</td>
+                  <td className="max-w-[220px] truncate">{p.material_summary ?? ''}</td>
                   <td className="tabular">
-                    {p.quantity} {p.unit}
+                    {p.item_count} item(s)
                   </td>
                   <td>
                     <Badge style={STATUS_STYLES[p.status]} />

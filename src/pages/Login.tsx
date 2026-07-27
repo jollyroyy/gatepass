@@ -60,14 +60,20 @@ export default function Login(): React.ReactElement {
         className="absolute inset-0 bg-cover bg-center"
         style={{ backgroundImage: "url('/login-bg.jpg')" }}
       />
-      {/* Scrim — the photo is bright and unevenly lit, and the crop point moves with
-          the viewport, so the card needs a guaranteed contrast floor behind it. */}
+      {/* Scrim, two layers.
+          The photo's brightest region — the cyan-lit security portal and the lit
+          corridor behind it — sits dead centre, which is exactly where the card
+          lands. A radial scrim that is WEAKEST at the centre therefore protects
+          the card least where it needs protection most, so this is a flat veil
+          plus a vignette: an even contrast floor everywhere, and the corners
+          pushed down further so the eye is led inward. */}
+      <div aria-hidden className="absolute inset-0" style={{ background: 'rgba(6,10,20,0.62)' }} />
       <div
         aria-hidden
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(130% 100% at 50% 50%, rgba(8,12,24,0.42) 0%, rgba(8,12,24,0.80) 100%)',
+            'radial-gradient(120% 95% at 50% 45%, transparent 0%, rgba(4,7,14,0.55) 70%, rgba(4,7,14,0.85) 100%)',
         }}
       />
 
@@ -100,7 +106,10 @@ export default function Login(): React.ReactElement {
           >
             GatePass
           </h1>
-          <p className="text-[11px] text-slate-300/80 mt-2.5 uppercase tracking-[0.22em] font-medium">
+          <p
+            className="text-[11px] text-slate-200/90 mt-2.5 uppercase tracking-[0.22em] font-medium"
+            style={{ textShadow: '0 1px 8px rgba(0,0,0,0.6)' }}
+          >
             Material Movement Control
           </p>
         </div>
@@ -108,11 +117,22 @@ export default function Login(): React.ReactElement {
         <form
           onSubmit={submit}
           className="relative rounded-3xl p-7 space-y-5 backdrop-blur-2xl overflow-hidden"
+          // The card is deliberately DARKER and more opaque than the photo it sits
+          // on, rather than lighter: the background is a dark corridor lit by cyan
+          // and amber, so a pale panel would fight both accents, while a near-solid
+          // slate plate reads as the same chrome as `.shell-sidebar` (#0F172A) — the
+          // surface the user meets on the very next screen.
+          //
+          // 0.62 opacity was not enough to stop the bright portal behind it showing
+          // through; 0.88 over the veil above puts the fill at roughly #0C1322, which
+          // carries white body text at ~15:1 and the slate-300 sub-copy at ~10:1
+          // regardless of where the photo crops.
           style={{
-            background: 'rgba(10,15,28,0.62)',
-            border: '1px solid rgba(255,255,255,0.11)',
+            background:
+              'linear-gradient(160deg, rgba(16,23,42,0.90) 0%, rgba(9,14,26,0.90) 100%)',
+            border: '1px solid rgba(148,163,184,0.20)',
             boxShadow:
-              '0 32px 64px -16px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.09)',
+              '0 32px 64px -16px rgba(0,0,0,0.75), 0 0 0 1px rgba(34,211,238,0.07), inset 0 1px 0 rgba(255,255,255,0.10)',
           }}
         >
           {/* Cyan hairline along the top edge — the one decorative flourish, and it
@@ -128,7 +148,7 @@ export default function Login(): React.ReactElement {
 
           <div className="mb-1">
             <h2 className="text-lg font-semibold text-white tracking-tight">Welcome back</h2>
-            <p className="text-xs text-slate-400 mt-1">Sign in to continue to the gate console.</p>
+            <p className="text-xs text-slate-300/85 mt-1">Sign in to continue to the gate console.</p>
           </div>
 
           <AuthField
@@ -204,7 +224,10 @@ export default function Login(): React.ReactElement {
           </button>
         </form>
 
-        <p className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400/80 mt-6">
+        <p
+          className="flex items-center justify-center gap-1.5 text-[11px] text-slate-300/90 mt-6"
+          style={{ textShadow: '0 1px 8px rgba(0,0,0,0.7)' }}
+        >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
             <path
               strokeLinecap="round"

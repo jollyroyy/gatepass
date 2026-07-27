@@ -140,9 +140,9 @@ export default function PendingReturns(): React.ReactElement {
                       {p.visitor_name}
                       {p.visitor_company && <span className="text-navy-400"> · {p.visitor_company}</span>}
                     </td>
-                    <td className="max-w-[220px] truncate">{p.material_description}</td>
+                    <td className="max-w-[220px] truncate">{p.material_summary ?? ''}</td>
                     <td className="tabular">
-                      {p.quantity} {p.unit}
+                      {p.item_count} item(s)
                     </td>
                     <td className="tabular whitespace-nowrap">{formatDateOnly(p.expected_return_date)}</td>
                     <td>
