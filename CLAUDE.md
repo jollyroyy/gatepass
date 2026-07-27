@@ -36,20 +36,22 @@ re-concatenated is a fix that never reaches the database.
 
 ## Current state — verified 2026-07-27
 
-Frontend typechecks, builds, and passes all **198 tests**. **All migrations are now applied
+Frontend typechecks, builds, and passes all **218 tests** (10 files). **All migrations are now applied
 to the live database.** Verified by direct catalog query this session, not inferred:
 
 | Thing | State |
 |---|---|
 | Supabase project | `oxzzeonftrmohdrancex` — named **VMS**, region `ap-south-1`, PG 17.6 |
-| Migrations `001`–`004`, `006` | ✅ applied (`006` was applied all along — the old "NOT applied" note here was wrong, see below) |
+| Migrations `001`–`004`, `006` | ✅ applied (`006` was applied all along — see note below) |
 | Migration `007` | ✅ superseded by `009`; harmless to re-run |
-| Migration `008` | ✅ **applied 2026-07-27** — enums, columns, functions, index, view all verified present |
-| Migration `009` | ✅ **applied 2026-07-27** — grant correction, see below |
+| Migration `008` | ✅ **applied 2026-07-27** — enums, columns, functions, index, view |
+| Migration `009` | ✅ **applied 2026-07-27** — grant correction |
 | Migration `010` | ✅ **applied 2026-07-27** — direction column, IGP/OGP retired, HOD delete |
 | Migration `011` | ✅ **applied 2026-07-27** — dropped dead `gate_passes_type_idx` |
-| Migration `012` | ✅ **applied 2026-07-27** — pass integrity constraints; open-pass rule, verified live |
-| `gatepass.gate_passes` | 0 rows — no production data exists yet |
+| Migration `012` | ✅ **applied 2026-07-27** — pass integrity constraints |
+| Migration `013`–`016` | ✅ **applied 2026-07-27** — gate items, verification detail, HOD review, KPIs/aging/vendor/blacklist/bulk |
+| Migration `017` | ✅ **applied 2026-07-27** — RGP-in constraint fix (`rgp_needs_return_date` dropped, `gate_passes_return_date_required` with direction-aware check) |
+| `gatepass.gate_passes` | 10 test rows (all from dev/RLS verification) |
 | `public.departments` | ✅ 5 rows: FIN, HR, IT, SA, DEV |
 
 **`006` was never actually missing.** The previous session concluded it was unapplied from a

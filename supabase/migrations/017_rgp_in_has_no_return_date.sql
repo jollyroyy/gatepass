@@ -20,7 +20,11 @@
 -- NRGP-out  → expected_return_date prohibited
 -- ============================================================================
 
--- Postgres auto-named the original constraint. Find and drop it.
+-- Postgres auto-named the original constraint (name varies by migration history).
+-- migration 010 created it as `rgp_needs_return_date`; earlier versions may use
+-- `gate_passes_expected_return_date_check`. Drop whichever exists.
+alter table gatepass.gate_passes
+  drop constraint if exists rgp_needs_return_date;
 alter table gatepass.gate_passes
   drop constraint if exists gate_passes_expected_return_date_check;
 
