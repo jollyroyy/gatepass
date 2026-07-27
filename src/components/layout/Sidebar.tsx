@@ -35,15 +35,15 @@ const ALL_LINKS: NavLink[] = [
     icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M7 3.75h7.5L19 8.25V19.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 017 19.5V3.75z" /><path strokeLinecap="round" strokeLinejoin="round" d="M14.5 3.75V8.25H19M9.5 12.75h5M9.5 15.75h5M9.5 18.75h3" /></svg>,
   },
   {
-    to: '/console', label: 'Gate Console', roles: ['guard', 'admin', 'super_admin'],
+    to: '/console', label: 'Gate Console', roles: ['guard'],
     icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg>,
   },
   {
-    to: '/returns', label: 'Pending Returns', roles: ['guard', 'admin', 'super_admin'],
+    to: '/returns', label: 'Pending Returns', roles: ['guard'],
     icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" /></svg>,
   },
   {
-    to: '/history', label: 'History', roles: ['guard', 'admin', 'super_admin'],
+    to: '/history', label: 'History', roles: ['guard'],
     icon: <svg {...ICON_PROPS}><circle cx="12" cy="12" r="8.25" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5v5.25l3.5 2" /></svg>,
   },
   {
