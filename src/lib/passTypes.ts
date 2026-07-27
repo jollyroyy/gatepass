@@ -99,8 +99,8 @@ export function categoryFor(type: PassType, direction: PassDirection): PassCateg
   return PASS_CATEGORIES[categoryKey(type, direction)];
 }
 
-export function requiresReturnDate(t: PassType): boolean {
-  return PASS_TYPES[t].returnable;
+export function requiresReturnDate(t: PassType, direction: PassDirection): boolean {
+  return t === 'RGP' && direction === 'out';
 }
 
 /** Directions selectable for a type. Selecting NRGP must snap direction to 'out'. */

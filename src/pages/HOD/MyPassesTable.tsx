@@ -47,9 +47,11 @@ export default function MyPassesTable({
     return (
       <div className="table-wrap empty-state">
         <p>{rows.length === 0 ? 'You have not raised any gate passes yet.' : 'No passes match these filters.'}</p>
-        <Link to="/raise" className="btn-primary inline-block mt-3">
-          Raise a Gate Pass
-        </Link>
+        {rows.length === 0 && (
+          <Link to="/raise" className="btn-primary inline-block mt-3">
+            Raise a Gate Pass
+          </Link>
+        )}
       </div>
     );
   }

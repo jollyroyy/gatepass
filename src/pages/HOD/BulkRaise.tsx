@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { gp, pub } from '../../supabaseClient';
 import type { NewGatePass, NewGatePassItem, PassDirection } from '../../types';
 import { EMPTY_ITEM } from '../../types';
-import { PASS_TYPES, PASS_TYPE_LIST, allowedDirections } from '../../lib/passTypes';
+import { PASS_TYPES, PASS_TYPE_LIST, allowedDirections, requiresReturnDate } from '../../lib/passTypes';
 import { safeErrorMessage } from '../../lib/errors';
 
 interface BulkResult {
@@ -207,11 +207,13 @@ export default function BulkRaise(): React.ReactElement {
           {errors.purpose && <p className="field-error">{errors.purpose}</p>}
         </div>
 
-        <div>
-          <label className="label">Expected Return Date (RGP only)</label>
-          <input type="date" className="input" min={todayStr()} value={form.expected_return_date}
-            onChange={(e) => update('expected_return_date', e.target.value)} />
-        </div>
+        {requiresReturnDate(form.type, form.direction) && (
+          <div>
+            <label className="label">Expected Return Date</label>
+            <input type="date" className="input" min={todayStr()} value={form.expected_return_date}
+              onChange={(e) => update('expected_return_date', e.target.value)} />
+          </div>
+        )}
 
         <div>
           <div className="flex items-center justify-between mb-2">

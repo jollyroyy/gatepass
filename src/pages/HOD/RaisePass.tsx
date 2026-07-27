@@ -100,13 +100,22 @@ export default function RaisePass(): React.ReactElement {
 
   function handleTypeChange(type: PassType) {
     const allowed = allowedDirections(type);
+    const newDirection = allowed.includes(form.direction) ? form.direction : allowed[0];
     setForm((f) => ({
       ...f,
       type,
-      direction: allowed.includes(f.direction) ? f.direction : allowed[0],
-      expected_return_date: requiresReturnDate(type) ? f.expected_return_date : '',
+      direction: newDirection,
+      expected_return_date: requiresReturnDate(type, newDirection) ? f.expected_return_date : '',
     }));
     setErrors((e) => ({ ...e, expected_return_date: undefined }));
+  }
+
+  function handleDirectionChange(dir: PassDirection) {
+    setForm((f) => ({
+      ...f,
+      direction: dir,
+      expected_return_date: requiresReturnDate(f.type, dir) ? f.expected_return_date : '',
+    }));
   }
 
   function update<K extends keyof NewGatePass>(key: K, value: NewGatePass[K]) {
@@ -163,7 +172,7 @@ export default function RaisePass(): React.ReactElement {
 
     if (depts.length === 0) errs.department_id = 'You are not assigned to any department.';
 
-    if (requiresReturnDate(form.type)) {
+    if (requiresReturnDate(form.type, form.direction)) {
       if (!form.expected_return_date) {
         errs.expected_return_date = 'Expected return date is required for a Returnable Gate Pass.';
       } else if (form.expected_return_date < todayStr()) {
@@ -192,7 +201,7 @@ export default function RaisePass(): React.ReactElement {
         p_visitor_company: form.visitor_company.trim() || null,
         p_vehicle_number: form.vehicle_number.trim() || null,
         p_purpose: form.purpose.trim(),
-        p_expected_return_date: requiresReturnDate(form.type) ? form.expected_return_date : null,
+        p_expected_return_date: requiresReturnDate(form.type, form.direction) ? form.expected_return_date : null,
         p_items: form.items.map((item) => ({
           description: item.description.trim(),
           quantity: Number(item.quantity),
@@ -242,7 +251,7 @@ export default function RaisePass(): React.ReactElement {
             className="input"
             value={form.direction}
             disabled={directionLocked}
-            onChange={(e) => update('direction', e.target.value as PassDirection)}
+            onChange={(e) => handleDirectionChange(e.target.value as PassDirection)}
           >
             {directionOptions.map((d) => (
               <option key={d} value={d}>
@@ -363,7 +372,7 @@ export default function RaisePass(): React.ReactElement {
           {errors.purpose && <p className="field-error">{errors.purpose}</p>}
         </div>
 
-        {requiresReturnDate(form.type) && (
+        {requiresReturnDate(form.type, form.direction) && (
           <div>
             <label className="label">Expected Return Date</label>
             <input type="date" min={todayStr()} className="input" value={form.expected_return_date} onChange={(e) => update('expected_return_date', e.target.value)} />
