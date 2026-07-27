@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { supabase, gp } from '../../supabaseClient';
-import type { GatePassView } from '../../types';
+import type { GatePassItemView, GatePassView } from '../../types';
 import { TypeChip } from '../../components/Badge';
 import { PASS_DIRECTIONS } from '../../lib/passTypes';
 import { formatDateOnly, formatDateTime } from '../../lib/formatDate';
@@ -26,6 +26,7 @@ export default function Verify(): React.ReactElement {
   const navigate = useNavigate();
 
   const [pass, setPass] = useState<GatePassView | null>(null);
+  const [items, setItems] = useState<GatePassItemView[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -37,10 +38,15 @@ export default function Verify(): React.ReactElement {
     if (!id) return;
     setLoading(true);
     try {
-      const { data, error } = await gp().from('v_gate_passes').select('*').eq('id', id).maybeSingle();
-      if (error) throw error;
-      setPass((data as GatePassView | null) ?? null);
-      setLoadError(data ? null : 'Gate pass not found.');
+      const [passRes, itemsRes] = await Promise.all([
+        gp().from('v_gate_passes').select('*').eq('id', id).maybeSingle(),
+        gp().from('v_gate_pass_items').select('*').eq('gate_pass_id', id).order('line_no'),
+      ]);
+      if (passRes.error) throw passRes.error;
+      if (itemsRes.error) throw itemsRes.error;
+      setPass((passRes.data as GatePassView | null) ?? null);
+      setItems((itemsRes.data as GatePassItemView[]) ?? []);
+      setLoadError(passRes.data ? null : 'Gate pass not found.');
     } catch (err) {
       setLoadError(safeErrorMessage(err));
     } finally {
@@ -89,15 +95,15 @@ export default function Verify(): React.ReactElement {
     setActionError(null);
   }
 
-  async function handleMatchConfirm(quantity: number, vehicle: string, remarks: string) {
+  async function handleMatchConfirm(lines: { item_id: string; verified_qty: number }[], vehicle: string, remarks: string) {
     if (!pass) return;
     setSubmitting(true);
     setActionError(null);
     try {
       const { error } = await gp().rpc('match_pass', {
         p_pass_id: pass.id,
-        p_verified_quantity: quantity,
-        p_verified_vehicle: vehicle || null,
+        p_lines: lines,
+        p_vehicle: vehicle || null,
         p_remarks: remarks || null,
       });
       if (error) throw error;
@@ -214,6 +220,7 @@ export default function Verify(): React.ReactElement {
       {panel === 'match' && (
         <MatchPanel
           pass={pass}
+          items={items}
           submitting={submitting}
           error={actionError}
           onCancel={closePanel}
