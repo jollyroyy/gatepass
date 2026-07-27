@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
-import { supabase, gp } from '../../supabaseClient';
 import type { UserRole } from '../../types';
 import { fetchDisplayName } from '../../lib/profiles';
 import { useTheme } from '../../lib/theme';
@@ -14,8 +13,7 @@ type Props = {
   onCollapsedChange?: (collapsed: boolean) => void;
 };
 
-type CountKey = 'pending' | 'returns' | 'flagged';
-type NavLink = { to: string; label: string; icon: React.ReactNode; roles: UserRole[]; countKey?: CountKey };
+type NavLink = { to: string; label: string; icon: React.ReactNode; roles: UserRole[] };
 
 const ICON_PROPS = { className: 'w-5 h-5', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', strokeWidth: 1.7 } as const;
 
@@ -29,15 +27,19 @@ const ALL_LINKS: NavLink[] = [
     icon: <svg {...ICON_PROPS}><circle cx="12" cy="12" r="8.25" /><path strokeLinecap="round" d="M12 8.25v7.5M8.25 12h7.5" /></svg>,
   },
   {
-    to: '/my-passes', label: 'My Passes', roles: ['hod'], countKey: 'flagged',
+    to: '/analytics', label: 'AI Analytics', roles: ['hod'],
+    icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>,
+  },
+  {
+    to: '/my-passes', label: 'My Passes', roles: ['hod'],
     icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M7 3.75h7.5L19 8.25V19.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 017 19.5V3.75z" /><path strokeLinecap="round" strokeLinejoin="round" d="M14.5 3.75V8.25H19M9.5 12.75h5M9.5 15.75h5M9.5 18.75h3" /></svg>,
   },
   {
-    to: '/console', label: 'Gate Console', roles: ['guard', 'admin', 'super_admin'], countKey: 'pending',
+    to: '/console', label: 'Gate Console', roles: ['guard', 'admin', 'super_admin'],
     icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg>,
   },
   {
-    to: '/returns', label: 'Pending Returns', roles: ['guard', 'admin', 'super_admin'], countKey: 'returns',
+    to: '/returns', label: 'Pending Returns', roles: ['guard', 'admin', 'super_admin'],
     icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" /></svg>,
   },
   {
@@ -56,12 +58,6 @@ const ALL_LINKS: NavLink[] = [
 
 const COLLAPSE_KEY = 'gatepass-sidebar-collapsed';
 
-const COUNT_PILL_STYLE: Record<CountKey, string> = {
-  pending: 'bg-pending-500 text-white',
-  returns: 'bg-brand-600 text-white',
-  flagged: 'bg-flagged-500 text-white',
-};
-
 export default function Sidebar({ session, role, collapsed: collapsedProp, onCollapsedChange }: Props): React.ReactElement {
   const loc = useLocation();
   const { theme, toggleTheme } = useTheme();
@@ -69,7 +65,6 @@ export default function Sidebar({ session, role, collapsed: collapsedProp, onCol
   const links = ALL_LINKS.filter((l) => role && l.roles.includes(role));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileName, setProfileName] = useState<string>('');
-  const [counts, setCounts] = useState<Record<CountKey, number>>({ pending: 0, returns: 0, flagged: 0 });
   const [collapsedInternal, setCollapsedInternal] = useState<boolean>(() => {
     try { return window.localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
   });
@@ -101,48 +96,8 @@ export default function Sidebar({ session, role, collapsed: collapsedProp, onCol
     return () => { cancelled = true; };
   }, [session.user.id, email]);
 
-  // Live counts for the pending-queue / returns / flagged pills, kept fresh via realtime.
-  useEffect(() => {
-    if (!role) return undefined;
-    let cancelled = false;
-    const needsGate = role === 'guard' || role === 'admin' || role === 'super_admin';
-    const needsHod = role === 'hod';
-
-    const fetchCounts = async () => {
-      try {
-        const next: Record<CountKey, number> = { pending: 0, returns: 0, flagged: 0 };
-        if (needsGate) {
-          const [pendingRes, returnsRes] = await Promise.all([
-            gp().from('v_gate_passes').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-            gp().from('v_gate_passes').select('*', { count: 'exact', head: true }).eq('return_status', 'awaiting_return'),
-          ]);
-          next.pending = pendingRes.count ?? 0;
-          next.returns = returnsRes.count ?? 0;
-        }
-        if (needsHod) {
-          const flaggedRes = await gp().from('v_gate_passes').select('*', { count: 'exact', head: true }).eq('status', 'flagged');
-          next.flagged = flaggedRes.count ?? 0;
-        }
-        if (!cancelled) setCounts(next);
-      } catch { /* counts are cosmetic; a failed fetch just leaves the last known value */ }
-    };
-
-    void fetchCounts();
-
-    // Realtime channel mock safety: assign to a variable and guard every chained
-    // call so a mocked client returning a partial object cannot throw.
-    const ch = supabase.channel('sidebar-gate-pass-counts');
-    ch?.on?.(
-      'postgres_changes',
-      { event: '*', schema: 'gatepass', table: 'gate_passes' },
-      () => { void fetchCounts(); },
-    )?.subscribe?.();
-
-    return () => {
-      cancelled = true;
-      if (ch) supabase.removeChannel(ch);
-    };
-  }, [role]);
+  // Sidebar no longer displays count badges. Those are now shown as
+  // top-right push notifications via NotificationBell.
 
   const navContent = (isCollapsed: boolean) => (
     <div className="flex flex-col h-full">
@@ -167,21 +122,13 @@ export default function Sidebar({ session, role, collapsed: collapsedProp, onCol
 
       {/* Nav links */}
       <div className="flex-1 overflow-y-auto px-3 space-y-1.5 pb-4">
-        {links.map(({ to, label, icon, countKey }) => {
+        {links.map(({ to, label, icon }) => {
           const active = loc.pathname === to || (to !== '/' && loc.pathname.startsWith(to));
-          const count = countKey ? counts[countKey] : 0;
-          const pillClass = countKey ? COUNT_PILL_STYLE[countKey] : '';
           return (
             <Link key={to} to={to} title={isCollapsed ? label : undefined}
               className={`sidebar-link px-3 py-2.5 ${isCollapsed ? 'justify-center !px-0' : ''} ${active ? 'sidebar-link-active' : ''}`}>
-              <span className="shrink-0 relative">
-                {icon}
-                {isCollapsed && count > 0 && (
-                  <span className={`sidebar-count absolute -top-1.5 -right-1.5 ${pillClass}`}>{count}</span>
-                )}
-              </span>
+              <span className="shrink-0">{icon}</span>
               {!isCollapsed && <span className="truncate">{label}</span>}
-              {!isCollapsed && count > 0 && <span className={`sidebar-count ${pillClass}`}>{count}</span>}
             </Link>
           );
         })}

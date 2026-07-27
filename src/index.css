@@ -524,10 +524,6 @@
     color: #fff;
     background: #0e7490;
   }
-  /* Count pill on a nav link (pending queue, flagged) */
-  .sidebar-count {
-    @apply ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center tabular;
-  }
 }
 
 @layer utilities {
