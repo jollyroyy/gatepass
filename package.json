@@ -1,0 +1,46 @@
+{
+  "name": "gatepass",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Material Gate Pass System — IGP / OGP / RGP / NRGP with HOD and security gate consoles",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.app.json --noEmit && vite build",
+    "preview": "vite preview",
+    "lint": "tsc --noEmit",
+    "check": "tsc -p tsconfig.app.json --noEmit && vitest run",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:security": "vitest run tests/security",
+    "test:watch": "vitest",
+    "create-user": "tsx scripts/create-user.ts",
+    "build:sql": "node scripts/build-apply-all.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "date-fns": "^3.6.0",
+    "jsqr": "^1.4.0",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-router-dom": "^6.26.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "autoprefixer": "^10.4.0",
+    "dotenv": "^16.6.1",
+    "jsdom": "^29.1.1",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0",
+    "vitest": "^3.0.0"
+  }
+}

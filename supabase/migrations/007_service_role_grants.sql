@@ -1,0 +1,73 @@
+-- ============================================================================
+-- 007 — Let the service role reach the gatepass schema (verification only)
+--
+-- Symptom: `node scripts/verify-rls.mjs` aborts during SETUP, before it checks
+-- anything, with:
+--
+--   assign department: permission denied for schema gatepass   (SQLSTATE 42501)
+--
+-- Cause: migration 002 grants `usage on schema gatepass` to `authenticated` and
+-- to nobody else. That is correct for the app — every screen requires a login,
+-- and `anon` must stay locked out. But it also locks out `service_role`.
+--
+-- Unlike `public`, a NEW schema gets no default Supabase grants: `service_role`
+-- is omnipotent over `public` only because Supabase granted it there at project
+-- creation. Nothing propagates that to `gatepass`. So the service key — the one
+-- credential that can create the throwaway users an RLS test needs — could not
+-- read or write a single gatepass table, and the live verification that
+-- CLAUDE.md lists as outstanding could never run.
+--
+-- Why this does not weaken the threat model in 002:
+--
+--   * `authenticated` and `anon` gain NOTHING here. Every grant below names
+--     `service_role` explicitly. The browser's privileges are byte-for-byte
+--     what migration 002 set them to.
+--   * `service_role` gets NO privilege on gatepass.gate_passes at all — not
+--     select, not insert, and above all not update. The "state transitions are
+--     RPC-only" invariant therefore holds even for the service key: there is no
+--     credential anywhere in this system that can PATCH a pass's status outside
+--     match_pass / flag_pass / mark_returned.
+--   * The service-role key never reaches the browser. It carries no VITE_
+--     prefix (Vite inlines VITE_* into the bundle), lives only in scripts/, and
+--     tests/security/clientSecrets.test.ts fails the build if it appears under
+--     src/.
+--
+-- What the verification script actually needs, and nothing beyond it: it assigns
+-- a throwaway HOD to a department, then removes that assignment in its teardown.
+-- That is hod_departments only.
+--
+-- Cleanup of test PASSES is deliberately NOT enabled here. Deleting from
+-- gatepass.gate_passes would mean granting DELETE on the audit trail, which
+-- tests/security/sqlInvariants.test.ts forbids outright — a gate pass is a
+-- record that someone took material off site, and it should not be removable
+-- through the API by any key. Consequence to know before you run it:
+-- `verify-rls.mjs --mutate` can create a pass but cannot delete it afterwards.
+-- Use the read-only mode unless you are prepared to remove the tagged row by
+-- hand in the SQL Editor. See scripts/verify-rls.mjs.
+-- ============================================================================
+
+-- Reaching the schema at all. Without this every other grant is unusable:
+-- Postgres checks schema USAGE before it checks table privileges, which is why
+-- the failure reads "permission denied for schema gatepass" and never mentions
+-- a table.
+grant usage on schema gatepass to service_role;
+
+-- The one table the verification harness writes. `authenticated` already holds
+-- exactly these three privileges on it (migration 002, line 22) — an HOD's
+-- department assignments are added and removed by the admin UI — so this grants
+-- the service role no shape of access that does not already exist.
+grant select, insert, delete on gatepass.hod_departments to service_role;
+
+-- Read-only, so a failing run can report what it saw. `verifications` rows are
+-- written only inside the SECURITY DEFINER RPCs in migration 003; no INSERT is
+-- granted here, and none is needed.
+grant select on gatepass.verifications to service_role;
+
+-- Deliberately absent, and each omission is load-bearing:
+--
+--   grant ... on gatepass.gate_passes to service_role;   -- audit trail; see above
+--   grant usage on schema gatepass to anon;              -- no logged-out access
+--   grant ... to authenticated;                          -- 002 is the only authority
+--
+-- If a future script needs one of these, that is a security review, not a
+-- one-line patch.

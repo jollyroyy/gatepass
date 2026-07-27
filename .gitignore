@@ -1,0 +1,18 @@
+node_modules/
+dist/
+# Ignore every .env variant (.env.bak, .env.prod, .env.local …) rather than an
+# exact list — a real DB password landed in the wrong env file on 2026-07-27 and
+# an exact-match rule would not have caught a backup or a renamed copy.
+# .env.example is the one deliberate exception: it is a template and is committed.
+.env*
+!.env.example
+*.local
+coverage/
+.DS_Store
+.vscode/
+.idea/
+
+# Vendored agent-skill docs. Reproducible from skills-lock.json via `npx skills add`,
+# so the ~35 third-party markdown files are noise in this repo's history.
+.agents/
+.claude/skills/

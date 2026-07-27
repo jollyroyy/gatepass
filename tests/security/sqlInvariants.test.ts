@@ -1,0 +1,446 @@
+// Static checks on supabase/migrations/*.sql against the invariants CLAUDE.md
+// calls out as "easy to break silently" — the kind of thing a future
+// migration can violate without any error until an HOD reads another
+// department's passes in production.
+import { describe, expect, it } from 'vitest';
+import { sqlMigrations, stripSqlComments } from './sourceScan';
+
+/**
+ * The only view in `gatepass` allowed to omit `security_invoker = true`.
+ *
+ * Adding to this list requires a security review: every other gatepass view
+ * runs as the CALLER by design, so RLS on its base tables is enforced. This
+ * one view is an intentional exception — it runs as its OWNER so that VMS's
+ * (sometimes-recursive) policies on public.profiles are never evaluated. See
+ * migration 006's header for the incident that made this necessary.
+ */
+const OWNER_RIGHTS_VIEWS = ['gatepass.profile_names'];
+
+function allMigrationsText(): { name: string; sql: string }[] {
+  return sqlMigrations().map((m) => ({ name: m.name, sql: stripSqlComments(m.sql) }));
+}
+
+/** Every `create (or replace) view gatepass.X ... ;` statement, across all migrations. */
+function extractViews(migrations: { name: string; sql: string }[]) {
+  const re = /create\s+(?:or replace\s+)?view\s+(gatepass\.\w+)([\s\S]*?);/gi;
+  const views: { name: string; file: string; body: string }[] = [];
+  for (const { name, sql } of migrations) {
+    for (const m of sql.matchAll(re)) {
+      views.push({ name: m[1], file: name, body: m[0] });
+    }
+  }
+  return views;
+}
+
+/** Every `create (or replace) function gatepass.X` statement, up to the next such statement. */
+function extractFunctions(migrations: { name: string; sql: string }[]) {
+  const re = /create\s+(?:or replace\s+)?function\s+(gatepass\.\w+)/gi;
+  const fns: { name: string; file: string; body: string }[] = [];
+  for (const { name, sql } of migrations) {
+    const matches = [...sql.matchAll(re)];
+    matches.forEach((m, i) => {
+      const start = m.index!;
+      const end = i + 1 < matches.length ? matches[i + 1].index! : sql.length;
+      fns.push({ name: m[1], file: name, body: sql.slice(start, end) });
+    });
+  }
+  return fns;
+}
+
+/**
+ * Every `check (...)` table constraint, across all migrations — NOT an RLS
+ * policy's `with check (...)` clause, which is a query-time expression rather
+ * than something Postgres validates at DDL time. Paren-matched rather than a
+ * non-greedy regex because constraint bodies routinely contain nested parens,
+ * e.g. `check ((type = 'RGP') = (expected_return_date is not null))`.
+ */
+function extractCheckConstraints(sql: string): string[] {
+  const constraints: string[] = [];
+  const re = /check\s*\(/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(sql))) {
+    const precedingText = sql.slice(Math.max(0, m.index - 10), m.index);
+    if (/with\s*$/i.test(precedingText)) continue; // RLS "... with check (...)" — not a table constraint
+    let depth = 1;
+    let i = m.index + m[0].length;
+    const start = i;
+    while (i < sql.length && depth > 0) {
+      if (sql[i] === '(') depth++;
+      else if (sql[i] === ')') depth--;
+      i++;
+    }
+    constraints.push(sql.slice(start, i - 1));
+  }
+  return constraints;
+}
+
+describe('SQL invariants', () => {
+  it('every gatepass view sets security_invoker = true, except the documented owner-rights exception', () => {
+    const migrations = allMigrationsText();
+    const views = extractViews(migrations);
+    expect(views.length, 'no `create view gatepass.*` statements were found at all — extraction regex is broken').toBeGreaterThan(0);
+
+    const missingInvoker = views
+      .filter((v) => !OWNER_RIGHTS_VIEWS.includes(v.name))
+      .filter((v) => !/security_invoker\s*=\s*true/i.test(v.body))
+      .map((v) => `${v.file}: ${v.name}`);
+    expect(
+      missingInvoker,
+      `these views omit security_invoker = true — without it a view runs as its OWNER and ` +
+        `bypasses the RLS on its base tables entirely:\n${missingInvoker.join('\n')}`
+    ).toEqual([]);
+
+    const ownerViewsFound = views.filter((v) => OWNER_RIGHTS_VIEWS.includes(v.name));
+    expect(
+      ownerViewsFound.length,
+      `OWNER_RIGHTS_VIEWS lists ${OWNER_RIGHTS_VIEWS.join(', ')} but no migration defines it`
+    ).toBeGreaterThan(0);
+
+    const wronglyInvoked = ownerViewsFound
+      .filter((v) => /security_invoker\s*=\s*true/i.test(v.body))
+      .map((v) => `${v.file}: ${v.name}`);
+    expect(
+      wronglyInvoked,
+      `${OWNER_RIGHTS_VIEWS.join(', ')} is the one deliberate owner-rights view (it must NOT ` +
+        `evaluate public.profiles' policies) — it has grown security_invoker = true and is no ` +
+        `longer immune to VMS's recursive policy:\n${wronglyInvoked.join('\n')}`
+    ).toEqual([]);
+  });
+
+  it('every security definer function pins set search_path = \'\'', () => {
+    const migrations = allMigrationsText();
+    const fns = extractFunctions(migrations);
+    expect(fns.length, 'no `create function gatepass.*` statements were found at all — extraction regex is broken').toBeGreaterThan(0);
+
+    const offenders: string[] = [];
+    for (const fn of fns) {
+      const asIdx = fn.body.search(/as\s*\$\$/i);
+      const signature = asIdx >= 0 ? fn.body.slice(0, asIdx) : fn.body;
+      const isSecurityDefiner = /security\s+definer/i.test(signature);
+      if (isSecurityDefiner && !/set\s+search_path\s*=\s*''/i.test(fn.body)) {
+        offenders.push(`${fn.file}: ${fn.name}`);
+      }
+    }
+    expect(
+      offenders,
+      `these SECURITY DEFINER functions do not pin search_path = '' — a mutable search_path ` +
+        `on a security definer function is a privilege-escalation vector:\n${offenders.join('\n')}`
+    ).toEqual([]);
+
+    // The loop above only fails on a function it actually SAW. If the extraction
+    // regex ever stops matching lookup_pass or cancel_pass (renamed, reformatted
+    // signature, moved to a differently-named migration), the offenders list stays
+    // empty and this whole test passes without having checked them at all — a
+    // false green. Pin that both were found, not just that neither is an offender.
+    for (const required of ['gatepass.lookup_pass', 'gatepass.cancel_pass']) {
+      expect(
+        fns.some((fn) => fn.name === required),
+        `${required} (migration 008, SECURITY DEFINER) was not found by the function-extraction ` +
+          `regex — this test would otherwise pass vacuously without ever checking its search_path`
+      ).toBe(true);
+    }
+  });
+
+  it('gatepass.normalize_material and gatepass.site_tz are declared immutable', () => {
+    // gate_passes_one_pending_per_material_idx (migration 008) is a unique index
+    // built on normalize_material's output; Postgres trusts an IMMUTABLE
+    // function's result to never change for the same input. site_tz feeds the
+    // expiry window computation that depends on the same trust. If either loses
+    // IMMUTABLE, Postgres either stops letting the index use it, or — worse —
+    // keeps trusting a stale answer without complaint.
+    const migrations = allMigrationsText();
+    const fns = extractFunctions(migrations);
+
+    for (const name of ['gatepass.normalize_material', 'gatepass.site_tz']) {
+      const definitions = fns.filter((fn) => fn.name === name);
+      expect(definitions.length, `no migration defines ${name}`).toBeGreaterThan(0);
+      const final = definitions[definitions.length - 1]; // highest-numbered migration wins
+
+      expect(
+        /\bimmutable\b/i.test(final.body),
+        `${name}'s final definition (in ${final.file}) is not declared IMMUTABLE. ` +
+          `gate_passes_one_pending_per_material_idx depends on normalize_material, and site_tz feeds ` +
+          `expires_at — a non-immutable function backing either is a correctness risk Postgres will not ` +
+          `catch for you: the index (or the expiry window) can silently disagree with a re-evaluated result.`
+      ).toBe(true);
+    }
+  });
+
+  it("no migration references the enum value 'cancelled' where Postgres evaluates it at DDL time " +
+    "(a `language sql` function body or a CHECK constraint)", () => {
+    // See migration 008's header: `alter type gatepass.pass_status add value 'cancelled'` cannot be
+    // USED in the same transaction that adds it, and APPLY_ALL.sql pastes every migration into ONE
+    // transaction. A `language sql` function body is parse-validated at CREATE time, and a CHECK
+    // constraint is validated when it's added — either one naming 'cancelled' aborts the entire paste
+    // with "unsafe use of new value ... of enum type gatepass.pass_status". plpgsql bodies are exempt
+    // (stored as text, only syntax-checked at CREATE time) — that's exactly why cancel_pass is plpgsql
+    // and why gatepass.kpis() (language sql) was deliberately NOT extended with a cancelled counter in
+    // migration 008. This is the single easiest thing for a future migration to break silently: it
+    // would type-check and lint clean, and only fail the instant someone pastes APPLY_ALL.sql fresh.
+    const migrations = allMigrationsText();
+    const fns = extractFunctions(migrations);
+    const offenders: string[] = [];
+
+    for (const fn of fns) {
+      const asIdx = fn.body.search(/as\s*\$\$/i);
+      const signature = asIdx >= 0 ? fn.body.slice(0, asIdx) : fn.body;
+      const isSqlLanguage = /language\s+sql\b/i.test(signature) && !/language\s+plpgsql\b/i.test(signature);
+      if (!isSqlLanguage) continue;
+
+      const bodyMatch = fn.body.match(/as\s*\$\$([\s\S]*?)\$\$/i);
+      const dollarBody = bodyMatch ? bodyMatch[1] : fn.body;
+      if (/'cancelled'/i.test(dollarBody)) {
+        offenders.push(`${fn.file}: language sql function ${fn.name}`);
+      }
+    }
+
+    let checkConstraintsFound = 0;
+    for (const { name, sql } of migrations) {
+      for (const body of extractCheckConstraints(sql)) {
+        checkConstraintsFound++;
+        if (/'cancelled'/i.test(body)) {
+          offenders.push(`${name}: check (${body.trim()})`);
+        }
+      }
+    }
+
+    // Sanity: both extraction paths must actually see real examples somewhere in
+    // this migration set, or a silent regex break would make this test vacuous.
+    const sqlLanguageFnsFound = fns.filter((fn) => {
+      const asIdx = fn.body.search(/as\s*\$\$/i);
+      const signature = asIdx >= 0 ? fn.body.slice(0, asIdx) : fn.body;
+      return /language\s+sql\b/i.test(signature) && !/language\s+plpgsql\b/i.test(signature);
+    });
+    expect(
+      sqlLanguageFnsFound.length,
+      'no `language sql` functions were found at all — extraction regex is broken'
+    ).toBeGreaterThan(0);
+    expect(
+      checkConstraintsFound,
+      'no `check (...)` table constraints were found at all — extraction is broken'
+    ).toBeGreaterThan(0);
+
+    expect(
+      offenders,
+      `found a reference to the enum value 'cancelled' somewhere Postgres evaluates at DDL time ` +
+        `(a \`language sql\` function body or a CHECK constraint) — see migration 008's header for why ` +
+        `this aborts the whole APPLY_ALL.sql paste:\n${offenders.join('\n')}`
+    ).toEqual([]);
+  });
+
+  it('no migration performs DDL on the public schema (VMS owns it)', () => {
+    const migrations = allMigrationsText();
+    const forbidden: { label: string; re: RegExp }[] = [
+      { label: 'alter table public.', re: /alter\s+table\s+public\./i },
+      { label: 'create table public.', re: /create\s+table\s+(?:if not exists\s+)?public\./i },
+      { label: 'drop table public.', re: /drop\s+table\s+(?:if exists\s+)?public\./i },
+      { label: 'create policy ... on public.', re: /create\s+policy[\s\S]{0,200}?\bon\s+public\./i },
+      { label: 'drop policy ... on public.', re: /drop\s+policy[\s\S]{0,200}?\bon\s+public\./i },
+      { label: 'alter policy ... on public.', re: /alter\s+policy[\s\S]{0,200}?\bon\s+public\./i },
+      { label: 'create trigger ... on public.', re: /create\s+trigger[\s\S]{0,200}?\bon\s+public\./i },
+    ];
+
+    const offenders: string[] = [];
+    for (const { name, sql } of migrations) {
+      for (const { label, re } of forbidden) {
+        if (re.test(sql)) offenders.push(`${name}: ${label}`);
+      }
+    }
+    expect(
+      offenders,
+      `a migration performs DDL on the public schema — that schema belongs to VMS; new objects ` +
+        `must go in gatepass and reference public.* only by foreign key/join/select:\n` +
+        `${offenders.join('\n')}`
+    ).toEqual([]);
+  });
+
+  // UPDATE stays absolutely forbidden (the RPC-only state machine depends on
+  // it). DELETE has exactly one approved exception as of migration 010: an
+  // HOD may delete their OWN pass while it is still 'pending' — a deliberate,
+  // user-approved trade (see 010's header) so a genuine mistake needn't live
+  // forever. Policy `gate_passes_delete` (010) scopes it to own+pending+hod;
+  // security/admin get no delete grant. So this allows exactly that one grant
+  // statement in 010_direction_and_hod_delete.sql and still fails a delete
+  // grant/policy anywhere else, or any looser one there.
+  it('no migration grants or allows update on gatepass.gate_passes, and delete is confined to the one approved HOD-delete grant', () => {
+    const APPROVED_DELETE_GRANT_FILE = '010_direction_and_hod_delete.sql';
+    const migrations = allMigrationsText();
+    const offenders: string[] = [];
+    let approvedDeleteGrantFound = false;
+
+    const grantRe = /grant\s+([^;]*?)\s+on\s+gatepass\.gate_passes\b/gi;
+    const policyRe = /create\s+policy[\s\S]{0,200}?\bon\s+gatepass\.gate_passes\s+for\s+(update|delete)\b/gi;
+
+    for (const { name, sql } of migrations) {
+      for (const m of sql.matchAll(grantRe)) {
+        const privileges = m[1].toLowerCase();
+        if (/\bupdate\b/.test(privileges)) {
+          offenders.push(`${name}: grants "${m[1].trim()}" on gatepass.gate_passes`);
+        } else if (/\bdelete\b/.test(privileges)) {
+          if (name === APPROVED_DELETE_GRANT_FILE) approvedDeleteGrantFound = true;
+          else offenders.push(`${name}: grants "${m[1].trim()}" on gatepass.gate_passes`);
+        }
+      }
+      for (const m of sql.matchAll(policyRe)) {
+        const kind = m[1].toLowerCase();
+        if (kind === 'update' || name !== APPROVED_DELETE_GRANT_FILE) {
+          offenders.push(`${name}: a "for ${kind}" policy exists on gatepass.gate_passes`);
+        }
+      }
+    }
+
+    expect(
+      approvedDeleteGrantFound,
+      `expected the one approved delete grant in ${APPROVED_DELETE_GRANT_FILE} — not found, so the ` +
+        `migration was renamed/reworded, or this test would pass vacuously without checking it`
+    ).toBe(true);
+
+    expect(
+      offenders,
+      `state changes on gatepass.gate_passes must go exclusively through match_pass/flag_pass/` +
+        `mark_returned (003) — UPDATE is never permitted, and DELETE only via the single own+pending+hod ` +
+        `grant in ${APPROVED_DELETE_GRANT_FILE}:\n${offenders.join('\n')}`
+    ).toEqual([]);
+  });
+
+  it('the final definitions of v_gate_passes and v_verifications join gatepass.profile_names, not public.profiles', () => {
+    const migrations = allMigrationsText(); // sorted by filename => later migrations come last
+    const views = extractViews(migrations);
+
+    for (const viewName of ['gatepass.v_gate_passes', 'gatepass.v_verifications']) {
+      const definitions = views.filter((v) => v.name === viewName);
+      expect(definitions.length, `no migration defines ${viewName}`).toBeGreaterThan(0);
+      const final = definitions[definitions.length - 1]; // last in filename order = highest-numbered
+
+      expect(
+        /join\s+public\.profiles/i.test(final.body),
+        `${viewName}'s final definition (in ${final.file}) still joins public.profiles directly — ` +
+          `migration 006 repointed this to gatepass.profile_names so a recursive VMS policy can't ` +
+          `abort the query`
+      ).toBe(false);
+
+      expect(
+        /join\s+gatepass\.profile_names/i.test(final.body),
+        `${viewName}'s final definition (in ${final.file}) does not join gatepass.profile_names — ` +
+          `it should, per migration 006`
+      ).toBe(true);
+    }
+  });
+
+  it('the material-uniqueness index blocks a second pass while an earlier one is still OUT, not merely while it is pending', () => {
+    // Migration 008 keyed this index on `where status = 'pending'` alone, which
+    // covers only the window between raising a pass and the guard verifying it.
+    // The moment a guard MATCHES an RGP the row becomes matched/awaiting_return,
+    // drops out of that predicate, and a second pass could be raised for material
+    // that is still physically outside the mall. Migration 012 widens the
+    // predicate to "still open" — pending OR awaiting_return — which is what
+    // "one pass per item at a time" actually means.
+    //
+    // Both 'pending' and 'awaiting_return' are enum values from 001, so the
+    // predicate is safe to evaluate in the same transaction APPLY_ALL.sql pastes
+    // (TRAP 1 applies only to values added by a LATER `alter type ... add value`).
+    const migrations = allMigrationsText();
+
+    const re =
+      /create\s+unique\s+index\s+(?:if not exists\s+)?(\w+)\s+on\s+gatepass\.gate_passes([\s\S]*?);/gi;
+    const indexes: { name: string; file: string; body: string }[] = [];
+    for (const { name, sql } of migrations) {
+      for (const m of sql.matchAll(re)) {
+        indexes.push({ name: m[1], file: name, body: m[0] });
+      }
+    }
+
+    const materialIndexes = indexes.filter((i) => /normalize_material/i.test(i.body));
+    expect(
+      materialIndexes.length,
+      'no unique index on gatepass.gate_passes is built over normalize_material — the ' +
+        'one-pass-per-item rule has no enforcement at all, or the extraction regex is broken'
+    ).toBeGreaterThan(0);
+
+    const live = materialIndexes[materialIndexes.length - 1]; // highest-numbered migration wins
+
+    expect(
+      /awaiting_return/i.test(live.body),
+      `the live material-uniqueness index (${live.name}, in ${live.file}) does not mention ` +
+        `awaiting_return, so its predicate stops applying the instant a guard matches the pass. ` +
+        `A second RGP could then be raised for material that has not come back yet — exactly the ` +
+        `duplicate this index exists to prevent.`
+    ).toBe(true);
+
+    // A dropped index is not enforcement. If 012 retired the pending-only index,
+    // no migration may leave it live afterwards.
+    const droppedPendingIdx = migrations.some(({ sql }) =>
+      /drop\s+index\s+(?:if exists\s+)?gatepass\.gate_passes_one_pending_per_material_idx/i.test(sql)
+    );
+    const pendingIdxCreated = materialIndexes.some(
+      (i) => i.name === 'gate_passes_one_pending_per_material_idx'
+    );
+    if (pendingIdxCreated) {
+      expect(
+        droppedPendingIdx,
+        'gate_passes_one_pending_per_material_idx (008) is still created and never dropped, but a ' +
+          'wider replacement exists — two overlapping unique indexes on the same key means the ' +
+          'narrow one still rejects inserts the wide one was rewritten to allow'
+      ).toBe(true);
+    }
+  });
+
+  it('gatepass.validate_pass is plpgsql, because it necessarily names the enum value \'cancelled\'', () => {
+    // The rule "a cancelled pass must carry a reason" could not be a CHECK
+    // constraint in 008 — 'cancelled' was added by that same migration, and
+    // APPLY_ALL.sql is one transaction (TRAP 1). It still cannot be one in 012,
+    // for the identical reason: a fresh paste runs 008 and 012 in the SAME
+    // transaction. So the rule lives in a trigger, and that trigger MUST be
+    // plpgsql — a `language sql` body is parse-validated at CREATE time and would
+    // abort the whole paste.
+    const migrations = allMigrationsText();
+    const fns = extractFunctions(migrations);
+    const definitions = fns.filter((fn) => fn.name === 'gatepass.validate_pass');
+
+    expect(
+      definitions.length,
+      'no migration defines gatepass.validate_pass — migration 012 should, as the home for every ' +
+        'rule that needs now() or the cancelled label and therefore cannot be a CHECK constraint'
+    ).toBeGreaterThan(0);
+
+    const final = definitions[definitions.length - 1];
+    const asIdx = final.body.search(/as\s*\$\$/i);
+    const signature = asIdx >= 0 ? final.body.slice(0, asIdx) : final.body;
+
+    expect(
+      /language\s+plpgsql\b/i.test(signature),
+      `gatepass.validate_pass (in ${final.file}) is not declared language plpgsql. It references ` +
+        `the 'cancelled' enum value, which Postgres evaluates at CREATE time for a language sql ` +
+        `body — that aborts the entire APPLY_ALL.sql paste with "unsafe use of new value".`
+    ).toBe(true);
+
+    expect(
+      /security\s+definer/i.test(signature) ? /set\s+search_path\s*=\s*''/i.test(final.body) : true,
+      `gatepass.validate_pass is SECURITY DEFINER but does not pin search_path = ''`
+    ).toBe(true);
+  });
+
+  it('is_overdue is computed exactly once, in the final gatepass.v_gate_passes definition', () => {
+    // NOTE: a raw grep of "as is_overdue" across every migration file finds
+    // it TWICE (004 defines it, 006's `create or replace view` legitimately
+    // restates the same view — its own header says so: "Repoint the views
+    // away from public.profiles ... Supersedes the profiles joins in 004").
+    // That is ordinary migration history, not a duplicate computation, so
+    // this check looks at the FINAL definition only — the same "highest-
+    // numbered migration wins" rule used for the profile_names join above —
+    // and asserts the computation appears exactly once there.
+    const migrations = allMigrationsText();
+    const views = extractViews(migrations);
+    const definitions = views.filter((v) => v.name === 'gatepass.v_gate_passes');
+    expect(definitions.length, 'no migration defines gatepass.v_gate_passes').toBeGreaterThan(0);
+    const final = definitions[definitions.length - 1];
+
+    const occurrences = (final.body.match(/as\s+is_overdue/gi) ?? []).length;
+    expect(
+      occurrences,
+      `gatepass.v_gate_passes' final definition (in ${final.file}) computes is_overdue ` +
+        `${occurrences} times — it must be defined exactly once so no caller can ever see two ` +
+        `disagreeing answers for the same pass`
+    ).toBe(1);
+  });
+});

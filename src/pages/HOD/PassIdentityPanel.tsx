@@ -1,0 +1,45 @@
+// Read-only panel for the three things the HOD raising a pass must NOT be able
+// to edit: pass number, date, and who is raising it. They are displayed but
+// never submitted — the server sets `pass_number`, `created_at`, and
+// `raised_by` itself, inside the `set_pass_number` trigger. Showing them as
+// disabled inputs tells the HOD they are fixed, rather than leaving them
+// invisible and inviting the question "why isn't there a pass number yet?".
+import React from 'react';
+
+interface PassIdentityPanelProps {
+  passNumberPrefix: string;
+  hodName: string | null;
+}
+
+function todayDisplay(): string {
+  return new Date().toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+export default function PassIdentityPanel({
+  passNumberPrefix,
+  hodName,
+}: PassIdentityPanelProps): React.ReactElement {
+  return (
+    <div className="card p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <p className="label">Pass Number</p>
+        <input className="input" disabled readOnly value={`${passNumberPrefix}-####`} />
+        <p className="text-xs text-navy-400 mt-1">Assigned by the system when you submit.</p>
+      </div>
+      <div>
+        <p className="label">Date</p>
+        <input className="input" disabled readOnly value={todayDisplay()} />
+        <p className="text-xs text-navy-400 mt-1">Always today. Cannot be back-dated.</p>
+      </div>
+      <div>
+        <p className="label">Raised By</p>
+        <input className="input" disabled readOnly value={hodName ?? 'Loading…'} />
+        <p className="text-xs text-navy-400 mt-1">Your account.</p>
+      </div>
+    </div>
+  );
+}

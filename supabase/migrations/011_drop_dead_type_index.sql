@@ -1,0 +1,36 @@
+-- ============================================================================
+-- 011 — Drop the now-useless index on gate_passes.type
+--
+-- `gate_passes_type_idx` was created in 001, when `type` held four values and
+-- looked like a reasonable filter column. Migration 010 reduced it to two (RGP,
+-- NRGP), and nothing filters on it server-side anyway — the gate console pulls
+-- the pending queue and narrows by category in the browser
+-- (GateConsole.tsx: `categoryKey(p.type, p.direction) !== categoryFilter`).
+--
+-- A btree index over two distinct values cannot help: the planner will always
+-- prefer a sequential scan when a predicate selects ~half the table. So it is
+-- pure cost — extra work on every insert and update, extra pages to keep warm,
+-- and one more object nobody is reviewing.
+--
+-- Deliberately NOT dropped, so the reasoning is on record:
+--
+--   gate_passes_status_idx      the console's hot path is `status = 'pending'`
+--   gate_passes_dept_idx        RLS narrows every HOD read by department
+--   gate_passes_created_idx     every list orders by created_at desc
+--   gate_passes_raised_by_idx   /my-passes filters by raised_by, and the delete
+--                               policy in 010 predicates on it
+--   gate_passes_qr_token_idx    unique; the scan path looks up by token
+--   gate_passes_one_pending_per_material_idx  unique; enforces the duplicate rule
+--
+-- Also deliberately kept: gate_passes.updated_at. Nothing renders it, but it is
+-- maintained by the touch_updated_at trigger and is the only record of WHEN a
+-- row last changed. On an audit table that is worth its bytes — "unused by the
+-- UI" and "unused" are not the same thing.
+--
+-- No composite index on (type, direction) is added to replace this. There is no
+-- server-side query to serve, and an index added speculatively is exactly the
+-- unreviewed surface this migration exists to remove. Add one when a slow query
+-- proves it is needed.
+-- ============================================================================
+
+drop index if exists gatepass.gate_passes_type_idx;
