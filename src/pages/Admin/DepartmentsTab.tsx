@@ -134,13 +134,6 @@ export default function DepartmentsTab(): React.ReactElement {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="alert-info">
-        <span>
-          <strong>Heads up:</strong> departments live in <code>public.departments</code>, a table shared with the
-          Visitor Management System. Anything you add, rename, or recode here is visible to VMS immediately.
-        </span>
-      </div>
-
       {loadError && <div className="alert-error">{loadError}</div>}
 
       {/* Create department */}
