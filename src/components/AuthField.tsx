@@ -3,12 +3,13 @@ import React, { useState } from 'react';
 type Props = {
   id: string;
   label: string;
-  type: 'email' | 'password';
+  type: 'email' | 'password' | 'text';
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   autoComplete: string;
   icon: React.ReactNode;
+  trailing?: React.ReactNode;
 };
 
 /**
@@ -27,6 +28,7 @@ export default function AuthField({
   placeholder,
   autoComplete,
   icon,
+  trailing,
 }: Props): React.ReactElement {
   const [focused, setFocused] = useState(false);
 
@@ -59,9 +61,10 @@ export default function AuthField({
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder={placeholder}
-          className="w-full rounded-xl pl-11 pr-4 py-3 text-sm text-navy-900 placeholder:text-slate-400
+          className="w-full rounded-xl pl-11 py-3 text-sm text-navy-900 placeholder:text-slate-400
                      focus:outline-none transition-all duration-200"
           style={{
+            paddingRight: trailing ? '2.75rem' : '1rem',
             background: focused ? '#f8fafc' : '#ffffff',
             border: `1px solid ${focused ? 'rgba(8,145,178,0.50)' : 'rgba(203,213,225,0.70)'}`,
             boxShadow: focused
@@ -69,6 +72,12 @@ export default function AuthField({
               : 'inset 0 1px 2px rgba(0,0,0,0.04)',
           }}
         />
+
+        {trailing && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
+            {trailing}
+          </span>
+        )}
       </div>
     </div>
   );
