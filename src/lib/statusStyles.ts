@@ -7,7 +7,7 @@ export type StatusStyle = { bg: string; text: string; dot: string; label: string
  *  Postgres enum breaks the build here until it has been given a look, rather
  *  than rendering as a blank badge in production. */
 export const STATUS_STYLES: Record<PassStatus, StatusStyle> = {
-  pending: { bg: 'bg-pending-50', text: 'text-pending-700', dot: 'bg-pending-500', label: 'Pending' },
+  pending: { bg: 'bg-pending-50', text: 'text-pending-700', dot: 'bg-pending-500', label: 'Pending Gate Review' },
   // Amber like pending, because that is what a hold IS — the decision is still
   // open. Deliberately NOT red: a hold alleges nothing, and colouring it like a
   // flag would make guards avoid using it, which is how disputes end up

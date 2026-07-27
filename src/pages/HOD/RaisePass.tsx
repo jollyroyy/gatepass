@@ -380,7 +380,7 @@ export default function RaisePass(): React.ReactElement {
               </div>
               <div className="flex justify-between">
                 <span className="text-navy-400">Status</span>
-                <span className="font-medium text-pending-600">Pending</span>
+                <span className="font-medium text-pending-600">Pending Gate Review</span>
               </div>
             </div>
 
