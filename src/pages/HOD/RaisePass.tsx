@@ -206,8 +206,8 @@ export default function RaisePass(): React.ReactElement {
       if (saveVendor && form.visitor_company.trim()) {
         gp().rpc('save_vendor_profile', {
           p_company_name: form.visitor_company.trim(),
-          p_vehicle_number: form.vehicle_number.trim() || null,
           p_department_id: departmentId,
+          p_vehicle_number: form.vehicle_number.trim() || null,
         });
       }
     } catch (err) {

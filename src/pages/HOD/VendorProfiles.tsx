@@ -36,11 +36,11 @@ export default function VendorProfiles(): React.ReactElement {
     try {
       const { error: rpcErr } = await gp().rpc('save_vendor_profile', {
         p_company_name: form.company_name.trim(),
+        p_department_id: null,
         p_contact_person: form.contact_person.trim() || null,
         p_phone: form.phone.trim() || null,
         p_vehicle_number: form.vehicle_number.trim() || null,
         p_typical_material: form.typical_material.trim() || null,
-        p_department_id: null, // Will be set by the function's dept check
       });
       if (rpcErr) throw rpcErr;
       setForm(EMPTY_FORM);

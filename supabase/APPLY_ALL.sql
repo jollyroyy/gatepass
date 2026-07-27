@@ -3362,6 +3362,8 @@ notify pgrst, 'reload schema';
 --
 -- The item-value sum is approximate by design (gate_pass_items stores
 -- indicative worth, not audited value). Never use it for financial reporting.
+drop function if exists gatepass.kpis(uuid);
+
 create or replace function gatepass.kpis(p_department_id uuid default null)
 returns table (
   total            bigint,
@@ -3445,26 +3447,33 @@ as $$
     where p.type = 'RGP'
       and p.return_status::text in ('awaiting_return', 'partially_returned')
       and (p_department_id is null or p.department_id = p_department_id)
+  ),
+  aged as (
+    select
+      case
+        when now() - ar.aging_start < interval '8 days'  then '0-7d'
+        when now() - ar.aging_start < interval '31 days' then '8-30d'
+        when now() - ar.aging_start < interval '91 days' then '31-90d'
+        else '90+'
+      end as bkt,
+      i.approx_value
+    from gatepass.gate_pass_items i
+    join active_rgp ar on ar.id = i.gate_pass_id
   )
   select
-    case
-      when now() - ar.aging_start < interval '8 days'  then '0-7d'
-      when now() - ar.aging_start < interval '31 days' then '8-30d'
-      when now() - ar.aging_start < interval '91 days' then '31-90d'
-      else '90+'
-    end as bucket,
-    count(*)::bigint                                               as item_count,
-    coalesce(sum(i.approx_value), 0)                               as total_value
-  from gatepass.gate_pass_items i
-  join active_rgp ar on ar.id = i.gate_pass_id
-  group by bucket
-  order by
-    case bucket
+    aged.bkt,
+    count(*)::bigint,
+    coalesce(sum(aged.approx_value), 0)
+  from aged
+  group by aged.bkt
+  order by min(
+    case aged.bkt
       when '0-7d' then 1
       when '8-30d' then 2
       when '31-90d' then 3
       when '90+' then 4
-    end;
+      else 5
+    end);
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -3504,11 +3513,11 @@ $$;
 -- Upsert a vendor profile (create or update by company_name + department_id)
 create or replace function gatepass.save_vendor_profile(
   p_company_name     text,
+  p_department_id    uuid,
   p_contact_person   text default null,
   p_phone            text default null,
   p_vehicle_number   text default null,
-  p_typical_material text default null,
-  p_department_id    uuid
+  p_typical_material text default null
 )
 returns gatepass.vendor_profiles
 language plpgsql
@@ -3523,11 +3532,11 @@ begin
   end if;
 
   insert into gatepass.vendor_profiles
-    (company_name, contact_person, phone, vehicle_number,
-     typical_material, department_id, created_by)
+    (company_name, department_id, contact_person, phone, vehicle_number,
+     typical_material, created_by)
   values
-    (p_company_name, p_contact_person, p_phone, p_vehicle_number,
-     p_typical_material, p_department_id, auth.uid())
+    (p_company_name, p_department_id, p_contact_person, p_phone, p_vehicle_number,
+     p_typical_material, auth.uid())
   on conflict (company_name, department_id)
   do update set
     contact_person   = coalesce(p_contact_person, vendor_profiles.contact_person),
@@ -3673,6 +3682,8 @@ alter table gatepass.scan_attempts
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Outcome is still 'ok' (the guard CAN proceed), but blacklist_match carries
 -- the reason text when the pass's company or vehicle is blacklisted.
+drop function if exists gatepass.lookup_pass(text);
+
 create or replace function gatepass.lookup_pass(p_code text)
 returns table (outcome text, pass_id uuid, blacklist_match text)
 language plpgsql
@@ -3844,8 +3855,11 @@ $$;
 grant execute on function gatepass.kpis(uuid)          to authenticated;
 grant execute on function gatepass.returnable_aging(uuid) to authenticated;
 grant execute on function gatepass.list_vendor_profiles(uuid) to authenticated;
-grant execute on function gatepass.save_vendor_profile(text, text, text, text, text, uuid) to authenticated;
+grant execute on function gatepass.save_vendor_profile(text, uuid, text, text, text, text) to authenticated;
 grant execute on function gatepass.delete_vendor_profile(uuid) to authenticated;
+-- lookup_pass grant was re-stated after the drop+recreate above
+grant execute on function gatepass.lookup_pass(text) to authenticated;
+
 grant execute on function gatepass.bulk_create_passes(
   gatepass.pass_type, gatepass.pass_direction, uuid, text, text, text, date, jsonb, int, text
 ) to authenticated;
