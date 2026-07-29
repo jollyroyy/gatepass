@@ -37,13 +37,10 @@ export default function RaisePass(): React.ReactElement {
     vehicle_number: '',
     purpose: '',
     expected_return_date: '',
-    image_url: '',
-    category: '',
     items: [{ ...EMPTY_ITEM }],
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [depts, setDepts] = useState<DeptOption[]>([]);
-  const [deptLoading, setDeptLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [hodName, setHodName] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -51,7 +48,6 @@ export default function RaisePass(): React.ReactElement {
   const [submittedPass, setSubmittedPass] = useState<GatePassView | null>(null);
   const [vendors, setVendors] = useState<VendorProfile[]>([]);
   const [saveVendor, setSaveVendor] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const deptName = depts.length > 0 ? `${depts[0].name} (${depts[0].code})` : '';
 
   useEffect(() => {
@@ -64,7 +60,6 @@ export default function RaisePass(): React.ReactElement {
   useEffect(() => {
     let cancelled = false;
     async function loadDepartments() {
-      setDeptLoading(true);
       try {
         const { data: hodDepts, error: hodErr } = await gp().from('hod_departments').select('department_id');
         if (hodErr) throw hodErr;
@@ -85,8 +80,6 @@ export default function RaisePass(): React.ReactElement {
         }
       } catch (err) {
         if (!cancelled) setSubmitError(safeErrorMessage(err));
-      } finally {
-        if (!cancelled) setDeptLoading(false);
       }
     }
     loadDepartments();

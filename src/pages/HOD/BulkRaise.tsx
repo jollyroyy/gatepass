@@ -11,14 +11,12 @@ interface BulkResult {
   pass_number: string;
 }
 
-interface DeptOption { id: string; name: string; }
 
 const todayStr = (): string => new Date().toISOString().slice(0, 10);
 
 type FormErrors = Partial<Record<keyof NewGatePass | 'count' | 'namePrefix', string>>;
 
 export default function BulkRaise(): React.ReactElement {
-  const [depts, setDepts] = useState<DeptOption[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<BulkResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +38,6 @@ export default function BulkRaise(): React.ReactElement {
         const { data: depts } = await pub().from('departments').select('id, name').in('id', ids).order('name');
         if (!cancelled && depts) {
           const list = (depts as { id: string; name: string }[]).map((d) => ({ id: d.id, name: d.name }));
-          setDepts(list);
           if (list.length > 0) setForm((f) => ({ ...f, department_id: list[0].id }));
         }
       } catch { /* ignore */ }
