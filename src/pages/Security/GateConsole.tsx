@@ -277,42 +277,41 @@ export default function GateConsole(): React.ReactElement {
                   </svg>
                 </div>
 
-                {/* Company + Visitor */}
-                <div className="flex flex-col gap-1">
-                  {p.visitor_company && (
-                    <span className="text-sm font-semibold text-brand-700 truncate">{p.visitor_company}</span>
-                  )}
-                  <span className="text-sm text-navy-600 truncate">{p.visitor_name}</span>
+                {/* Two-column detail grid */}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-navy-400 mb-0.5">Company</p>
+                    <p className="text-sm font-semibold text-brand-700 truncate">{p.visitor_company || '—'}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-navy-400 mb-0.5">Visitor</p>
+                    <p className="text-sm font-medium text-navy-800 truncate">{p.visitor_name}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-navy-400 mb-0.5">Department</p>
+                    <p className="text-sm font-medium text-navy-800 truncate">{p.department_code || p.department_name}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-navy-400 mb-0.5">Vehicle</p>
+                    <p className="text-sm font-medium text-navy-800 truncate">{p.vehicle_number || '—'}</p>
+                  </div>
                 </div>
 
                 {/* Material */}
                 {p.material_summary && (
-                  <p className="text-sm text-navy-500 leading-relaxed line-clamp-2 border-t border-surface-200/60 pt-3">{p.material_summary}</p>
+                  <div className="border-t border-surface-200/60 pt-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-navy-400 mb-1">Material</p>
+                    <p className="text-sm text-navy-600 leading-relaxed line-clamp-2">{p.material_summary}</p>
+                  </div>
                 )}
 
-                {/* Meta badges */}
+                {/* Meta badges row */}
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="inline-flex items-center gap-1.5 font-semibold text-matched-700 bg-matched-50/80 px-2.5 py-1 rounded-full">
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                     </svg>
                     {p.item_count} item{p.item_count !== 1 ? 's' : ''}
-                  </span>
-
-                  {p.vehicle_number && (
-                    <span className="inline-flex items-center gap-1.5 text-navy-500 bg-surface-100/70 px-2.5 py-1 rounded-full">
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                      </svg>
-                      {p.vehicle_number}
-                    </span>
-                  )}
-
-                  <span className="inline-flex items-center gap-1.5 text-navy-500 bg-surface-100/70 px-2.5 py-1 rounded-full">
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                    {p.department_code || p.department_name}
                   </span>
 
                   {p.type === 'RGP' && p.return_status !== 'not_applicable' && (
@@ -329,7 +328,7 @@ export default function GateConsole(): React.ReactElement {
                 </div>
 
                 {/* Footer: raised at + by */}
-                <div className="flex items-center gap-2 text-[11px] text-navy-400 pt-1 border-t border-surface-200/40">
+                <div className="flex items-center gap-2 text-[11px] text-navy-400 pt-2 border-t border-surface-200/40">
                   <span>Raised {formatTime(p.created_at)}</span>
                   <span className="w-1 h-1 rounded-full bg-navy-300/50" />
                   <span>{p.raised_by_name}</span>
