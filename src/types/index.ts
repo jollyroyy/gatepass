@@ -296,6 +296,8 @@ export interface NewGatePass {
   department_id: string;
   visitor_name: string;
   visitor_company: string;
+  company_contact: string;
+  company_address: string;
   vehicle_number: string;
   purpose: string;
   expected_return_date: string;

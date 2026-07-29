@@ -113,6 +113,12 @@ export default function App(): React.ReactElement {
     return <NoAccess />;
   }
 
+  // Print page — outside AppShell so sidebar, notification bell, and all other
+  // chrome are completely absent. Clean, full-width print sheet.
+  if (window.location.pathname.includes('/print')) {
+    return <PassPrint />;
+  }
+
   return (
     <AppShell session={session} role={role}>
       <RouteGuard role={role}>
@@ -139,7 +145,6 @@ export default function App(): React.ReactElement {
 
           {/* Shared */}
           <Route path="/pass/:id" element={<PassDetail />} />
-          <Route path="/pass/:id/print" element={<PassPrint />} />
 
           <Route path="*" element={<Navigate to={homeFor(role)} replace />} />
         </Routes>

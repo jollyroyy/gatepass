@@ -13,6 +13,19 @@ import Badge, { TypeChip } from '../../components/Badge';
 import QrPass from '../../components/QrPass';
 import VoidPassPanel from '../HOD/VoidPassPanel';
 
+function parseCompanyInfo(raw: string | null | undefined): { name: string; contact: string; address: string } {
+  if (!raw) return { name: '', contact: '', address: '' };
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && parsed.n) {
+      return { name: parsed.n, contact: parsed.c || '', address: parsed.a || '' };
+    }
+  } catch {
+    // legacy plain-text
+  }
+  return { name: raw, contact: '', address: '' };
+}
+
 /** `gatepass.v_verifications` — the table plus the security officer's name. */
 interface VerificationView extends Verification {
   security_name: string;
@@ -143,6 +156,7 @@ export default function PassDetail(): React.ReactElement {
   }
 
   const isRgp = pass.type === 'RGP';
+  const companyInfo = parseCompanyInfo(pass.visitor_company);
   // Mirrors cancel_pass exactly: pending, and raised by the signed-in user.
   // Role is not re-checked here — only an HOD can ever be a pass's raised_by,
   // so raised_by === me already implies it, and the RPC re-checks regardless.
@@ -269,7 +283,9 @@ export default function PassDetail(): React.ReactElement {
         <h2 className="section-title mb-4">Pass Details</h2>
         <dl className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <DetailRow label="Visitor Name" value={pass.visitor_name} />
-          <DetailRow label="Company" value={pass.visitor_company} />
+          <DetailRow label="Company" value={companyInfo.name} />
+          <DetailRow label="Contact" value={companyInfo.contact || '—'} />
+          <DetailRow label="Address" value={companyInfo.address || '—'} />
           <DetailRow label="Material Description" value={pass.material_summary ?? ''} />
           <DetailRow label="Items" value={`${pass.item_count} line(s)`} />
           <DetailRow label="Vehicle Number" value={pass.vehicle_number} />

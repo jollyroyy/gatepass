@@ -2,10 +2,22 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { gp } from '../../supabaseClient';
 import type { GatePassView, GatePassItemView } from '../../types';
-import { PASS_TYPES } from '../../lib/passTypes';
 import { formatDateOnly } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
 import QrPass from '../../components/QrPass';
+
+function parseCompanyInfo(raw: string | null | undefined): { name: string; contact: string; address: string } {
+  if (!raw) return { name: '', contact: '', address: '' };
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && parsed.n) {
+      return { name: parsed.n, contact: parsed.c || '', address: parsed.a || '' };
+    }
+  } catch {
+    // legacy plain-text company name
+  }
+  return { name: raw, contact: '', address: '' };
+}
 
 function SignatureBox({ label }: { label: string }): React.ReactElement {
   return (
@@ -70,6 +82,7 @@ export default function PassPrint(): React.ReactElement {
   }
 
   const isRgp = pass.type === 'RGP';
+  const companyInfo = parseCompanyInfo(pass.visitor_company);
 
   return (
     <div>
@@ -79,12 +92,13 @@ export default function PassPrint(): React.ReactElement {
       </div>
 
       <div className="max-w-2xl mx-auto p-4 print:p-0 print:max-w-none">
-        <div className="border-2 border-black bg-white text-black p-5">
+        <div className="border-2 border-black bg-white text-black p-5 print:break-inside-avoid">
           {/* Header */}
           <div className="flex items-start justify-between gap-4 border-b-2 border-black pb-3 mb-3">
             <div>
-              <h1 className="text-lg font-extrabold tracking-wide text-black uppercase">Material Gate Pass</h1>
-              <p className="text-xs font-semibold text-gray-700 mt-0.5">{PASS_TYPES[pass.type].label}</p>
+              <h1 className="text-lg font-extrabold tracking-wide text-black uppercase">
+                {isRgp ? 'Returnable Material Gate Pass' : 'Non‑Returnable Material Gate Pass'}
+              </h1>
             </div>
             <QrPass value={pass.qr_token} size={110} />
           </div>
@@ -104,7 +118,9 @@ export default function PassPrint(): React.ReactElement {
             <tbody>
               {([
                 ['Visitor', pass.visitor_name],
-                ['Company', pass.visitor_company],
+                ['Company', companyInfo.name],
+                ['Contact', companyInfo.contact],
+                ['Address', companyInfo.address],
                 ['Vehicle No', pass.vehicle_number],
                 ['Purpose', pass.purpose],
                 ['Department', pass.department_name],
@@ -163,8 +179,8 @@ export default function PassPrint(): React.ReactElement {
             </div>
           )}
 
-          {/* Signature boxes */}
-          <div className="flex gap-6 pt-2">
+          {/* Signature boxes — keep on same page */}
+          <div className="flex gap-6 pt-2 print:break-inside-avoid">
             <SignatureBox label="Issued By (HOD)" />
             <SignatureBox label="Carrier Signature" />
             <SignatureBox label="Security Verification" />

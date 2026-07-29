@@ -24,7 +24,8 @@ export default function BulkRaise(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<NewGatePass & { namePrefix: string; count: number }>({
     type: 'NRGP', direction: 'out', department_id: '',
-    visitor_name: '', visitor_company: '', vehicle_number: '', purpose: '',
+    visitor_name: '', visitor_company: '', company_contact: '', company_address: '',
+    vehicle_number: '', purpose: '',
     expected_return_date: '', items: [{ ...EMPTY_ITEM }], namePrefix: 'Worker', count: 5,
   });
   const [errors, setErrors] = useState<FormErrors>({});
@@ -103,7 +104,11 @@ export default function BulkRaise(): React.ReactElement {
         p_type: form.type,
         p_direction: 'out',
         p_department_id: form.department_id,
-        p_visitor_company: form.visitor_company.trim(),
+        p_visitor_company: JSON.stringify({
+          n: form.visitor_company.trim(),
+          c: form.company_contact.trim(),
+          a: form.company_address.trim(),
+        }) || null,
         p_vehicle_number: form.vehicle_number.trim() || null,
         p_purpose: form.purpose.trim(),
         p_expected_return_date: form.expected_return_date || null,

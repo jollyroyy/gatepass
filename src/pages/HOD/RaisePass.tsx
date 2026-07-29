@@ -32,6 +32,8 @@ export default function RaisePass(): React.ReactElement {
     department_id: '',
     visitor_name: '',
     visitor_company: '',
+    company_contact: '',
+    company_address: '',
     vehicle_number: '',
     purpose: '',
     expected_return_date: '',
@@ -187,7 +189,11 @@ export default function RaisePass(): React.ReactElement {
         p_direction: 'out',
         p_department_id: departmentId,
         p_visitor_name: form.visitor_name.trim(),
-        p_visitor_company: form.visitor_company.trim() || null,
+        p_visitor_company: JSON.stringify({
+          n: form.visitor_company.trim(),
+          c: form.company_contact.trim(),
+          a: form.company_address.trim(),
+        }) || null,
         p_vehicle_number: form.vehicle_number.trim() || null,
         p_purpose: form.purpose.trim(),
         p_expected_return_date: requiresReturnDate(form.type) ? form.expected_return_date : null,
@@ -269,6 +275,17 @@ export default function RaisePass(): React.ReactElement {
               <input type="checkbox" checked={saveVendor} onChange={(e) => setSaveVendor(e.target.checked)} />
               Save as vendor profile
             </label>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="label">Company Contact</label>
+            <input className="input" value={form.company_contact} onChange={(e) => update('company_contact', e.target.value)} placeholder="Contact person name / phone" />
+          </div>
+          <div className="md:col-span-2">
+            <label className="label">Company Address</label>
+            <textarea className="input" rows={2} value={form.company_address} onChange={(e) => update('company_address', e.target.value)} placeholder="Street, area, city, pincode" />
           </div>
         </div>
 
