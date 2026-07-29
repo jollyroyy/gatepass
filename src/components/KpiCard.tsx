@@ -9,6 +9,7 @@ type Props = {
   tone?: Tone;
   delta?: string;
   to?: string;
+  onClick?: () => void;
   loading?: boolean;
 };
 
@@ -22,7 +23,7 @@ const TONE_TEXT: Record<Tone, string> = {
   brand: 'text-brand-600',
 };
 
-export default function KpiCard({ label, value, tone = 'neutral', delta, to, loading }: Props): React.ReactElement {
+export default function KpiCard({ label, value, tone = 'neutral', delta, to, onClick, loading }: Props): React.ReactElement {
   // A KPI that flashes a spinner on every refresh is worse than one that shows
   // the last known number, so `loading` renders a dash, never a spinner.
   const displayValue = loading ? '—' : value;
@@ -40,6 +41,14 @@ export default function KpiCard({ label, value, tone = 'neutral', delta, to, loa
       <Link to={to} className="kpi-card card-hover">
         {body}
       </Link>
+    );
+  }
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className="kpi-card card-hover text-left w-full cursor-pointer">
+        {body}
+      </button>
     );
   }
 

@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { gp, pub } from '../../supabaseClient';
+import { supabase, gp, pub } from '../../supabaseClient';
 import type { Department, HodDepartment, Profile } from '../../types';
 import { fetchDirectory } from '../../lib/profiles';
 import { safeErrorMessage } from '../../lib/errors';
+import KpiCard from '../../components/KpiCard';
 
 const SKELETON_ROWS = 4;
 
@@ -35,8 +36,20 @@ export default function DepartmentsTab(): React.ReactElement {
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // Edit modal
+  const [editDept, setEditDept] = useState<Department | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editCode, setEditCode] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  // Delete modal
+  const [deleteTarget, setDeleteTarget] = useState<{ dept: Department; reason: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [deptRes, hods, assignRes] = await Promise.all([
         pub().from('departments').select('*').order('name'),
@@ -75,6 +88,24 @@ export default function DepartmentsTab(): React.ReactElement {
       return { dept: d, hods, strength: hods.length };
     });
   }, [departments, assignments, hodMap]);
+
+  const unassignedCount = useMemo(() => deptCards.filter((c) => c.strength === 0).length, [deptCards]);
+
+  useEffect(() => {
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      ch = supabase
+        .channel('depts-admin-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' }, () => { void load(true); })
+        .on('postgres_changes', { event: '*', schema: 'gatepass', table: 'hod_departments' }, () => { void load(true); })
+        .subscribe();
+    } catch {
+      // No realtime available — the page still works from the initial load.
+    }
+    return () => {
+      try { if (ch) supabase.removeChannel(ch); } catch { /* ignore cleanup */ }
+    };
+  }, [load]);
 
   // Create
   async function handleCreate(e: React.FormEvent) {
@@ -138,15 +169,61 @@ export default function DepartmentsTab(): React.ReactElement {
     }
   }
 
+  // Edit
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editDept) return;
+    const name = editName.trim();
+    const code = editCode.trim().toUpperCase();
+    if (!name || !code) return;
+    setEditing(true);
+    setEditError(null);
+    try {
+      const { error } = await gp().rpc('admin_update_department', { p_dept_id: editDept.id, p_name: name, p_code: code });
+      if (error) throw error;
+      setEditDept(null);
+      setEditName('');
+      setEditCode('');
+      await load();
+    } catch (err) {
+      setEditError(safeErrorMessage(err));
+    } finally {
+      setEditing(false);
+    }
+  }
+
+  // Delete
+  async function handleDelete() {
+    if (!deleteTarget || !deleteTarget.reason.trim()) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const { error } = await gp().rpc('admin_delete_department', { p_dept_id: deleteTarget.dept.id, p_reason: deleteTarget.reason });
+      if (error) throw error;
+      setDeleteTarget(null);
+      await load();
+    } catch (err) {
+      setDeleteError(safeErrorMessage(err));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {loadError && <div className="alert-error">{loadError}</div>}
+
+      {/* ── Stats at a glance (live via Realtime) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <KpiCard label="Departments" value={departments.length} tone="brand" onClick={() => setShowList((p) => !p)} />
+        <KpiCard label="Heads of Department" value={hodProfiles.length} tone="neutral" />
+        <KpiCard label="Awaiting an HOD" value={unassignedCount} tone={unassignedCount > 0 ? 'flagged' : 'neutral'} />
+      </div>
 
       {/* ── Header strip ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="section-title mb-0.5">Departments</h2>
-          <p className="text-sm text-navy-400">{departments.length} department{departments.length !== 1 ? 's' : ''} · {hodProfiles.length} HOD{departments.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex items-center gap-2">
           <button type="button" className="btn-primary text-sm" onClick={() => setShowCreate(true)}>
@@ -200,6 +277,26 @@ export default function DepartmentsTab(): React.ReactElement {
                   <span className="type-chip mt-1 inline-block">{c.dept.code}</span>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    className="text-navy-300 hover:text-brand-600 transition-colors"
+                    title="Edit department"
+                    onClick={() => { setEditDept(c.dept); setEditName(c.dept.name); setEditCode(c.dept.code); setEditError(null); }}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className="text-navy-300 hover:text-flagged-600 transition-colors"
+                    title="Delete department"
+                    onClick={() => setDeleteTarget({ dept: c.dept, reason: '' })}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
                   <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-brand-50 text-brand-700 text-xs font-bold tabular">
                     {c.strength}
                   </span>
@@ -297,6 +394,70 @@ export default function DepartmentsTab(): React.ReactElement {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Department Modal ── */}
+      {editDept && (
+        <div className="modal-overlay" onClick={() => { setEditDept(null); setEditError(null); }}>
+          <div className="modal-content p-6 max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-navy-950 mb-1">Edit Department</h2>
+            <p className="text-sm text-navy-500 mb-5">Update details for <strong>{editDept.name}</strong>.</p>
+            <form onSubmit={handleEdit} className="flex flex-col gap-4">
+              <div>
+                <label className="label">Department Name</label>
+                <input className="input" required value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus />
+              </div>
+              <div>
+                <label className="label">Code</label>
+                <input className="input" required maxLength={10} value={editCode} onChange={(e) => setEditCode(e.target.value.toUpperCase().slice(0, 10))} />
+              </div>
+              {editError && <div className="alert-error">{editError}</div>}
+              <div className="flex flex-col-reverse md:flex-row gap-3">
+                <button type="button" className="btn-secondary flex-1" onClick={() => { setEditDept(null); setEditError(null); }}>Cancel</button>
+                <button type="submit" className="btn-primary flex-1" disabled={editing || !editName.trim() || !editCode.trim()}>
+                  {editing ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Department Confirmation Modal ── */}
+      {deleteTarget && (
+        <div className="modal-overlay" onClick={() => { setDeleteTarget(null); setDeleteError(null); }}>
+          <div className="modal-content p-6 max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-flagged-600 mb-1">Delete Department?</h2>
+            <p className="text-sm text-navy-600 mt-4">
+              This will permanently delete &ldquo;{deleteTarget.dept.name}&rdquo; ({deleteTarget.dept.code}). This cannot be undone.
+            </p>
+            <p className="text-xs text-flagged-600/80 mt-2">
+              All HOD assignments for this department will also be removed.
+            </p>
+            <div className="mt-5">
+              <label className="label">Reason for deletion</label>
+              <textarea
+                className="input"
+                rows={3}
+                placeholder="e.g. Department merged with Finance"
+                value={deleteTarget.reason}
+                onChange={(e) => setDeleteTarget((prev) => prev ? { ...prev, reason: e.target.value } : null)}
+              />
+            </div>
+            {deleteError && <div className="alert-error mt-3">{deleteError}</div>}
+            <div className="flex flex-col-reverse md:flex-row gap-3 mt-5">
+              <button type="button" className="btn-secondary flex-1" onClick={() => { setDeleteTarget(null); setDeleteError(null); }}>Cancel</button>
+              <button
+                type="button"
+                className="btn-danger flex-1"
+                disabled={deleting || !deleteTarget.reason.trim()}
+                onClick={handleDelete}
+              >
+                {deleting ? 'Deleting…' : 'Delete Department'}
+              </button>
+            </div>
           </div>
         </div>
       )}
