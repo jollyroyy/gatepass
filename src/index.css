@@ -307,7 +307,7 @@
     @apply text-sm text-navy-400 mt-1;
   }
   .section-title {
-    @apply text-xs font-bold text-navy-500 uppercase tracking-wider;
+    @apply text-sm font-extrabold text-brand-700 uppercase tracking-wider pb-2 border-b border-brand-200;
   }
 
   /* --- KPI card --- */

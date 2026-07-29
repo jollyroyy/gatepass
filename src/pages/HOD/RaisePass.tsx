@@ -362,9 +362,11 @@ export default function RaisePass(): React.ReactElement {
 
         {submitError && <div className="alert-error">{submitError}</div>}
 
-        <button type="submit" className="btn-primary w-full py-3 text-base" disabled={submitting}>
-          {submitting ? 'Submitting…' : 'Raise Gate Pass'}
-        </button>
+        <div className="flex justify-end">
+          <button type="submit" className="btn-primary px-8" disabled={submitting}>
+            {submitting ? 'Submitting…' : 'Raise Gate Pass'}
+          </button>
+        </div>
       </form>
 
       {submittedPass && (
