@@ -27,11 +27,6 @@ function startOfTodayIso(): string {
   return d.toISOString();
 }
 
-/** RGP-type passes get a cyan left border; NRGP gets slate. */
-function typeBorder(type: string): string {
-  return type === 'RGP' ? 'border-l-brand-500' : 'border-l-navy-400';
-}
-
 /** Waiting-time badge with overdue colour when >2h. */
 function waitBadge(createdAt: string): { text: string; cls: string } {
   const ms = Date.now() - new Date(createdAt).getTime();
@@ -231,7 +226,7 @@ export default function GateConsole(): React.ReactElement {
           <p>Queue clear — nothing waiting at the gate.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {filteredQueue.map((p, idx) => {
             const wb = waitBadge(p.created_at);
             const isOldest = idx === 0;
@@ -239,45 +234,65 @@ export default function GateConsole(): React.ReactElement {
               <Link
                 key={p.id}
                 to={`/verify/${p.id}`}
-                className={`card-hover flex flex-col gap-3 p-5 border-l-4 ${typeBorder(p.type)}
-                  ${isOldest ? 'ring-1 ring-brand-500/30' : ''}`}
+                className={`group relative flex flex-col gap-4 p-5 rounded-2xl transition-all duration-300
+                  ${isOldest ? 'ring-1 ring-brand-500/40' : ''}`}
+                style={{
+                  background: 'rgb(var(--glass-bg) / 0.45)',
+                  backdropFilter: 'blur(24px) saturate(160%)',
+                  WebkitBackdropFilter: 'blur(24px) saturate(160%)',
+                  border: '1px solid rgb(var(--c-surface-200) / 0.5)',
+                  boxShadow: '0 8px 32px -8px rgb(15 23 42 / 0.08), 0 2px 8px -2px rgb(15 23 42 / 0.04)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'rgb(var(--c-brand-400) / 0.5)';
+                  e.currentTarget.style.transform = 'translateY(-3px)';
+                  e.currentTarget.style.boxShadow = '0 20px 48px -12px rgb(15 23 42 / 0.14), 0 4px 16px -4px rgb(198 161 91 / 0.12)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'rgb(var(--c-surface-200) / 0.5)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 8px 32px -8px rgb(15 23 42 / 0.08), 0 2px 8px -2px rgb(15 23 42 / 0.04)';
+                }}
               >
-                {/* Row 1: pass number + type chip + wait badge */}
+                {/* Top bar: type chip + wait time + oldest badge */}
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-bold text-navy-950 text-base font-display truncate">{p.pass_number}</span>
+                  <div className="flex items-center gap-2">
+                    <TypeChip type={p.type} />
                     {isOldest && (
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded animate-pulse-soft">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-brand-600 bg-brand-50/70 px-2 py-0.5 rounded-full animate-pulse-soft">
                         Oldest
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full tabular ${wb.cls}`}>
-                      {wb.text}
-                    </span>
-                    <TypeChip type={p.type} />
-                  </div>
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full tabular ${wb.cls}`}>
+                    {wb.text}
+                  </span>
                 </div>
 
-                {/* Row 2: visitor name + company */}
-                <div className="flex items-center flex-wrap gap-1.5">
-                  <span className="font-semibold text-navy-900 text-sm">{p.visitor_name}</span>
+                {/* Pass number */}
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-bold text-navy-950 text-lg font-display tracking-tight truncate">{p.pass_number}</span>
+                  <svg className="w-5 h-5 text-navy-300 group-hover:text-brand-500 transition-colors duration-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </div>
+
+                {/* Company + Visitor */}
+                <div className="flex flex-col gap-1">
                   {p.visitor_company && (
-                    <span className="text-[11px] font-medium text-brand-700 bg-brand-50 border border-brand-200 px-2 py-0.5 rounded-full truncate max-w-[200px]">
-                      {p.visitor_company}
-                    </span>
+                    <span className="text-sm font-semibold text-brand-700 truncate">{p.visitor_company}</span>
                   )}
+                  <span className="text-sm text-navy-600 truncate">{p.visitor_name}</span>
                 </div>
 
-                {/* Row 3: material summary */}
+                {/* Material */}
                 {p.material_summary && (
-                  <p className="text-sm text-navy-600 leading-snug line-clamp-2">{p.material_summary}</p>
+                  <p className="text-sm text-navy-500 leading-relaxed line-clamp-2 border-t border-surface-200/60 pt-3">{p.material_summary}</p>
                 )}
 
-                {/* Row 4: item count, vehicle, department, return status */}
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
-                  <span className="inline-flex items-center gap-1 font-semibold text-matched-700 bg-matched-50 px-2 py-0.5 rounded-full">
+                {/* Meta badges */}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="inline-flex items-center gap-1.5 font-semibold text-matched-700 bg-matched-50/80 px-2.5 py-1 rounded-full">
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                     </svg>
@@ -285,7 +300,7 @@ export default function GateConsole(): React.ReactElement {
                   </span>
 
                   {p.vehicle_number && (
-                    <span className="inline-flex items-center gap-1 text-navy-500 bg-surface-100 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1.5 text-navy-500 bg-surface-100/70 px-2.5 py-1 rounded-full">
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                       </svg>
@@ -293,7 +308,7 @@ export default function GateConsole(): React.ReactElement {
                     </span>
                   )}
 
-                  <span className="inline-flex items-center gap-1 text-navy-500 bg-surface-100 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1.5 text-navy-500 bg-surface-100/70 px-2.5 py-1 rounded-full">
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                     </svg>
@@ -301,10 +316,10 @@ export default function GateConsole(): React.ReactElement {
                   </span>
 
                   {p.type === 'RGP' && p.return_status !== 'not_applicable' && (
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium
                       ${p.is_overdue
-                        ? 'bg-overdue-100 text-overdue-700 border border-overdue-300'
-                        : 'bg-brand-50 text-brand-700 border border-brand-200'}`}>
+                        ? 'bg-overdue-100/80 text-overdue-700 border border-overdue-300/50'
+                        : 'bg-brand-50/80 text-brand-700 border border-brand-200/50'}`}>
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
@@ -313,10 +328,10 @@ export default function GateConsole(): React.ReactElement {
                   )}
                 </div>
 
-                {/* Row 5: raised at + raised by */}
-                <div className="flex items-center gap-2 text-[11px] text-navy-400">
+                {/* Footer: raised at + by */}
+                <div className="flex items-center gap-2 text-[11px] text-navy-400 pt-1 border-t border-surface-200/40">
                   <span>Raised {formatTime(p.created_at)}</span>
-                  <span className="w-1 h-1 rounded-full bg-navy-300" />
+                  <span className="w-1 h-1 rounded-full bg-navy-300/50" />
                   <span>{p.raised_by_name}</span>
                 </div>
               </Link>
