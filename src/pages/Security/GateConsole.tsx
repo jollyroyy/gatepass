@@ -27,14 +27,6 @@ function startOfTodayIso(): string {
   return d.toISOString();
 }
 
-function formatAge(createdAt: string): string {
-  const ms = Date.now() - new Date(createdAt).getTime();
-  const h = Math.floor(ms / 3600000);
-  const m = Math.floor((ms % 3600000) / 60000);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
-
 /** RGP-type passes get a cyan left border; NRGP gets slate. */
 function typeBorder(type: string): string {
   return type === 'RGP' ? 'border-l-brand-500' : 'border-l-navy-400';
@@ -176,39 +168,56 @@ export default function GateConsole(): React.ReactElement {
       {error && <div className="alert-error mb-6">{error}</div>}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
-        <KpiCard label="Pending Now" value={pendingCount} tone="pending" to="/console#queue" loading={loading} />
-        <KpiCard label="Matched Today" value={matchedToday} tone="matched" to="/history?status=matched" loading={loading} />
-        <KpiCard label="Mismatched Today" value={mismatchedToday} tone="flagged" to="/history?status=flagged" loading={loading} />
+        <KpiCard label="Pending for Gate Approval" value={pendingCount} tone="pending" to="/console#queue" loading={loading} />
+        <KpiCard label="Matched at Gate" value={matchedToday} tone="matched" to="/history?status=matched" loading={loading} />
+        <KpiCard label="Mismatch at Gate" value={mismatchedToday} tone="flagged" to="/history?status=flagged" loading={loading} />
       </div>
 
-      <div ref={queueRef} id="queue" className="flex flex-wrap gap-3 items-center mb-5">
-        <select
-          className="input w-auto"
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value as PassCategoryKey | 'all')}
-        >
-          <option value="all">All Types</option>
-          {PASS_CATEGORY_LIST.map((k) => (
-            <option key={k} value={k}>
-              {PASS_CATEGORIES[k].label}
-            </option>
-          ))}
-        </select>
-
-        {deptOptions.length > 1 && (
-          <select className="input w-auto" value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
-            <option value="all">All Departments</option>
-            {deptOptions.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
+      <div ref={queueRef} id="queue" className="mb-5">
+        <div className="inline-flex items-center gap-2 bg-surface-100/60 border border-surface-200 rounded-xl px-3 py-2 backdrop-blur-sm">
+          <svg className="w-4 h-4 text-navy-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
+          <select
+            className="text-sm font-medium bg-transparent border-0 p-0 pr-6 text-navy-700 cursor-pointer focus:ring-0 appearance-none"
+            style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right center" }}
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value as PassCategoryKey | 'all')}
+          >
+            <option value="all">All Types</option>
+            {PASS_CATEGORY_LIST.map((k) => (
+              <option key={k} value={k}>
+                {PASS_CATEGORIES[k].label}
               </option>
             ))}
           </select>
-        )}
 
-        <span className="text-xs text-navy-400 ml-auto tabular">
-          {filteredQueue.length} of {queue.length} showing
-        </span>
+          <span className="w-px h-5 bg-surface-300" />
+
+          {deptOptions.length > 1 ? (
+            <select
+              className="text-sm font-medium bg-transparent border-0 p-0 pr-6 text-navy-700 cursor-pointer focus:ring-0 appearance-none"
+              style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right center" }}
+              value={deptFilter}
+              onChange={(e) => setDeptFilter(e.target.value)}
+            >
+              <option value="all">All Departments</option>
+              {deptOptions.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="text-sm font-medium text-navy-500">{deptOptions[0]?.name ?? ''}</span>
+          )}
+
+          <span className="w-px h-5 bg-surface-300" />
+
+          <span className="text-xs font-medium text-navy-400 tabular whitespace-nowrap">
+            {filteredQueue.length}<span className="text-navy-300 mx-0.5">/</span>{queue.length}
+          </span>
+        </div>
       </div>
 
       {loading ? (
