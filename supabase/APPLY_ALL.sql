@@ -4292,7 +4292,7 @@ create or replace function gatepass.raise_pass(
   p_vehicle_number       text,
   p_purpose              text default null,
   p_expected_return_date date default null,
-  p_items                jsonb
+  p_items                jsonb default null
 )
 returns gatepass.gate_passes
 language plpgsql
@@ -4365,10 +4365,10 @@ create or replace function gatepass.bulk_create_passes(
   p_department_id        uuid,
   p_visitor_company      text,
   p_vehicle_number       text,
+  p_count                int,
   p_purpose              text default null,
   p_expected_return_date date default null,
-  p_items                jsonb,
-  p_count                int,
+  p_items                jsonb default null,
   p_name_prefix          text default 'Worker'
 )
 returns table (pass_id uuid, pass_number text)
@@ -4446,11 +4446,15 @@ end;
 $$;
 
 grant execute on function gatepass.bulk_create_passes(
-  gatepass.pass_type, gatepass.pass_direction, uuid, text, text, text, date, jsonb, int, text
+  gatepass.pass_type, gatepass.pass_direction, uuid, text, text, int, text, date, jsonb, text
 ) to authenticated;
 
 -- ─── 7. Rebuild v_gate_pass_items view ─────────────────────────────────────
-create or replace view gatepass.v_gate_pass_items
+-- Must drop+recreate: create or replace view cannot absorb new base-table
+-- columns (name, purpose, expected_return_date added above).
+drop view if exists gatepass.v_gate_pass_items;
+
+create view gatepass.v_gate_pass_items
 with (security_invoker = true)
 as
 select
