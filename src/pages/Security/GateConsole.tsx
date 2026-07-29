@@ -157,7 +157,7 @@ export default function GateConsole(): React.ReactElement {
   );
 
   const filteredQueue = queue.filter((p) => {
-    if (categoryFilter !== 'all' && categoryKey(p.type, p.direction) !== categoryFilter) return false;
+    if (categoryFilter !== 'all' && categoryKey(p.type) !== categoryFilter) return false;
     if (deptFilter !== 'all' && p.department_id !== deptFilter) return false;
     return true;
   });
@@ -253,7 +253,7 @@ export default function GateConsole(): React.ReactElement {
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full tabular ${wb.cls}`}>
                       {wb.text}
                     </span>
-                    <TypeChip type={p.type} direction={p.direction} />
+                    <TypeChip type={p.type} />
                   </div>
                 </div>
 

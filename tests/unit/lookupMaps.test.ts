@@ -60,10 +60,6 @@ describe('PASS_TYPES covers every PassType', () => {
       expect(info.code).toBe(type);
       expect(info.label).not.toBe('');
       expect(info.description).not.toBe('');
-      expect(info.directions.length).toBeGreaterThan(0);
-      for (const d of info.directions) {
-        expect(['in', 'out']).toContain(d);
-      }
       expect(typeof info.returnable).toBe('boolean');
     });
   }
@@ -71,12 +67,12 @@ describe('PASS_TYPES covers every PassType', () => {
 
 describe('PASS_CATEGORIES covers every legal type+direction combination', () => {
   it('has exactly the three combinations the DB permits', () => {
-    expect(Object.keys(PASS_CATEGORIES).sort()).toEqual(['NRGP-out', 'RGP-in', 'RGP-out'].sort());
+    expect(Object.keys(PASS_CATEGORIES).sort()).toEqual(['NRGP-out', 'RGP-out'].sort());
   });
 
   for (const c of Object.values(PASS_CATEGORIES)) {
     it(`${c.key} round-trips through categoryKey`, () => {
-      expect(categoryKey(c.type, c.direction)).toBe(c.key);
+      expect(categoryKey(c.type)).toBe(c.key);
     });
 
     it(`${c.key} has non-empty label and description`, () => {
@@ -85,9 +81,7 @@ describe('PASS_CATEGORIES covers every legal type+direction combination', () => 
     });
   }
 
-  it("NRGP is outward only, mirroring gate_passes_nrgp_is_outward", () => {
-    expect(PASS_TYPES.NRGP.directions).toEqual(['out']);
-  });
+
 });
 
 describe('formatDate helpers never throw', () => {

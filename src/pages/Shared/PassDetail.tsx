@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { gp, supabase } from '../../supabaseClient';
 import type { GatePassView, Verification, VerifyAction } from '../../types';
-import { PASS_TYPES, PASS_DIRECTIONS } from '../../lib/passTypes';
+import { PASS_TYPES } from '../../lib/passTypes';
 import { STATUS_STYLES, RETURN_STYLES, OVERDUE_STYLE } from '../../lib/statusStyles';
 import { formatDateTime, formatDateOnly } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
@@ -171,7 +171,7 @@ export default function PassDetail(): React.ReactElement {
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-extrabold tracking-tight font-mono text-navy-950">{pass.pass_number}</h1>
-            <TypeChip type={pass.type} direction={pass.direction} />
+            <TypeChip type={pass.type} />
             <Badge style={STATUS_STYLES[pass.status]} />
             {pass.is_overdue && <Badge style={OVERDUE_STYLE} />}
           </div>
@@ -271,7 +271,6 @@ export default function PassDetail(): React.ReactElement {
           <DetailRow label="Visitor Name" value={pass.visitor_name} />
           <DetailRow label="Company" value={pass.visitor_company} />
           <DetailRow label="Material Description" value={pass.material_summary ?? ''} />
-          <DetailRow label="Direction" value={PASS_DIRECTIONS[pass.direction].label} />
           <DetailRow label="Items" value={`${pass.item_count} line(s)`} />
           <DetailRow label="Vehicle Number" value={pass.vehicle_number} />
           <DetailRow label="Purpose" value={pass.purpose} />

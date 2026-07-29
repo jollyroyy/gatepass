@@ -3,9 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { gp, pub, supabase } from '../../supabaseClient';
-import type { GatePassView, NewGatePass, NewGatePassItem, PassDirection, PassType, VendorProfile } from '../../types';
+import type { GatePassView, NewGatePass, NewGatePassItem, PassType, VendorProfile } from '../../types';
 import { EMPTY_ITEM } from '../../types';
-import { PASS_TYPES, allowedDirections, PASS_DIRECTIONS, requiresReturnDate } from '../../lib/passTypes';
+import { PASS_TYPES, requiresReturnDate } from '../../lib/passTypes';
 import { fetchMyProfile } from '../../lib/profiles';
 import { safeErrorMessage } from '../../lib/errors';
 import PassTypeSelector from './PassTypeSelector';
@@ -99,23 +99,12 @@ export default function RaisePass(): React.ReactElement {
   }, [form.department_id]);
 
   function handleTypeChange(type: PassType) {
-    const allowed = allowedDirections(type);
-    const newDirection = allowed.includes(form.direction) ? form.direction : allowed[0];
     setForm((f) => ({
       ...f,
       type,
-      direction: newDirection,
-      expected_return_date: requiresReturnDate(type, newDirection) ? f.expected_return_date : '',
+      expected_return_date: requiresReturnDate(type) ? f.expected_return_date : '',
     }));
     setErrors((e) => ({ ...e, expected_return_date: undefined }));
-  }
-
-  function handleDirectionChange(dir: PassDirection) {
-    setForm((f) => ({
-      ...f,
-      direction: dir,
-      expected_return_date: requiresReturnDate(f.type, dir) ? f.expected_return_date : '',
-    }));
   }
 
   function update<K extends keyof NewGatePass>(key: K, value: NewGatePass[K]) {
@@ -172,7 +161,7 @@ export default function RaisePass(): React.ReactElement {
 
     if (depts.length === 0) errs.department_id = 'You are not assigned to any department.';
 
-    if (requiresReturnDate(form.type, form.direction)) {
+    if (requiresReturnDate(form.type)) {
       if (!form.expected_return_date) {
         errs.expected_return_date = 'Expected return date is required for a Returnable Gate Pass.';
       } else if (form.expected_return_date < todayStr()) {
@@ -195,13 +184,13 @@ export default function RaisePass(): React.ReactElement {
       const departmentId = depts[0].id;
       const { data, error } = await gp().rpc('raise_pass', {
         p_type: form.type,
-        p_direction: form.direction,
+        p_direction: 'out',
         p_department_id: departmentId,
         p_visitor_name: form.visitor_name.trim(),
         p_visitor_company: form.visitor_company.trim() || null,
         p_vehicle_number: form.vehicle_number.trim() || null,
         p_purpose: form.purpose.trim(),
-        p_expected_return_date: requiresReturnDate(form.type, form.direction) ? form.expected_return_date : null,
+        p_expected_return_date: requiresReturnDate(form.type) ? form.expected_return_date : null,
         p_items: form.items.map((item) => ({
           description: item.description.trim(),
           quantity: Number(item.quantity),
@@ -226,9 +215,7 @@ export default function RaisePass(): React.ReactElement {
     }
   }
 
-  const directionOptions = allowedDirections(form.type);
-  const directionLocked = directionOptions.length === 1;
-  const passNumberPrefix = `${form.type}-${form.direction.toUpperCase()}-${todayStr().replace(/-/g, '')}`;
+  const passNumberPrefix = `${form.type}-OUT-${todayStr().replace(/-/g, '')}`;
 
   return (
     <div>
@@ -243,27 +230,6 @@ export default function RaisePass(): React.ReactElement {
         <div>
           <label className="label">Pass Type</label>
           <PassTypeSelector value={form.type} onChange={handleTypeChange} />
-        </div>
-
-        <div>
-          <label className="label">Direction</label>
-          <select
-            className="input"
-            value={form.direction}
-            disabled={directionLocked}
-            onChange={(e) => handleDirectionChange(e.target.value as PassDirection)}
-          >
-            {directionOptions.map((d) => (
-              <option key={d} value={d}>
-                {PASS_DIRECTIONS[d].label}
-              </option>
-            ))}
-          </select>
-          {directionLocked && (
-            <p className="text-xs text-navy-400 mt-1">
-              NRGP is outward only — inbound material that never leaves is a goods receipt, not a gate pass.
-            </p>
-          )}
         </div>
 
         <div>
@@ -372,7 +338,7 @@ export default function RaisePass(): React.ReactElement {
           {errors.purpose && <p className="field-error">{errors.purpose}</p>}
         </div>
 
-        {requiresReturnDate(form.type, form.direction) && (
+        {requiresReturnDate(form.type) && (
           <div>
             <label className="label">Expected Return Date</label>
             <input type="date" min={todayStr()} className="input" value={form.expected_return_date} onChange={(e) => update('expected_return_date', e.target.value)} />
@@ -402,7 +368,7 @@ export default function RaisePass(): React.ReactElement {
                 <h3 className="text-lg font-bold text-navy-900">Pass Submitted</h3>
                 <p className="text-sm text-navy-500">
                   <span className="font-semibold text-navy-700">{submittedPass.pass_number}</span>
-                  {' · '}{PASS_TYPES[submittedPass.type as keyof typeof PASS_TYPES]?.label ?? submittedPass.type}
+                  {' · '}{PASS_TYPES[submittedPass.type]?.label ?? submittedPass.type}
                 </p>
               </div>
             </div>

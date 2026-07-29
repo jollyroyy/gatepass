@@ -3,7 +3,7 @@
 // Dashboard KPI cards can deep-link straight into a filtered view.
 import React, { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { gp, pub } from '../../supabaseClient';
+import { gp } from '../../supabaseClient';
 import type { GatePassView, PassStatus, PassType } from '../../types';
 import { PASS_TYPE_LIST, PASS_TYPES } from '../../lib/passTypes';
 import { safeErrorMessage } from '../../lib/errors';
@@ -12,12 +12,6 @@ import VoidPassPanel from './VoidPassPanel';
 import DeletePassPanel from './DeletePassPanel';
 import MyPassesTable from './MyPassesTable';
 import { useDeletePass } from './useDeletePass';
-
-interface DeptOption {
-  id: string;
-  name: string;
-  code: string;
-}
 
 const STATUS_TABS: { key: PassStatus | 'all'; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -45,9 +39,7 @@ export default function MyPasses(): React.ReactElement {
   const [rows, setRows] = useState<GatePassView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [depts, setDepts] = useState<DeptOption[]>([]);
   const [typeFilter, setTypeFilter] = useState<PassType | 'all'>('all');
-  const [deptFilter, setDeptFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
 
   // Void confirm panel — target pass, not just a boolean, so the panel can show
@@ -104,34 +96,9 @@ export default function MyPasses(): React.ReactElement {
     load();
   }, [load]);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function loadDepartments() {
-      try {
-        const { data: hodDepts, error: hodErr } = await gp().from('hod_departments').select('department_id');
-        if (hodErr) throw hodErr;
-        const ids = (hodDepts ?? []).map((r: { department_id: string }) => r.department_id);
-        if (ids.length === 0) return;
-        const { data: deptRows, error: deptErr } = await pub()
-          .from('departments')
-          .select('id, name, code')
-          .in('id', ids);
-        if (deptErr) throw deptErr;
-        if (!cancelled) setDepts((deptRows ?? []) as DeptOption[]);
-      } catch {
-        // Department filter is a convenience; ignore failures.
-      }
-    }
-    loadDepartments();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const filtered = rows.filter((p) => {
     if (statusFilter !== 'all' && p.status !== statusFilter) return false;
     if (typeFilter !== 'all' && p.type !== typeFilter) return false;
-    if (deptFilter !== 'all' && p.department_id !== deptFilter) return false;
     if (onlyAwaitingReturn && p.return_status !== 'awaiting_return') return false;
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -215,18 +182,7 @@ export default function MyPasses(): React.ReactElement {
                 {PASS_TYPES[t].code} — {PASS_TYPES[t].label}
               </option>
             ))}
-          </select>
-
-          {depts.length > 1 && (
-            <select className="input w-auto" value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
-              <option value="all">All Departments</option>
-              {depts.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
             </select>
-          )}
 
           <button
             type="button"

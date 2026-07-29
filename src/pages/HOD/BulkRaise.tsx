@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { gp, pub } from '../../supabaseClient';
-import type { NewGatePass, NewGatePassItem, PassDirection } from '../../types';
+import type { NewGatePass, NewGatePassItem } from '../../types';
 import { EMPTY_ITEM } from '../../types';
-import { PASS_TYPES, PASS_TYPE_LIST, allowedDirections, requiresReturnDate } from '../../lib/passTypes';
+import { PASS_TYPES, PASS_TYPE_LIST, requiresReturnDate } from '../../lib/passTypes';
 import { safeErrorMessage } from '../../lib/errors';
 
 interface BulkResult {
@@ -37,7 +37,11 @@ export default function BulkRaise(): React.ReactElement {
         if (!data || data.length === 0) return;
         const ids = data.map((r: { department_id: string }) => r.department_id);
         const { data: depts } = await pub().from('departments').select('id, name').in('id', ids).order('name');
-        if (!cancelled && depts) setDepts((depts as { id: string; name: string }[]).map((d) => ({ id: d.id, name: d.name })));
+        if (!cancelled && depts) {
+          const list = (depts as { id: string; name: string }[]).map((d) => ({ id: d.id, name: d.name }));
+          setDepts(list);
+          if (list.length > 0) setForm((f) => ({ ...f, department_id: list[0].id }));
+        }
       } catch { /* ignore */ }
     }
     loadDepts();
@@ -45,8 +49,7 @@ export default function BulkRaise(): React.ReactElement {
   }, []);
 
   function handleTypeChange(t: NewGatePass['type']) {
-    const dirs = allowedDirections(t);
-    setForm((f) => ({ ...f, type: t, direction: dirs.includes(f.direction) ? f.direction : dirs[0] }));
+    setForm((f) => ({ ...f, type: t }));
   }
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -71,7 +74,7 @@ export default function BulkRaise(): React.ReactElement {
     const errs: FormErrors = {};
     if (form.count < 2 || form.count > 100) errs.count = 'Count must be between 2 and 100';
     if (!form.namePrefix.trim()) errs.namePrefix = 'Name prefix is required';
-    if (!form.department_id) errs.department_id = 'Select a department';
+    if (!form.department_id) errs.department_id = 'No department assigned';
     const hasItem = form.items.some((it) => it.description.trim().length > 0);
     if (!hasItem) errs.items = 'Add at least one material line';
     if (!form.visitor_company.trim()) errs.visitor_company = 'Company is required';
@@ -98,7 +101,7 @@ export default function BulkRaise(): React.ReactElement {
 
       const { data, error: rpcErr } = await gp().rpc('bulk_create_passes', {
         p_type: form.type,
-        p_direction: form.direction,
+        p_direction: 'out',
         p_department_id: form.department_id,
         p_visitor_company: form.visitor_company.trim(),
         p_vehicle_number: form.vehicle_number.trim() || null,
@@ -161,29 +164,22 @@ export default function BulkRaise(): React.ReactElement {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
           <div>
             <label className="label">Pass Type</label>
             <select className="input" value={form.type} onChange={(e) => handleTypeChange(e.target.value as NewGatePass['type'])}>
               {PASS_TYPE_LIST.map((t) => <option key={t} value={t}>{PASS_TYPES[t].label}</option>)}
             </select>
           </div>
-          <div>
-            <label className="label">Direction</label>
-            <select className="input" value={form.direction} onChange={(e) => update('direction', e.target.value as PassDirection)}>
-              {allowedDirections(form.type).map((d) => <option key={d} value={d}>{d === 'out' ? 'Outward' : 'Inward'}</option>)}
-            </select>
-          </div>
         </div>
 
         <div>
           <label className="label">Department</label>
-          <select className={`input ${errors.department_id ? 'input-error' : ''}`} value={form.department_id}
-            onChange={(e) => update('department_id', e.target.value)}>
-            <option value="">Select department…</option>
-            {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-          {errors.department_id && <p className="field-error">{errors.department_id}</p>}
+          {depts.length > 0 ? (
+            <p className="text-sm font-medium text-navy-900 py-2">{depts[0].name}</p>
+          ) : (
+            <p className="text-sm text-flagged-700 py-2">No department assigned</p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -207,7 +203,7 @@ export default function BulkRaise(): React.ReactElement {
           {errors.purpose && <p className="field-error">{errors.purpose}</p>}
         </div>
 
-        {requiresReturnDate(form.type, form.direction) && (
+        {requiresReturnDate(form.type) && (
           <div>
             <label className="label">Expected Return Date</label>
             <input type="date" className="input" min={todayStr()} value={form.expected_return_date}

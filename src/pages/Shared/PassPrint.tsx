@@ -1,54 +1,52 @@
-// The physical A5 slip handed to the guard. Every colour here is a hardcoded
-// black/white/gray literal (never the navy-* / surface-* tokens, which invert
-// in dark mode) so the slip is legible on a cheap mono laser printer no
-// matter which theme the app was in when it was printed.
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { gp } from '../../supabaseClient';
-import type { GatePassView } from '../../types';
+import type { GatePassView, GatePassItemView } from '../../types';
 import { PASS_TYPES } from '../../lib/passTypes';
-import { formatDateTime, formatDateOnly } from '../../lib/formatDate';
+import { formatDateOnly } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
 import QrPass from '../../components/QrPass';
 
-function Row({ label, value }: { label: string; value: React.ReactNode }): React.ReactElement {
+function SignatureBox({ label }: { label: string }): React.ReactElement {
   return (
-    <tr>
-      <td className="border border-black px-3 py-1.5 font-semibold text-black w-1/3 align-top">{label}</td>
-      <td className="border border-black px-3 py-1.5 text-black align-top">{value ?? '—'}</td>
-    </tr>
+    <div className="flex-1">
+      <div className="border border-black h-20 w-full" />
+      <p className="text-[10px] text-black font-medium text-center mt-1 uppercase tracking-wider">{label}</p>
+    </div>
   );
 }
 
-function SignatureBox({ label }: { label: string }): React.ReactElement {
-  return (
-    <div className="flex flex-col items-center gap-1 flex-1">
-      <div className="border border-black h-16 w-full" />
-      <p className="text-[11px] text-black font-medium text-center">{label}</p>
-    </div>
-  );
+function formatCurrency(n: number | null | undefined): string {
+  if (n == null) return '—';
+  return n.toLocaleString('en-IN');
 }
 
 export default function PassPrint(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const [pass, setPass] = useState<GatePassView | null | undefined>(undefined);
+  const [items, setItems] = useState<GatePassItemView[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const { data, error: err } = await gp().from('v_gate_passes').select('*').eq('id', id).maybeSingle();
-        if (err) throw err;
-        if (!cancelled) setPass((data as GatePassView | null) ?? null);
+        const [passResult, itemsResult] = await Promise.all([
+          gp().from('v_gate_passes').select('*').eq('id', id).maybeSingle(),
+          gp().from('v_gate_pass_items').select('*').eq('gate_pass_id', id).order('line_no'),
+        ]);
+        if (passResult.error) throw passResult.error;
+        if (itemsResult.error) throw itemsResult.error;
+        if (!cancelled) {
+          setPass((passResult.data as GatePassView | null) ?? null);
+          setItems((itemsResult.data as GatePassItemView[]) ?? []);
+        }
       } catch (e) {
         if (!cancelled) setError(safeErrorMessage(e));
       }
     }
     if (id) load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [id]);
 
   if (pass === undefined) {
@@ -65,9 +63,7 @@ export default function PassPrint(): React.ReactElement {
         <div className="empty-state card p-10">
           <p className="text-navy-700 font-medium">Pass not found, or you don't have access to it.</p>
           {error && <p className="text-sm text-flagged-700 mt-2">{error}</p>}
-          <Link to="/" className="btn-secondary inline-block mt-4">
-            Back to dashboard
-          </Link>
+          <Link to="/" className="btn-secondary inline-block mt-4">Back to dashboard</Link>
         </div>
       </div>
     );
@@ -78,47 +74,97 @@ export default function PassPrint(): React.ReactElement {
   return (
     <div>
       <div className="no-print flex items-center justify-between gap-3 max-w-2xl mx-auto p-4">
-        <Link to={`/pass/${pass.id}`} className="btn-secondary">
-          Back
-        </Link>
-        <button type="button" className="btn-primary" onClick={() => window.print()}>
-          Print
-        </button>
+        <Link to={`/pass/${pass.id}`} className="btn-secondary">Back</Link>
+        <button type="button" className="btn-primary" onClick={() => window.print()}>Print</button>
       </div>
 
       <div className="max-w-2xl mx-auto p-4 print:p-0 print:max-w-none">
         <div className="border-2 border-black bg-white text-black p-5">
+          {/* Header */}
           <div className="flex items-start justify-between gap-4 border-b-2 border-black pb-3 mb-3">
             <div>
-              <h1 className="text-lg font-extrabold tracking-wide text-black">MATERIAL GATE PASS</h1>
-              <p className="text-sm font-semibold text-black">{PASS_TYPES[pass.type].label}</p>
-              <p className="text-2xl font-extrabold font-mono text-black mt-1">{pass.pass_number}</p>
+              <h1 className="text-lg font-extrabold tracking-wide text-black uppercase">Material Gate Pass</h1>
+              <p className="text-xs font-semibold text-gray-700 mt-0.5">{PASS_TYPES[pass.type].label}</p>
             </div>
-            {/* The QR carries qr_token; the human-readable number above it is
-                what a guard types when the code is torn or smudged. */}
-            <QrPass value={pass.qr_token} size={120} />
+            <QrPass value={pass.qr_token} size={110} />
           </div>
 
+          {/* Serial No. and Date */}
+          <div className="flex justify-between items-center text-sm border border-black bg-gray-100 px-3 py-2 mb-4">
+            <div className="font-semibold text-black">
+              Serial No.: <span className="font-mono font-extrabold">{pass.pass_number}</span>
+            </div>
+            <div className="font-semibold text-black">
+              Date: <span>{formatDateOnly(pass.created_at)}</span>
+            </div>
+          </div>
+
+          {/* Details */}
           <table className="w-full border-collapse text-sm mb-4">
             <tbody>
-              <Row label="Visitor" value={pass.visitor_name} />
-              <Row label="Company" value={pass.visitor_company} />
-              <Row label="Material" value={pass.material_summary ?? ''} />
-              {/* Full word, not the arrow glyph from PASS_DIRECTIONS — this table
-                  is mono black/white, so the arrow's meaning must not depend on
-                  a reader recognising which way it points. */}
-              <Row label="Direction" value={pass.direction === 'in' ? 'INWARD' : 'OUTWARD'} />
-              <Row label="Quantity" value={`${pass.item_count} line(s)`} />
-              <Row label="Vehicle No" value={pass.vehicle_number} />
-              <Row label="Purpose" value={pass.purpose} />
-              <Row label="Department" value={pass.department_name} />
-              <Row label="Raised By" value={pass.raised_by_name} />
-              <Row label="Raised On" value={formatDateTime(pass.created_at)} />
-              {isRgp && <Row label="Expected Return" value={formatDateOnly(pass.expected_return_date)} />}
+              {([
+                ['Visitor', pass.visitor_name],
+                ['Company', pass.visitor_company],
+                ['Vehicle No', pass.vehicle_number],
+                ['Purpose', pass.purpose],
+                ['Department', pass.department_name],
+                ['Raised By', pass.raised_by_name],
+              ] as const).map(([label, value]) => (
+                <tr key={label}>
+                  <td className="border border-black px-3 py-1.5 font-semibold text-black w-[130px] align-top uppercase text-[11px] tracking-wide">{label}</td>
+                  <td className="border border-black px-3 py-1.5 text-black align-top">{value ?? '—'}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
 
-          <div className="flex gap-4 pt-2">
+          {/* Material Items */}
+          <div className="mb-4">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-black mb-1">
+              Material Items ({pass.item_count})
+            </p>
+            <table className="w-full border-collapse text-[11px]">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border border-black px-2 py-1 font-semibold text-black text-left w-6">#</th>
+                  <th className="border border-black px-2 py-1 font-semibold text-black text-left">Description</th>
+                  <th className="border border-black px-2 py-1 font-semibold text-black text-right w-10">Qty</th>
+                  <th className="border border-black px-2 py-1 font-semibold text-black text-left w-12">Unit</th>
+                  <th className="border border-black px-2 py-1 font-semibold text-black text-left">Serial No.</th>
+                  <th className="border border-black px-2 py-1 font-semibold text-black text-right w-20">Value (&#x20B9;)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.length > 0 ? items.map((item) => (
+                  <tr key={item.id}>
+                    <td className="border border-black px-2 py-1 text-black text-center">{item.line_no}</td>
+                    <td className="border border-black px-2 py-1 text-black">{item.description}</td>
+                    <td className="border border-black px-2 py-1 text-black text-right">{item.quantity}</td>
+                    <td className="border border-black px-2 py-1 text-black">{item.unit}</td>
+                    <td className="border border-black px-2 py-1 text-black font-mono text-[10px]">{item.serial_no ?? '—'}</td>
+                    <td className="border border-black px-2 py-1 text-black text-right">{formatCurrency(item.approx_value)}</td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={6} className="border border-black px-2 py-2 text-black text-gray-600 italic">
+                      {pass.material_summary ?? '—'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Expected Return Date (RGP only) */}
+          {isRgp && (
+            <div className="border border-black px-3 py-2 mb-4 text-sm bg-gray-50 flex items-center">
+              <span className="font-semibold text-black uppercase text-[11px] tracking-wide">Expected Return Date:</span>
+              <span className="ml-2 font-mono font-bold text-black">{formatDateOnly(pass.expected_return_date)}</span>
+            </div>
+          )}
+
+          {/* Signature boxes */}
+          <div className="flex gap-6 pt-2">
             <SignatureBox label="Issued By (HOD)" />
             <SignatureBox label="Carrier Signature" />
             <SignatureBox label="Security Verification" />

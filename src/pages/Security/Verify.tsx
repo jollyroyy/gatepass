@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { supabase, gp } from '../../supabaseClient';
 import type { GatePassItemView, GatePassView } from '../../types';
 import { TypeChip } from '../../components/Badge';
-import { PASS_DIRECTIONS } from '../../lib/passTypes';
+
 import { formatDateOnly, formatDateTime } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
 import { MatchPanel, FlagPanel } from './VerifyPanels';
@@ -158,7 +158,7 @@ export default function Verify(): React.ReactElement {
   return (
     <div className="max-w-3xl">
       <div className="page-header flex items-center gap-3 flex-wrap">
-        <TypeChip type={pass.type} direction={pass.direction} />
+        <TypeChip type={pass.type} />
         <h1 className="page-title">{pass.pass_number}</h1>
       </div>
 
@@ -179,7 +179,6 @@ export default function Verify(): React.ReactElement {
           <Field label="Visitor Name" value={pass.visitor_name} />
           <Field label="Company" value={pass.visitor_company ?? '—'} />
           <Field label="Material Description" value={pass.material_summary ?? ''} full />
-          <Field label="Direction" value={PASS_DIRECTIONS[pass.direction].label} />
           <Field label="Quantity" value={`${pass.item_count} line(s)`} />
           <Field label="Vehicle Number" value={pass.vehicle_number ?? '—'} />
           <Field label="Purpose" value={pass.purpose} full />
