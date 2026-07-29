@@ -6,17 +6,17 @@ import { formatDateOnly } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
 import QrPass from '../../components/QrPass';
 
-function parseCompanyInfo(raw: string | null | undefined): { name: string; contact: string; address: string } {
-  if (!raw) return { name: '', contact: '', address: '' };
+function parseCompanyInfo(raw: string | null | undefined): { name: string; contact: string; phone: string; address: string } {
+  if (!raw) return { name: '', contact: '', phone: '', address: '' };
   try {
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object' && parsed.n) {
-      return { name: parsed.n, contact: parsed.c || '', address: parsed.a || '' };
+      return { name: parsed.n, contact: parsed.c || '', phone: parsed.p || '', address: parsed.a || '' };
     }
   } catch {
     // legacy plain-text company name
   }
-  return { name: raw, contact: '', address: '' };
+  return { name: raw, contact: '', phone: '', address: '' };
 }
 
 function SignatureBox({ label }: { label: string }): React.ReactElement {
@@ -120,6 +120,7 @@ export default function PassPrint(): React.ReactElement {
                 ['Visitor', pass.visitor_name],
                 ['Company', companyInfo.name],
                 ['Contact', companyInfo.contact],
+                ['Phone', companyInfo.phone],
                 ['Address', companyInfo.address],
                 ['Vehicle No', pass.vehicle_number],
                 ['Purpose', pass.purpose],

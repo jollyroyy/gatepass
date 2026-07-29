@@ -13,17 +13,17 @@ import Badge, { TypeChip } from '../../components/Badge';
 import QrPass from '../../components/QrPass';
 import VoidPassPanel from '../HOD/VoidPassPanel';
 
-function parseCompanyInfo(raw: string | null | undefined): { name: string; contact: string; address: string } {
-  if (!raw) return { name: '', contact: '', address: '' };
+function parseCompanyInfo(raw: string | null | undefined): { name: string; contact: string; phone: string; address: string } {
+  if (!raw) return { name: '', contact: '', phone: '', address: '' };
   try {
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object' && parsed.n) {
-      return { name: parsed.n, contact: parsed.c || '', address: parsed.a || '' };
+      return { name: parsed.n, contact: parsed.c || '', phone: parsed.p || '', address: parsed.a || '' };
     }
   } catch {
     // legacy plain-text
   }
-  return { name: raw, contact: '', address: '' };
+  return { name: raw, contact: '', phone: '', address: '' };
 }
 
 /** `gatepass.v_verifications` — the table plus the security officer's name. */
@@ -285,6 +285,7 @@ export default function PassDetail(): React.ReactElement {
           <DetailRow label="Visitor Name" value={pass.visitor_name} />
           <DetailRow label="Company" value={companyInfo.name} />
           <DetailRow label="Contact" value={companyInfo.contact || '—'} />
+          <DetailRow label="Phone" value={companyInfo.phone || '—'} />
           <DetailRow label="Address" value={companyInfo.address || '—'} />
           <DetailRow label="Material Description" value={pass.material_summary ?? ''} />
           <DetailRow label="Items" value={`${pass.item_count} line(s)`} />

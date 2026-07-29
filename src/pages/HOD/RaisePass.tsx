@@ -33,6 +33,7 @@ export default function RaisePass(): React.ReactElement {
     visitor_name: '',
     visitor_company: '',
     company_contact: '',
+    company_phone: '',
     company_address: '',
     vehicle_number: '',
     purpose: '',
@@ -192,6 +193,7 @@ export default function RaisePass(): React.ReactElement {
         p_visitor_company: JSON.stringify({
           n: form.visitor_company.trim(),
           c: form.company_contact.trim(),
+          p: form.company_phone.trim(),
           a: form.company_address.trim(),
         }) || null,
         p_vehicle_number: form.vehicle_number.trim() || null,
@@ -253,17 +255,22 @@ export default function RaisePass(): React.ReactElement {
           </div>
         </div>
 
-        {/* Visitor Details */}
+        {/* Collector Details */}
         <div className="card p-5">
-          <h2 className="section-title mb-4">Visitor Details</h2>
+          <h2 className="section-title mb-4">Collector Details</h2>
+          <div>
+            <label className="label">Authorized Person</label>
+            <input className="input" value={form.visitor_name} onChange={(e) => update('visitor_name', e.target.value)} placeholder="Person authorized to collect material" />
+            {errors.visitor_name && <p className="field-error">{errors.visitor_name}</p>}
+          </div>
+        </div>
+
+        {/* Company Details */}
+        <div className="card p-5">
+          <h2 className="section-title mb-4">Company Details</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="label">Visitor Name</label>
-              <input className="input" value={form.visitor_name} onChange={(e) => update('visitor_name', e.target.value)} />
-              {errors.visitor_name && <p className="field-error">{errors.visitor_name}</p>}
-            </div>
-            <div>
-              <label className="label">Company</label>
+              <label className="label">Company Name</label>
               <input className="input" value={form.visitor_company} onChange={(e) => update('visitor_company', e.target.value)} placeholder="Company name" />
               {vendors.length > 0 && (
                 <select className="input mt-2 text-sm" defaultValue=""
@@ -279,12 +286,16 @@ export default function RaisePass(): React.ReactElement {
               )}
             </div>
             <div>
-              <label className="label">Contact</label>
-              <input className="input" value={form.company_contact} onChange={(e) => update('company_contact', e.target.value)} placeholder="Person / phone" />
+              <label className="label">Contact Person</label>
+              <input className="input" value={form.company_contact} onChange={(e) => update('company_contact', e.target.value)} placeholder="Name" />
+            </div>
+            <div>
+              <label className="label">Boss Phone</label>
+              <input type="tel" className="input" value={form.company_phone} onChange={(e) => update('company_phone', e.target.value)} placeholder="Phone number" />
             </div>
           </div>
           <div className="mt-4">
-            <label className="label">Address</label>
+            <label className="label">Company Address</label>
             <textarea className="input" rows={2} value={form.company_address} onChange={(e) => update('company_address', e.target.value)} placeholder="Street, area, city, pincode" />
           </div>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -323,10 +334,10 @@ export default function RaisePass(): React.ReactElement {
                   <select className="input w-20 text-sm" value={item.unit} onChange={(e) => updateItem(idx, 'unit', e.target.value)}>
                     {UNITS.map((u) => (<option key={u} value={u}>{u}</option>))}
                   </select>
-                  <input className="input w-24 text-sm" placeholder="Serial" value={item.serial_no} onChange={(e) => updateItem(idx, 'serial_no', e.target.value)} />
+                  <input className="input w-20 text-sm" placeholder="Serial" value={item.serial_no} onChange={(e) => updateItem(idx, 'serial_no', e.target.value)} />
                   <div className="relative">
-                    <input type="number" min="0" step="0.01" className="input w-24 text-sm pl-4" placeholder="Value" value={item.approx_value} onChange={(e) => updateItem(idx, 'approx_value', e.target.value)} />
-                    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-navy-400 text-xs font-medium">&#x20B9;</span>
+                    <input type="number" min="0" step="0.01" className="input w-28 text-sm pl-5" placeholder="Approx Value" value={item.approx_value} onChange={(e) => updateItem(idx, 'approx_value', e.target.value)} />
+                    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-navy-500 text-xs font-semibold">&#x20B9;</span>
                   </div>
                   {form.items.length > 1 && (
                     <button type="button" className="text-flagged-500 hover:text-flagged-700 text-xl leading-none pb-0.5 shrink-0" onClick={() => removeItem(idx)} title="Remove item">&times;</button>

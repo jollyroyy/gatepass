@@ -297,12 +297,11 @@ export interface NewGatePass {
   visitor_name: string;
   visitor_company: string;
   company_contact: string;
+  company_phone: string;
   company_address: string;
   vehicle_number: string;
   purpose: string;
   expected_return_date: string;
-  /** At least one. `gatepass.raise_pass` refuses an empty list — a pass number
-   *  issued against no material is a slip the guard cannot check anything by. */
   items: NewGatePassItem[];
 }
 
