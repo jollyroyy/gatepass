@@ -119,7 +119,7 @@ export default function GateLookup(): React.ReactElement {
       {scanning ? (
         <QrScanner onScan={handleScan} onClose={() => setScanning(false)} />
       ) : (
-        <button type="button" className="btn-primary w-full md:w-auto" onClick={() => setScanning(true)}>
+        <button type="button" className="btn-primary" onClick={() => setScanning(true)}>
           Scan QR Code
         </button>
       )}
@@ -141,7 +141,7 @@ export default function GateLookup(): React.ReactElement {
           onChange={(e) => setValue(e.target.value)}
           autoFocus
         />
-        <button type="submit" className="btn-secondary md:w-auto" disabled={busy || !value.trim()}>
+        <button type="submit" className="btn-find" disabled={busy || !value.trim()}>
           {busy ? 'Looking up…' : 'Find Pass'}
         </button>
       </form>

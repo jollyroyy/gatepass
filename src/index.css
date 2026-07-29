@@ -232,6 +232,27 @@
   .dark .btn-secondary:hover {
     background: rgb(255 255 255 / 0.09);
   }
+  .btn-find {
+    @apply rounded-xl px-5 py-2.5 text-sm font-semibold
+           active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
+           transition-all duration-200;
+    background: rgb(var(--c-brand-600) / 0.08);
+    color: rgb(var(--c-brand-700));
+    border: 1px solid rgb(var(--c-brand-400) / 0.35);
+  }
+  .btn-find:hover {
+    background: rgb(var(--c-brand-600) / 0.14);
+    border-color: rgb(var(--c-brand-500) / 0.5);
+  }
+  .dark .btn-find {
+    background: rgb(var(--c-brand-500) / 0.12);
+    color: rgb(var(--c-brand-300));
+    border-color: rgb(var(--c-brand-500) / 0.25);
+  }
+  .dark .btn-find:hover {
+    background: rgb(var(--c-brand-500) / 0.2);
+    border-color: rgb(var(--c-brand-400) / 0.4);
+  }
   .btn-danger {
     @apply bg-flagged-600 text-white rounded-xl px-5 py-2.5 text-sm font-semibold
            hover:bg-flagged-700 active:scale-[0.98]
