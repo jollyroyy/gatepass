@@ -162,16 +162,18 @@ export interface GatePass {
 export interface GatePassItem {
   id: string;
   gate_pass_id: string;
-  /** 1-based, stable. The guard reads the printed slip against the trolley. */
   line_no: number;
+  /** Short name of the thing (e.g. "Drill Machine"). */
+  name: string;
+  /** Detailed description (e.g. "Bosch GSB 13mm Impact Drill"). */
   description: string;
+  /** Individual reason for taking this item out. */
+  purpose: string;
+  /** Per-item expected return date. */
+  expected_return_date: string | null;
   quantity: number;
   unit: string;
-  /** The asset tag stencilled on the thing. What makes an RGP enforceable:
-   *  without it, "a drill" came back — not necessarily THE drill. */
   serial_no: string | null;
-  /** Indicative worth, for the write-off conversation after a flag. Never used
-   *  for authorisation: an expensive item is not a suspicious one. */
   approx_value: number | null;
   returned_qty: number;
   department_id: string;
@@ -272,10 +274,13 @@ export interface Verification {
 // ─── Form payloads ─────────────────────────────────────────────────────────
 
 /** One row of the Raise Pass item repeater. Numbers stay as strings while the
- *  user is typing — an <input type="number"> mid-edit is legitimately "" or
- *  "1." and coercing early turns that into NaN. Parsed once, on submit. */
+ * user is typing — an <input type="number"> mid-edit is legitimately "" or
+ * "1." and coercing early turns that into NaN. Parsed once, on submit. */
 export interface NewGatePassItem {
+  name: string;
   description: string;
+  purpose: string;
+  expected_return_date: string;
   quantity: string;
   unit: string;
   serial_no: string;
@@ -283,7 +288,10 @@ export interface NewGatePassItem {
 }
 
 export const EMPTY_ITEM: NewGatePassItem = {
+  name: '',
   description: '',
+  purpose: '',
+  expected_return_date: '',
   quantity: '1',
   unit: 'nos',
   serial_no: '',
@@ -302,6 +310,8 @@ export interface NewGatePass {
   purpose: string;
   expected_return_date: string;
   items: NewGatePassItem[];
+  /** When set, copies to all items as their individual return date. */
+  master_return_date: string;
 }
 
 // ─── KPI shape shared by the HOD and admin dashboards ──────────────────────

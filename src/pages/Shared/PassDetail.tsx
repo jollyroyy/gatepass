@@ -4,9 +4,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { gp, supabase } from '../../supabaseClient';
-import type { GatePassView, Verification, VerifyAction } from '../../types';
+import type { GatePassView, GatePassItemView, Verification, VerifyAction } from '../../types';
 import { PASS_TYPES } from '../../lib/passTypes';
-import { STATUS_STYLES, RETURN_STYLES, OVERDUE_STYLE } from '../../lib/statusStyles';
+import { STATUS_STYLES, OVERDUE_STYLE } from '../../lib/statusStyles';
 import { formatDateTime, formatDateOnly } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
 import Badge, { TypeChip } from '../../components/Badge';
@@ -62,6 +62,7 @@ export default function PassDetail(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [pass, setPass] = useState<GatePassView | null | undefined>(undefined);
+  const [items, setItems] = useState<GatePassItemView[]>([]);
   const [verifications, setVerifications] = useState<VerificationView[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showCreated, setShowCreated] = useState(searchParams.get('created') === '1');
@@ -108,6 +109,14 @@ export default function PassDetail(): React.ReactElement {
         setPass((data as GatePassView | null) ?? null);
 
         if (data) {
+          const { data: itemRows, error: itemErr } = await gp()
+            .from('v_gate_pass_items')
+            .select('*')
+            .eq('gate_pass_id', id)
+            .order('line_no');
+          if (itemErr) throw itemErr;
+          if (!cancelled) setItems((itemRows as GatePassItemView[] | null) ?? []);
+
           const { data: verifs, error: verifErr } = await gp()
             .from('v_verifications')
             .select('*')
@@ -155,7 +164,6 @@ export default function PassDetail(): React.ReactElement {
     );
   }
 
-  const isRgp = pass.type === 'RGP';
   const companyInfo = parseCompanyInfo(pass.visitor_company);
   // Mirrors cancel_pass exactly: pending, and raised by the signed-in user.
   // Role is not re-checked here — only an HOD can ever be a pass's raised_by,
@@ -282,26 +290,34 @@ export default function PassDetail(): React.ReactElement {
       <div className="card p-6">
         <h2 className="section-title mb-4">Pass Details</h2>
         <dl className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <DetailRow label="Visitor Name" value={pass.visitor_name} />
-          <DetailRow label="Phone" value={companyInfo.phone || '—'} />
+          <DetailRow label="Authorized Person" value={pass.visitor_name} />
+          <DetailRow label="Contact No" value={companyInfo.phone || '—'} />
           <DetailRow label="Company" value={companyInfo.name} />
-          <DetailRow label="Contact" value={companyInfo.contact || '—'} />
-          <DetailRow label="Address" value={companyInfo.address || '—'} />
-          <DetailRow label="Material Description" value={pass.material_summary ?? ''} />
-          <DetailRow label="Items" value={`${pass.item_count} line(s)`} />
+          <DetailRow label="Company Address" value={companyInfo.address || '—'} />
           <DetailRow label="Vehicle Number" value={pass.vehicle_number} />
-          <DetailRow label="Purpose" value={pass.purpose} />
           <DetailRow label="Department" value={pass.department_name} />
           <DetailRow label="Raised By" value={pass.raised_by_name} />
           <DetailRow label="Raised At" value={formatDateTime(pass.created_at)} />
-          {isRgp && (
-            <>
-              <DetailRow label="Expected Return Date" value={formatDateOnly(pass.expected_return_date)} />
-              <DetailRow label="Return Status" value={<Badge style={RETURN_STYLES[pass.return_status]} />} />
-              <DetailRow label="Actual Return Date" value={formatDateOnly(pass.actual_return_date)} />
-            </>
-          )}
         </dl>
+      </div>
+
+      <div className="card p-6">
+        <h2 className="section-title mb-4">Material Items ({pass.item_count})</h2>
+        <div className="flex flex-col gap-4">
+          {items.map((item) => (
+            <div key={item.id} className="border border-navy-200 rounded-lg p-4 bg-surface-50">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                <DetailRow label="Item Name" value={item.name} />
+                <DetailRow label="Description" value={item.description} />
+                <DetailRow label="Purpose / Reason" value={item.purpose} />
+                <DetailRow label="Quantity" value={`${item.quantity} ${item.unit}`} />
+                <DetailRow label="Serial No." value={item.serial_no || '—'} />
+                <DetailRow label="Approx Value" value={item.approx_value != null ? `₹${item.approx_value.toLocaleString('en-IN')}` : '—'} />
+                <DetailRow label="Expected Return Date" value={item.expected_return_date ? formatDateOnly(item.expected_return_date) : '—'} />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="card p-6">

@@ -37,6 +37,7 @@ export default function RaisePass(): React.ReactElement {
     vehicle_number: '',
     purpose: '',
     expected_return_date: '',
+    master_return_date: '',
     items: [{ ...EMPTY_ITEM }],
   });
   const [errors, setErrors] = useState<FormErrors>({});
@@ -145,8 +146,14 @@ export default function RaisePass(): React.ReactElement {
       errs.items = 'At least one material item is required.';
     } else {
       form.items.forEach((item, idx) => {
+        if (!item.name.trim()) {
+          errs[`item_${idx}_name`] = 'Item name is required.';
+        }
         if (!item.description.trim()) {
           errs[`item_${idx}_description`] = 'Description is required.';
+        }
+        if (!item.purpose.trim()) {
+          errs[`item_${idx}_purpose`] = 'Purpose is required.';
         }
         const qty = Number(item.quantity);
         if (!item.quantity || Number.isNaN(qty) || qty <= 0) {
@@ -154,8 +161,6 @@ export default function RaisePass(): React.ReactElement {
         }
       });
     }
-
-    if (!form.purpose.trim()) errs.purpose = 'Purpose is required.';
 
     if (depts.length === 0) errs.department_id = 'You are not assigned to any department.';
 
@@ -191,14 +196,15 @@ export default function RaisePass(): React.ReactElement {
           v: form.visitor_phone.trim(),
         }) || null,
         p_vehicle_number: form.vehicle_number.trim() || null,
-        p_purpose: form.purpose.trim(),
-        p_expected_return_date: requiresReturnDate(form.type) ? form.expected_return_date : null,
         p_items: form.items.map((item) => ({
+          name: item.name.trim(),
           description: item.description.trim(),
+          purpose: item.purpose.trim(),
           quantity: Number(item.quantity),
           unit: item.unit,
           serial_no: item.serial_no.trim() || null,
           approx_value: item.approx_value ? Number(item.approx_value) : null,
+          expected_return_date: item.expected_return_date || null,
         })),
       });
       if (error) throw error;
@@ -291,6 +297,27 @@ export default function RaisePass(): React.ReactElement {
           </div>
         </div>
 
+        {/* Master Return Date */}
+        <div className="card p-5">
+          <h2 className="section-title mb-4">Return Date</h2>
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="flex-1 min-w-[200px]">
+              <label className="label">Set all return dates to</label>
+              <input type="date" className="input" value={form.master_return_date}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  update('master_return_date', val);
+                  setForm((f) => ({
+                    ...f,
+                    master_return_date: val,
+                    items: f.items.map((item) => ({ ...item, expected_return_date: val })),
+                  }));
+                }} />
+            </div>
+            <p className="text-xs text-navy-400 pb-1">Leave blank to set individual dates per item below.</p>
+          </div>
+        </div>
+
         {/* Material Items */}
         <div className="card p-5">
           <div className="flex items-center justify-between mb-3">
@@ -299,27 +326,52 @@ export default function RaisePass(): React.ReactElement {
           </div>
           <div className="flex flex-col gap-2">
             {form.items.map((item, idx) => (
-              <div key={idx} className="flex flex-wrap items-start gap-2 p-3 bg-surface-50 rounded-lg">
-                <span className="text-xs font-bold text-navy-400 w-5 mt-2.5 shrink-0 text-right">#{idx + 1}</span>
-                <div className="flex-1 min-w-[160px]">
-                  <input className="input text-sm w-full" placeholder="Description" value={item.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} />
-                  {errors[`item_${idx}_description`] && <p className="field-error">{errors[`item_${idx}_description`]}</p>}
+              <div key={idx} className="flex flex-col gap-2 p-3 bg-surface-50 rounded-lg">
+                <span className="text-xs font-bold text-navy-400">Item #{idx + 1}</span>
+                <div className="flex flex-wrap items-start gap-2">
+                  <div className="flex-1 min-w-[140px]">
+                    <input className="input text-sm w-full" placeholder="Item name" value={item.name}
+                      onChange={(e) => updateItem(idx, 'name', e.target.value)} />
+                    {errors[`item_${idx}_name`] && <p className="field-error">{errors[`item_${idx}_name`]}</p>}
+                  </div>
+                  <div className="flex-[2] min-w-[200px]">
+                    <input className="input text-sm w-full" placeholder="Description (brand, model, details)" value={item.description}
+                      onChange={(e) => updateItem(idx, 'description', e.target.value)} />
+                    {errors[`item_${idx}_description`] && <p className="field-error">{errors[`item_${idx}_description`]}</p>}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-start gap-2">
+                  <div className="flex-1 min-w-[160px]">
+                    <input className="input text-sm w-full" placeholder="Reason for taking out" value={item.purpose}
+                      onChange={(e) => updateItem(idx, 'purpose', e.target.value)} />
+                    {errors[`item_${idx}_purpose`] && <p className="field-error">{errors[`item_${idx}_purpose`]}</p>}
+                  </div>
+                  <div className="w-[160px]">
+                    <input type="date" className="input text-sm w-full" value={item.expected_return_date}
+                      onChange={(e) => updateItem(idx, 'expected_return_date', e.target.value)}
+                      min={new Date().toISOString().slice(0, 10)} />
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-end gap-2">
                   <div>
-                    <input type="number" min="0.01" step="0.01" className="input w-16 text-sm" placeholder="Qty" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} />
+                    <input type="number" min="0.01" step="0.01" className="input w-16 text-sm" placeholder="Qty"
+                      value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} />
                     {errors[`item_${idx}_quantity`] && <p className="field-error">{errors[`item_${idx}_quantity`]}</p>}
                   </div>
-                  <select className="input w-20 text-sm" value={item.unit} onChange={(e) => updateItem(idx, 'unit', e.target.value)}>
+                  <select className="input w-20 text-sm" value={item.unit}
+                    onChange={(e) => updateItem(idx, 'unit', e.target.value)}>
                     {UNITS.map((u) => (<option key={u} value={u}>{u}</option>))}
                   </select>
-                  <input className="input w-20 text-sm" placeholder="Serial" value={item.serial_no} onChange={(e) => updateItem(idx, 'serial_no', e.target.value)} />
+                  <input className="input w-20 text-sm" placeholder="Serial" value={item.serial_no}
+                    onChange={(e) => updateItem(idx, 'serial_no', e.target.value)} />
                   <div className="relative">
-                    <input type="number" min="0" step="0.01" className="input w-28 text-sm pl-5" placeholder="Approx Value" value={item.approx_value} onChange={(e) => updateItem(idx, 'approx_value', e.target.value)} />
+                    <input type="number" min="0" step="0.01" className="input w-28 text-sm pl-5" placeholder="Approx Value"
+                      value={item.approx_value} onChange={(e) => updateItem(idx, 'approx_value', e.target.value)} />
                     <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-navy-500 text-xs font-semibold">&#x20B9;</span>
                   </div>
                   {form.items.length > 1 && (
-                    <button type="button" className="text-flagged-500 hover:text-flagged-700 text-xl leading-none pb-0.5 shrink-0" onClick={() => removeItem(idx)} title="Remove item">&times;</button>
+                    <button type="button" className="text-flagged-500 hover:text-flagged-700 text-xl leading-none pb-0.5 shrink-0"
+                      onClick={() => removeItem(idx)} title="Remove item">&times;</button>
                   )}
                 </div>
               </div>
@@ -329,25 +381,6 @@ export default function RaisePass(): React.ReactElement {
             + Add Item
           </button>
           {errors.items && <p className="field-error mt-2">{errors.items}</p>}
-        </div>
-
-        {/* Purpose & Return */}
-        <div className="card p-5">
-          <h2 className="section-title mb-4">Purpose & Schedule</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <label className="label">Purpose</label>
-              <textarea className="input" rows={2} value={form.purpose} onChange={(e) => update('purpose', e.target.value)} placeholder="Reason for material movement" />
-              {errors.purpose && <p className="field-error">{errors.purpose}</p>}
-            </div>
-            {requiresReturnDate(form.type) && (
-              <div>
-                <label className="label">Expected Return Date</label>
-                <input type="date" min={todayStr()} className="input" value={form.expected_return_date} onChange={(e) => update('expected_return_date', e.target.value)} />
-                {errors.expected_return_date && <p className="field-error">{errors.expected_return_date}</p>}
-              </div>
-            )}
-          </div>
         </div>
 
         {submitError && <div className="alert-error">{submitError}</div>}

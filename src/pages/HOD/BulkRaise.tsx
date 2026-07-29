@@ -24,7 +24,7 @@ export default function BulkRaise(): React.ReactElement {
     type: 'NRGP', direction: 'out', department_id: '',
     visitor_name: '', visitor_phone: '', visitor_company: '', company_address: '',
     vehicle_number: '', purpose: '',
-    expected_return_date: '', items: [{ ...EMPTY_ITEM }], namePrefix: 'Worker', count: 5,
+    expected_return_date: '', master_return_date: '', items: [{ ...EMPTY_ITEM }], namePrefix: 'Worker', count: 5,
   });
   const [errors, setErrors] = useState<FormErrors>({});
 

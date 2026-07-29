@@ -117,13 +117,11 @@ export default function PassPrint(): React.ReactElement {
           <table className="w-full border-collapse text-sm mb-4">
             <tbody>
               {([
-                ['Visitor', pass.visitor_name],
-                ['Phone', companyInfo.phone],
+                ['Authorized Person', pass.visitor_name],
+                ['Contact No', companyInfo.phone],
                 ['Company', companyInfo.name],
-                ['Contact', companyInfo.contact],
-                ['Address', companyInfo.address],
+                ['Company Address', companyInfo.address],
                 ['Vehicle No', pass.vehicle_number],
-                ['Purpose', pass.purpose],
                 ['Department', pass.department_name],
                 ['Raised By', pass.raised_by_name],
               ] as const).map(([label, value]) => (
@@ -143,27 +141,33 @@ export default function PassPrint(): React.ReactElement {
             <table className="w-full border-collapse text-[11px]">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="border border-black px-2 py-1 font-semibold text-black text-left w-6">#</th>
+                  <th className="border border-black px-2 py-1 font-semibold text-black text-left w-5">#</th>
+                  <th className="border border-black px-2 py-1 font-semibold text-black text-left">Name</th>
                   <th className="border border-black px-2 py-1 font-semibold text-black text-left">Description</th>
+                  <th className="border border-black px-2 py-1 font-semibold text-black text-left">Purpose</th>
                   <th className="border border-black px-2 py-1 font-semibold text-black text-right w-10">Qty</th>
-                  <th className="border border-black px-2 py-1 font-semibold text-black text-left w-12">Unit</th>
-                  <th className="border border-black px-2 py-1 font-semibold text-black text-left">Serial No.</th>
-                  <th className="border border-black px-2 py-1 font-semibold text-black text-right w-20">Value (&#x20B9;)</th>
+                  <th className="border border-black px-2 py-1 font-semibold text-black text-left w-10">Unit</th>
+                  <th className="border border-black px-2 py-1 font-semibold text-black text-left">Serial</th>
+                  <th className="border border-black px-2 py-1 font-semibold text-black text-right w-16">Value (₹)</th>
+                  <th className="border border-black px-2 py-1 font-semibold text-black text-left">Return Date</th>
                 </tr>
               </thead>
               <tbody>
                 {items.length > 0 ? items.map((item) => (
                   <tr key={item.id}>
                     <td className="border border-black px-2 py-1 text-black text-center">{item.line_no}</td>
+                    <td className="border border-black px-2 py-1 text-black font-semibold">{item.name}</td>
                     <td className="border border-black px-2 py-1 text-black">{item.description}</td>
+                    <td className="border border-black px-2 py-1 text-black text-[10px]">{item.purpose}</td>
                     <td className="border border-black px-2 py-1 text-black text-right">{item.quantity}</td>
                     <td className="border border-black px-2 py-1 text-black">{item.unit}</td>
                     <td className="border border-black px-2 py-1 text-black font-mono text-[10px]">{item.serial_no ?? '—'}</td>
                     <td className="border border-black px-2 py-1 text-black text-right">{formatCurrency(item.approx_value)}</td>
+                    <td className="border border-black px-2 py-1 text-black text-[10px]">{item.expected_return_date ? formatDateOnly(item.expected_return_date) : '—'}</td>
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={6} className="border border-black px-2 py-2 text-black text-gray-600 italic">
+                    <td colSpan={9} className="border border-black px-2 py-2 text-black text-gray-600 italic">
                       {pass.material_summary ?? '—'}
                     </td>
                   </tr>
@@ -172,11 +176,28 @@ export default function PassPrint(): React.ReactElement {
             </table>
           </div>
 
-          {/* Expected Return Date (RGP only) */}
-          {isRgp && (
-            <div className="border border-black px-3 py-2 mb-4 text-sm bg-gray-50 flex items-center">
-              <span className="font-semibold text-black uppercase text-[11px] tracking-wide">Expected Return Date:</span>
-              <span className="ml-2 font-mono font-bold text-black">{formatDateOnly(pass.expected_return_date)}</span>
+          {/* Per-item Return Dates (RGP only) */}
+          {isRgp && items.some((i) => i.expected_return_date) && (
+            <div className="mb-4">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-black mb-1">Return Dates</p>
+              <table className="w-full border-collapse text-[11px]">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-black px-2 py-1 font-semibold text-black text-left w-5">#</th>
+                    <th className="border border-black px-2 py-1 font-semibold text-black text-left">Item</th>
+                    <th className="border border-black px-2 py-1 font-semibold text-black text-left">Expected Return Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.filter((i) => i.expected_return_date).map((item) => (
+                    <tr key={item.id}>
+                      <td className="border border-black px-2 py-1 text-black text-center">{item.line_no}</td>
+                      <td className="border border-black px-2 py-1 text-black">{item.name}</td>
+                      <td className="border border-black px-2 py-1 text-black font-mono">{formatDateOnly(item.expected_return_date)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
 
