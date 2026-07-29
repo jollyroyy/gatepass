@@ -332,20 +332,25 @@ describe('SQL invariants', () => {
     // covers only the window between raising a pass and the guard verifying it.
     // The moment a guard MATCHES an RGP the row becomes matched/awaiting_return,
     // drops out of that predicate, and a second pass could be raised for material
-    // that is still physically outside the mall. Migration 012 widens the
-    // predicate to "still open" — pending OR awaiting_return — which is what
-    // "one pass per item at a time" actually means.
-    //
-    // Both 'pending' and 'awaiting_return' are enum values from 001, so the
-    // predicate is safe to evaluate in the same transaction APPLY_ALL.sql pastes
-    // (TRAP 1 applies only to values added by a LATER `alter type ... add value`).
+    // that is still physically outside the mall. Since migration 020 the index
+    // uses `is_open` (trigger-maintained — true for pending, awaiting_return, and
+    // partially_returned), which is the canonical condition. The migration 013/020
+    // DDL must mention `awaiting_return` either in the index body or as a comment
+    // on the index so that a reader (and this test) can verify the "still out" case
+    // is covered.
     const migrations = allMigrationsText();
 
     const re =
       /create\s+unique\s+index\s+(?:if not exists\s+)?(\w+)\s+on\s+gatepass\.gate_passes([\s\S]*?);/gi;
     const indexes: { name: string; file: string; body: string }[] = [];
+    // Also scan the items table index (moved there in 013, scoped per-pass in 020).
+    const reItems =
+      /create\s+unique\s+index\s+(?:if not exists\s+)?(\w+)\s+on\s+gatepass\.gate_pass_items([\s\S]*?);/gi;
     for (const { name, sql } of migrations) {
       for (const m of sql.matchAll(re)) {
+        indexes.push({ name: m[1], file: name, body: m[0] });
+      }
+      for (const m of sql.matchAll(reItems)) {
         indexes.push({ name: m[1], file: name, body: m[0] });
       }
     }
@@ -353,18 +358,25 @@ describe('SQL invariants', () => {
     const materialIndexes = indexes.filter((i) => /normalize_material/i.test(i.body));
     expect(
       materialIndexes.length,
-      'no unique index on gatepass.gate_passes is built over normalize_material — the ' +
-        'one-pass-per-item rule has no enforcement at all, or the extraction regex is broken'
+      'no unique index on gatepass.gate_passes or gate_pass_items is built over ' +
+        'normalize_material — the one-pass-per-item rule has no enforcement at all, or ' +
+        'the extraction regex is broken'
     ).toBeGreaterThan(0);
 
     const live = materialIndexes[materialIndexes.length - 1]; // highest-numbered migration wins
 
+    // Migration 020 uses `is_open` (trigger-maintained, true for pending +
+    // awaiting_return + partially_returned) as the WHERE predicate. The test
+    // accepts either the literal string 'awaiting_return' or 'is_open' — both
+    // prove the index covers the "still out" case and not just 'pending'.
+    const mentionsAwaiting = /awaiting_return/i.test(live.body);
+    const usesIsOpen = /\bis_open\b/i.test(live.body);
     expect(
-      /awaiting_return/i.test(live.body),
-      `the live material-uniqueness index (${live.name}, in ${live.file}) does not mention ` +
-        `awaiting_return, so its predicate stops applying the instant a guard matches the pass. ` +
-        `A second RGP could then be raised for material that has not come back yet — exactly the ` +
-        `duplicate this index exists to prevent.`
+      mentionsAwaiting || usesIsOpen,
+      `the live material-uniqueness index (${live.name}, in ${live.file}) neither mentions ` +
+        `awaiting_return nor uses is_open (trigger-maintained). Without one of these its predicate ` +
+        `stops applying the instant a guard matches the pass — a second RGP could then be raised for ` +
+        `material that has not come back yet.`
     ).toBe(true);
 
     // A dropped index is not enforcement. If 012 retired the pending-only index,
