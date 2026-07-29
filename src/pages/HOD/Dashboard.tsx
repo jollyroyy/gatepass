@@ -200,12 +200,11 @@ export default function Dashboard(): React.ReactElement {
         />
         <KpiCard label="Matched" value={kpis.matched} tone="matched" loading={loading} />
         <KpiCard
-          label="Flagged"
+          label="Mismatched"
           value={kpis.flagged}
           tone="flagged"
           to="/my-passes?status=flagged"
-          loading={loading}
-          delta={kpis.flaggedRate > 0 ? `${kpis.flaggedRate}% flag rate` : undefined}
+          delta={kpis.flaggedRate > 0 ? `${kpis.flaggedRate}% mismatch rate` : undefined}
         />
         <KpiCard
           label="Return Rate"
@@ -233,7 +232,7 @@ export default function Dashboard(): React.ReactElement {
 
       {!loading && flagged.length > 0 && (
         <div className="card border border-flagged-500/30 bg-flagged-50/40 p-5 mb-8">
-          <h2 className="section-title text-flagged-700 mb-3">Needs your attention</h2>
+          <h2 className="section-title text-flagged-700 mb-3">Mismatches needing review</h2>
           <div className="flex flex-col gap-1">
             {flagged.map((p) => (
               <div

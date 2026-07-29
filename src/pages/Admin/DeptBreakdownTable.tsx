@@ -23,7 +23,7 @@ export default function DeptBreakdownTable({ rows }: Props): React.ReactElement 
               <th>Department</th>
               <th>Pending</th>
               <th>Matched</th>
-              <th>Flagged</th>
+              <th>Mismatched</th>
             </tr>
           </thead>
           <tbody>

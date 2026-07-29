@@ -258,7 +258,7 @@ export default function AIAnalyticsTab(): React.ReactElement {
             <div className="flex gap-4 mt-3 text-xs text-navy-400">
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-pending-400" /> Pending</span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-matched-500" /> Matched</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-flagged-500" /> Flagged</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-flagged-500" /> Mismatched</span>
             </div>
           </div>
 
@@ -274,7 +274,7 @@ export default function AIAnalyticsTab(): React.ReactElement {
                     <div key={d.name}>
                       <div className="flex justify-between text-xs mb-1">
                         <span className="font-semibold text-navy-700">{d.name}</span>
-                        <span className="text-navy-400 tabular">{d.total} passes · {d.flagRate}% flagged</span>
+                        <span className="text-navy-400 tabular">{d.total} passes · {d.flagRate}% mismatched</span>
                       </div>
                       <MiniBar
                         value={d.total}

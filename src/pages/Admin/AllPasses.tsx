@@ -46,9 +46,9 @@ function mapKpiRow(row: KpiRow | undefined): PassKpis {
 
 const STATUS_TABS: { key: PassStatus | 'all'; label: string }[] = [
   { key: 'all', label: 'All' },
-  { key: 'pending', label: 'Pending' },
+  { key: 'pending', label: 'Pending for Gate Approval' },
   { key: 'matched', label: 'Matched' },
-  { key: 'flagged', label: 'Flagged' },
+  { key: 'flagged', label: 'Mismatched' },
 ];
 
 const CSV_COLUMNS: CsvColumn[] = [
@@ -155,8 +155,8 @@ export default function AllPasses(): React.ReactElement {
     <div>
       <div className="page-header flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="page-title">All Passes</h1>
-          <p className="page-subtitle">Org-wide view across every department.</p>
+          <h1 className="page-title">Reports</h1>
+          <p className="page-subtitle">Org-wide pass report across every department.</p>
         </div>
         <button type="button" className="btn-secondary" onClick={handleExport}>
           Export CSV
@@ -175,7 +175,7 @@ export default function AllPasses(): React.ReactElement {
         />
         <KpiCard label="Pending" value={kpis.pending} tone="pending" loading={loading} />
         <KpiCard label="Matched" value={kpis.matched} tone="matched" loading={loading} />
-        <KpiCard label="Flagged" value={kpis.flagged} tone="flagged" loading={loading} delta={kpis.flaggedRate > 0 ? `${kpis.flaggedRate}% flag rate` : undefined} />
+        <KpiCard label="Mismatched" value={kpis.flagged} tone="flagged" loading={loading} delta={kpis.flaggedRate > 0 ? `${kpis.flaggedRate}% mismatch rate` : undefined} />
         <KpiCard label="Awaiting Return" value={kpis.awaitingReturn} tone="brand" loading={loading} />
         <KpiCard label="Return Rate" value={`${kpis.returnRate}%`} tone="matched" loading={loading} />
         <KpiCard label="Overdue" value={kpis.overdue} tone="overdue" loading={loading} delta={kpis.overdueValue > 0 ? `₹${kpis.overdueValue.toLocaleString('en-IN')} in value` : undefined} />

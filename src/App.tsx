@@ -21,6 +21,7 @@ import PendingReturns from './pages/Security/PendingReturns';
 import History from './pages/Security/History';
 import AdminPanel from './pages/Admin/AdminPanel';
 import AllPasses from './pages/Admin/AllPasses';
+
 import PassDetail from './pages/Shared/PassDetail';
 import PassPrint from './pages/Shared/PassPrint';
 

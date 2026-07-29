@@ -33,7 +33,7 @@ const OUTCOME_MESSAGES: Record<Exclude<ScanOutcome, 'ok'>, { tone: 'error' | 'wa
   },
   cancelled: { tone: 'warning', text: 'That pass was voided by the HOD who raised it.' },
   already_matched: { tone: 'warning', text: 'That pass has already been matched and cleared.' },
-  already_flagged: { tone: 'warning', text: 'That pass has already been flagged as a mismatch.' },
+  already_flagged: { tone: 'warning', text: 'That pass has already been marked as a mismatch.' },
 };
 
 interface Outcome {

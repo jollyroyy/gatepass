@@ -15,9 +15,9 @@ import { useDeletePass } from './useDeletePass';
 
 const STATUS_TABS: { key: PassStatus | 'all'; label: string }[] = [
   { key: 'all', label: 'All' },
-  { key: 'pending', label: 'Pending' },
+  { key: 'pending', label: 'Pending for Gate Approval' },
   { key: 'matched', label: 'Matched' },
-  { key: 'flagged', label: 'Flagged' },
+  { key: 'flagged', label: 'Mismatched' },
 ];
 
 const VALID_STATUSES: PassStatus[] = ['pending', 'matched', 'flagged'];

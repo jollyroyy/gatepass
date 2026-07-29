@@ -42,7 +42,7 @@ const ACTION_DOT: Record<VerifyAction, string> = {
 
 const ACTION_LABEL: Record<VerifyAction, string> = {
   matched: 'Matched at gate',
-  flagged: 'Flagged at gate',
+  flagged: 'Mismatched at gate',
   returned: 'Returned',
   held: 'Held at gate',
   hod_reviewed: 'HOD approved override',
@@ -221,7 +221,7 @@ export default function PassDetail(): React.ReactElement {
       {pass.status === 'flagged' && (
         <div className="alert-error flex-col items-start gap-2">
           <p className="font-semibold">
-            Flagged by {pass.verified_by_name ?? 'security'} — {formatDateTime(pass.verified_at)}
+            Mismatched by {pass.verified_by_name ?? 'security'} — {formatDateTime(pass.verified_at)}
           </p>
           <p>{pass.flag_reason ?? 'No reason recorded.'}</p>
           {userId !== null && pass.raised_by === userId && (
