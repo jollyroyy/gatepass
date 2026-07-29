@@ -121,7 +121,7 @@ export default function Verify(): React.ReactElement {
     try {
       const { error } = await gp().rpc('flag_pass', { p_pass_id: pass.id, p_reason: reason });
       if (error) throw error;
-      navigate('/console', { state: { flash: `${pass.pass_number} flagged for the HOD's attention.` } });
+      navigate('/console', { state: { flash: `${pass.pass_number} flagged as a mismatch for the HOD's review.` } });
     } catch (err) {
       setActionError(safeErrorMessage(err));
       setSubmitting(false);

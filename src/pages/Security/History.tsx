@@ -18,7 +18,7 @@ type HistoryStatus = Extract<PassStatus, 'matched' | 'flagged'>;
 const STATUS_TABS: { key: HistoryStatus | 'all'; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'matched', label: 'Matched' },
-  { key: 'flagged', label: 'Flagged' },
+  { key: 'flagged', label: 'Mismatched' },
 ];
 
 const CSV_COLUMNS: CsvColumn[] = [
@@ -31,7 +31,7 @@ const CSV_COLUMNS: CsvColumn[] = [
   { key: 'status', header: 'Status' },
   { key: 'verified_by_name', header: 'Verified By' },
   { key: 'verified_at', header: 'Verified At' },
-  { key: 'flag_reason', header: 'Flag Reason' },
+  { key: 'flag_reason', header: 'Mismatch Reason' },
 ];
 
 function startOfTodayIso(): string {
@@ -114,7 +114,7 @@ export default function History(): React.ReactElement {
       <div className="page-header flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="page-title">Verification History</h1>
-          <p className="page-subtitle">Matched and flagged passes, most recent first.</p>
+          <p className="page-subtitle">Matched and mismatched passes, most recent first.</p>
         </div>
         <button type="button" className="btn-secondary" onClick={handleExport}>
           Export CSV
@@ -167,7 +167,7 @@ export default function History(): React.ReactElement {
                 <th>Status</th>
                 <th>Verified By</th>
                 <th>Verified At</th>
-                <th>Flag Reason</th>
+                <th>Mismatch Reason</th>
               </tr>
             </thead>
             <tbody>

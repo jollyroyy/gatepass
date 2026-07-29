@@ -75,7 +75,7 @@ export default function GateConsole(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [matchedToday, setMatchedToday] = useState(0);
-  const [flaggedToday, setFlaggedToday] = useState(0);
+  const [mismatchedToday, setMismatchedToday] = useState(0);
   const [queue, setQueue] = useState<GatePassView[]>([]);
 
   const [categoryFilter, setCategoryFilter] = useState<PassCategoryKey | 'all'>('all');
@@ -85,7 +85,7 @@ export default function GateConsole(): React.ReactElement {
     if (!silent) setLoading(true);
     try {
       const todayIso = startOfTodayIso();
-      const [kpiRes, matchedRes, flaggedRes, queueRes] = await Promise.all([
+      const [kpiRes, matchedRes, mismatchedRes, queueRes] = await Promise.all([
         gp().rpc('kpis', { p_department_id: null }),
         gp()
           .from('v_gate_passes')
@@ -102,13 +102,13 @@ export default function GateConsole(): React.ReactElement {
 
       if (kpiRes.error) throw kpiRes.error;
       if (matchedRes.error) throw matchedRes.error;
-      if (flaggedRes.error) throw flaggedRes.error;
+      if (mismatchedRes.error) throw mismatchedRes.error;
       if (queueRes.error) throw queueRes.error;
 
       const kpiRow = (kpiRes.data as { pending: number }[] | null)?.[0];
       setPendingCount(kpiRow?.pending ?? 0);
       setMatchedToday(matchedRes.count ?? 0);
-      setFlaggedToday(flaggedRes.count ?? 0);
+      setMismatchedToday(mismatchedRes.count ?? 0);
       setQueue((queueRes.data as GatePassView[] | null) ?? []);
       setError(null);
     } catch (err) {
@@ -162,10 +162,6 @@ export default function GateConsole(): React.ReactElement {
     return true;
   });
 
-  const oldestWaitMs = queue.length > 0 ? Date.now() - new Date(queue[0].created_at).getTime() : 0;
-  const oldestWaitValue = queue.length > 0 ? formatAge(queue[0].created_at) : '—';
-  const oldestWaitTone: 'overdue' | 'pending' = oldestWaitMs > TWO_HOURS_MS ? 'overdue' : 'pending';
-
   return (
     <div>
       <div className="page-header">
@@ -179,12 +175,10 @@ export default function GateConsole(): React.ReactElement {
 
       {error && <div className="alert-error mb-6">{error}</div>}
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
         <KpiCard label="Pending Now" value={pendingCount} tone="pending" to="/console#queue" loading={loading} />
-        <KpiCard label="Queue Size" value={queue.length} tone="pending" to="/console#queue" loading={loading} />
-        <KpiCard label="Oldest Wait" value={oldestWaitValue} tone={oldestWaitTone} to="/console#queue" loading={loading} />
         <KpiCard label="Matched Today" value={matchedToday} tone="matched" to="/history?status=matched" loading={loading} />
-        <KpiCard label="Flagged Today" value={flaggedToday} tone="flagged" to="/history?status=flagged" loading={loading} />
+        <KpiCard label="Mismatched Today" value={mismatchedToday} tone="flagged" to="/history?status=flagged" loading={loading} />
       </div>
 
       <div ref={queueRef} id="queue" className="flex flex-wrap gap-3 items-center mb-5">

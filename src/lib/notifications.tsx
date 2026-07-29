@@ -106,8 +106,8 @@ export function NotificationProvider({ session, role, children }: Props): React.
               addNotification({
                 id: genId(),
                 type: 'flagged',
-                title: 'Pass Flagged',
-                message: `${passNumber} was flagged at the gate. Reason: ${reason}`,
+                title: 'Pass Mismatched',
+                message: `${passNumber} was flagged as a mismatch at the gate. Reason: ${reason}`,
                 passId,
                 passNumber,
                 timestamp: ts || new Date().toISOString(),

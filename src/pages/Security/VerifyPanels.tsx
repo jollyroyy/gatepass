@@ -127,7 +127,7 @@ export function FlagPanel({ submitting, error, onCancel, onConfirm }: FlagPanelP
   return (
     <div className="modal-overlay">
       <div className="modal-content p-6">
-        <h2 className="text-lg font-bold text-navy-950 mb-1">Flag Mismatch</h2>
+        <h2 className="text-lg font-bold text-navy-950 mb-1">Report Mismatch</h2>
         <p className="text-sm text-navy-500 mb-5">Describe what doesn&apos;t match. This is required.</p>
 
         <div className="mb-5">
@@ -154,7 +154,7 @@ export function FlagPanel({ submitting, error, onCancel, onConfirm }: FlagPanelP
             disabled={submitting || !valid}
             onClick={() => onConfirm(reason.trim())}
           >
-            {submitting ? 'Flagging…' : '⚑ Confirm Flag'}
+            {submitting ? 'Submitting…' : '⚑ Confirm Mismatch'}
           </button>
         </div>
       </div>

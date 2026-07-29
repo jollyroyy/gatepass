@@ -14,7 +14,7 @@ export const STATUS_STYLES: Record<PassStatus, StatusStyle> = {
   // recorded as mismatches that never were.
   held: { bg: 'bg-pending-100', text: 'text-pending-800', dot: 'bg-pending-600', label: 'Held at Gate' },
   matched: { bg: 'bg-matched-50', text: 'text-matched-700', dot: 'bg-matched-500', label: 'Matched' },
-  flagged: { bg: 'bg-flagged-50', text: 'text-flagged-700', dot: 'bg-flagged-500', label: 'Flagged' },
+  flagged: { bg: 'bg-flagged-50', text: 'text-flagged-700', dot: 'bg-flagged-500', label: 'Mismatched' },
   // Indigo — the HOD reviewed the flag and overrode it. Not green (that's
   // matched), not amber (that's still open), but a deliberate "decision made".
   hod_reviewed: { bg: 'bg-accent-50', text: 'text-accent-700', dot: 'bg-accent-500', label: 'HOD Approved' },
