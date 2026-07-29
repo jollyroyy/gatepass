@@ -21,7 +21,7 @@ export default function DeptBreakdownTable({ rows }: Props): React.ReactElement 
           <thead>
             <tr>
               <th>Department</th>
-              <th>Pending</th>
+              <th>Pending for Gate Approval</th>
               <th>Matched</th>
               <th>Mismatched</th>
             </tr>

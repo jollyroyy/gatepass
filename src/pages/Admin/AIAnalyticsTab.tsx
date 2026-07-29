@@ -256,7 +256,7 @@ export default function AIAnalyticsTab(): React.ReactElement {
               })}
             </div>
             <div className="flex gap-4 mt-3 text-xs text-navy-400">
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-pending-400" /> Pending</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-pending-400" /> Pending for Gate Approval</span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-matched-500" /> Matched</span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-flagged-500" /> Mismatched</span>
             </div>

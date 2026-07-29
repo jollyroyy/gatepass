@@ -173,7 +173,7 @@ export default function AllPasses(): React.ReactElement {
           loading={loading}
           delta={kpis.returnRate > 0 ? `${kpis.returnRate}% return rate` : kpis.raisedToday > 0 ? `▲ ${kpis.raisedToday} today` : undefined}
         />
-        <KpiCard label="Pending" value={kpis.pending} tone="pending" loading={loading} />
+        <KpiCard label="Pending for Gate Approval" value={kpis.pending} tone="pending" loading={loading} />
         <KpiCard label="Matched" value={kpis.matched} tone="matched" loading={loading} />
         <KpiCard label="Mismatched" value={kpis.flagged} tone="flagged" loading={loading} delta={kpis.flaggedRate > 0 ? `${kpis.flaggedRate}% mismatch rate` : undefined} />
         <KpiCard label="Awaiting Return" value={kpis.awaitingReturn} tone="brand" loading={loading} />
