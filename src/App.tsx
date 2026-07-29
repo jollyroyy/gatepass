@@ -57,6 +57,7 @@ function FullPageLoader(): React.ReactElement {
 }
 
 export default function App(): React.ReactElement {
+  const { pathname } = useLocation();
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [resolving, setResolving] = useState(true);
@@ -115,7 +116,7 @@ export default function App(): React.ReactElement {
 
   // Print page — outside AppShell so sidebar, notification bell, and all other
   // chrome are completely absent. Clean, full-width print sheet.
-  if (window.location.pathname.includes('/print')) {
+  if (pathname.includes('/print')) {
     return (
       <Routes>
         <Route path="/pass/:id/print" element={<PassPrint />} />

@@ -31,13 +31,14 @@ export default function RaisePass(): React.ReactElement {
     direction: 'out',
     department_id: '',
     visitor_name: '',
+    visitor_phone: '',
     visitor_company: '',
-    company_contact: '',
-    company_phone: '',
     company_address: '',
     vehicle_number: '',
     purpose: '',
     expected_return_date: '',
+    image_url: '',
+    category: '',
     items: [{ ...EMPTY_ITEM }],
   });
   const [errors, setErrors] = useState<FormErrors>({});
@@ -50,6 +51,7 @@ export default function RaisePass(): React.ReactElement {
   const [submittedPass, setSubmittedPass] = useState<GatePassView | null>(null);
   const [vendors, setVendors] = useState<VendorProfile[]>([]);
   const [saveVendor, setSaveVendor] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const deptName = depts.length > 0 ? `${depts[0].name} (${depts[0].code})` : '';
 
   useEffect(() => {
@@ -192,9 +194,8 @@ export default function RaisePass(): React.ReactElement {
         p_visitor_name: form.visitor_name.trim(),
         p_visitor_company: JSON.stringify({
           n: form.visitor_company.trim(),
-          c: form.company_contact.trim(),
-          p: form.company_phone.trim(),
           a: form.company_address.trim(),
+          v: form.visitor_phone.trim(),
         }) || null,
         p_vehicle_number: form.vehicle_number.trim() || null,
         p_purpose: form.purpose.trim(),
@@ -238,61 +239,46 @@ export default function RaisePass(): React.ReactElement {
         {/* Pass Type & Department */}
         <div className="card p-5">
           <h2 className="section-title mb-4">Pass Details</h2>
-          <div className="mb-4">
+          <div>
             <label className="label">Pass Type</label>
             <PassTypeSelector value={form.type} onChange={handleTypeChange} />
-          </div>
-          <div>
-            <label className="label">Department</label>
-            {deptLoading ? (
-              <div className="skeleton h-10 w-full" />
-            ) : depts.length > 0 ? (
-              <p className="text-sm font-medium text-navy-900 py-2">{depts[0].name} ({depts[0].code})</p>
-            ) : (
-              <p className="text-sm text-flagged-700">You are not assigned to any department. Contact an administrator.</p>
-            )}
-            {errors.department_id && <p className="field-error">{errors.department_id}</p>}
           </div>
         </div>
 
         {/* Collector Details */}
         <div className="card p-5">
           <h2 className="section-title mb-4">Collector Details</h2>
-          <div>
-            <label className="label">Authorized Person</label>
-            <input className="input" value={form.visitor_name} onChange={(e) => update('visitor_name', e.target.value)} placeholder="Person authorized to collect material" />
-            {errors.visitor_name && <p className="field-error">{errors.visitor_name}</p>}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Authorized Person</label>
+              <input className="input" value={form.visitor_name} onChange={(e) => update('visitor_name', e.target.value)} placeholder="Person authorized to collect material" />
+              {errors.visitor_name && <p className="field-error">{errors.visitor_name}</p>}
+            </div>
+            <div>
+              <label className="label">Contact Number</label>
+              <input type="tel" className="input" value={form.visitor_phone} onChange={(e) => update('visitor_phone', e.target.value)} placeholder="Phone number" />
+            </div>
           </div>
         </div>
 
         {/* Company Details */}
         <div className="card p-5">
           <h2 className="section-title mb-4">Company Details</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="label">Company Name</label>
-              <input className="input" value={form.visitor_company} onChange={(e) => update('visitor_company', e.target.value)} placeholder="Company name" />
-              {vendors.length > 0 && (
-                <select className="input mt-2 text-sm" defaultValue=""
-                  onChange={(e) => {
-                    const v = vendors.find((x) => x.id === e.target.value);
-                    if (!v) return;
-                    update('visitor_company', v.company_name);
-                    if (v.vehicle_number) update('vehicle_number', v.vehicle_number);
-                  }}>
-                  <option value="" disabled>Load from vendor…</option>
-                  {vendors.map((v) => <option key={v.id} value={v.id}>{v.company_name}</option>)}
-                </select>
-              )}
-            </div>
-            <div>
-              <label className="label">Contact Person</label>
-              <input className="input" value={form.company_contact} onChange={(e) => update('company_contact', e.target.value)} placeholder="Name" />
-            </div>
-            <div>
-              <label className="label">Boss Phone</label>
-              <input type="tel" className="input" value={form.company_phone} onChange={(e) => update('company_phone', e.target.value)} placeholder="Phone number" />
-            </div>
+          <div>
+            <label className="label">Company Name</label>
+            <input className="input" value={form.visitor_company} onChange={(e) => update('visitor_company', e.target.value)} placeholder="Company name" />
+            {vendors.length > 0 && (
+              <select className="input mt-2 text-sm" defaultValue=""
+                onChange={(e) => {
+                  const v = vendors.find((x) => x.id === e.target.value);
+                  if (!v) return;
+                  update('visitor_company', v.company_name);
+                  if (v.vehicle_number) update('vehicle_number', v.vehicle_number);
+                }}>
+                <option value="" disabled>Load from vendor…</option>
+                {vendors.map((v) => <option key={v.id} value={v.id}>{v.company_name}</option>)}
+              </select>
+            )}
           </div>
           <div className="mt-4">
             <label className="label">Company Address</label>

@@ -24,7 +24,7 @@ export default function BulkRaise(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<NewGatePass & { namePrefix: string; count: number }>({
     type: 'NRGP', direction: 'out', department_id: '',
-    visitor_name: '', visitor_company: '', company_contact: '', company_phone: '', company_address: '',
+    visitor_name: '', visitor_phone: '', visitor_company: '', company_address: '',
     vehicle_number: '', purpose: '',
     expected_return_date: '', items: [{ ...EMPTY_ITEM }], namePrefix: 'Worker', count: 5,
   });
@@ -106,9 +106,8 @@ export default function BulkRaise(): React.ReactElement {
         p_department_id: form.department_id,
         p_visitor_company: JSON.stringify({
           n: form.visitor_company.trim(),
-          c: form.company_contact.trim(),
-          p: form.company_phone.trim(),
           a: form.company_address.trim(),
+          v: form.visitor_phone.trim(),
         }) || null,
         p_vehicle_number: form.vehicle_number.trim() || null,
         p_purpose: form.purpose.trim(),
@@ -177,15 +176,6 @@ export default function BulkRaise(): React.ReactElement {
               {PASS_TYPE_LIST.map((t) => <option key={t} value={t}>{PASS_TYPES[t].label}</option>)}
             </select>
           </div>
-        </div>
-
-        <div>
-          <label className="label">Department</label>
-          {depts.length > 0 ? (
-            <p className="text-sm font-medium text-navy-900 py-2">{depts[0].name}</p>
-          ) : (
-            <p className="text-sm text-flagged-700 py-2">No department assigned</p>
-          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

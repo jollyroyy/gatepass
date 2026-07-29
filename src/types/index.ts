@@ -144,6 +144,11 @@ export interface GatePass {
    *  pass can still be FLAGGED but no longer MATCHED. */
   expires_at: string;
 
+  /** Optional URL of an uploaded photo of the material. */
+  image_url: string | null;
+  /** NRGP-only: 'capital' or 'non_capital'. Null for RGP. */
+  category: string | null;
+
   created_at: string;
   updated_at: string;
 }
@@ -295,13 +300,14 @@ export interface NewGatePass {
   direction: PassDirection;
   department_id: string;
   visitor_name: string;
+  visitor_phone: string;
   visitor_company: string;
-  company_contact: string;
-  company_phone: string;
   company_address: string;
   vehicle_number: string;
   purpose: string;
   expected_return_date: string;
+  image_url: string;
+  category: string;
   items: NewGatePassItem[];
 }
 
