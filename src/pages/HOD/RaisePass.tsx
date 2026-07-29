@@ -232,144 +232,139 @@ export default function RaisePass(): React.ReactElement {
 
       <PassIdentityPanel passNumberPrefix={passNumberPrefix} hodName={hodName} />
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-6 max-w-3xl mt-6">
-        <div>
-          <label className="label">Pass Type</label>
-          <PassTypeSelector value={form.type} onChange={handleTypeChange} />
-        </div>
-
-        <div>
-          <label className="label">Department</label>
-          {deptLoading ? (
-            <div className="skeleton h-10 w-full" />
-          ) : depts.length > 0 ? (
-            <p className="text-sm font-medium text-navy-900 py-2">{depts[0].name} ({depts[0].code})</p>
-          ) : (
-            <p className="text-sm text-flagged-700">You are not assigned to any department. Contact an administrator.</p>
-          )}
-          {errors.department_id && <p className="field-error">{errors.department_id}</p>}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="label">Visitor Name</label>
-            <input className="input" value={form.visitor_name} onChange={(e) => update('visitor_name', e.target.value)} />
-            {errors.visitor_name && <p className="field-error">{errors.visitor_name}</p>}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5 max-w-3xl">
+        {/* Pass Type & Department */}
+        <div className="card p-5">
+          <h2 className="section-title mb-4">Pass Details</h2>
+          <div className="mb-4">
+            <label className="label">Pass Type</label>
+            <PassTypeSelector value={form.type} onChange={handleTypeChange} />
           </div>
           <div>
-            <label className="label">Visitor Company</label>
-            <input className="input" value={form.visitor_company} onChange={(e) => update('visitor_company', e.target.value)} />
-            {vendors.length > 0 && (
-              <select className="input mt-2 text-sm" defaultValue=""
-                onChange={(e) => {
-                  const v = vendors.find((x) => x.id === e.target.value);
-                  if (!v) return;
-                  update('visitor_company', v.company_name);
-                  if (v.vehicle_number) update('vehicle_number', v.vehicle_number);
-                }}>
-                <option value="" disabled>Load from vendor…</option>
-                {vendors.map((v) => <option key={v.id} value={v.id}>{v.company_name}</option>)}
-              </select>
+            <label className="label">Department</label>
+            {deptLoading ? (
+              <div className="skeleton h-10 w-full" />
+            ) : depts.length > 0 ? (
+              <p className="text-sm font-medium text-navy-900 py-2">{depts[0].name} ({depts[0].code})</p>
+            ) : (
+              <p className="text-sm text-flagged-700">You are not assigned to any department. Contact an administrator.</p>
             )}
-            <label className="flex items-center gap-2 mt-2 text-sm text-navy-600 cursor-pointer">
-              <input type="checkbox" checked={saveVendor} onChange={(e) => setSaveVendor(e.target.checked)} />
-              Save as vendor profile
-            </label>
+            {errors.department_id && <p className="field-error">{errors.department_id}</p>}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="label">Company Contact</label>
-            <input className="input" value={form.company_contact} onChange={(e) => update('company_contact', e.target.value)} placeholder="Contact person name / phone" />
+        {/* Visitor Details */}
+        <div className="card p-5">
+          <h2 className="section-title mb-4">Visitor Details</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="label">Visitor Name</label>
+              <input className="input" value={form.visitor_name} onChange={(e) => update('visitor_name', e.target.value)} />
+              {errors.visitor_name && <p className="field-error">{errors.visitor_name}</p>}
+            </div>
+            <div>
+              <label className="label">Company</label>
+              <input className="input" value={form.visitor_company} onChange={(e) => update('visitor_company', e.target.value)} placeholder="Company name" />
+              {vendors.length > 0 && (
+                <select className="input mt-2 text-sm" defaultValue=""
+                  onChange={(e) => {
+                    const v = vendors.find((x) => x.id === e.target.value);
+                    if (!v) return;
+                    update('visitor_company', v.company_name);
+                    if (v.vehicle_number) update('vehicle_number', v.vehicle_number);
+                  }}>
+                  <option value="" disabled>Load from vendor…</option>
+                  {vendors.map((v) => <option key={v.id} value={v.id}>{v.company_name}</option>)}
+                </select>
+              )}
+            </div>
+            <div>
+              <label className="label">Contact</label>
+              <input className="input" value={form.company_contact} onChange={(e) => update('company_contact', e.target.value)} placeholder="Person / phone" />
+            </div>
           </div>
-          <div className="md:col-span-2">
-            <label className="label">Company Address</label>
+          <div className="mt-4">
+            <label className="label">Address</label>
             <textarea className="input" rows={2} value={form.company_address} onChange={(e) => update('company_address', e.target.value)} placeholder="Street, area, city, pincode" />
           </div>
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Vehicle Number</label>
+              <input className="input" value={form.vehicle_number} onChange={(e) => update('vehicle_number', e.target.value)} placeholder="Optional" />
+            </div>
+            <div className="flex items-end pb-1">
+              <label className="flex items-center gap-2 text-sm text-navy-600 cursor-pointer">
+                <input type="checkbox" checked={saveVendor} onChange={(e) => setSaveVendor(e.target.checked)} />
+                Save as vendor profile
+              </label>
+            </div>
+          </div>
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="label mb-0">Materials / Items</label>
-            <span className="text-sm text-navy-400">{form.items.length} item{form.items.length !== 1 ? 's' : ''}</span>
+        {/* Material Items */}
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="section-title mb-0">Material Items</h2>
+            <span className="text-xs font-medium text-navy-400 bg-surface-100 px-2 py-1 rounded-full">{form.items.length} item{form.items.length !== 1 ? 's' : ''}</span>
           </div>
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             {form.items.map((item, idx) => (
-              <div key={idx} className="border border-surface-300 rounded-lg p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <span className="text-sm font-medium text-navy-500">Item #{idx + 1}</span>
-                  {form.items.length > 1 && (
-                    <button type="button" className="text-flagged-600 hover:text-flagged-700 text-sm font-medium" onClick={() => removeItem(idx)}>
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <div>
-                  <label className="label">Description</label>
-                  <textarea className="input" rows={2} value={item.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} />
+              <div key={idx} className="flex flex-wrap items-start gap-2 p-3 bg-surface-50 rounded-lg">
+                <span className="text-xs font-bold text-navy-400 w-5 mt-2.5 shrink-0 text-right">#{idx + 1}</span>
+                <div className="flex-1 min-w-[160px]">
+                  <input className="input text-sm w-full" placeholder="Description" value={item.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} />
                   {errors[`item_${idx}_description`] && <p className="field-error">{errors[`item_${idx}_description`]}</p>}
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div className="flex flex-wrap items-end gap-2">
                   <div>
-                    <label className="label">Quantity</label>
-                    <input type="number" min="0.01" step="0.01" className="input" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} />
+                    <input type="number" min="0.01" step="0.01" className="input w-16 text-sm" placeholder="Qty" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} />
                     {errors[`item_${idx}_quantity`] && <p className="field-error">{errors[`item_${idx}_quantity`]}</p>}
                   </div>
-                  <div>
-                    <label className="label">Unit</label>
-                    <select className="input" value={item.unit} onChange={(e) => updateItem(idx, 'unit', e.target.value)}>
-                      {UNITS.map((u) => (
-                        <option key={u} value={u}>{u}</option>
-                      ))}
-                    </select>
+                  <select className="input w-20 text-sm" value={item.unit} onChange={(e) => updateItem(idx, 'unit', e.target.value)}>
+                    {UNITS.map((u) => (<option key={u} value={u}>{u}</option>))}
+                  </select>
+                  <input className="input w-24 text-sm" placeholder="Serial" value={item.serial_no} onChange={(e) => updateItem(idx, 'serial_no', e.target.value)} />
+                  <div className="relative">
+                    <input type="number" min="0" step="0.01" className="input w-24 text-sm pl-4" placeholder="Value" value={item.approx_value} onChange={(e) => updateItem(idx, 'approx_value', e.target.value)} />
+                    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-navy-400 text-xs font-medium">&#x20B9;</span>
                   </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                  <div>
-                    <label className="label">Serial No.</label>
-                    <input className="input" value={item.serial_no} onChange={(e) => updateItem(idx, 'serial_no', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="label">Approx. Value</label>
-                    <input type="number" min="0" step="0.01" className="input" value={item.approx_value} onChange={(e) => updateItem(idx, 'approx_value', e.target.value)} />
-                  </div>
+                  {form.items.length > 1 && (
+                    <button type="button" className="text-flagged-500 hover:text-flagged-700 text-xl leading-none pb-0.5 shrink-0" onClick={() => removeItem(idx)} title="Remove item">&times;</button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
-          <button type="button" className="btn-secondary mt-3" onClick={addItem}>
+          <button type="button" className="btn-secondary mt-3 w-full" onClick={addItem}>
             + Add Item
           </button>
-          {errors.items && <p className="field-error">{errors.items}</p>}
+          {errors.items && <p className="field-error mt-2">{errors.items}</p>}
         </div>
 
-        <div>
-          <label className="label">Vehicle Number</label>
-          <input className="input" value={form.vehicle_number} onChange={(e) => update('vehicle_number', e.target.value)} />
-        </div>
-
-        <div>
-          <label className="label">Purpose</label>
-          <textarea className="input" rows={2} value={form.purpose} onChange={(e) => update('purpose', e.target.value)} />
-          {errors.purpose && <p className="field-error">{errors.purpose}</p>}
-        </div>
-
-        {requiresReturnDate(form.type) && (
-          <div>
-            <label className="label">Expected Return Date</label>
-            <input type="date" min={todayStr()} className="input" value={form.expected_return_date} onChange={(e) => update('expected_return_date', e.target.value)} />
-            {errors.expected_return_date && <p className="field-error">{errors.expected_return_date}</p>}
+        {/* Purpose & Return */}
+        <div className="card p-5">
+          <h2 className="section-title mb-4">Purpose & Schedule</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label className="label">Purpose</label>
+              <textarea className="input" rows={2} value={form.purpose} onChange={(e) => update('purpose', e.target.value)} placeholder="Reason for material movement" />
+              {errors.purpose && <p className="field-error">{errors.purpose}</p>}
+            </div>
+            {requiresReturnDate(form.type) && (
+              <div>
+                <label className="label">Expected Return Date</label>
+                <input type="date" min={todayStr()} className="input" value={form.expected_return_date} onChange={(e) => update('expected_return_date', e.target.value)} />
+                {errors.expected_return_date && <p className="field-error">{errors.expected_return_date}</p>}
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         {submitError && <div className="alert-error">{submitError}</div>}
 
-        <div className="flex gap-3">
-          <button type="submit" className="btn-primary" disabled={submitting}>
-            {submitting ? 'Submitting…' : 'Raise Pass'}
-          </button>
-        </div>
+        <button type="submit" className="btn-primary w-full py-3 text-base" disabled={submitting}>
+          {submitting ? 'Submitting…' : 'Raise Gate Pass'}
+        </button>
       </form>
 
       {submittedPass && (
