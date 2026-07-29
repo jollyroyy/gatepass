@@ -13,11 +13,17 @@ type Props = {
 };
 
 /**
- * Login-page text field: leading icon, floating-caps label, dark glass fill.
+ * Login-page text field: leading icon, caps label, warm ivory fill, gold focus.
  *
  * Focus is driven by React state rather than Tailwind's `focus:` variants because
  * the fill and border are inline styles — an inline `border` always beats a
  * `focus:border-*` class, so the focus ring would silently never appear.
+ *
+ * Every colour here is a literal, NOT a `navy-*`/`surface-*` token, on purpose.
+ * The login card is a fixed ivory panel floating on a night photograph in both
+ * themes — it is chrome, like the sidebar. Tokens would flip it: `text-navy-900`
+ * resolves to near-white under `.dark`, which is the app's shipped default, and
+ * that is invisible ink on an ivory field.
  */
 export default function AuthField({
   id,
@@ -37,7 +43,7 @@ export default function AuthField({
       <label
         htmlFor={id}
         className="block text-[10px] font-bold mb-2 uppercase tracking-[0.14em] transition-colors duration-200"
-        style={{ color: focused ? 'rgb(8 145 178)' : 'rgb(100 116 139)' }}
+        style={{ color: focused ? '#A8853F' : '#7C766C' }}
       >
         {label}
       </label>
@@ -46,7 +52,7 @@ export default function AuthField({
         <span
           aria-hidden
           className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors duration-200"
-          style={{ color: focused ? 'rgb(8 145 178)' : 'rgb(148 163 184)' }}
+          style={{ color: focused ? '#A8853F' : '#A8A39A' }}
         >
           {icon}
         </span>
@@ -61,14 +67,14 @@ export default function AuthField({
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder={placeholder}
-          className="w-full rounded-xl pl-11 py-3 text-sm text-navy-900 placeholder:text-slate-400
-                     focus:outline-none transition-all duration-200"
+          className="w-full rounded-xl pl-11 py-3 text-sm focus:outline-none transition-all duration-200"
           style={{
             paddingRight: trailing ? '2.75rem' : '1rem',
-            background: focused ? '#f8fafc' : '#ffffff',
-            border: `1px solid ${focused ? 'rgba(8,145,178,0.50)' : 'rgba(203,213,225,0.70)'}`,
+            color: '#262421',
+            background: focused ? '#FFFFFF' : '#FAF9F7',
+            border: `1px solid ${focused ? 'rgba(168,133,63,0.55)' : 'rgba(213,209,201,0.85)'}`,
             boxShadow: focused
-              ? '0 0 0 4px rgba(8,145,178,0.12), inset 0 1px 2px rgba(0,0,0,0.04)'
+              ? '0 0 0 4px rgba(198,161,91,0.16), inset 0 1px 2px rgba(0,0,0,0.04)'
               : 'inset 0 1px 2px rgba(0,0,0,0.04)',
           }}
         />

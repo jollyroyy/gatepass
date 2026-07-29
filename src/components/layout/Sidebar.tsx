@@ -5,6 +5,7 @@ import type { UserRole } from '../../types';
 import { fetchDisplayName } from '../../lib/profiles';
 import { useTheme } from '../../lib/theme';
 import SidebarProfile from './SidebarProfile';
+import { QuestMark, QuestLockup } from '../QuestMark';
 
 type Props = {
   session: Session;
@@ -114,21 +115,11 @@ export default function Sidebar({ session, role, collapsed: collapsedProp, onCol
   const navContent = (isCollapsed: boolean) => (
     <div className="flex flex-col h-full">
       {/* Brand */}
-      <Link to="/" className={`flex items-center gap-3 px-4 pt-6 pb-7 shrink-0 group ${isCollapsed ? 'justify-center px-2' : ''}`}>
-        <div className="relative shrink-0">
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-brand-600 to-accent-600 blur-md opacity-40 group-hover:opacity-60 transition-opacity" />
-          <div className="relative h-10 w-10 rounded-2xl bg-gradient-to-br from-brand-600 to-accent-600 flex items-center justify-center shadow-glow-sm ring-1 ring-white/20">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 3.75h6a1.5 1.5 0 011.5 1.5v.75h1.5A1.5 1.5 0 0119.5 7.5v12a1.5 1.5 0 01-1.5 1.5h-12A1.5 1.5 0 014.5 19.5v-12A1.5 1.5 0 016 6h1.5v-.75a1.5 1.5 0 011.5-1.5z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75l2.25 2.25L15 10.5" />
-            </svg>
-          </div>
-        </div>
-        {!isCollapsed && (
-          <div className="min-w-0">
-            <span className="font-display font-bold text-base text-white tracking-tight block leading-tight">GatePass</span>
-            <span className="text-[10px] text-slate-400 block leading-tight mt-0.5">Material Movement Control</span>
-          </div>
+      <Link to="/" className={`flex items-center gap-3 px-4 pt-6 pb-7 shrink-0 group transition-all duration-300 ${isCollapsed ? 'justify-center px-2' : ''}`}>
+        {isCollapsed ? (
+          <QuestMark size={28} className="text-brand-200" />
+        ) : (
+          <QuestLockup tone="dark" size="md" subtitle="Gate Pass" />
         )}
       </Link>
 

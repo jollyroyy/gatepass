@@ -5,6 +5,7 @@ import type { GatePassView, GatePassItemView } from '../../types';
 import { formatDateOnly } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
 import QrPass from '../../components/QrPass';
+import { QuestLockup } from '../../components/QuestMark';
 
 function parseCompanyInfo(raw: string | null | undefined): { name: string; contact: string; address: string; phone: string } {
   if (!raw) return { name: '', contact: '', address: '', phone: '' };
@@ -96,6 +97,9 @@ export default function PassPrint(): React.ReactElement {
           {/* Header */}
           <div className="flex items-start justify-between gap-4 border-b-2 border-black pb-3 mb-3">
             <div>
+              {/* No subtitle: the slip's own <h1> directly below already says
+                  "…Material Gate Pass". Repeating it reads as a template artefact. */}
+              <QuestLockup tone="light" size="sm" subtitle={null} className="mb-2" />
               <h1 className="text-lg font-extrabold tracking-wide text-black uppercase">
                 {isRgp ? 'Returnable Material Gate Pass' : 'Non‑Returnable Material Gate Pass'}
               </h1>

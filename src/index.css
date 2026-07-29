@@ -1,40 +1,45 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Antic+Didone&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ============================================================
-   SLATE + CYAN OPS — THEME TOKENS
+   QUEST GOLD + CHARCOAL — THEME TOKENS
 
    Rules this file enforces:
-     1. The shell (sidebar / top strip) is dark in BOTH themes. It is chrome.
+     1. The shell (sidebar) is dark in BOTH themes. It is chrome, not content.
      2. Saturated colour means STATUS. Never decoration.
-     3. Seven colours total: cyan, indigo, amber, emerald, red, orange, slate.
+     3. Seven colours total: gold, royal blue, amber, emerald, red, orange, stone.
+     4. Text on gold is charcoal (`shell.ink`), never white — see tailwind.config.ts.
+
+   The neutral ramp is warm stone, not slate. That is what carries the client's
+   look as much as the gold does: questmall.in's own surfaces are #fff9eb and
+   #f5f5f5, and a cool grey next to a warm gold reads as an accident.
    ============================================================ */
 @layer base {
   :root {
-    /* Neutrals — slate (light) */
-    --c-navy-50: 248 250 252;
-    --c-navy-100: 241 245 249;
-    --c-navy-200: 226 232 240;
-    --c-navy-300: 203 213 225;
-    --c-navy-400: 148 163 184;
-    --c-navy-500: 100 116 139;
-    --c-navy-600: 71 85 105;
-    --c-navy-700: 51 65 85;
-    --c-navy-800: 39 51 71;
-    --c-navy-900: 30 41 59;
-    --c-navy-950: 15 23 42;
+    /* Neutrals — warm stone (light) */
+    --c-navy-50: 250 249 247;
+    --c-navy-100: 244 242 238;
+    --c-navy-200: 231 228 222;
+    --c-navy-300: 213 209 201;
+    --c-navy-400: 168 163 154;
+    --c-navy-500: 124 118 108;
+    --c-navy-600: 92 87 79;
+    --c-navy-700: 69 64 57;
+    --c-navy-800: 51 48 43;
+    --c-navy-900: 38 36 33;
+    --c-navy-950: 22 22 26;
 
-    --c-surface-50: 248 250 252;
-    --c-surface-100: 241 245 249;
-    --c-surface-200: 226 232 240;
-    --c-surface-300: 203 213 225;
-    --c-surface-400: 148 163 184;
+    --c-surface-50: 250 249 247;
+    --c-surface-100: 244 242 238;
+    --c-surface-200: 231 228 222;
+    --c-surface-300: 213 209 201;
+    --c-surface-400: 168 163 154;
 
-    --c-brand-50: 236 254 255;
-    --c-brand-100: 207 250 254;
+    --c-brand-50: 251 247 239;
+    --c-brand-100: 243 233 212;
 
     /* Status tints (light) */
     --c-pending-50: 255 251 235;
@@ -60,27 +65,27 @@
   }
 
   .dark {
-    /* Neutrals — slate (dark, inverted scale) */
-    --c-navy-50: 15 23 42;
-    --c-navy-100: 22 32 51;
-    --c-navy-200: 42 55 76;
-    --c-navy-300: 84 100 124;
-    --c-navy-400: 122 138 162;
-    --c-navy-500: 148 163 184;
-    --c-navy-600: 174 187 205;
-    --c-navy-700: 197 208 222;
-    --c-navy-800: 215 224 235;
-    --c-navy-900: 232 239 246;
-    --c-navy-950: 248 250 252;
+    /* Neutrals — warm stone (dark, inverted scale) */
+    --c-navy-50: 22 22 26;
+    --c-navy-100: 31 31 36;
+    --c-navy-200: 46 46 53;
+    --c-navy-300: 74 74 84;
+    --c-navy-400: 126 122 116;
+    --c-navy-500: 156 151 143;
+    --c-navy-600: 182 177 168;
+    --c-navy-700: 207 202 193;
+    --c-navy-800: 226 222 215;
+    --c-navy-900: 240 237 231;
+    --c-navy-950: 250 249 247;
 
-    --c-surface-50: 10 10 18;
-    --c-surface-100: 17 24 39;
-    --c-surface-200: 34 47 68;
-    --c-surface-300: 55 70 94;
-    --c-surface-400: 105 120 145;
+    --c-surface-50: 14 14 17;
+    --c-surface-100: 23 23 27;
+    --c-surface-200: 38 38 44;
+    --c-surface-300: 58 58 66;
+    --c-surface-400: 110 106 100;
 
-    --c-brand-50: 8 51 68;
-    --c-brand-100: 14 78 92;
+    --c-brand-50: 42 34 19;
+    --c-brand-100: 61 49 25;
 
     /* Status tints (dark) */
     --c-pending-50: 48 36 14;
@@ -96,7 +101,7 @@
     --c-overdue-100: 68 34 12;
     --c-overdue-700: 251 146 60;
 
-    --glass-bg: 17 24 39;
+    --glass-bg: 23 23 27;
     --glass-bg-opacity: 0.62;
     --glass-border-opacity: 0.1;
     --glass-border: 255 255 255;
@@ -193,8 +198,8 @@
     color: rgb(var(--c-navy-900));
   }
   .dark .input:focus {
-    border-color: rgb(34 211 238 / 0.55);
-    box-shadow: 0 0 0 4px rgb(8 145 178 / 0.18);
+    border-color: rgb(216 184 120 / 0.55);
+    box-shadow: 0 0 0 4px rgb(198 161 91 / 0.18);
   }
   .label {
     @apply block text-xs font-semibold text-navy-600 mb-1.5 uppercase tracking-wide;
@@ -204,12 +209,14 @@
   }
 
   /* --- Buttons --- */
+  /* Charcoal on gold, not white on gold — white is ~2.4:1 here and fails AA.
+     `hover:` deepens the gold rather than lightening it, so the ink stays legible. */
   .btn-primary {
-    @apply bg-brand-600 text-white rounded-xl px-5 py-2.5 text-sm font-semibold
-           hover:bg-brand-700 active:scale-[0.98]
+    @apply bg-brand-600 text-shell-ink rounded-xl px-5 py-2.5 text-sm font-semibold
+           hover:bg-brand-700 hover:text-white active:scale-[0.98]
            disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100
            transition-all duration-200;
-    box-shadow: 0 4px 14px -4px rgb(8 145 178 / 0.4);
+    box-shadow: 0 4px 14px -4px rgb(198 161 91 / 0.45);
   }
   .btn-secondary {
     @apply bg-white text-navy-700 border border-surface-200 rounded-xl px-5 py-2.5 text-sm font-medium
@@ -278,11 +285,11 @@
     @apply card cursor-pointer hover:-translate-y-0.5;
   }
   .card-hover:hover {
-    border-color: rgb(8 145 178 / 0.35);
-    box-shadow: 0 10px 30px -8px rgb(15 23 42 / 0.14);
+    border-color: rgb(198 161 91 / 0.45);
+    box-shadow: 0 10px 30px -8px rgb(22 22 26 / 0.16);
   }
   .dark .card-hover:hover {
-    border-color: rgb(34 211 238 / 0.3);
+    border-color: rgb(208 173 104 / 0.35);
     box-shadow: 0 10px 30px -8px rgb(0 0 0 / 0.5);
   }
   .card-glass {
@@ -300,14 +307,17 @@
   .page-header {
     @apply mb-7;
   }
+  /* Antic Didone has a single 400 weight. `font-bold` on it produces a synthesised
+     faux-bold that smears the didone hairlines — the exact "cheap" tell. Presence
+     comes from size and tracking instead. */
   .page-title {
-    @apply text-2xl font-bold text-navy-950 tracking-tight font-display;
+    @apply text-[26px] leading-tight font-normal text-navy-950 tracking-[0.01em] font-display;
   }
   .page-subtitle {
-    @apply text-sm text-navy-400 mt-1;
+    @apply text-sm text-navy-400 mt-1.5;
   }
   .section-title {
-    @apply text-sm font-extrabold text-brand-700 uppercase tracking-wider pb-2 border-b border-brand-200;
+    @apply text-[11px] font-bold text-brand-700 uppercase tracking-[0.18em] pb-2 border-b border-brand-600/30;
   }
 
   /* --- KPI card --- */
@@ -317,8 +327,10 @@
   .kpi-label {
     @apply text-[11px] font-bold text-navy-400 uppercase tracking-wider;
   }
+  /* Deliberately NOT font-display: KPI numerals need a real heavy weight and
+     tabular figures, neither of which the single-weight display serif has. */
   .kpi-value {
-    @apply text-4xl font-extrabold tracking-tight font-display tabular;
+    @apply text-4xl font-extrabold tracking-tight tabular;
   }
   .kpi-delta {
     @apply text-[11px] font-medium text-navy-400 tabular;
@@ -393,7 +405,7 @@
   /* --- Modal --- */
   .modal-overlay {
     @apply fixed inset-0 flex items-center justify-center z-50 p-4;
-    background: rgb(15 23 42 / 0.6);
+    background: rgb(16 16 20 / 0.62);
     backdrop-filter: blur(10px);
     animation: fadeIn 0.2s ease-out;
   }
@@ -437,8 +449,8 @@
     @apply avatar h-10 w-10 text-xs;
   }
   .avatar-brand {
-    background: linear-gradient(135deg, #0891b2, #4f46e5);
-    color: #fff;
+    background: linear-gradient(135deg, #D0AD68, #A8853F);
+    color: #101014;
   }
 
   /* --- Skeleton --- */
@@ -469,8 +481,11 @@
      later reapplies without knowing why it was abandoned.
      ============================================================ */
   .shell-sidebar {
-    background: #0f172a;
-    border-right: 1px solid rgb(255 255 255 / 0.07);
+    background: #16161A;
+    /* A gold hairline rather than a white one. At 0.22 alpha it reads as a warm
+       edge, not a stripe — the same trick the client's own facade uses to
+       separate the lit panels from the dark stone. */
+    border-right: 1px solid rgb(198 161 91 / 0.22);
   }
   /* Collapse handle sitting ON the sidebar's right border.
      Half of it overhangs the panel (right: -13px against a 26px box), which is
@@ -488,41 +503,41 @@
     align-items: center;
     justify-content: center;
     z-index: 50;
-    color: rgb(148 163 184);
-    background: #1e293b;
-    border: 1px solid rgb(255 255 255 / 0.12);
+    color: rgb(156 151 143);
+    background: #2C2C33;
+    border: 1px solid rgb(198 161 91 / 0.28);
     box-shadow: 0 2px 8px -2px rgb(0 0 0 / 0.5);
     transition: background 200ms, color 200ms, transform 200ms;
   }
   .sidebar-edge-toggle:hover {
-    color: #fff;
-    background: #0891b2;
-    border-color: #0891b2;
+    color: #101014;
+    background: #C6A15B;
+    border-color: #C6A15B;
     transform: scale(1.12);
   }
   .sidebar-edge-toggle:focus-visible {
-    outline: 2px solid #0891b2;
+    outline: 2px solid #C6A15B;
     outline-offset: 2px;
   }
 
   .sidebar-link {
     @apply relative flex items-center gap-3 rounded-xl text-sm font-medium
            transition-all duration-200;
-    color: rgb(148 163 184);
+    color: rgb(156 151 143);
   }
   .sidebar-link:hover {
-    color: rgb(241 245 249);
-    background: rgb(255 255 255 / 0.06);
+    color: rgb(243 233 212);
+    background: rgb(198 161 91 / 0.10);
   }
   .sidebar-link-active {
     @apply font-semibold;
-    color: #fff;
-    background: #0891b2;
-    box-shadow: 0 4px 14px -4px rgb(8 145 178 / 0.55);
+    color: #101014;
+    background: linear-gradient(135deg, #D0AD68, #C6A15B);
+    box-shadow: 0 4px 14px -4px rgb(198 161 91 / 0.55);
   }
   .sidebar-link-active:hover {
-    color: #fff;
-    background: #0e7490;
+    color: #101014;
+    background: linear-gradient(135deg, #DFC68F, #D0AD68);
   }
 }
 

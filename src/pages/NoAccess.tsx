@@ -3,6 +3,7 @@
 // shell mounts.
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
+import { QuestLockup } from '../components/QuestMark';
 
 export default function NoAccess(): React.ReactElement {
   const [email, setEmail] = useState<string | null>(null);
@@ -21,6 +22,7 @@ export default function NoAccess(): React.ReactElement {
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-50 p-6">
       <div className="card p-8 max-w-md w-full text-center flex flex-col items-center gap-4">
+        <QuestLockup tone="light" size="md" subtitle="Gate Pass" className="justify-center mb-6" />
         <div className="h-12 w-12 rounded-full bg-flagged-50 text-flagged-700 flex items-center justify-center text-2xl font-bold">
           !
         </div>
@@ -29,10 +31,10 @@ export default function NoAccess(): React.ReactElement {
           {email ? (
             <>
               Your account (<span className="font-semibold text-navy-700">{email}</span>) does not have access to
-              the Gate Pass System.
+              the Quest Gate Pass system.
             </>
           ) : (
-            'Your account does not have access to the Gate Pass System.'
+            'Your account does not have access to the Quest Gate Pass system.'
           )}
         </p>
         <p className="text-sm text-navy-500">

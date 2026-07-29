@@ -36,7 +36,9 @@ re-concatenated is a fix that never reaches the database.
 
 ## Current state — verified 2026-07-27
 
-Frontend typechecks, builds, and passes all **218 tests** (10 files). **All migrations are now applied
+Frontend typechecks, builds, and passes all **215 tests** (10 files) — verified by a real
+`npm run check` run on 2026-07-29. The previous "218" here was stale; no test file has been
+edited since. **All migrations are now applied
 to the live database.** Verified by direct catalog query this session, not inferred:
 
 | Thing | State |
@@ -445,20 +447,48 @@ merely written, and what the single next action is. Note whether a claim is *ver
 never prove RLS works). Delete lines that have gone stale rather than appending to them;
 the "zero test specs" line survived three sessions past being false.
 
-## Design system — Slate + Cyan Ops
+## Design system — Quest Gold + Charcoal
 
-Seven colours, and **saturated colour means status, never decoration**.
+Rebranded 2026-07-29 to the client's identity (Quest Mall, Kolkata). Seven colours, and
+**saturated colour means status, never decoration**.
 
 ```
-Shell     #0F172A sidebar / top strip — DARK IN BOTH THEMES (chrome, not content)
-Primary   brand-600  #0891B2 cyan     buttons, active nav, focus
-Accent    accent-600 #4F46E5 indigo   links, secondary emphasis
+Shell     #16161A sidebar — DARK IN BOTH THEMES (chrome, not content); ink #101014
+Primary   brand-600  #C6A15B brass gold   buttons, active nav, focus
+Accent    accent-600 #2B3FA0 royal blue   links, secondary emphasis
 Status    pending-*  amber   matched-* emerald   flagged-* red   overdue-* orange
-Neutral   navy-* / surface-*  slate    meta, borders, baselines
+Neutral   navy-* / surface-*  warm stone   meta, borders, baselines
+Display   Antic Didone (serif, ONE weight) — headings, wordmark
 ```
 
-- Token *names* match VMS (`brand`/`accent`/`navy`/`surface`) so layout code ported from
-  there works unchanged; only the hues differ.
+Palette sourced from questmall.in's own `css/custom.css` (verified 2026-07-29): gold
+`#d0ad68`/`#d09918`, charcoal `#404041`, maroon `#740e0c`, warm off-white `#fff9eb`.
+
+- **Text on gold is charcoal (`shell.ink` / `brand.ink`), never white.** White on
+  `#C6A15B` is ~2.4:1 and fails AA; charcoal is ~9.1:1. `.btn-primary` and
+  `.sidebar-link-active` already do this — match them.
+- **Never apply `font-bold` to `font-display`.** Antic Didone ships weight 400 only;
+  bolding it synthesises a smeared faux-bold. Presence comes from size and tracking.
+  `.kpi-value` deliberately does NOT use the display face — numerals need a real heavy
+  weight and tabular figures.
+- **Three warm hues now coexist** — brass gold, amber pending, orange overdue. They are
+  separated by *saturation* (gold is muted ~48%, status hues are vivid ~92%) and by
+  form: status appears only as a tinted pill with dark text, never as a solid fill.
+  Break either of those and the distinction collapses.
+- **Fixed-context surfaces must use literal colours, not `navy-*`/`surface-*` tokens.**
+  The neutral ramp INVERTS under `.dark`, which is the shipped default (`index.html`
+  hardcodes `class="dark"`). Anything that is always-light — the login card, `AuthField`,
+  `QuestLockup tone="light"`, the printed slip — renders near-white on near-white if
+  tokenised. This bit twice during the rebrand; the print case is invisible on screen.
+- Token *names* still match VMS (`brand`/`accent`/`navy`/`surface`) so layout code ported
+  from there works unchanged; only the hues differ. **`navy` is a name, not a colour** —
+  it is the warm-stone ramp now. Do not rename it; every ported file would follow.
+- **The logo is `src/components/QuestMark.tsx`**, redrawn as vector. The client publishes
+  their logo only as a JPEG matted onto white (`questmall.in/images/quest-logo.jpg`) —
+  that would show a white box with compression fringing on the charcoal shell. Exports
+  `QuestMark` (faceted-gem glyph) and `QuestLockup` (gem + wordmark + subtitle,
+  `tone="dark"|"light"`). `public/favicon.svg` repeats the same geometry — change both
+  together or they drift.
 - `.shell-sidebar` hardcodes dark values — never add `dark:` variants to the shell.
   **There is no top bar.** `.shell-topbar` and the `<header>` in `AppShell.tsx` were removed
   2026-07-27: it was a permanently empty dark band, since breadcrumbs never landed there and
@@ -466,7 +496,14 @@ Neutral   navy-* / surface-*  slate    meta, borders, baselines
   clearance the 64px header gave the fixed mobile hamburger (`Sidebar.tsx:217`). Do not
   reintroduce the strip without content to put in it.
 - The printed slip (`PassPrint.tsx`) is black-on-white with **no colour-dependent
-  information**; it must read on a cheap mono laser printer.
+  information**; it must read on a cheap mono laser printer. It now carries the
+  `QuestLockup` in its header — a logo is decoration, not information, and prints as
+  grey. Nothing a guard must *read* may depend on colour.
+- **The login background is generated, not hand-edited.** `public/login-bg.jpg` is built
+  from the client's facade photo by `scripts/make-login-bg.mjs` (`npm run build:login-bg`,
+  needs the `sharp` devDependency). Re-run it rather than editing the JPEG. The lit
+  facade sits on the RIGHT of the frame, which is why the login card is anchored LEFT on
+  wide screens — it lands on the quiet part of the photo instead of covering the subject.
 - Guard controls are deliberately oversized (`.btn-match`, `.btn-flag`) — someone uses
   these standing at a gate, one-handed, with a truck waiting.
 

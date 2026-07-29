@@ -34,7 +34,7 @@ export default function AppShell({ session, role, children }: Props): React.Reac
 
           <footer className="no-print px-8 pb-6">
             <p className="text-center text-[11px] text-navy-300 tracking-wide">
-              GatePass — Material Movement Control
+              Quest Mall · Gate Pass
             </p>
           </footer>
         </div>

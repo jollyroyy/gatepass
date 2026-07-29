@@ -1,24 +1,42 @@
 import type { Config } from 'tailwindcss';
 
 /**
- * Slate + Cyan Ops design system.
+ * Quest Gold + Charcoal design system.
  *
  * Token names are deliberately kept identical to the VMS project (brand / accent /
  * navy / surface / success / warning / danger) so layout and utility code ported from
- * there works unchanged — only the hue values differ.
+ * there works unchanged — only the hue values differ. `navy` is therefore a NAME, not a
+ * colour: it is the warm-stone neutral ramp. Do not rename it to "stone"; every ported
+ * file would have to change with it.
  *
- * Palette rules (2026 ops-dashboard guidance):
- *   - Seven colours total. Nothing else gets to be saturated.
+ * Sourced from questmall.in's own stylesheet (verified 2026-07-29, `css/custom.css`):
+ *   gold      #d0ad68 / #d09918   .btn-primary, card titles, section headings
+ *   charcoal  #404041 / #404042   nav text, headings, page header band
+ *   maroon    #740e0c             "offer valid" accent
+ *   off-white #fff9eb / #f5f5f5   warm section + footer backgrounds
+ *
+ * Palette rules:
  *   - `shell` is the sidebar/chrome. It stays dark in BOTH themes — it is not content.
  *   - Saturated colour carries status meaning ONLY. Never decorative.
  *
- *   Primary   brand-600  #0891B2  cyan    buttons, active nav, focus rings
- *   Accent    accent-600 #4F46E5  indigo  links, secondary emphasis
+ *   Primary   brand-600  #C6A15B  brass gold  buttons, active nav, focus rings
+ *   Accent    accent-600 #2B3FA0  royal blue  links, secondary emphasis
  *   Status    pending    #F59E0B  amber
  *             matched    #10B981  emerald
  *             flagged    #EF4444  red
  *             overdue    #F97316  orange
- *   Neutral   navy/slate #64748B          meta, borders, baselines
+ *   Neutral   navy/surface        warm stone — meta, borders, baselines
+ *
+ * TEXT ON GOLD IS CHARCOAL, NEVER WHITE. White on #C6A15B is ~2.4:1 and fails WCAG AA;
+ * `shell.ink` on the same gold is ~9.1:1. That is also the luxury-retail convention the
+ * client's own site follows. The `brand.ink` alias exists so call sites read as intent
+ * ("the colour that goes on top of brand") rather than as a coincidence of two tokens.
+ *
+ * The three warm hues — brass gold, amber pending, orange overdue — are deliberately
+ * close in hue and separated by SATURATION instead: the gold is muted (S≈48%), the two
+ * status hues are vivid (S≈92%). Status also never appears as a solid fill the way the
+ * primary button does; it appears as a tinted pill with dark text. Keep it that way, or
+ * the separation collapses.
  *
  * navy/surface/brand-50/100 and the status tints are CSS-variable driven so they flip
  * between light and dark automatically (see :root / .dark in src/index.css).
@@ -29,40 +47,42 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Chrome — the sidebar and top strip. Dark in both themes.
+        // Chrome — the sidebar. Warm charcoal-black, dark in both themes.
         shell: {
-          900: '#0F172A', // sidebar base
-          800: '#111827', // sidebar raised / hover
-          700: '#1E293B', // sidebar borders
+          900: '#16161A', // sidebar base
+          800: '#1E1E23', // sidebar raised / hover
+          700: '#2C2C33', // sidebar borders
+          ink: '#101014', // text that sits ON gold
         },
-        // Cyan — primary brand
+        // Brass gold — primary brand, from questmall.in's #d0ad68
         brand: {
           50: 'rgb(var(--c-brand-50) / <alpha-value>)',
           100: 'rgb(var(--c-brand-100) / <alpha-value>)',
-          200: '#a5f3fc',
-          300: '#67e8f9',
-          400: '#22d3ee',
-          500: '#06b6d4',
-          600: '#0891b2', // primary
-          700: '#0e7490',
-          800: '#155e75',
-          900: '#164e63',
-          950: '#083344',
+          200: '#EBD9B4',
+          300: '#DFC68F',
+          400: '#D8B878',
+          500: '#D0AD68', // the client's literal gold
+          600: '#C6A15B', // primary — pair with shell.ink, never white
+          700: '#A8853F', // hover
+          800: '#866A31',
+          900: '#6B5528',
+          950: '#3E3014',
+          ink: '#101014', // alias of shell.ink, read at brand call sites
         },
-        // Indigo — secondary accent
+        // Royal blue — secondary accent, taken from the facade's lighting
         accent: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#4f46e5', // accent
-          700: '#4338ca',
-          800: '#3730a3',
-          900: '#312e81',
+          50: '#EEF1FB',
+          100: '#DDE3F7',
+          200: '#BCC7EF',
+          300: '#93A3E2',
+          400: '#6B7ED2',
+          500: '#4859BE',
+          600: '#2B3FA0', // accent
+          700: '#223284',
+          800: '#1B2868',
+          900: '#151F50',
         },
-        // Semantic neutrals (slate-based) — auto-flip with theme via CSS vars
+        // Semantic neutrals (warm stone) — auto-flip with theme via CSS vars
         navy: {
           50: 'rgb(var(--c-navy-50) / <alpha-value>)',
           100: 'rgb(var(--c-navy-100) / <alpha-value>)',
@@ -140,7 +160,10 @@ export default {
       },
       fontFamily: {
         sans: ['"Inter"', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
-        display: ['"Space Grotesk"', '"Inter"', 'system-ui', 'sans-serif'],
+        // The client's own heading face. Antic Didone ships ONE weight (400) — never
+        // apply font-bold to it, the browser will synthesise a smeared faux-bold. Its
+        // presence comes from size and letter-spacing, not weight.
+        display: ['"Antic Didone"', 'Georgia', '"Times New Roman"', 'serif'],
       },
       boxShadow: {
         xs: '0 1px 2px 0 rgb(0 0 0 / 0.03)',
@@ -148,11 +171,11 @@ export default {
         card: '0 1px 3px 0 rgb(0 0 0 / 0.06), 0 4px 12px -4px rgb(0 0 0 / 0.04)',
         elevated: '0 4px 24px -4px rgb(0 0 0 / 0.1), 0 2px 8px -2px rgb(0 0 0 / 0.04)',
         modal: '0 20px 60px -12px rgb(0 0 0 / 0.25), 0 8px 20px -8px rgb(0 0 0 / 0.1)',
-        glass: '0 8px 32px 0 rgb(15 23 42 / 0.10), inset 0 1px 0 0 rgb(255 255 255 / 0.35)',
-        'glass-lg': '0 24px 70px -12px rgb(15 23 42 / 0.22), inset 0 1px 0 0 rgb(255 255 255 / 0.30)',
-        // Restrained glow — cyan, and only on the primary action.
-        glow: '0 0 20px -6px rgb(8 145 178 / 0.40)',
-        'glow-sm': '0 0 10px -3px rgb(8 145 178 / 0.30)',
+        glass: '0 8px 32px 0 rgb(22 22 26 / 0.10), inset 0 1px 0 0 rgb(255 255 255 / 0.35)',
+        'glass-lg': '0 24px 70px -12px rgb(22 22 26 / 0.22), inset 0 1px 0 0 rgb(255 255 255 / 0.30)',
+        // Restrained glow — gold, and only on the primary action.
+        glow: '0 0 20px -6px rgb(198 161 91 / 0.45)',
+        'glow-sm': '0 0 10px -3px rgb(198 161 91 / 0.35)',
       },
       borderRadius: {
         '4xl': '2rem',

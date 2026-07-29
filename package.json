@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Material Gate Pass System — IGP / OGP / RGP / NRGP with HOD and security gate consoles",
+  "description": "Quest Gate Pass — material gate pass control (RGP / NRGP, in / out) for the Quest Mall management office, with HOD and security gate consoles",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.app.json --noEmit && vite build",
@@ -15,7 +15,8 @@
     "test:security": "vitest run tests/security",
     "test:watch": "vitest",
     "create-user": "tsx scripts/create-user.ts",
-    "build:sql": "node scripts/build-apply-all.mjs"
+    "build:sql": "node scripts/build-apply-all.mjs",
+    "build:login-bg": "node scripts/make-login-bg.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
@@ -37,6 +38,7 @@
     "dotenv": "^16.6.1",
     "jsdom": "^29.1.1",
     "postcss": "^8.4.0",
+    "sharp": "^0.35.3",
     "tailwindcss": "^3.4.0",
     "tsx": "^4.16.0",
     "typescript": "^5.5.0",
