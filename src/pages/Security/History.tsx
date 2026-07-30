@@ -110,6 +110,11 @@ export default function History(): React.ReactElement {
     return true;
   });
 
+  // Every row on the Matched tab has no flag_reason — the column would just
+  // read "—" down the whole table, so it's dropped there rather than shown
+  // as dead weight. All/Mismatched can both contain flagged rows, so it stays.
+  const showMismatchReason = statusFilter !== 'matched';
+
   function handleExport() {
     downloadCsv('security-history.csv', filtered as unknown as Record<string, unknown>[], CSV_COLUMNS);
   }
@@ -176,7 +181,7 @@ export default function History(): React.ReactElement {
                 <th>Status</th>
                 <th>Verified By</th>
                 <th>Verified At</th>
-                <th>Mismatch Reason</th>
+                {showMismatchReason && <th>Mismatch Reason</th>}
               </tr>
             </thead>
             <tbody>
@@ -196,9 +201,11 @@ export default function History(): React.ReactElement {
                   </td>
                   <td>{p.verified_by_name ?? '—'}</td>
                   <td className="tabular whitespace-nowrap">{formatDateTime(p.verified_at)}</td>
-                  <td className="max-w-[180px] truncate" title={p.flag_reason ?? undefined}>
-                    {p.flag_reason ?? '—'}
-                  </td>
+                  {showMismatchReason && (
+                    <td className="max-w-[180px] truncate" title={p.flag_reason ?? undefined}>
+                      {p.flag_reason ?? '—'}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

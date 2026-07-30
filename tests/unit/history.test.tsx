@@ -4,8 +4,9 @@
 // or a guard sees the same pass counted on both screens.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import type { GatePassView } from '../../src/types';
 
 interface Call {
   method: string;
@@ -62,5 +63,50 @@ describe('History date scoping', () => {
     await waitFor(() => expect(query.__calls.some((c: Call) => c.method === 'gte')).toBe(true));
     const dateCall = query.__calls.find((c: Call) => c.method === 'gte');
     expect(dateCall?.args[0]).toBe('verified_at');
+  });
+});
+
+const MATCHED_ROW = {
+  id: 'p1',
+  pass_number: 'RGP-OUT-20260730-0001',
+  type: 'RGP',
+  visitor_name: 'Alice',
+  material_summary: 'Bolts',
+  item_count: 2,
+  status: 'matched',
+  verified_by_name: 'Guard One',
+  verified_at: '2026-07-29T10:00:00Z',
+  flag_reason: null,
+  vehicle_number: null,
+} as unknown as GatePassView;
+
+const FLAGGED_ROW = {
+  ...MATCHED_ROW,
+  id: 'p2',
+  pass_number: 'RGP-OUT-20260730-0002',
+  status: 'flagged',
+  flag_reason: 'Quantity mismatch',
+} as unknown as GatePassView;
+
+describe('History Mismatch Reason column', () => {
+  it('hides the Mismatch Reason column on the Matched tab — every row would just read "—"', async () => {
+    query = makeQuery({ data: [MATCHED_ROW], error: null });
+    renderAt('/history?status=matched');
+    await screen.findByText('RGP-OUT-20260730-0001');
+    expect(screen.queryByText('Mismatch Reason')).not.toBeInTheDocument();
+  });
+
+  it('keeps the Mismatch Reason column on the Mismatched tab', async () => {
+    query = makeQuery({ data: [FLAGGED_ROW], error: null });
+    renderAt('/history?status=flagged');
+    await screen.findByText('RGP-OUT-20260730-0002');
+    expect(screen.getByText('Mismatch Reason')).toBeInTheDocument();
+  });
+
+  it('keeps the Mismatch Reason column on the All tab, where flagged rows can also appear', async () => {
+    query = makeQuery({ data: [MATCHED_ROW, FLAGGED_ROW], error: null });
+    renderAt('/history');
+    await screen.findByText('RGP-OUT-20260730-0001');
+    expect(screen.getByText('Mismatch Reason')).toBeInTheDocument();
   });
 });
