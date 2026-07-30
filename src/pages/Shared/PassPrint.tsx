@@ -4,21 +4,9 @@ import { gp } from '../../supabaseClient';
 import type { GatePassView, GatePassItemView } from '../../types';
 import { formatDateOnly } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
+import { parseCompanyInfo } from '../../lib/companyInfo';
 import QrPass from '../../components/QrPass';
 import { QuestLockup } from '../../components/QuestMark';
-
-function parseCompanyInfo(raw: string | null | undefined): { name: string; contact: string; address: string; phone: string } {
-  if (!raw) return { name: '', contact: '', address: '', phone: '' };
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object' && parsed.n) {
-      return { name: parsed.n, contact: parsed.c || '', address: parsed.a || '', phone: parsed.v || '' };
-    }
-  } catch {
-    // legacy plain-text company name
-  }
-  return { name: raw, contact: '', address: '', phone: '' };
-}
 
 function SignatureBox({ label }: { label: string }): React.ReactElement {
   return (

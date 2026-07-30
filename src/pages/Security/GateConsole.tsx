@@ -12,6 +12,7 @@ import { TypeChip } from '../../components/Badge';
 import KpiCard from '../../components/KpiCard';
 import { formatTime } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
+import { parseCompanyInfo } from '../../lib/companyInfo';
 import GateLookup from './GateLookup';
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
@@ -230,6 +231,7 @@ export default function GateConsole(): React.ReactElement {
           {filteredQueue.map((p, idx) => {
             const wb = waitBadge(p.created_at);
             const isOldest = idx === 0;
+            const companyInfo = parseCompanyInfo(p.visitor_company);
             return (
               <Link
                 key={p.id}
@@ -281,7 +283,7 @@ export default function GateConsole(): React.ReactElement {
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                   <div className="min-w-0">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-navy-400 mb-0.5">Company</p>
-                    <p className="text-sm font-semibold text-brand-700 truncate">{p.visitor_company || '—'}</p>
+                    <p className="text-sm font-semibold text-brand-700 truncate">{companyInfo.name || '—'}</p>
                   </div>
                   <div className="min-w-0">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-navy-400 mb-0.5">Visitor</p>

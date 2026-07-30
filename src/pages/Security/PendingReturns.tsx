@@ -9,6 +9,7 @@ import Badge, { TypeChip } from '../../components/Badge';
 import { OVERDUE_STYLE } from '../../lib/statusStyles';
 import { formatDateOnly } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
+import { parseCompanyInfo } from '../../lib/companyInfo';
 
 function daysIndicator(p: GatePassView): string {
   if (!p.expected_return_date) return '—';
@@ -129,7 +130,9 @@ export default function PendingReturns(): React.ReactElement {
               </tr>
             </thead>
             <tbody>
-              {rows.map((p) => (
+              {rows.map((p) => {
+                const companyInfo = parseCompanyInfo(p.visitor_company);
+                return (
                 <React.Fragment key={p.id}>
                   <tr className={p.is_overdue ? 'border-l-4 border-l-overdue-500/40' : ''}>
                     <td className="font-semibold text-navy-900">{p.pass_number}</td>
@@ -138,7 +141,7 @@ export default function PendingReturns(): React.ReactElement {
                     </td>
                     <td>
                       {p.visitor_name}
-                      {p.visitor_company && <span className="text-navy-400"> · {p.visitor_company}</span>}
+                      {companyInfo.name && <span className="text-navy-400"> · {companyInfo.name}</span>}
                     </td>
                     <td className="max-w-[220px] truncate">{p.material_summary ?? ''}</td>
                     <td className="tabular">
@@ -191,7 +194,8 @@ export default function PendingReturns(): React.ReactElement {
                     </tr>
                   )}
                 </React.Fragment>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

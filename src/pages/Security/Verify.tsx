@@ -8,6 +8,7 @@ import { TypeChip } from '../../components/Badge';
 
 import { formatDateOnly, formatDateTime } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
+import { parseCompanyInfo } from '../../lib/companyInfo';
 import { MatchPanel, FlagPanel } from './VerifyPanels';
 
 type Panel = 'none' | 'match' | 'flag';
@@ -149,6 +150,7 @@ export default function Verify(): React.ReactElement {
     );
   }
 
+  const companyInfo = parseCompanyInfo(pass.visitor_company);
   const alreadyActioned = pass.status !== 'pending';
   // is_expired comes from the view, which is also what match_pass enforces.
   // Never recompute it from expires_at here — a screen that disagrees with the
@@ -177,7 +179,9 @@ export default function Verify(): React.ReactElement {
       <div className="card p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Field label="Visitor Name" value={pass.visitor_name} />
-          <Field label="Company" value={pass.visitor_company ?? '—'} />
+          <Field label="Contact No" value={companyInfo.phone || '—'} />
+          <Field label="Company" value={companyInfo.name || '—'} />
+          <Field label="Company Address" value={companyInfo.address || '—'} />
           <Field label="Material Description" value={pass.material_summary ?? ''} full />
           <Field label="Quantity" value={`${pass.item_count} line(s)`} />
           <Field label="Vehicle Number" value={pass.vehicle_number ?? '—'} />

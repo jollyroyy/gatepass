@@ -9,22 +9,10 @@ import { PASS_TYPES } from '../../lib/passTypes';
 import { STATUS_STYLES, OVERDUE_STYLE } from '../../lib/statusStyles';
 import { formatDateTime, formatDateOnly } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
+import { parseCompanyInfo } from '../../lib/companyInfo';
 import Badge, { TypeChip } from '../../components/Badge';
 import QrPass from '../../components/QrPass';
 import VoidPassPanel from '../HOD/VoidPassPanel';
-
-function parseCompanyInfo(raw: string | null | undefined): { name: string; contact: string; address: string; phone: string } {
-  if (!raw) return { name: '', contact: '', address: '', phone: '' };
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object' && parsed.n) {
-      return { name: parsed.n, contact: parsed.c || '', address: parsed.a || '', phone: parsed.v || '' };
-    }
-  } catch {
-    // legacy plain-text
-  }
-  return { name: raw, contact: '', address: '', phone: '' };
-}
 
 /** `gatepass.v_verifications` — the table plus the security officer's name. */
 interface VerificationView extends Verification {

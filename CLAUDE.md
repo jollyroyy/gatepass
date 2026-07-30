@@ -25,7 +25,7 @@ references are not followed without `--build`, so it type-checks **zero files** 
 exits 0. It passed cleanly while `PassDetail.tsx` had a real missing-enum-key error.
 Use `npm run check`.
 
-`npx vitest run path/to/one.test.tsx` runs a single spec. **189 tests across 9 files
+`npx vitest run path/to/one.test.tsx` runs a single spec. **219 tests across 11 files
 currently pass** (`tests/unit/`, `tests/security/`) — the "zero test specs" note that
 used to live here is obsolete.
 
@@ -34,12 +34,11 @@ used to live here is obsolete.
 re-concatenated is a fix that never reaches the database.
 `tests/security/applyAllIntegrity.test.ts` is the backstop that catches the drift.
 
-## Current state — verified 2026-07-27
+## Current state — verified 2026-07-30
 
-Frontend typechecks, builds, and passes all **215 tests** (10 files) — verified by a real
-`npm run check` run on 2026-07-29. The previous "218" here was stale; no test file has been
-edited since. **All migrations are now applied
-to the live database.** Verified by direct catalog query this session, not inferred:
+Frontend typechecks, builds, and passes all **219 tests** (11 files) — verified by a real
+`npm run check` run on 2026-07-30. **All migrations through `023` are applied to the live
+database**, `023` verified live this session (see below), the rest as of 2026-07-27:
 
 | Thing | State |
 |---|---|
@@ -53,8 +52,32 @@ to the live database.** Verified by direct catalog query this session, not infer
 | Migration `012` | ✅ **applied 2026-07-27** — pass integrity constraints |
 | Migration `013`–`016` | ✅ **applied 2026-07-27** — gate items, verification detail, HOD review, KPIs/aging/vendor/blacklist/bulk |
 | Migration `017` | ✅ **applied 2026-07-27** — RGP-in constraint fix (`rgp_needs_return_date` dropped, `gate_passes_return_date_required` with direction-aware check) |
+| Migrations `018`–`022` | ✅ applied — image/category, per-item fields, bulk-create index fix, admin user + department management RPCs |
+| Migration `023` | ✅ **applied 2026-07-30** — fixes `admin_create_user` false "already exists" (see below) |
 | `gatepass.gate_passes` | 10 test rows (all from dev/RLS verification) |
 | `public.departments` | ✅ 5 rows: FIN, HR, IT, SA, DEV |
+
+### `023` — admin_create_user collided with VMS's own signup trigger
+
+Every "Add User" in the admin panel failed with **"That record already exists."**, even for
+a genuinely unused email. Root cause: `public.handle_new_user()` — VMS's own trigger on
+`auth.users`, owned by the `public` schema — fires on the `insert into auth.users` inside
+`admin_create_user` and **already inserts the matching `public.profiles` row itself**
+(role defaulted to `'staff'`), *and* immediately overwrites `raw_app_meta_data` back to
+`role: 'staff'`. `021`'s `admin_create_user` then ran its own `insert into public.profiles`,
+which collided with the trigger's row — a `23505` unique violation, which
+`src/lib/errors.ts` renders as the generic "already exists" message. Even if that insert
+were skipped, the trigger's `app_metadata` overwrite would have silently demoted every new
+guard/HOD back to `staff`.
+
+`023` changes `admin_create_user` to `UPDATE` the profile and `app_metadata` the trigger
+already created, instead of inserting a second time. **Verified live this session** by
+signing in as `admin@demo.vms` and calling the RPC for real (not via `psql`, which runs as
+`postgres` and would bypass `is_admin()`): a `guard` and an `hod` test account were created
+with the correct `role` in both `public.profiles` and `auth.users.raw_app_meta_data`, then
+deleted. `sqlInvariants.test.ts`/`applyAllIntegrity.test.ts` do not (and cannot) catch this
+class of bug — it only exists at the intersection of this app's RPC and VMS's trigger,
+neither of which is visible from the other's migration files alone.
 
 **`006` was never actually missing.** The previous session concluded it was unapplied from a
 `PGRST205`/`PGRST202`, but `gatepass.profile_names`, `my_profile()` and `admin_list_profiles()`

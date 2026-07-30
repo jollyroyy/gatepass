@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import type { UserRole } from '../../types';
 import Sidebar from './Sidebar';
 import NotificationBell from './NotificationBell';
+import SessionTimeout from '../SessionTimeout';
 import { NotificationProvider } from '../../lib/notifications';
 
 type Props = {
@@ -24,6 +25,7 @@ export default function AppShell({ session, role, children }: Props): React.Reac
 
   return (
     <NotificationProvider session={session} role={role}>
+      <SessionTimeout />
       <div className="min-h-screen bg-surface-50">
         <Sidebar session={session} role={role} collapsed={collapsed} onCollapsedChange={setCollapsed} />
 
