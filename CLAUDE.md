@@ -25,7 +25,7 @@ references are not followed without `--build`, so it type-checks **zero files** 
 exits 0. It passed cleanly while `PassDetail.tsx` had a real missing-enum-key error.
 Use `npm run check`.
 
-`npx vitest run path/to/one.test.tsx` runs a single spec. **219 tests across 11 files
+`npx vitest run path/to/one.test.tsx` runs a single spec. **221 tests across 12 files
 currently pass** (`tests/unit/`, `tests/security/`) — the "zero test specs" note that
 used to live here is obsolete.
 

@@ -72,9 +72,14 @@ export default function History(): React.ReactElement {
           .order('verified_at', { ascending: false })
           .limit(HISTORY_LIMIT);
 
-        if (urlTodayOnly) {
-          query = query.gte('verified_at', startOfTodayIso());
-        }
+        // Today's matched/mismatched counts live on GateConsole's KPI cards;
+        // this page is the PAST log. Without this split, a pass verified
+        // minutes ago would show as "today" on the console AND in history,
+        // and clicking the console's "today" count landed on unfiltered
+        // all-time history instead of just today (the reported bug).
+        query = urlTodayOnly
+          ? query.gte('verified_at', startOfTodayIso())
+          : query.lt('verified_at', startOfTodayIso());
 
         const { data, error: loadErr } = await query;
         if (loadErr) throw loadErr;
@@ -114,7 +119,11 @@ export default function History(): React.ReactElement {
       <div className="page-header flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="page-title">Verification History</h1>
-          <p className="page-subtitle">Matched and mismatched passes, most recent first.</p>
+          <p className="page-subtitle">
+            {urlTodayOnly
+              ? "Today's matched and mismatched passes, most recent first."
+              : 'Past matched and mismatched passes — today’s are on the Gate Console.'}
+          </p>
         </div>
         <button type="button" className="btn-secondary" onClick={handleExport}>
           Export CSV

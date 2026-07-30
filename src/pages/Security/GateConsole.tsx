@@ -165,8 +165,8 @@ export default function GateConsole(): React.ReactElement {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
         <KpiCard label="Pending for Gate Approval" value={pendingCount} tone="pending" to="/console#queue" loading={loading} />
-        <KpiCard label="Matched at Gate" value={matchedToday} tone="matched" to="/history?status=matched" loading={loading} />
-        <KpiCard label="Mismatch at Gate" value={mismatchedToday} tone="flagged" to="/history?status=flagged" loading={loading} />
+        <KpiCard label="Matched at Gate" value={matchedToday} tone="matched" to="/history?status=matched&today=1" loading={loading} />
+        <KpiCard label="Mismatch at Gate" value={mismatchedToday} tone="flagged" to="/history?status=flagged&today=1" loading={loading} />
       </div>
 
       <div ref={queueRef} id="queue" className="mb-5">
