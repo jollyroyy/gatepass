@@ -158,7 +158,7 @@ src/
   pages/
     HOD/                   Dashboard, RaisePass, MyPasses
     Security/              GateConsole, GateLookup, Verify, PendingReturns, History
-    Admin/                 AdminPanel + tabs, AllPasses
+    Admin/                 AdminPanel + tabs, AdminDashboard, ReportsPage + report views
     Shared/                PassDetail, PassPrint
 supabase/
   migrations/              001 schema → 011, applied in order

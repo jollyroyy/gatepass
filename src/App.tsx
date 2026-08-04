@@ -14,16 +14,17 @@ import RaisePass from './pages/HOD/RaisePass';
 import BulkRaise from './pages/HOD/BulkRaise';
 import VendorProfiles from './pages/HOD/VendorProfiles';
 import MyPasses from './pages/HOD/MyPasses';
-import HodAnalytics from './pages/HOD/HodAnalytics';
 import GateConsole from './pages/Security/GateConsole';
 import Verify from './pages/Security/Verify';
 import PendingReturns from './pages/Security/PendingReturns';
 import History from './pages/Security/History';
 import AdminPanel from './pages/Admin/AdminPanel';
-import AllPasses from './pages/Admin/AllPasses';
+import AdminDashboard from './pages/Admin/AdminDashboard';
+import ReportsPage from './pages/Admin/ReportsPage';
 
 import PassDetail from './pages/Shared/PassDetail';
 import PassPrint from './pages/Shared/PassPrint';
+import ProfilePage from './pages/Shared/Profile';
 
 /**
  * Blocks a signed-in user from a route their role has no business on.
@@ -137,7 +138,6 @@ export default function App(): React.ReactElement {
           <Route path="/raise/bulk" element={<BulkRaise />} />
           <Route path="/vendors" element={<VendorProfiles />} />
           <Route path="/my-passes" element={<MyPasses />} />
-          <Route path="/analytics" element={<HodAnalytics />} />
 
           {/* Security */}
           <Route path="/console" element={<GateConsole />} />
@@ -147,10 +147,12 @@ export default function App(): React.ReactElement {
 
           {/* Admin */}
           <Route path="/admin" element={<AdminPanel />} />
-          <Route path="/all-passes" element={<AllPasses />} />
+          <Route path="/admin-dashboard" element={<AdminDashboard />} />
+          <Route path="/all-passes" element={<ReportsPage />} />
 
           {/* Shared */}
           <Route path="/pass/:id" element={<PassDetail />} />
+          <Route path="/profile" element={<ProfilePage session={session} role={role} />} />
 
           <Route path="*" element={<Navigate to={homeFor(role)} replace />} />
         </Routes>

@@ -183,6 +183,172 @@
   display: none;
 }
 
+/* ============================================================
+   PRINT — reports (A4 landscape register)
+   Reports opt into a NAMED page (`page: report-sheet`) so the A5
+   gate-pass slip above is unaffected. The toolbar and sidebar are
+   already hidden by .no-print; this adds the letterhead, a repeated
+   table header, and paper-safe colours on a fixed white background.
+   ============================================================ */
+@page report-sheet {
+  size: A4 landscape;
+  margin: 11mm 9mm 13mm;
+}
+@media print {
+  .report-sheet {
+    page: report-sheet;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+  /* The screen layout spaces sections 1.5rem apart; on paper that is dead sheet. */
+  .report-sheet > * + * {
+    margin-top: 8pt !important;
+  }
+  /* Un-flatten the app shell so the register gets the full sheet. */
+  main {
+    max-width: none !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+  .card,
+  .table-wrap {
+    background: #fff !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  /* The register lives inside a horizontal scroller; paper cannot scroll, so
+     nothing in the print tree may clip. */
+  .overflow-x-auto,
+  .overflow-hidden {
+    overflow: visible !important;
+  }
+
+  /* --- Letterhead --- */
+  .report-print-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16pt;
+    padding-bottom: 10pt;
+    margin-bottom: 12pt;
+    border-bottom: 1pt solid #ccc;
+  }
+  .report-print-header-left {
+    display: flex;
+    align-items: flex-start;
+    gap: 12pt;
+  }
+  .report-print-header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3pt;
+  }
+  .report-print-header-right {
+    display: flex;
+    flex-direction: column;
+    gap: 3pt;
+    text-align: right;
+  }
+  .report-print-title {
+    font-size: 20pt;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #111;
+    margin: 0;
+  }
+  .report-print-subtitle {
+    font-size: 11pt;
+    font-weight: 500;
+    color: #555;
+    margin: 0;
+  }
+  .report-print-meta {
+    font-size: 7.5pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+    margin: 0;
+  }
+
+  /* --- Register table --- */
+  .report-table {
+    width: 100% !important;
+    border-collapse: collapse;
+    font-size: 8pt;
+    color: #111;
+  }
+  .report-table thead {
+    display: table-header-group;
+  }
+  .report-table th {
+    background: #f2f2f2 !important;
+    color: #444 !important;
+    font-size: 7pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 0.75pt solid #999;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .report-table th,
+  .report-table td {
+    padding: 3.5pt 5pt !important;
+  }
+  .report-table tbody tr {
+    break-inside: avoid;
+    border-bottom: 0.4pt solid #e0e0e0;
+  }
+  /* Screen wraps/truncates for its scroller; paper must not clip. */
+  .report-table .whitespace-nowrap,
+  .report-table .truncate {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    max-width: none !important;
+  }
+
+  /* Theme neutrals invert under `.dark`; paper needs fixed near-black/grey.
+     Status hues stay meaningful but print-safe (fixed hex). */
+  .report-table .text-navy-400,
+  .report-table .text-navy-500 {
+    color: #666 !important;
+  }
+  .report-table .text-navy-900 {
+    color: #111 !important;
+  }
+  .report-table .text-flagged-700 {
+    color: #b91c1c !important;
+  }
+  .report-table .text-matched-700,
+  .report-table .text-brand-700 {
+    color: #1f7a3d !important;
+  }
+  .report-table .text-overdue-700,
+  .report-table .text-pending-700 {
+    color: #b45309 !important;
+  }
+  .report-table .text-accent-700 {
+    color: #4b5ba8 !important;
+  }
+
+  /* --- End-of-report block --- */
+  .report-print-footer {
+    break-inside: avoid;
+    margin-top: 10pt;
+    padding-top: 6pt;
+    border-top: 0.75pt solid #ccc;
+  }
+  .report-print-footer > * + * {
+    margin-top: 3pt;
+  }
+}
+
 @layer components {
   /* --- Inputs --- */
   .input {

@@ -202,7 +202,8 @@ screens but leak nothing.
 | `/returns` | `Security/PendingReturns` | guard, admin, super_admin |
 | `/history` | `Security/History` | guard, admin, super_admin |
 | `/admin` | `Admin/AdminPanel` | admin, super_admin |
-| `/all-passes` | `Admin/AllPasses` | admin, super_admin |
+| `/admin-dashboard` | `Admin/AdminDashboard` | admin, super_admin |
+| `/all-passes` | `Admin/ReportsPage` | admin, super_admin |
 | `/pass/:id` | `Shared/PassDetail` | all app roles |
 | `/pass/:id/print` | `Shared/PassPrint` | all app roles |
 | `*` | → `homeFor(role)` | — |
@@ -326,14 +327,14 @@ returnable"), not two independent axes.
 ### `src/pages/` — grouped by who uses it
 
 **HOD/** — `Dashboard` (KPIs + recent), `RaisePass` (the form), `MyPasses` (list with void and
-delete), plus the extracted `PassTypeSelector`, `PassIdentityPanel`, `VoidPassPanel`,
-`DeletePassPanel`, `MyPassesTable`, `useDeletePass`.
+delete), plus the extracted `PassTypeSelector`, `PassIdentityPanel`, `MyPassesTable`.
 
 **Security/** — `GateConsole` (live queue, category filter), `GateLookup` (scan + typed entry),
 `Verify` (the match/flag decision screen), `PendingReturns`, `History`, plus `VerifyPanels`.
 
-**Admin/** — `AdminPanel` with `UsersTab` and `DepartmentsTab`, `DeptBreakdownTable`,
-`AllPasses`.
+**Admin/** — `AdminPanel` with `UsersTab` and `DepartmentsTab`, `AdminDashboard` (KPI board +
+department breakdown), `ReportsPage` with its report views (`AllPassesReport`,
+`ReturnScheduleReport`, `DepartmentSummaryReport`), `ReportsToolbar`, `DeptBreakdownTable`.
 
 **Shared/** — `PassDetail`, `PassPrint`.
 

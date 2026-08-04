@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import type { UserRole } from '../../types';
+import { isNavActive } from '../../lib/roleRoutes';
 import { fetchDisplayName } from '../../lib/profiles';
 import { useTheme } from '../../lib/theme';
 import SidebarProfile from './SidebarProfile';
@@ -40,10 +41,6 @@ const ALL_LINKS: NavLink[] = [
     icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>,
   },
   {
-    to: '/analytics', label: 'AI Analytics', roles: ['hod'],
-    icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>,
-  },
-  {
     to: '/console', label: 'Gate Console', roles: ['guard'],
     icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg>,
   },
@@ -54,6 +51,10 @@ const ALL_LINKS: NavLink[] = [
   {
     to: '/history', label: 'History', roles: ['guard'],
     icon: <svg {...ICON_PROPS}><circle cx="12" cy="12" r="8.25" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5v5.25l3.5 2" /></svg>,
+  },
+  {
+    to: '/admin-dashboard', label: 'Admin Dashboard', roles: ['admin', 'super_admin'],
+    icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.5L8.25 8.25l4.5 4.5 6-6L21 9M8.25 8.25V6.75a1.5 1.5 0 011.5-1.5h.75M21 9l-1.5-1.5m3 6.75v4.5a1.5 1.5 0 01-1.5 1.5h-15a1.5 1.5 0 01-1.5-1.5v-4.5" /></svg>,
   },
   {
     to: '/admin', label: 'Departments & Users', roles: ['admin', 'super_admin'],
@@ -123,7 +124,7 @@ export default function Sidebar({ session, role, collapsed: collapsedProp, onCol
       {/* Nav links */}
       <div className="flex-1 overflow-y-auto px-3 space-y-1.5 pb-4">
         {links.map(({ to, label, icon }) => {
-          const active = loc.pathname === to || (to !== '/' && loc.pathname.startsWith(to));
+          const active = isNavActive(loc.pathname, to);
           return (
             <Link key={to} to={to} title={isCollapsed ? label : undefined}
               className={`sidebar-link px-3 py-2.5 ${isCollapsed ? 'justify-center !px-0' : ''} ${active ? 'sidebar-link-active' : ''}`}>

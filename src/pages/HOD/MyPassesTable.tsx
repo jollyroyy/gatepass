@@ -1,7 +1,7 @@
 // The passes table for MyPasses.tsx: loading skeleton, empty state, and the
-// populated table with the per-row Void action. Split out to keep MyPasses.tsx
-// under the 300-line rule — same "extract sub-components" convention as
-// VerifyPanels.tsx / MatchPanel / FlagPanel.
+// populated table. Split out to keep MyPasses.tsx under the 300-line rule —
+// same "extract sub-components" convention as VerifyPanels.tsx / MatchPanel /
+// FlagPanel.
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { GatePassView } from '../../types';
@@ -15,8 +15,6 @@ interface MyPassesTableProps {
   rows: GatePassView[];
   filtered: GatePassView[];
   loading: boolean;
-  onVoidClick: (p: GatePassView, e: React.MouseEvent) => void;
-  onDeleteClick: (p: GatePassView, e: React.MouseEvent) => void;
 }
 
 function returnBadge(p: GatePassView) {
@@ -28,8 +26,6 @@ export default function MyPassesTable({
   rows,
   filtered,
   loading,
-  onVoidClick,
-  onDeleteClick,
 }: MyPassesTableProps): React.ReactElement {
   const navigate = useNavigate();
 
@@ -69,7 +65,6 @@ export default function MyPassesTable({
             <th>Status</th>
             <th>Return</th>
             <th>Raised</th>
-            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -89,23 +84,6 @@ export default function MyPassesTable({
               </td>
               <td>{returnBadge(p)}</td>
               <td className="tabular whitespace-nowrap">{formatDateTime(p.created_at)}</td>
-              <td>
-                {/* Only a still-pending pass can be cancelled or deleted —
-                    matched, flagged and cancelled are all terminal.
-                    Labelled "Cancel", not "Void": the underlying RPC is
-                    cancel_pass and the status is 'cancelled', so the button
-                    should say the same word the rest of the system uses. */}
-                {p.status === 'pending' && (
-                  <div className="flex gap-1 justify-end whitespace-nowrap">
-                    <button type="button" className="btn-ghost" onClick={(e) => onVoidClick(p, e)}>
-                      Cancel
-                    </button>
-                    <button type="button" className="btn-ghost" onClick={(e) => onDeleteClick(p, e)}>
-                      Delete
-                    </button>
-                  </div>
-                )}
-              </td>
             </tr>
           ))}
         </tbody>

@@ -25,7 +25,7 @@ references are not followed without `--build`, so it type-checks **zero files** 
 exits 0. It passed cleanly while `PassDetail.tsx` had a real missing-enum-key error.
 Use `npm run check`.
 
-`npx vitest run path/to/one.test.tsx` runs a single spec. **224 tests across 12 files
+`npx vitest run path/to/one.test.tsx` runs a single spec. **266 tests across 16 files
 currently pass** (`tests/unit/`, `tests/security/`) — the "zero test specs" note that
 used to live here is obsolete.
 
@@ -34,11 +34,11 @@ used to live here is obsolete.
 re-concatenated is a fix that never reaches the database.
 `tests/security/applyAllIntegrity.test.ts` is the backstop that catches the drift.
 
-## Current state — verified 2026-07-30
+## Current state — verified 2026-08-04
 
-Frontend typechecks, builds, and passes all **219 tests** (11 files) — verified by a real
-`npm run check` run on 2026-07-30. **All migrations through `023` are applied to the live
-database**, `023` verified live this session (see below), the rest as of 2026-07-27:
+Frontend typechecks, builds, and passes all **266 tests** (16 files) — verified by a real
+`npm run check` run on 2026-08-04. **All migrations through `025` are applied to the live
+database**, `024`/`025` applied and verified live 2026-08-04 (see below), `023` verified live, the rest as of 2026-07-27:
 
 | Thing | State |
 |---|---|
@@ -54,8 +54,72 @@ database**, `023` verified live this session (see below), the rest as of 2026-07
 | Migration `017` | ✅ **applied 2026-07-27** — RGP-in constraint fix (`rgp_needs_return_date` dropped, `gate_passes_return_date_required` with direction-aware check) |
 | Migrations `018`–`022` | ✅ applied — image/category, per-item fields, bulk-create index fix, admin user + department management RPCs |
 | Migration `023` | ✅ **applied 2026-07-30** — fixes `admin_create_user` false "already exists" (see below) |
-| `gatepass.gate_passes` | 10 test rows (all from dev/RLS verification) |
+| Migration `024` | ✅ **applied 2026-08-04** — **cancellation removed entirely** (see below): `cancel_pass` dropped, HOD delete revoked, flagged-review `reject` removed, `cancel_reason` column dropped |
+| Migration `025` | ✅ **applied 2026-08-04** — **self-service profile** (see below): `my_profile()` gains `avatar_url` (drop+recreate), plus `update_my_name(text)` / `set_my_avatar(text)` |
+| `gatepass.gate_passes` | 0 rows — all passes wiped 2026-08-04 |
 | `public.departments` | ✅ 5 rows: FIN, HR, IT, SA, DEV |
+
+### Admin UI split — Dashboard and Reports are now separate pages (2026-08-04)
+
+The admin left-sidebar gained **Admin Dashboard** (`/admin-dashboard`, admin + super_admin) —
+the KPI board (`kpis()` + per-department breakdown) that used to sit on top of the old
+`AllPasses`. `/all-passes` is now **Reports** only: three report "portals" behind a
+date-range toolbar (`ReportsPage` + `ReportsToolbar`, range presets from
+`src/lib/reportsDateRange.ts`): **All Passes** (register + filters),
+**Return Schedule** (RGP-only, Expected Return + Actual Return columns off the view) and
+**Department Summary**. Reports print A4 landscape via a **named page**
+(`@page report-sheet`) with a Quest letterhead (`ReportsPrintHeader`, `QuestLockup` light
+tone) — the A5 slip's `@page` rule is untouched. Old `Admin/AllPasses.tsx` was deleted.
+
+**Dashboard is a slim operational snapshot — status counts live only under Reports.**
+2026-08-04 feedback: `Pending for Gate Approval` / `Matched` / `Mismatched` KPI cards, the
+per-department `By Department` table, and the `Open Reports →` button were all removed from
+`AdminDashboard.tsx`; it now loads only the `kpis()` RPC and shows `Total`, `Awaiting Return`,
+`Return Rate`, `Overdue`. The status register and per-department counts are exclusively in
+`/all-passes` (the `DeptBreakdownTable` component now has exactly one consumer, the
+`DepartmentSummaryReport`). The Reports page header subtitle was dropped too.
+
+### `025` — self-service profile page (2026-08-04)
+
+Clicking the **bottom-left profile block** in the sidebar now opens `/profile` (all four roles),
+mirroring VMS's profile page: upload / replace / **remove** the photo, and edit the display
+name. The photo lives in the shared `avatars` storage bucket (`avatars/<uid>/avatar`, created
+by VMS migration 053 — same project, so a photo set here shows in VMS too). Client writes go
+through two new **SECURITY DEFINER** RPCs scoped to `auth.uid()` — `gatepass.update_my_name(text)`
+(validates non-empty / ≤80 chars, raises otherwise) and `gatepass.set_my_avatar(text)`
+(null or `''` clears) — never `public.profiles` directly (the 006 rule). `my_profile()` was
+drop+recreated to return `avatar_url` (its return type changed, which `create or replace`
+cannot do; the execute grant was re-applied in the same migration). Files:
+`src/pages/Shared/Profile.tsx` + `ProfilePhotoCard.tsx` + `ProfileDetails.tsx`,
+`src/lib/useMyProfile.ts`, `src/lib/avatarUpload.ts`, `src/lib/initials.ts`, and the
+`/profile` link in `SidebarProfile.tsx` (re-fetches the avatar on navigation so returning
+from the page shows the new photo). **Verified live** as `guard@demo.vms` via real anon-key
+JWT: name updated, avatar set/cleared, and the empty-name case rejected with HTTP 400
+(`gatepass` schema REST needs `Accept-Profile`/`Content-Profile: gatepass` headers).
+
+**Sidebar active-link fix (2026-08-04):** the nav highlight used a bare `startsWith`, so
+`/admin-dashboard` lit up *both* **Admin Dashboard** and **Departments & Users**. Now
+`isNavActive()` (in `src/lib/roleRoutes.ts`) matches exact or parent-segment only. **AI
+Analytics was removed from the HOD view** (sidebar link, `/analytics` route,
+`HodAnalytics.tsx` deleted); the admin's AI Analytics tab under `/admin` is untouched.
+
+### `024` — cancellation removed: a raised gate pass is permanent
+
+Business rule fixed 2026-08-04: **once a gate pass is raised it cannot be cancelled or
+deleted.** Migration `024` removed every cancellation path — `gatepass.cancel_pass` (the HOD
+void), the `gate_passes_delete` policy + the schema's only DELETE grant (the HOD hard-delete),
+the `reject` branch of `hod_review_flagged_pass` (a flagged pass can now only be **approved**),
+the now-dead `cancel_reason` column, and the `'cancelled'` branches of `validate_pass` /
+`lookup_pass`. The enum labels stay — Postgres cannot drop enum values — but no code path sets
+them. Verified live: `cancel_pass` gone, `gate_passes_delete` policy gone, `cancel_reason`
+column gone. The `VoidPassPanel.tsx` / `DeletePassPanel.tsx` / `useDeletePass.ts` files were
+deleted and the Cancel/Delete/Reject buttons removed from `MyPasses` and `PassDetail`.
+
+Companion rule (already true, verified, not changed): **an RGP pass closes only when ALL its
+items are fully returned.** `apply_item_returns` (013) rolls lines up into the parent and only
+sets `return_status = 'returned'` when no line has `returned_qty < quantity`; a partially
+returned multi-item pass stays `partially_returned` (still outstanding, still overdue-reckoned)
+until every line is back.
 
 ### `023` — admin_create_user collided with VMS's own signup trigger
 
@@ -165,13 +229,12 @@ reach: real browsers, realtime across two windows, printing, and the camera.
   tested on `http://<lan-ip>` — see Deployment below.
 - **Expiry refusal in practice.** `match_pass`'s expiry branch has never fired against a
   genuinely stale pass (would need a pass older than ~48h, or a hand-edited `expires_at`).
-- **HOD void.** `cancel_pass` has never been called.
 - **The duplicate-material index.** Never tripped by a real second insert.
 
 `verify-rls.mjs` does not yet cover the `009`-era additions. Extending it to check that a
-guard cannot call `cancel_pass`, an HOD cannot cancel another HOD's pass, a cancelled pass
-cannot be matched, and an expired pass is refused by `match_pass` but still flaggable, is
-the highest-value next test work.
+guard cannot call `cancel_pass` and an expired pass is refused by `match_pass` but still
+flaggable is the highest-value next test work. (Cancellation itself is gone as of `024` —
+there is no longer a `cancel_pass` to refuse.)
 
 ### Gate-side features added in `008` (applied 2026-07-27)
 
@@ -187,10 +250,6 @@ the highest-value next test work.
   `match_pass` refuses an expired pass; **`flag_pass` deliberately does not** — refusing to
   record a real mismatch because the paperwork went stale is backwards. `is_expired` is
   defined once, in the view, exactly like `is_overdue`.
-- **HOD void.** `gatepass.cancel_pass` — only the HOD who raised it, only while pending.
-  Reaches the guard live for free: `gate_passes` is already in `supabase_realtime` and
-  `GateConsole` subscribes with `event: '*'`. `Verify.tsx` now subscribes to its own row
-  too, so a guard standing on the decision screen sees a void arrive.
 - **`scan_attempts`.** Every scan including failures. `verifications` records what
   succeeded; this records what was *tried*, which is how a forged-QR probe becomes visible.
 - **One pending pass per material per department**, as a partial unique index on
@@ -233,19 +292,14 @@ value**. They are made unreachable by `gate_passes_type_is_current` instead. Do 
 "clean this up" by recreating the type; the column, view and every index would need
 rebuilding for a cosmetic gain.
 
-### HOD delete — the one delete permission in the schema
+### HOD delete — removed in migration `024`
 
-An HOD may **delete** their own pass while it is still `pending`, via an RLS policy
-(`gate_passes_delete`), not an RPC. That is not an inconsistency with the RPC-only rule:
-RPCs exist because RLS cannot express "you may change `status` but not `visitor_name`", a
-*column*-level concern. Deletion has no columns to constrain, so a policy states the whole
-rule exactly.
-
-This was an explicit user decision, made with the costs stated: the pass number is consumed
-and leaves a **permanent gap**, a printed slip becomes unscannable showing only `not_found`,
-and the record of the mistake is gone. **Void remains the better path** and stays in the UI
-beside it. `sqlInvariants.test.ts` allows this one grant in `010` only and still fails any
-UPDATE grant, or a DELETE grant in any other file.
+The HOD could once **delete** their own still-`pending` pass via an RLS policy
+(`gate_passes_delete`), and **void** it via `cancel_pass`. As of `024` neither exists: a
+raised gate pass is permanent. The policy + DELETE grant and the RPC were dropped together
+so the RPC-only state machine is complete even for the service key. `sqlInvariants.test.ts`
+still fails any UPDATE grant, or a DELETE grant anywhere (its one `010` approval is legacy —
+`024` revoked it).
 
 ### Demo accounts — all set to `demo123` on 2026-07-27
 
@@ -541,6 +595,6 @@ and `visitor_company` is the tenant, brand, or contractor firm. Keep that vocabu
 
 `src/pages/` is grouped by who uses it: `HOD/` (Dashboard, RaisePass, MyPasses),
 `Security/` (GateConsole, Verify, PendingReturns, History), `Admin/` (AdminPanel and its
-tabs, AllPasses), `Shared/` (PassDetail, PassPrint). `src/lib/` holds the lookup maps and
-formatters; `supabase/migrations/` is `001` schema → `002` RLS → `003` RPCs → `004` views
-→ `005` optional seed.
+tabs, AdminDashboard, ReportsPage + report views), `Shared/` (PassDetail, PassPrint).
+`src/lib/` holds the lookup maps and formatters; `supabase/migrations/` is `001` schema →
+`002` RLS → `003` RPCs → `004` views → `005` optional seed.

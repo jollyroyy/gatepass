@@ -8,10 +8,7 @@ import type { GatePassView, PassStatus, PassType } from '../../types';
 import { PASS_TYPE_LIST, PASS_TYPES } from '../../lib/passTypes';
 import { safeErrorMessage } from '../../lib/errors';
 import { downloadCsv, type CsvColumn } from '../../lib/exportUtils';
-import VoidPassPanel from './VoidPassPanel';
-import DeletePassPanel from './DeletePassPanel';
 import MyPassesTable from './MyPassesTable';
-import { useDeletePass } from './useDeletePass';
 
 const STATUS_TABS: { key: PassStatus | 'all'; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -42,13 +39,6 @@ export default function MyPasses(): React.ReactElement {
   const [typeFilter, setTypeFilter] = useState<PassType | 'all'>('all');
   const [search, setSearch] = useState('');
 
-  // Void confirm panel — target pass, not just a boolean, so the panel can show
-  // the pass number and closing it can't accidentally leave stale error text
-  // showing against the next pass a user opens the panel for.
-  const [voidTarget, setVoidTarget] = useState<GatePassView | null>(null);
-  const [voidSubmitting, setVoidSubmitting] = useState(false);
-  const [voidError, setVoidError] = useState<string | null>(null);
-
   const statusParam = searchParams.get('status');
   const statusFilter: PassStatus | 'all' = VALID_STATUSES.includes(statusParam as PassStatus)
     ? (statusParam as PassStatus)
@@ -69,9 +59,6 @@ export default function MyPasses(): React.ReactElement {
     setSearchParams(next, { replace: true });
   }
 
-  // useCallback (not a plain effect-local function) because voiding a pass
-  // needs to re-run this same load after the RPC succeeds, without duplicating
-  // the query.
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -88,9 +75,6 @@ export default function MyPasses(): React.ReactElement {
       setLoading(false);
     }
   }, []);
-
-  const { deleteTarget, deleteSubmitting, deleteError, openDeletePanel, closeDeletePanel, handleDeleteConfirm } =
-    useDeletePass(load);
 
   useEffect(() => {
     load();
@@ -113,35 +97,6 @@ export default function MyPasses(): React.ReactElement {
 
   function handleExport() {
     downloadCsv('my-passes.csv', filtered as unknown as Record<string, unknown>[], CSV_COLUMNS);
-  }
-
-  function openVoidPanel(p: GatePassView, e: React.MouseEvent) {
-    // Rows navigate to the pass detail on click — stop that so opening the
-    // void panel doesn't also fire a route change underneath it.
-    e.stopPropagation();
-    setVoidError(null);
-    setVoidTarget(p);
-  }
-
-  function closeVoidPanel() {
-    setVoidTarget(null);
-    setVoidError(null);
-  }
-
-  async function handleVoidConfirm(reason: string) {
-    if (!voidTarget) return;
-    setVoidSubmitting(true);
-    setVoidError(null);
-    try {
-      const { error: rpcErr } = await gp().rpc('cancel_pass', { p_pass_id: voidTarget.id, p_reason: reason });
-      if (rpcErr) throw rpcErr;
-      closeVoidPanel();
-      await load();
-    } catch (err) {
-      setVoidError(safeErrorMessage(err));
-    } finally {
-      setVoidSubmitting(false);
-    }
   }
 
   return (
@@ -203,33 +158,7 @@ export default function MyPasses(): React.ReactElement {
 
       {error && <div className="alert-error mb-6">{error}</div>}
 
-      <MyPassesTable
-        rows={rows}
-        filtered={filtered}
-        loading={loading}
-        onVoidClick={openVoidPanel}
-        onDeleteClick={openDeletePanel}
-      />
-
-      {voidTarget && (
-        <VoidPassPanel
-          pass={voidTarget}
-          submitting={voidSubmitting}
-          error={voidError}
-          onCancel={closeVoidPanel}
-          onConfirm={handleVoidConfirm}
-        />
-      )}
-
-      {deleteTarget && (
-        <DeletePassPanel
-          pass={deleteTarget}
-          submitting={deleteSubmitting}
-          error={deleteError}
-          onCancel={closeDeletePanel}
-          onConfirm={handleDeleteConfirm}
-        />
-      )}
+      <MyPassesTable rows={rows} filtered={filtered} loading={loading} />
     </div>
   );
 }

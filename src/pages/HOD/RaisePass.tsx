@@ -37,7 +37,6 @@ export default function RaisePass(): React.ReactElement {
     vehicle_number: '',
     purpose: '',
     expected_return_date: '',
-    master_return_date: '',
     items: [{ ...EMPTY_ITEM }],
   });
   const [errors, setErrors] = useState<FormErrors>({});
@@ -102,6 +101,10 @@ export default function RaisePass(): React.ReactElement {
       ...f,
       type,
       expected_return_date: requiresReturnDate(type) ? f.expected_return_date : '',
+      items: f.items.map((item) => ({
+        ...item,
+        expected_return_date: requiresReturnDate(type) ? item.expected_return_date : '',
+      })),
     }));
     setErrors((e) => ({ ...e, expected_return_date: undefined }));
   }
@@ -204,7 +207,7 @@ export default function RaisePass(): React.ReactElement {
           unit: item.unit,
           serial_no: item.serial_no.trim() || null,
           approx_value: item.approx_value ? Number(item.approx_value) : null,
-          expected_return_date: item.expected_return_date || null,
+          expected_return_date: requiresReturnDate(form.type) ? (item.expected_return_date || null) : null,
         })),
       });
       if (error) throw error;
@@ -260,12 +263,12 @@ export default function RaisePass(): React.ReactElement {
           </div>
         </div>
 
-        {/* Company Details */}
+        {/* Vendor Details */}
         <div className="card p-5">
-          <h2 className="section-title mb-4">Company Details</h2>
+          <h2 className="section-title mb-4">Vendor Details</h2>
           <div>
-            <label className="label">Company Name</label>
-            <input className="input" value={form.visitor_company} onChange={(e) => update('visitor_company', e.target.value)} placeholder="Company name" />
+            <label className="label">Vendor Name</label>
+            <input className="input" value={form.visitor_company} onChange={(e) => update('visitor_company', e.target.value)} placeholder="Vendor name" />
             {vendors.length > 0 && (
               <select className="input mt-2 text-sm" defaultValue=""
                 onChange={(e) => {
@@ -280,7 +283,7 @@ export default function RaisePass(): React.ReactElement {
             )}
           </div>
           <div className="mt-4">
-            <label className="label">Company Address</label>
+            <label className="label">Vendor Address</label>
             <textarea className="input" rows={2} value={form.company_address} onChange={(e) => update('company_address', e.target.value)} placeholder="Street, area, city, pincode" />
           </div>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -294,27 +297,6 @@ export default function RaisePass(): React.ReactElement {
                 Save as vendor profile
               </label>
             </div>
-          </div>
-        </div>
-
-        {/* Master Return Date */}
-        <div className="card p-5">
-          <h2 className="section-title mb-4">Return Date</h2>
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="flex-1 min-w-[200px]">
-              <label className="label">Set all return dates to</label>
-              <input type="date" className="input" value={form.master_return_date}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  update('master_return_date', val);
-                  setForm((f) => ({
-                    ...f,
-                    master_return_date: val,
-                    items: f.items.map((item) => ({ ...item, expected_return_date: val })),
-                  }));
-                }} />
-            </div>
-            <p className="text-xs text-navy-400 pb-1">Leave blank to set individual dates per item below.</p>
           </div>
         </div>
 
@@ -346,11 +328,14 @@ export default function RaisePass(): React.ReactElement {
                       onChange={(e) => updateItem(idx, 'purpose', e.target.value)} />
                     {errors[`item_${idx}_purpose`] && <p className="field-error">{errors[`item_${idx}_purpose`]}</p>}
                   </div>
-                  <div className="w-[160px]">
-                    <input type="date" className="input text-sm w-full" value={item.expected_return_date}
-                      onChange={(e) => updateItem(idx, 'expected_return_date', e.target.value)}
-                      min={new Date().toISOString().slice(0, 10)} />
-                  </div>
+                  {requiresReturnDate(form.type) && (
+                    <div className="w-[160px]">
+                      <label className="label !text-[11px]">Return Date</label>
+                      <input type="date" className="input text-sm w-full" value={item.expected_return_date}
+                        onChange={(e) => updateItem(idx, 'expected_return_date', e.target.value)}
+                        min={new Date().toISOString().slice(0, 10)} />
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-end gap-2">
                   <div>

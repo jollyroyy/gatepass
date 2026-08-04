@@ -1,0 +1,29 @@
+// Report date-range presets + computation. Pure function, no React — the
+// Reports toolbar owns a `date` (YYYY-MM-DD) and a `preset`, and this turns
+// them into inclusive from/to dates. The from edge is a calendar *day* count
+// back from the end date, so '7d' is a rolling 7-day window ending on the
+// picked date, exactly like the VMS register toolbar this was adapted from.
+export type RangePreset = 'today' | '7d' | '30d' | '3m' | '1y';
+
+export const RANGE_PRESETS: { key: RangePreset; label: string }[] = [
+  { key: 'today', label: 'Today' },
+  { key: '7d', label: 'Last 7 Days' },
+  { key: '30d', label: 'Last 30 Days' },
+  { key: '3m', label: 'Last 3 Months' },
+  { key: '1y', label: 'Last 1 Year' },
+];
+
+export type DateRange = { from: string; to: string };
+
+export function computeDateRange(preset: RangePreset, endDate: string): DateRange {
+  const end = new Date(`${endDate}T00:00:00Z`);
+  const from = new Date(end);
+  switch (preset) {
+    case 'today': break;
+    case '7d': from.setUTCDate(from.getUTCDate() - 6); break;
+    case '30d': from.setUTCDate(from.getUTCDate() - 29); break;
+    case '3m': from.setUTCMonth(from.getUTCMonth() - 3); break;
+    case '1y': from.setUTCFullYear(from.getUTCFullYear() - 1); break;
+  }
+  return { from: from.toISOString().slice(0, 10), to: endDate };
+}

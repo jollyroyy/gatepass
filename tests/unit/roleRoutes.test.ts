@@ -3,7 +3,7 @@
 // promises a test at tests/security/routeProtection.test.ts; that path
 // doesn't exist yet, so this suite lives here instead until it does.
 import { describe, it, expect } from 'vitest';
-import { ROLE_ROUTES, ROLE_HOME, isForbidden, homeFor } from '../../src/lib/roleRoutes';
+import { ROLE_ROUTES, ROLE_HOME, isForbidden, homeFor, isNavActive } from '../../src/lib/roleRoutes';
 import type { UserRole } from '../../src/types';
 
 const ALL_ROLES = Object.keys(ROLE_ROUTES) as UserRole[];
@@ -72,8 +72,38 @@ describe('isForbidden — prefix boundary', () => {
   });
 });
 
-describe('homeFor', () => {
-  for (const role of ALL_ROLES) {
+describe('isNavActive — the sidebar lights up exactly one admin link', () => {
+  it('exact match activates its own link', () => {
+    expect(isNavActive('/admin', '/admin')).toBe(true);
+    expect(isNavActive('/admin-dashboard', '/admin-dashboard')).toBe(true);
+  });
+
+  it('does NOT activate /admin when on /admin-dashboard (the naive startsWith collision)', () => {
+    expect(isNavActive('/admin-dashboard', '/admin')).toBe(false);
+    expect(isNavActive('/admin', '/admin-dashboard')).toBe(false);
+  });
+
+  it('activates a parent link for a nested child route', () => {
+    expect(isNavActive('/raise/bulk', '/raise')).toBe(true);
+    expect(isNavActive('/pass/abc-123', '/pass')).toBe(true);
+  });
+
+  it('does not activate /raise/bulk when on /raise', () => {
+    expect(isNavActive('/raise', '/raise/bulk')).toBe(false);
+  });
+
+  it('treats / as exact-match only', () => {
+    expect(isNavActive('/', '/')).toBe(true);
+    expect(isNavActive('/dashboard', '/')).toBe(false);
+  });
+
+  it('does not match a sibling that merely shares a prefix', () => {
+    expect(isNavActive('/consolexyz', '/console')).toBe(false);
+    expect(isNavActive('/all-passes', '/all')).toBe(false);
+  });
+});
+
+describe('homeFor', () => {  for (const role of ALL_ROLES) {
     it(`returns ROLE_HOME for ${role}`, () => {
       expect(homeFor(role)).toBe(ROLE_HOME[role]);
     });

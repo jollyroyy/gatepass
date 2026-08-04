@@ -79,6 +79,7 @@ export interface Profile {
   full_name: string;
   role: UserRole;
   department_id: string | null;
+  avatar_url?: string | null;
   created_at: string;
 }
 
@@ -132,9 +133,6 @@ export interface GatePass {
   verified_by: string | null;
   verified_at: string | null;
   flag_reason: string | null;
-
-  /** Why the raising HOD voided it. Set only by `gatepass.cancel_pass`. */
-  cancel_reason: string | null;
 
   /** What the QR code encodes. Opaque and random — never derive it from
    *  `pass_number`, which is sequential and therefore guessable. */
@@ -310,8 +308,6 @@ export interface NewGatePass {
   purpose: string;
   expected_return_date: string;
   items: NewGatePassItem[];
-  /** When set, copies to all items as their individual return date. */
-  master_return_date: string;
 }
 
 // ─── KPI shape shared by the HOD and admin dashboards ──────────────────────

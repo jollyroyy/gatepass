@@ -8,12 +8,12 @@ import type { UserRole } from '../types/index';
 
 export const ROLE_ROUTES: Record<UserRole, string[]> = {
   // Security at the gate
-  guard: ['/console', '/verify', '/returns', '/history', '/pass'],
+  guard: ['/console', '/verify', '/returns', '/history', '/pass', '/profile'],
   // Department heads raise passes for their own departments
-  hod: ['/dashboard', '/raise', '/my-passes', '/analytics', '/vendors', '/pass'],
+  hod: ['/dashboard', '/raise', '/my-passes', '/vendors', '/pass', '/profile'],
   // Admin manages departments, users, and sees everything
-  admin: ['/admin', '/all-passes', '/pass'],
-  super_admin: ['/admin', '/all-passes', '/pass'],
+  admin: ['/admin', '/admin-dashboard', '/all-passes', '/pass', '/profile'],
+  super_admin: ['/admin', '/admin-dashboard', '/all-passes', '/pass', '/profile'],
   // Staff have no business in this app at all.
   staff: [],
 };
@@ -37,4 +37,17 @@ export function isForbidden(pathname: string, role: UserRole | null): boolean {
 
 export function homeFor(role: UserRole | null): string {
   return role ? ROLE_HOME[role] : '/login';
+}
+
+/**
+ * Whether a sidebar nav link should render as active for a given pathname.
+ *
+ * Exact match wins; a pathname also activates the link of any parent segment
+ * (`/raise/bulk` activates `/raise`). A naive `startsWith(to)` is NOT used —
+ * it would activate `/admin` for the pathname `/admin-dashboard` and light up
+ * two sidebar links at once on the admin screens.
+ */
+export function isNavActive(pathname: string, to: string): boolean {
+  if (to === '/') return pathname === '/';
+  return pathname === to || pathname.startsWith(`${to}/`);
 }

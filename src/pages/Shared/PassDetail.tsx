@@ -12,7 +12,6 @@ import { safeErrorMessage } from '../../lib/errors';
 import { parseCompanyInfo } from '../../lib/companyInfo';
 import Badge, { TypeChip } from '../../components/Badge';
 import QrPass from '../../components/QrPass';
-import VoidPassPanel from '../HOD/VoidPassPanel';
 
 /** `gatepass.v_verifications` — the table plus the security officer's name. */
 interface VerificationView extends Verification {
@@ -55,35 +54,13 @@ export default function PassDetail(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [showCreated, setShowCreated] = useState(searchParams.get('created') === '1');
 
-  // Cancel lives here as well as on /my-passes because RaisePass navigates
-  // straight to this page after a successful insert. Landing on the pass you
-  // just raised with no way to undo it — and having to find your way to another
-  // screen to do it — was the whole problem.
+  // Raised passes are permanent — there is no cancellation (migration 024).
   const [userId, setUserId] = useState<string | null>(null);
-  const [cancelOpen, setCancelOpen] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
-  const [cancelError, setCancelError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
   }, []);
-
-  async function handleCancelConfirm(reason: string) {
-    if (!pass) return;
-    setCancelling(true);
-    setCancelError(null);
-    try {
-      const { error: rpcErr } = await gp().rpc('cancel_pass', { p_pass_id: pass.id, p_reason: reason });
-      if (rpcErr) throw rpcErr;
-      setCancelOpen(false);
-      setReloadKey((k) => k + 1); // re-read so status and the reason banner update
-    } catch (err) {
-      setCancelError(safeErrorMessage(err));
-    } finally {
-      setCancelling(false);
-    }
-  }
 
   useEffect(() => {
     let cancelled = false;
@@ -153,10 +130,6 @@ export default function PassDetail(): React.ReactElement {
   }
 
   const companyInfo = parseCompanyInfo(pass.visitor_company);
-  // Mirrors cancel_pass exactly: pending, and raised by the signed-in user.
-  // Role is not re-checked here — only an HOD can ever be a pass's raised_by,
-  // so raised_by === me already implies it, and the RPC re-checks regardless.
-  const canCancel = pass.status === 'pending' && userId !== null && pass.raised_by === userId;
 
   return (
     <div className="flex flex-col gap-6 max-w-4xl">
@@ -190,15 +163,6 @@ export default function PassDetail(): React.ReactElement {
             <Link to={`/pass/${pass.id}/print`} className="btn-secondary w-fit">
               Print Pass
             </Link>
-            {/* Shown only to the HOD who raised it, and only while pending —
-                the same three conditions cancel_pass enforces server-side. The
-                RPC is the authority; this just avoids offering a button that
-                would be refused. */}
-            {canCancel && (
-              <button type="button" className="btn-danger w-fit" onClick={() => setCancelOpen(true)}>
-                Cancel Pass
-              </button>
-            )}
           </div>
         </div>
         {/* Encodes qr_token, NOT pass_number: the number is sequential, so a QR
@@ -232,25 +196,6 @@ export default function PassDetail(): React.ReactElement {
               >
                 Approve Override
               </button>
-              <button
-                type="button"
-                className="btn-danger"
-                onClick={async () => {
-                  try {
-                    const { error: rpcErr } = await gp().rpc('hod_review_flagged_pass', {
-                      p_pass_id: pass.id,
-                      p_action: 'reject',
-                      p_reason: 'HOD rejected after security flag',
-                    });
-                    if (rpcErr) throw rpcErr;
-                    setReloadKey((k) => k + 1);
-                  } catch (err) {
-                    setError(safeErrorMessage(err));
-                  }
-                }}
-              >
-                Reject & Cancel
-              </button>
             </div>
           )}
         </div>
@@ -261,17 +206,6 @@ export default function PassDetail(): React.ReactElement {
           <p className="font-semibold">
             HOD approved — awaiting dispatch at the gate
           </p>
-        </div>
-      )}
-
-      {/* cancel_pass REQUIRES a reason, so until this existed the reason was
-          collected on every void and then readable by nobody. Warning rather
-          than error styling: a void is the HOD withdrawing their own paperwork,
-          not a finding against anyone. */}
-      {pass.status === 'cancelled' && (
-        <div className="alert-warning flex-col items-start gap-1">
-          <p className="font-semibold">Voided by the HOD who raised it</p>
-          <p>{pass.cancel_reason ?? 'No reason recorded.'}</p>
         </div>
       )}
 
@@ -341,19 +275,6 @@ export default function PassDetail(): React.ReactElement {
           </ol>
         )}
       </div>
-
-      {cancelOpen && (
-        <VoidPassPanel
-          pass={pass}
-          submitting={cancelling}
-          error={cancelError}
-          onCancel={() => {
-            setCancelOpen(false);
-            setCancelError(null);
-          }}
-          onConfirm={handleCancelConfirm}
-        />
-      )}
     </div>
   );
 }
