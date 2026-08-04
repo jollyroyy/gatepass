@@ -90,10 +90,17 @@ There are now **two** types, not four. IGP and OGP are gone; direction is a sepa
 
 ## Part 2 — Security (`guard@demo.vms`)
 
+Guard sidebar order is **Dashboard, Gate Console, History**. Dashboard (`/guard-dashboard`) is
+the KPI/drill screen covered in 2.6 below; Gate Console (`/console`) is the pending queue only —
+its own KPI card row was removed, and the pass lookup now sits as a compact box to the right of
+the page header instead of full-width above the queue.
+
 ### 2.1 Queue
 1. Sign in. ✅ You land on **`/console`**.
 2. ✅ The IT pass from 1.2 is in the queue.
 3. ✅ The **voided DEV pass is NOT** in the queue.
+4. ✅ There is **no KPI row** above the queue — the compact category/department filter bar is
+   the first thing you see, with the pass-lookup box anchored to the right of the page header.
 
 ### 2.2 Typed lookup
 1. Type the pass number from 1.2 into the lookup field. ✅ It opens the verify screen.
@@ -124,9 +131,18 @@ There are now **two** types, not four. IGP and OGP are gone; direction is a sepa
 1. Type that same pass number into the lookup again.
 2. ✅ Refused — *"already matched"*. It must not offer a second Match button.
 
-### 2.6 Returns (RGP only)
-1. Go to **`/returns`**. ✅ The RGP you matched appears, awaiting return.
-2. Mark it returned. ✅ It leaves the awaiting list and the detail page shows the return date.
+### 2.6 Returns (RGP only) — now on the guard Dashboard
+
+`/returns` (`PendingReturns`) no longer exists. Its two KPIs and its Mark Returned action live
+on the guard's **Dashboard** (`/guard-dashboard`), the first sidebar tab.
+
+1. Go to **Dashboard**. ✅ Five KPI cards render: Pending for Gate Approval, Matched at Gate,
+   Mismatch at Gate, Awaiting Return, Overdue.
+2. Click the **Awaiting Return** card. ✅ The RGP you matched appears below the KPIs as a
+   full-detail card — clicking any KPI drills into the matching passes on the same page, no
+   navigation.
+3. On that card, click **Mark Returned**. ✅ It leaves the Awaiting Return list (and the
+   Overdue count drops too if it was overdue), and the pass detail page shows the return date.
 
 ---
 
@@ -154,8 +170,16 @@ Then the stricter version:
 2. **Departments tab:** ✅ a visible warning states that departments are **shared with VMS**.
    Read it before creating anything — a department created here appears in VMS too.
 3. **Users tab:** ✅ HODs can be assigned to multiple departments.
-4. **`/all-passes`:** ✅ shows passes from **every** department, including the voided one.
-5. ✅ Admin can also reach `/console` and `/history`.
+4. **Dashboard tab** (`/admin-dashboard`, sidebar label just "Dashboard"): ✅ seven KPI cards —
+   Total, Pending for Gate Approval, Matched, Mismatched, Awaiting Return, Return Rate, Overdue.
+   The status counts live here, not on Reports.
+5. **Reports tab** (`/all-passes`): ✅ shows passes from **every** department, including the
+   voided one. ✅ There is **no** All/Pending/Matched/Mismatched status filter — those tabs were
+   removed. Instead a filter bar above the three report portals (All Passes, Return Schedule,
+   Department Summary) offers an **All/RGP/NRGP** segmented control and a **department** select,
+   with a **Clear** button that appears only once a filter is active. ✅ Switch between portals
+   with a filter set — the department/type choice carries over to all three, and the printed
+   report header states the active scope.
 
 ---
 
@@ -168,6 +192,7 @@ Signed in as **guard**, type these in the address bar:
 | `/raise` | ❌ blocked / redirected — a guard must never raise a pass |
 | `/admin` | ❌ blocked / redirected |
 | `/console` | ✅ allowed |
+| `/guard-dashboard` | ✅ allowed |
 
 Signed in as **HOD**:
 

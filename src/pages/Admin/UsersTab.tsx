@@ -4,6 +4,7 @@ import type { Profile, UserRole } from '../../types';
 import { fetchDirectory } from '../../lib/profiles';
 import { safeErrorMessage } from '../../lib/errors';
 import { formatDateOnly } from '../../lib/formatDate';
+import { nameError } from '../../lib/nameValidation';
 
 type RoleFilter = 'all' | 'hod' | 'guard' | 'admin' | 'staff';
 
@@ -75,6 +76,7 @@ export default function UsersTab(): React.ReactElement {
   const [createDeptIds, setCreateDeptIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [createNameErr, setCreateNameErr] = useState<string | null>(null);
 
   // Edit modal
   const [editProfile, setEditProfile] = useState<Profile | null>(null);
@@ -83,6 +85,7 @@ export default function UsersTab(): React.ReactElement {
   const [editDeptIds, setEditDeptIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [editNameErr, setEditNameErr] = useState<string | null>(null);
 
   // Soft-delete
   const [deactivateTarget, setDeactivateTarget] = useState<Profile | null>(null);
@@ -131,10 +134,14 @@ export default function UsersTab(): React.ReactElement {
     setCreateRole('guard');
     setCreateDeptIds([]);
     setCreateError(null);
+    setCreateNameErr(null);
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    const nameErr = nameError(createName, 'Name');
+    setCreateNameErr(nameErr);
+    if (nameErr) return;
     const email = createEmail.trim();
     const password = createPassword.trim();
     const name = createName.trim();
@@ -167,6 +174,7 @@ export default function UsersTab(): React.ReactElement {
     setEditRole(role);
     setEditDeptIds([]);
     setEditError(null);
+    setEditNameErr(null);
   }
 
   function closeEdit() {
@@ -176,6 +184,9 @@ export default function UsersTab(): React.ReactElement {
 
   async function handleEditSave() {
     if (!editProfile) return;
+    const nameErr = nameError(editName, 'Name');
+    setEditNameErr(nameErr);
+    if (nameErr) return;
     const name = editName.trim();
     if (!name) return;
     setSaving(true);
@@ -315,7 +326,8 @@ export default function UsersTab(): React.ReactElement {
               </div>
               <div>
                 <label className="label">Full Name</label>
-                <input className="input" required value={createName} onChange={(e) => setCreateName(e.target.value)} placeholder="Jane Doe" />
+                <input className={`input ${createNameErr ? 'input-error' : ''}`} required value={createName} onChange={(e) => { setCreateName(e.target.value); setCreateNameErr(null); }} placeholder="Jane Doe" />
+                {createNameErr && <p className="field-error">{createNameErr}</p>}
               </div>
               <div>
                 <label className="label">Role</label>
@@ -385,7 +397,8 @@ export default function UsersTab(): React.ReactElement {
             <div className="flex flex-col gap-4">
               <div>
                 <label className="label">Full Name</label>
-                <input className="input" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                <input className={`input ${editNameErr ? 'input-error' : ''}`} value={editName} onChange={(e) => { setEditName(e.target.value); setEditNameErr(null); }} />
+                {editNameErr && <p className="field-error">{editNameErr}</p>}
               </div>
               <div>
                 <label className="label">Role</label>

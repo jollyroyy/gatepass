@@ -214,8 +214,8 @@ export default function PassDetail(): React.ReactElement {
         <dl className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <DetailRow label="Authorized Person" value={pass.visitor_name} />
           <DetailRow label="Contact No" value={companyInfo.phone || '—'} />
-          <DetailRow label="Company" value={companyInfo.name} />
-          <DetailRow label="Company Address" value={companyInfo.address || '—'} />
+          <DetailRow label="Vendor" value={companyInfo.name} />
+          <DetailRow label="Vendor Address" value={companyInfo.address || '—'} />
           <DetailRow label="Vehicle Number" value={pass.vehicle_number} />
           <DetailRow label="Department" value={pass.department_name} />
           <DetailRow label="Raised By" value={pass.raised_by_name} />
@@ -233,7 +233,6 @@ export default function PassDetail(): React.ReactElement {
                 <DetailRow label="Description" value={item.description} />
                 <DetailRow label="Purpose / Reason" value={item.purpose} />
                 <DetailRow label="Quantity" value={`${item.quantity} ${item.unit}`} />
-                <DetailRow label="Serial No." value={item.serial_no || '—'} />
                 <DetailRow label="Approx Value" value={item.approx_value != null ? `₹${item.approx_value.toLocaleString('en-IN')}` : '—'} />
                 <DetailRow label="Expected Return Date" value={item.expected_return_date ? formatDateOnly(item.expected_return_date) : '—'} />
               </div>

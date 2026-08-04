@@ -16,8 +16,7 @@ import VendorProfiles from './pages/HOD/VendorProfiles';
 import MyPasses from './pages/HOD/MyPasses';
 import GateConsole from './pages/Security/GateConsole';
 import Verify from './pages/Security/Verify';
-import PendingReturns from './pages/Security/PendingReturns';
-import History from './pages/Security/History';
+import GuardDashboard from './pages/Security/GuardDashboard';
 import AdminPanel from './pages/Admin/AdminPanel';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import ReportsPage from './pages/Admin/ReportsPage';
@@ -90,7 +89,13 @@ export default function App(): React.ReactElement {
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
-      setResolving(true);
+      // Deliberately does NOT set `resolving`. That renders FullPageLoader, which
+      // unmounts the whole AppShell tree — including SessionTimeout, whose idle
+      // clock then restarts from zero on remount. supabase-js fires
+      // TOKEN_REFRESHED / SIGNED_IN on token refresh AND on tab visibility
+      // recovery, so switching away from the tab and back silently reset the
+      // timer and the idle timeout could never elapse. Only the initial
+      // resolution above gates the app; afterwards the role updates in place.
       void resolve(s);
     });
 
@@ -140,10 +145,9 @@ export default function App(): React.ReactElement {
           <Route path="/my-passes" element={<MyPasses />} />
 
           {/* Security */}
+          <Route path="/guard-dashboard" element={<GuardDashboard />} />
           <Route path="/console" element={<GateConsole />} />
           <Route path="/verify/:id" element={<Verify />} />
-          <Route path="/returns" element={<PendingReturns />} />
-          <Route path="/history" element={<History />} />
 
           {/* Admin */}
           <Route path="/admin" element={<AdminPanel />} />

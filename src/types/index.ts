@@ -281,7 +281,6 @@ export interface NewGatePassItem {
   expected_return_date: string;
   quantity: string;
   unit: string;
-  serial_no: string;
   approx_value: string;
 }
 
@@ -292,7 +291,6 @@ export const EMPTY_ITEM: NewGatePassItem = {
   expected_return_date: '',
   quantity: '1',
   unit: 'nos',
-  serial_no: '',
   approx_value: '',
 };
 

@@ -10,6 +10,7 @@ import { formatDateOnly, formatDateTime } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
 import { parseCompanyInfo } from '../../lib/companyInfo';
 import { MatchPanel, FlagPanel } from './VerifyPanels';
+import VerifyItemsTable from './VerifyItemsTable';
 
 type Panel = 'none' | 'match' | 'flag';
 
@@ -180,19 +181,26 @@ export default function Verify(): React.ReactElement {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Field label="Visitor Name" value={pass.visitor_name} />
           <Field label="Contact No" value={companyInfo.phone || '—'} />
-          <Field label="Company" value={companyInfo.name || '—'} />
-          <Field label="Company Address" value={companyInfo.address || '—'} />
-          <Field label="Material Description" value={pass.material_summary ?? ''} full />
-          <Field label="Quantity" value={`${pass.item_count} line(s)`} />
+          <Field label="Vendor" value={companyInfo.name || '—'} />
+          <Field label="Vendor Address" value={companyInfo.address || '—'} />
           <Field label="Vehicle Number" value={pass.vehicle_number ?? '—'} />
-          <Field label="Purpose" value={pass.purpose} full />
           <Field label="Department" value={pass.department_name} />
           <Field label="Raised By" value={pass.raised_by_name} />
           {pass.type === 'RGP' && (
             <Field label="Expected Return Date" value={formatDateOnly(pass.expected_return_date)} />
           )}
+          {/* Only Bulk Create fills the pass-level purpose; RaisePass leaves it
+              null and puts the real reasons on the items. Rendering it
+              unconditionally produced a labelled blank on every HOD pass. */}
+          {pass.purpose && <Field label="Purpose" value={pass.purpose} full />}
         </div>
       </div>
+
+      <VerifyItemsTable
+        items={items}
+        showReturnDates={pass.type === 'RGP'}
+        totalQuantity={pass.total_quantity}
+      />
 
       {!alreadyActioned && expired && (
         <div className="alert-warning mb-6">

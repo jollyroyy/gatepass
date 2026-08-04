@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
-export type Tone = 'neutral' | 'pending' | 'matched' | 'flagged' | 'overdue' | 'brand';
+export type Tone = 'neutral' | 'pending' | 'matched' | 'flagged' | 'overdue' | 'brand' | 'accent';
 
 type Props = {
   label: string;
@@ -11,6 +11,9 @@ type Props = {
   to?: string;
   onClick?: () => void;
   loading?: boolean;
+  /** Marks a clickable KPI as the one currently driving the view below it.
+   *  Only meaningful with `onClick` — a `to` card navigates away instead. */
+  active?: boolean;
 };
 
 /** Direct lookup — never derive the value colour from string matching on tone. */
@@ -21,9 +24,10 @@ const TONE_TEXT: Record<Tone, string> = {
   flagged: 'text-flagged-600',
   overdue: 'text-overdue-600',
   brand: 'text-brand-600',
+  accent: 'text-accent-600',
 };
 
-export default function KpiCard({ label, value, tone = 'neutral', delta, to, onClick, loading }: Props): React.ReactElement {
+export default function KpiCard({ label, value, tone = 'neutral', delta, to, onClick, loading, active }: Props): React.ReactElement {
   // A KPI that flashes a spinner on every refresh is worse than one that shows
   // the last known number, so `loading` renders a dash, never a spinner.
   const displayValue = loading ? '—' : value;
@@ -46,7 +50,12 @@ export default function KpiCard({ label, value, tone = 'neutral', delta, to, onC
 
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className="kpi-card card-hover text-left w-full cursor-pointer">
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={active}
+        className={`kpi-card card-hover text-left w-full cursor-pointer${active ? ' ring-2 ring-brand-500/60' : ''}`}
+      >
         {body}
       </button>
     );

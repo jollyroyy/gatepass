@@ -8,7 +8,10 @@ import type { UserRole } from '../types/index';
 
 export const ROLE_ROUTES: Record<UserRole, string[]> = {
   // Security at the gate
-  guard: ['/console', '/verify', '/returns', '/history', '/pass', '/profile'],
+  // `/returns` and `/history` retired. Pending Returns folded into the guard
+  // dashboard, which carries both its KPIs and the Mark Returned action;
+  // Verification History was removed with its sidebar tab.
+  guard: ['/guard-dashboard', '/console', '/verify', '/pass', '/profile'],
   // Department heads raise passes for their own departments
   hod: ['/dashboard', '/raise', '/my-passes', '/vendors', '/pass', '/profile'],
   // Admin manages departments, users, and sees everything

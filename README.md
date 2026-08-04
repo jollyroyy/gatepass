@@ -61,7 +61,7 @@ visitor system and maps onto VMS's `public.user_role` enum:
 
 | In this app | `profiles.role` | Lands on | Can do |
 |---|---|---|---|
-| Security | `guard` | `/console` | Scan, match, flag, and mark returned at the loading bay |
+| Security | `guard` | `/console` | Scan, match, flag, and (from the `/guard-dashboard` KPI drills) mark returned at the loading bay |
 | HOD | `hod` | `/dashboard` | Raise passes for their Mall Management Office departments, void or delete their own pending ones |
 | Admin | `admin` / `super_admin` | `/admin` | Everything security can, plus users and departments |
 | No access | `staff` | `/no-access` | Nothing |
@@ -156,9 +156,9 @@ src/
   lib/                     lookup maps and formatters (no fuzzy enum matching)
   components/              Badge, KpiCard, QrPass, QrScanner, layout/
   pages/
-    HOD/                   Dashboard, RaisePass, MyPasses
-    Security/              GateConsole, GateLookup, Verify, PendingReturns, History
-    Admin/                 AdminPanel + tabs, AdminDashboard, ReportsPage + report views
+    HOD/                   Dashboard, RaisePass, BulkRaise, MyPasses
+    Security/              GuardDashboard, GuardDrillCard, GateConsole, GateLookup, Verify, History
+    Admin/                 AdminPanel + tabs, AdminDashboard, ReportsPage + report views + ReportsFilterBar
     Shared/                PassDetail, PassPrint
 supabase/
   migrations/              001 schema → 011, applied in order

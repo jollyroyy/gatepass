@@ -16,7 +16,7 @@ verifies them at the loading bay. For the database object inventory see
 │  App.tsx ── session + role ── RouteGuard ── AppShell         │
 │      │                                                        │
 │      ├── HOD pages       raise / list / void / delete        │
-│      ├── Security pages  scan / verify / returns / history   │
+│      ├── Security pages  dashboard / scan / verify / history │
 │      └── Admin pages     users / departments / all passes    │
 └───────────────────────┬──────────────────────────────────────┘
                         │  supabase-js, anon key, user JWT
@@ -170,9 +170,9 @@ Accounts must be created with `app_metadata.role` set, or RLS cannot authorize t
 
 ```ts
 ROLE_ROUTES: Record<UserRole, string[]>
-  guard:       ['/console', '/verify', '/returns', '/history', '/pass']
-  hod:         ['/dashboard', '/raise', '/my-passes', '/pass']
-  admin:       ['/admin', '/all-passes', '/pass', '/console', '/verify', '/returns', '/history']
+  guard:       ['/guard-dashboard', '/console', '/verify', '/history', '/pass', '/profile']
+  hod:         ['/dashboard', '/raise', '/my-passes', '/vendors', '/pass', '/profile']
+  admin:       ['/admin', '/admin-dashboard', '/all-passes', '/pass', '/profile']
   super_admin: same as admin
   staff:       []                      ← no business in this app at all
 
@@ -181,6 +181,9 @@ ROLE_HOME: guard → /console · hod → /dashboard · admin → /admin · staff
 isForbidden(pathname, role)   // prefix match; null role means "still resolving"
 homeFor(role)
 ```
+
+`/returns` (`Security/PendingReturns`) is gone — its two KPIs (Awaiting Return, Overdue)
+and its Mark Returned action now live on `/guard-dashboard`'s drill cards (§9).
 
 Import it. Never duplicate the list.
 
@@ -197,15 +200,16 @@ screens but leak nothing.
 | `/dashboard` | `HOD/Dashboard` | hod |
 | `/raise` | `HOD/RaisePass` | hod |
 | `/my-passes` | `HOD/MyPasses` | hod |
-| `/console` | `Security/GateConsole` | guard, admin, super_admin |
-| `/verify/:id` | `Security/Verify` | guard, admin, super_admin |
-| `/returns` | `Security/PendingReturns` | guard, admin, super_admin |
-| `/history` | `Security/History` | guard, admin, super_admin |
+| `/guard-dashboard` | `Security/GuardDashboard` | guard |
+| `/console` | `Security/GateConsole` | guard |
+| `/verify/:id` | `Security/Verify` | guard |
+| `/history` | `Security/History` | guard |
 | `/admin` | `Admin/AdminPanel` | admin, super_admin |
 | `/admin-dashboard` | `Admin/AdminDashboard` | admin, super_admin |
 | `/all-passes` | `Admin/ReportsPage` | admin, super_admin |
 | `/pass/:id` | `Shared/PassDetail` | all app roles |
 | `/pass/:id/print` | `Shared/PassPrint` | all app roles |
+| `/profile` | `Shared/Profile` | all app roles |
 | `*` | → `homeFor(role)` | — |
 
 `BrowserRouter` means deep links like `/pass/<uuid>` 404 on refresh without a server rewrite —
@@ -215,13 +219,14 @@ screens but leak nothing.
 
 ## 6. Realtime
 
-Three components subscribe to `postgres_changes` on `gatepass.gate_passes`:
+Several components subscribe to `postgres_changes` on `gatepass.gate_passes`:
 
 | File | Channel | Scope |
 |---|---|---|
 | `src/components/layout/Sidebar.tsx:134` | `sidebar-gate-pass-counts` | badge counts |
 | `src/pages/HOD/Dashboard.tsx:114` | `hod-dashboard-gate-passes` | `event: '*'` |
-| `src/pages/Security/GateConsole.tsx:103` | `gate-console-gate-passes` | `event: '*'` |
+| `src/pages/Security/GuardDashboard.tsx` | `guard-dashboard-gate-passes` | `event: '*'` — all five drills reload silently |
+| `src/pages/Security/GateConsole.tsx:103` | `gate-console-gate-passes` | `event: '*'` — pending queue only |
 | `src/pages/Security/Verify.tsx:66` | `verify-${id}` | that one row |
 
 Two conventions that matter:
@@ -319,6 +324,7 @@ and a half hours and expired afternoon passes a day early.
 | `formatDate.ts` | date-fns formatting |
 | `exportUtils.ts` | CSV export |
 | `theme.tsx` | light/dark provider |
+| `guardDrills.ts` | `DRILL_DEFS`, `DRILL_ORDER`, `startOfTodayIso` — the guard dashboard's five KPI drills, each one both the card and the query behind the list it reveals |
 
 `PASS_CATEGORIES` mirrors the three legal type×direction combinations, and the loading-bay
 console filters on it — a guard picks a whole category ("show me what is coming in on a
@@ -326,15 +332,24 @@ returnable"), not two independent axes.
 
 ### `src/pages/` — grouped by who uses it
 
-**HOD/** — `Dashboard` (KPIs + recent), `RaisePass` (the form), `MyPasses` (list with void and
-delete), plus the extracted `PassTypeSelector`, `PassIdentityPanel`, `MyPassesTable`.
+**HOD/** — `Dashboard` (KPIs + recent), `RaisePass` (the form, no serial-number field), `MyPasses`
+(list with void and delete), `BulkRaise` (bulk create, every field editable, no hardcoded
+values) with `BulkItemRow` and `BulkResultList`, plus the extracted `PassTypeSelector`,
+`PassIdentityPanel`, `MyPassesTable`, `MaterialItemRow`, `MaterialItemsCard`, `PassDetailsCards`,
+`PassSubmittedModal`.
 
-**Security/** — `GateConsole` (live queue, category filter), `GateLookup` (scan + typed entry),
-`Verify` (the match/flag decision screen), `PendingReturns`, `History`, plus `VerifyPanels`.
+**Security/** — `GuardDashboard` (the guard's first tab: five KPI drills — Pending, Matched,
+Mismatch, Awaiting Return, Overdue — each a click-through to the matching passes as cards on the
+same page, plus `GuardDrillCard`, where Mark Returned now lives), `GateConsole` (pending queue
+only; the lookup box sits compact at the top right of the header), `GateLookup` (scan + typed
+entry), `Verify` (the match/flag decision screen), `History`, plus `VerifyPanels`.
 
-**Admin/** — `AdminPanel` with `UsersTab` and `DepartmentsTab`, `AdminDashboard` (KPI board +
-department breakdown), `ReportsPage` with its report views (`AllPassesReport`,
-`ReturnScheduleReport`, `DepartmentSummaryReport`), `ReportsToolbar`, `DeptBreakdownTable`.
+**Admin/** — `AdminPanel` with `UsersTab` and `DepartmentsTab`, `AdminDashboard` (sidebar label
+"Dashboard"; seven KPIs — Total, Pending for Gate Approval, Matched, Mismatched, Awaiting Return,
+Return Rate, Overdue), `ReportsPage` with its report views (`AllPassesReport` — free-text search
+and CSV export only, `ReturnScheduleReport`, `DepartmentSummaryReport`) plus `ReportsToolbar`
+(date range) and `ReportsFilterBar` (pass-type + department scope, lifted up from the individual
+report views so it applies to all three portals and prints in the report header), `DeptBreakdownTable`.
 
 **Shared/** — `PassDetail`, `PassPrint`.
 

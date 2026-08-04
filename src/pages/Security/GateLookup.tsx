@@ -111,18 +111,13 @@ export default function GateLookup(): React.ReactElement {
   const message = outcome ? OUTCOME_MESSAGES[outcome.outcome] : null;
 
   return (
-    <div className="card p-5 mb-6 flex flex-col gap-3">
-      <label className="label" htmlFor="gate-lookup">
+    <div
+      data-testid="gate-lookup"
+      className="card p-4 flex flex-col gap-3 w-full lg:w-auto lg:min-w-[380px] max-w-md shrink-0"
+    >
+      <label className="text-[11px] font-semibold uppercase tracking-widest text-navy-400" htmlFor="gate-lookup">
         Find a Pass
       </label>
-
-      {scanning ? (
-        <QrScanner onScan={handleScan} onClose={() => setScanning(false)} />
-      ) : (
-        <button type="button" className="btn-primary" onClick={() => setScanning(true)}>
-          Scan QR Code
-        </button>
-      )}
 
       {/* Always mounted, never behind the scanner. A damaged code, a denied
           camera permission, or a flat-battery phone all end here. */}
@@ -131,20 +126,49 @@ export default function GateLookup(): React.ReactElement {
           e.preventDefault();
           void resolve(value);
         }}
-        className="flex flex-col md:flex-row gap-3"
+        className="flex items-center gap-2"
       >
-        <input
-          id="gate-lookup"
-          className="input text-lg flex-1"
-          placeholder="…or type the pass number — e.g. RGP-20260726-0001"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          autoFocus
-        />
-        <button type="submit" className="btn-find" disabled={busy || !value.trim()}>
-          {busy ? 'Looking up…' : 'Find Pass'}
+        <div className="relative flex-1 min-w-0">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-navy-400 pointer-events-none"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path strokeLinecap="round" d="M20 20l-3.5-3.5" />
+          </svg>
+          <input
+            id="gate-lookup"
+            className="input !pl-9 !py-2 text-sm w-full"
+            placeholder="Pass number — e.g. RGP-OUT-20260726-0001"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            autoFocus
+          />
+        </div>
+
+        {/* Icon-only so the two actions fit one line at 380px. */}
+        <button
+          type="button"
+          className="btn-secondary !px-3 !py-2 shrink-0"
+          onClick={() => setScanning((s) => !s)}
+          aria-label={scanning ? 'Close QR scanner' : 'Scan QR code'}
+          title={scanning ? 'Close QR scanner' : 'Scan QR code'}
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V5.5A1.5 1.5 0 015.5 4H8M16 4h2.5A1.5 1.5 0 0120 5.5V8M20 16v2.5a1.5 1.5 0 01-1.5 1.5H16M8 20H5.5A1.5 1.5 0 014 18.5V16" />
+            <path strokeLinecap="round" d="M4 12h16" />
+          </svg>
+        </button>
+
+        <button type="submit" className="btn-primary !px-4 !py-2 text-sm shrink-0" disabled={busy || !value.trim()}>
+          {busy ? '…' : 'Find'}
         </button>
       </form>
+
+      {scanning && <QrScanner onScan={handleScan} onClose={() => setScanning(false)} />}
 
       {error && <div className="alert-error">{error}</div>}
 

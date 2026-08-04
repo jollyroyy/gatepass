@@ -8,11 +8,15 @@ import { parseCompanyInfo } from '../../lib/companyInfo';
 import QrPass from '../../components/QrPass';
 import { QuestLockup } from '../../components/QuestMark';
 
-function SignatureBox({ label }: { label: string }): React.ReactElement {
+import { SIGNATURE_ROWS, type SignatureBlock } from './signatureBlocks';
+
+function SignatureBox({ label, caption }: SignatureBlock): React.ReactElement {
   return (
     <div className="flex-1">
+      {/* Tall enough for a signature AND a rubber stamp over it. */}
       <div className="border border-black h-20 w-full" />
-      <p className="text-[10px] text-black font-medium text-center mt-1 uppercase tracking-wider">{label}</p>
+      <p className="text-[10px] text-black font-bold text-center mt-1 uppercase tracking-wider">{label}</p>
+      <p className="text-[8px] text-black text-center leading-tight">{caption}</p>
     </div>
   );
 }
@@ -111,8 +115,8 @@ export default function PassPrint(): React.ReactElement {
               {([
                 ['Authorized Person', pass.visitor_name],
                 ['Contact No', companyInfo.phone],
-                ['Company', companyInfo.name],
-                ['Company Address', companyInfo.address],
+                ['Vendor', companyInfo.name],
+                ['Vendor Address', companyInfo.address],
                 ['Vehicle No', pass.vehicle_number],
                 ['Department', pass.department_name],
                 ['Raised By', pass.raised_by_name],
@@ -139,7 +143,6 @@ export default function PassPrint(): React.ReactElement {
                   <th className="border border-black px-2 py-1 font-semibold text-black text-left">Purpose</th>
                   <th className="border border-black px-2 py-1 font-semibold text-black text-right w-10">Qty</th>
                   <th className="border border-black px-2 py-1 font-semibold text-black text-left w-10">Unit</th>
-                  <th className="border border-black px-2 py-1 font-semibold text-black text-left">Serial</th>
                   <th className="border border-black px-2 py-1 font-semibold text-black text-right w-16">Value (₹)</th>
                   <th className="border border-black px-2 py-1 font-semibold text-black text-left">Return Date</th>
                 </tr>
@@ -153,13 +156,12 @@ export default function PassPrint(): React.ReactElement {
                     <td className="border border-black px-2 py-1 text-black text-[10px]">{item.purpose}</td>
                     <td className="border border-black px-2 py-1 text-black text-right">{item.quantity}</td>
                     <td className="border border-black px-2 py-1 text-black">{item.unit}</td>
-                    <td className="border border-black px-2 py-1 text-black font-mono text-[10px]">{item.serial_no ?? '—'}</td>
                     <td className="border border-black px-2 py-1 text-black text-right">{formatCurrency(item.approx_value)}</td>
                     <td className="border border-black px-2 py-1 text-black text-[10px]">{item.expected_return_date ? formatDateOnly(item.expected_return_date) : '—'}</td>
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={9} className="border border-black px-2 py-2 text-black text-gray-600 italic">
+                    <td colSpan={8} className="border border-black px-2 py-2 text-black text-gray-600 italic">
                       {pass.material_summary ?? '—'}
                     </td>
                   </tr>
@@ -193,11 +195,21 @@ export default function PassPrint(): React.ReactElement {
             </div>
           )}
 
-          {/* Signature boxes — keep on same page */}
-          <div className="flex gap-6 pt-2 print:break-inside-avoid">
-            <SignatureBox label="Issued By (HOD)" />
-            <SignatureBox label="Carrier Signature" />
-            <SignatureBox label="Security Verification" />
+          {/* Five signatures over two rows — the approval chain, then the gate.
+              Identical on every category; see signatureBlocks.ts for why.
+              break-inside-avoid so a page break can never split a signature
+              from its label and leave an unlabelled box on the next sheet. */}
+          <div className="pt-2 print:break-inside-avoid">
+            {SIGNATURE_ROWS.map((row, i) => (
+              <div key={i} className={`flex gap-6 print:break-inside-avoid ${i > 0 ? 'mt-4' : ''}`}>
+                {row.map((block) => (
+                  <SignatureBox key={block.label} label={block.label} caption={block.caption} />
+                ))}
+                {/* Row 2 has two blocks; this keeps them the same width as row 1's
+                    three rather than stretching across the full sheet. */}
+                {row.length === 2 && <div className="flex-1" aria-hidden="true" />}
+              </div>
+            ))}
           </div>
         </div>
       </div>

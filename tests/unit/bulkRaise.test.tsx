@@ -64,10 +64,10 @@ describe('BulkRaise — every field is editable, nothing hardcoded', () => {
     expect(count.value).toBe('12');
   });
 
-  it('renders editable Contact Number and Company Address fields', () => {
+  it('renders editable Contact Number and Vendor Address fields', () => {
     renderBulk();
     const phone = screen.getByLabelText('Contact Number') as HTMLInputElement;
-    const address = screen.getByLabelText('Company Address') as HTMLTextAreaElement;
+    const address = screen.getByLabelText('Vendor Address') as HTMLTextAreaElement;
     expect(phone).toBeInTheDocument();
     expect(address).toBeInTheDocument();
     fireEvent.change(phone, { target: { value: '9876543210' } });
@@ -84,7 +84,7 @@ describe('BulkRaise — every field is editable, nothing hardcoded', () => {
     fireEvent.change(screen.getByLabelText('Number of Passes'), { target: { value: '3' } });
     fireEvent.change(screen.getByLabelText('Vendor'), { target: { value: 'Acme' } });
     fireEvent.change(screen.getByLabelText('Contact Number'), { target: { value: '555' } });
-    fireEvent.change(screen.getByLabelText('Company Address'), { target: { value: 'Street 1' } });
+    fireEvent.change(screen.getByLabelText('Vendor Address'), { target: { value: 'Street 1' } });
     fireEvent.change(screen.getByLabelText('Vehicle Number'), { target: { value: 'WB-01' } });
     fireEvent.change(screen.getByLabelText('Purpose'), { target: { value: 'Event setup' } });
     fireEvent.change(screen.getByPlaceholderText('Item name'), { target: { value: 'Cable' } });

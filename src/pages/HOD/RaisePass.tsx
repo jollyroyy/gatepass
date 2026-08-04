@@ -1,23 +1,22 @@
 // Pass-creation form. Type is chosen first (biggest control on the page) via
 // PassTypeSelector; everything else follows in reading order.
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { gp, pub, supabase } from '../../supabaseClient';
 import type { GatePassView, NewGatePass, NewGatePassItem, PassType, VendorProfile } from '../../types';
 import { EMPTY_ITEM } from '../../types';
-import { PASS_TYPES, requiresReturnDate } from '../../lib/passTypes';
+import { requiresReturnDate } from '../../lib/passTypes';
 import { fetchMyProfile } from '../../lib/profiles';
 import { safeErrorMessage } from '../../lib/errors';
-import PassTypeSelector from './PassTypeSelector';
 import PassIdentityPanel from './PassIdentityPanel';
+import PassSubmittedModal from './PassSubmittedModal';
+import PassDetailsCards from './PassDetailsCards';
+import MaterialItemsCard from './MaterialItemsCard';
 
 interface DeptOption {
   id: string;
   name: string;
   code: string;
 }
-
-const UNITS = ['nos', 'kg', 'box', 'roll', 'litre', 'metre', 'set'] as const;
 
 type FormErrors = Record<string, string | undefined>;
 
@@ -167,14 +166,29 @@ export default function RaisePass(): React.ReactElement {
 
     if (depts.length === 0) errs.department_id = 'You are not assigned to any department.';
 
+    // The pass-level return date was replaced by per-item dates in migration 019.
+    // Every RGP line must carry one, because the pass-level column that drives
+    // is_overdue is derived from them (earliestReturnDate below).
     if (requiresReturnDate(form.type)) {
-      if (!form.expected_return_date) {
-        errs.expected_return_date = 'Expected return date is required for a Returnable Gate Pass.';
-      } else if (form.expected_return_date < todayStr()) {
-        errs.expected_return_date = 'Expected return date cannot be in the past.';
-      }
+      form.items.forEach((item, idx) => {
+        if (!item.expected_return_date) {
+          errs[`item_${idx}_expected_return_date`] =
+            'Return date is required for a Returnable Gate Pass.';
+        } else if (item.expected_return_date < todayStr()) {
+          errs[`item_${idx}_expected_return_date`] = 'Return date cannot be in the past.';
+        }
+      });
     }
     return errs;
+  }
+
+  /** The pass is due when its FIRST line is due. `gatepass.v_gate_passes`
+   *  computes is_overdue and due_state off the pass-level column, so it must be
+   *  populated even though the authoritative dates now live per item. */
+  function earliestReturnDate(): string | null {
+    if (!requiresReturnDate(form.type)) return null;
+    const dates = form.items.map((i) => i.expected_return_date).filter(Boolean);
+    return dates.length > 0 ? dates.slice().sort()[0] : null;
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -199,13 +213,13 @@ export default function RaisePass(): React.ReactElement {
           v: form.visitor_phone.trim(),
         }) || null,
         p_vehicle_number: form.vehicle_number.trim() || null,
+        p_expected_return_date: earliestReturnDate(),
         p_items: form.items.map((item) => ({
           name: item.name.trim(),
           description: item.description.trim(),
           purpose: item.purpose.trim(),
           quantity: Number(item.quantity),
           unit: item.unit,
-          serial_no: item.serial_no.trim() || null,
           approx_value: item.approx_value ? Number(item.approx_value) : null,
           expected_return_date: requiresReturnDate(form.type) ? (item.expected_return_date || null) : null,
         })),
@@ -238,135 +252,25 @@ export default function RaisePass(): React.ReactElement {
       <PassIdentityPanel passNumberPrefix={passNumberPrefix} hodName={hodName} />
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 max-w-3xl">
-        {/* Pass Type & Department */}
-        <div className="card p-5">
-          <h2 className="section-title mb-4">Pass Details</h2>
-          <div>
-            <label className="label">Pass Type</label>
-            <PassTypeSelector value={form.type} onChange={handleTypeChange} />
-          </div>
-        </div>
+        <PassDetailsCards
+          form={form}
+          errors={errors}
+          vendors={vendors}
+          saveVendor={saveVendor}
+          onTypeChange={handleTypeChange}
+          onUpdate={update}
+          onSaveVendorChange={setSaveVendor}
+        />
 
-        {/* Collector Details */}
-        <div className="card p-5">
-          <h2 className="section-title mb-4">Collector Details</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="label">Authorized Person</label>
-              <input className="input" value={form.visitor_name} onChange={(e) => update('visitor_name', e.target.value)} placeholder="Person authorized to collect material" />
-              {errors.visitor_name && <p className="field-error">{errors.visitor_name}</p>}
-            </div>
-            <div>
-              <label className="label">Contact Number</label>
-              <input type="tel" className="input" value={form.visitor_phone} onChange={(e) => update('visitor_phone', e.target.value)} placeholder="Phone number" />
-            </div>
-          </div>
-        </div>
-
-        {/* Vendor Details */}
-        <div className="card p-5">
-          <h2 className="section-title mb-4">Vendor Details</h2>
-          <div>
-            <label className="label">Vendor Name</label>
-            <input className="input" value={form.visitor_company} onChange={(e) => update('visitor_company', e.target.value)} placeholder="Vendor name" />
-            {vendors.length > 0 && (
-              <select className="input mt-2 text-sm" defaultValue=""
-                onChange={(e) => {
-                  const v = vendors.find((x) => x.id === e.target.value);
-                  if (!v) return;
-                  update('visitor_company', v.company_name);
-                  if (v.vehicle_number) update('vehicle_number', v.vehicle_number);
-                }}>
-                <option value="" disabled>Load from vendor…</option>
-                {vendors.map((v) => <option key={v.id} value={v.id}>{v.company_name}</option>)}
-              </select>
-            )}
-          </div>
-          <div className="mt-4">
-            <label className="label">Vendor Address</label>
-            <textarea className="input" rows={2} value={form.company_address} onChange={(e) => update('company_address', e.target.value)} placeholder="Street, area, city, pincode" />
-          </div>
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="label">Vehicle Number</label>
-              <input className="input" value={form.vehicle_number} onChange={(e) => update('vehicle_number', e.target.value)} placeholder="Optional" />
-            </div>
-            <div className="flex items-end pb-1">
-              <label className="flex items-center gap-2 text-sm text-navy-600 cursor-pointer">
-                <input type="checkbox" checked={saveVendor} onChange={(e) => setSaveVendor(e.target.checked)} />
-                Save as vendor profile
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/* Material Items */}
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="section-title mb-0">Material Items</h2>
-            <span className="text-xs font-medium text-navy-400 bg-surface-100 px-2 py-1 rounded-full">{form.items.length} item{form.items.length !== 1 ? 's' : ''}</span>
-          </div>
-          <div className="flex flex-col gap-2">
-            {form.items.map((item, idx) => (
-              <div key={idx} className="flex flex-col gap-2 p-3 bg-surface-50 rounded-lg">
-                <span className="text-xs font-bold text-navy-400">Item #{idx + 1}</span>
-                <div className="flex flex-wrap items-start gap-2">
-                  <div className="flex-1 min-w-[140px]">
-                    <input className="input text-sm w-full" placeholder="Item name" value={item.name}
-                      onChange={(e) => updateItem(idx, 'name', e.target.value)} />
-                    {errors[`item_${idx}_name`] && <p className="field-error">{errors[`item_${idx}_name`]}</p>}
-                  </div>
-                  <div className="flex-[2] min-w-[200px]">
-                    <input className="input text-sm w-full" placeholder="Description (brand, model, details)" value={item.description}
-                      onChange={(e) => updateItem(idx, 'description', e.target.value)} />
-                    {errors[`item_${idx}_description`] && <p className="field-error">{errors[`item_${idx}_description`]}</p>}
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-start gap-2">
-                  <div className="flex-1 min-w-[160px]">
-                    <input className="input text-sm w-full" placeholder="Reason for taking out" value={item.purpose}
-                      onChange={(e) => updateItem(idx, 'purpose', e.target.value)} />
-                    {errors[`item_${idx}_purpose`] && <p className="field-error">{errors[`item_${idx}_purpose`]}</p>}
-                  </div>
-                  {requiresReturnDate(form.type) && (
-                    <div className="w-[160px]">
-                      <label className="label !text-[11px]">Return Date</label>
-                      <input type="date" className="input text-sm w-full" value={item.expected_return_date}
-                        onChange={(e) => updateItem(idx, 'expected_return_date', e.target.value)}
-                        min={new Date().toISOString().slice(0, 10)} />
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-end gap-2">
-                  <div>
-                    <input type="number" min="0.01" step="0.01" className="input w-16 text-sm" placeholder="Qty"
-                      value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} />
-                    {errors[`item_${idx}_quantity`] && <p className="field-error">{errors[`item_${idx}_quantity`]}</p>}
-                  </div>
-                  <select className="input w-20 text-sm" value={item.unit}
-                    onChange={(e) => updateItem(idx, 'unit', e.target.value)}>
-                    {UNITS.map((u) => (<option key={u} value={u}>{u}</option>))}
-                  </select>
-                  <input className="input w-20 text-sm" placeholder="Serial" value={item.serial_no}
-                    onChange={(e) => updateItem(idx, 'serial_no', e.target.value)} />
-                  <div className="relative">
-                    <input type="number" min="0" step="0.01" className="input w-28 text-sm pl-5" placeholder="Approx Value"
-                      value={item.approx_value} onChange={(e) => updateItem(idx, 'approx_value', e.target.value)} />
-                    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-navy-500 text-xs font-semibold">&#x20B9;</span>
-                  </div>
-                  {form.items.length > 1 && (
-                    <button type="button" className="text-flagged-500 hover:text-flagged-700 text-xl leading-none pb-0.5 shrink-0"
-                      onClick={() => removeItem(idx)} title="Remove item">&times;</button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          <button type="button" className="btn-secondary mt-3 w-full" onClick={addItem}>
-            + Add Item
-          </button>
-          {errors.items && <p className="field-error mt-2">{errors.items}</p>}
-        </div>
+        <MaterialItemsCard
+          items={form.items}
+          errors={errors}
+          showReturnDate={requiresReturnDate(form.type)}
+          onItemChange={updateItem}
+          onRemoveItem={removeItem}
+          onAddItem={addItem}
+          todayStr={todayStr()}
+        />
 
         {submitError && <div className="alert-error">{submitError}</div>}
 
@@ -378,57 +282,11 @@ export default function RaisePass(): React.ReactElement {
       </form>
 
       {submittedPass && (
-        <div className="modal-overlay">
-          <div className="modal-content p-6 max-w-md">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-full bg-matched-100 flex items-center justify-center">
-                <svg className="h-6 w-6 text-matched-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-navy-900">Pass Submitted</h3>
-                <p className="text-sm text-navy-500">
-                  <span className="font-semibold text-navy-700">{submittedPass.pass_number}</span>
-                  {' · '}{PASS_TYPES[submittedPass.type]?.label ?? submittedPass.type}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-surface-50 rounded-lg p-4 mb-4 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-navy-400">Department</span>
-                <span className="font-medium text-navy-700">{deptName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-navy-400">Items</span>
-                <span className="font-medium text-navy-700">{form.items.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-navy-400">Visitor</span>
-                <span className="font-medium text-navy-700">{submittedPass.visitor_name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-navy-400">Status</span>
-                <span className="font-medium text-pending-600">Pending Gate Review</span>
-              </div>
-            </div>
-
-            <p className="text-xs text-navy-400 mb-4">
-              Security has been notified. The pass will appear in the gate console
-              for verification when the material arrives at the gate.
-            </p>
-
-            <div className="flex gap-3">
-              <Link to={`/pass/${submittedPass.id}`} className="btn-primary flex-1 text-center">
-                View Pass
-              </Link>
-              <Link to="/dashboard" className="btn-secondary flex-1 text-center">
-                Dashboard
-              </Link>
-            </div>
-          </div>
-        </div>
+        <PassSubmittedModal
+          submittedPass={submittedPass}
+          deptName={deptName}
+          itemCount={form.items.length}
+        />
       )}
     </div>
   );

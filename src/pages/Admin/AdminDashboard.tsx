@@ -1,7 +1,7 @@
 // Admin Dashboard — the org-wide operational snapshot, not a period report.
-// Status counts (pending / matched / mismatched) and the per-department
-// register live under Reports (/all-passes) so nothing on this screen
-// duplicates the report section.
+// Status counts (pending / matched / mismatched) live here as KPI cards
+// alongside the return/overdue metrics; the full register and per-department
+// breakdown still live under Reports (/all-passes).
 import React, { useCallback, useEffect, useState } from 'react';
 import { gp } from '../../supabaseClient';
 import type { PassKpis } from '../../types';
@@ -66,7 +66,7 @@ export default function AdminDashboard(): React.ReactElement {
     <div>
       <div className="page-header">
         <h1 className="page-title">Admin Dashboard</h1>
-        <p className="page-subtitle">Org-wide operational snapshot — status reports live under Reports.</p>
+        <p className="page-subtitle">Org-wide operational snapshot.</p>
       </div>
 
       {error && <div className="alert-error mb-6">{error}</div>}
@@ -79,6 +79,9 @@ export default function AdminDashboard(): React.ReactElement {
           loading={loading}
           delta={kpis.returnRate > 0 ? `${kpis.returnRate}% return rate` : kpis.raisedToday > 0 ? `▲ ${kpis.raisedToday} today` : undefined}
         />
+        <KpiCard label="Pending for Gate Approval" value={kpis.pending} tone="pending" loading={loading} />
+        <KpiCard label="Matched" value={kpis.matched} tone="matched" loading={loading} />
+        <KpiCard label="Mismatched" value={kpis.flagged} tone="flagged" loading={loading} />
         <KpiCard label="Awaiting Return" value={kpis.awaitingReturn} tone="brand" loading={loading} />
         <KpiCard label="Return Rate" value={`${kpis.returnRate}%`} tone="matched" loading={loading} />
         <KpiCard label="Overdue" value={kpis.overdue} tone="overdue" loading={loading} delta={kpis.overdueValue > 0 ? `₹${kpis.overdueValue.toLocaleString('en-IN')} in value` : undefined} />

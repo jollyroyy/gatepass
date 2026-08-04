@@ -3,7 +3,10 @@ import { supabase, gp, pub } from '../../supabaseClient';
 import type { Department, HodDepartment, Profile } from '../../types';
 import { fetchDirectory } from '../../lib/profiles';
 import { safeErrorMessage } from '../../lib/errors';
+import { nameError, deptCodeError } from '../../lib/nameValidation';
 import KpiCard from '../../components/KpiCard';
+import HodDirectory from './HodDirectory';
+import DepartmentNameCodeFields from './DepartmentNameCodeFields';
 
 const SKELETON_ROWS = 4;
 
@@ -21,6 +24,7 @@ export default function DepartmentsTab(): React.ReactElement {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [showList, setShowList] = useState(false);
+  const [showHods, setShowHods] = useState(false);
 
   // Create modal
   const [showCreate, setShowCreate] = useState(false);
@@ -28,6 +32,8 @@ export default function DepartmentsTab(): React.ReactElement {
   const [newCode, setNewCode] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [createNameErr, setCreateNameErr] = useState<string | null>(null);
+  const [createCodeErr, setCreateCodeErr] = useState<string | null>(null);
 
   // Assign modal
   const [showAssign, setShowAssign] = useState(false);
@@ -42,6 +48,8 @@ export default function DepartmentsTab(): React.ReactElement {
   const [editCode, setEditCode] = useState('');
   const [editing, setEditing] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [editNameErr, setEditNameErr] = useState<string | null>(null);
+  const [editCodeErr, setEditCodeErr] = useState<string | null>(null);
 
   // Delete modal
   const [deleteTarget, setDeleteTarget] = useState<{ dept: Department; reason: string } | null>(null);
@@ -91,6 +99,21 @@ export default function DepartmentsTab(): React.ReactElement {
 
   const unassignedCount = useMemo(() => deptCards.filter((c) => c.strength === 0).length, [deptCards]);
 
+  // The other direction of the many-to-many: one row per HOD, listing every
+  // department they cover. Built from the same `assignments` array as deptCards,
+  // so the two views can never disagree about who heads what.
+  const hodEntries = useMemo(() => {
+    const deptMap = new Map(departments.map((d) => [d.id, d]));
+    return hodProfiles.map((hod) => ({
+      hod,
+      departments: assignments
+        .filter((a) => a.hod_id === hod.id)
+        .map((a) => deptMap.get(a.department_id))
+        .filter((d): d is Department => !!d)
+        .sort((a, b) => a.code.localeCompare(b.code)),
+    }));
+  }, [hodProfiles, assignments, departments]);
+
   useEffect(() => {
     let ch: ReturnType<typeof supabase.channel> | null = null;
     try {
@@ -110,6 +133,11 @@ export default function DepartmentsTab(): React.ReactElement {
   // Create
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    const nameErr = nameError(newName, 'Department name');
+    const codeErr = deptCodeError(newCode.trim().toUpperCase());
+    setCreateNameErr(nameErr);
+    setCreateCodeErr(codeErr);
+    if (nameErr || codeErr) return;
     const name = newName.trim();
     const code = newCode.trim().toUpperCase();
     if (!name || !code) return;
@@ -126,6 +154,8 @@ export default function DepartmentsTab(): React.ReactElement {
       setShowCreate(false);
       setNewName('');
       setNewCode('');
+      setCreateNameErr(null);
+      setCreateCodeErr(null);
       await load();
     } catch (err) {
       setCreateError(safeErrorMessage(err));
@@ -173,6 +203,11 @@ export default function DepartmentsTab(): React.ReactElement {
   async function handleEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!editDept) return;
+    const nameErr = nameError(editName, 'Department name');
+    const codeErr = deptCodeError(editCode.trim().toUpperCase());
+    setEditNameErr(nameErr);
+    setEditCodeErr(codeErr);
+    if (nameErr || codeErr) return;
     const name = editName.trim();
     const code = editCode.trim().toUpperCase();
     if (!name || !code) return;
@@ -184,6 +219,8 @@ export default function DepartmentsTab(): React.ReactElement {
       setEditDept(null);
       setEditName('');
       setEditCode('');
+      setEditNameErr(null);
+      setEditCodeErr(null);
       await load();
     } catch (err) {
       setEditError(safeErrorMessage(err));
@@ -216,9 +253,17 @@ export default function DepartmentsTab(): React.ReactElement {
       {/* ── Stats at a glance (live via Realtime) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KpiCard label="Departments" value={departments.length} tone="brand" onClick={() => setShowList((p) => !p)} />
-        <KpiCard label="Heads of Department" value={hodProfiles.length} tone="neutral" />
+        <KpiCard
+          label="Heads of Department"
+          value={hodProfiles.length}
+          tone="neutral"
+          active={showHods}
+          onClick={() => setShowHods((p) => !p)}
+        />
         <KpiCard label="Awaiting an HOD" value={unassignedCount} tone={unassignedCount > 0 ? 'flagged' : 'neutral'} />
       </div>
+
+      {showHods && <HodDirectory entries={hodEntries} />}
 
       {/* ── Header strip ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -258,7 +303,9 @@ export default function DepartmentsTab(): React.ReactElement {
           <p className="text-navy-400 text-sm">No departments yet. Add one to get started.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        // One department per full-width row. The old 3-across grid squeezed a
+        // department with several HODs into a tall narrow column.
+        <div data-testid="department-rows" className="flex flex-col gap-4">
           {deptCards.map((c) => (
             <div
               key={c.dept.id}
@@ -270,8 +317,10 @@ export default function DepartmentsTab(): React.ReactElement {
                 border: '1px solid rgb(var(--c-surface-200) / 0.6)',
               }}
             >
-              {/* Top row */}
-              <div className="flex items-start justify-between gap-3 mb-4">
+              {/* Row layout: identity + actions on the left, HODs on the right,
+                  so a department with four HODs grows sideways, not downwards. */}
+              <div className="flex flex-col lg:flex-row lg:items-start gap-5">
+              <div className="flex items-start justify-between gap-3 lg:w-72 lg:shrink-0">
                 <div className="min-w-0">
                   <h3 className="font-bold text-navy-950 text-base font-display truncate">{c.dept.name}</h3>
                   <span className="type-chip mt-1 inline-block">{c.dept.code}</span>
@@ -281,7 +330,7 @@ export default function DepartmentsTab(): React.ReactElement {
                     type="button"
                     className="text-navy-300 hover:text-brand-600 transition-colors"
                     title="Edit department"
-                    onClick={() => { setEditDept(c.dept); setEditName(c.dept.name); setEditCode(c.dept.code); setEditError(null); }}
+                    onClick={() => { setEditDept(c.dept); setEditName(c.dept.name); setEditCode(c.dept.code); setEditError(null); setEditNameErr(null); setEditCodeErr(null); }}
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -305,7 +354,7 @@ export default function DepartmentsTab(): React.ReactElement {
               </div>
 
               {/* HOD list */}
-              <div className="flex flex-col gap-1.5">
+              <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {c.hods.length === 0 ? (
                   <p className="text-xs text-navy-400 italic">No HOD assigned</p>
                 ) : (
@@ -329,6 +378,7 @@ export default function DepartmentsTab(): React.ReactElement {
                   ))
                 )}
               </div>
+              </div>
             </div>
           ))}
         </div>
@@ -341,17 +391,15 @@ export default function DepartmentsTab(): React.ReactElement {
             <h2 className="text-lg font-bold text-navy-950 mb-1">Add Department</h2>
             <p className="text-sm text-navy-500 mb-5">Create a new department visible to both GatePass and VMS.</p>
             <form onSubmit={handleCreate} className="flex flex-col gap-4">
-              <div>
-                <label className="label">Department Name</label>
-                <input className="input" required value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Quality Assurance" autoFocus />
-              </div>
-              <div>
-                <label className="label">Code</label>
-                <input className="input" required maxLength={10} value={newCode} onChange={(e) => setNewCode(e.target.value.toUpperCase().slice(0, 10))} placeholder="e.g. QA" />
-              </div>
+              <DepartmentNameCodeFields
+                name={newName} code={newCode} nameErr={createNameErr} codeErr={createCodeErr}
+                onNameChange={(v) => { setNewName(v); setCreateNameErr(null); }}
+                onCodeChange={(v) => { setNewCode(v); setCreateCodeErr(null); }}
+                autoFocus
+              />
               {createError && <div className="alert-error">{createError}</div>}
               <div className="flex flex-col-reverse md:flex-row gap-3">
-                <button type="button" className="btn-secondary flex-1" onClick={() => { setShowCreate(false); setCreateError(null); }}>Cancel</button>
+                <button type="button" className="btn-secondary flex-1" onClick={() => { setShowCreate(false); setCreateError(null); setCreateNameErr(null); setCreateCodeErr(null); }}>Cancel</button>
                 <button type="submit" className="btn-primary flex-1" disabled={creating || !newName.trim() || !newCode.trim()}>
                   {creating ? 'Adding…' : 'Add Department'}
                 </button>
@@ -405,17 +453,15 @@ export default function DepartmentsTab(): React.ReactElement {
             <h2 className="text-lg font-bold text-navy-950 mb-1">Edit Department</h2>
             <p className="text-sm text-navy-500 mb-5">Update details for <strong>{editDept.name}</strong>.</p>
             <form onSubmit={handleEdit} className="flex flex-col gap-4">
-              <div>
-                <label className="label">Department Name</label>
-                <input className="input" required value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus />
-              </div>
-              <div>
-                <label className="label">Code</label>
-                <input className="input" required maxLength={10} value={editCode} onChange={(e) => setEditCode(e.target.value.toUpperCase().slice(0, 10))} />
-              </div>
+              <DepartmentNameCodeFields
+                name={editName} code={editCode} nameErr={editNameErr} codeErr={editCodeErr}
+                onNameChange={(v) => { setEditName(v); setEditNameErr(null); }}
+                onCodeChange={(v) => { setEditCode(v); setEditCodeErr(null); }}
+                autoFocus
+              />
               {editError && <div className="alert-error">{editError}</div>}
               <div className="flex flex-col-reverse md:flex-row gap-3">
-                <button type="button" className="btn-secondary flex-1" onClick={() => { setEditDept(null); setEditError(null); }}>Cancel</button>
+                <button type="button" className="btn-secondary flex-1" onClick={() => { setEditDept(null); setEditError(null); setEditNameErr(null); setEditCodeErr(null); }}>Cancel</button>
                 <button type="submit" className="btn-primary flex-1" disabled={editing || !editName.trim() || !editCode.trim()}>
                   {editing ? 'Saving…' : 'Save Changes'}
                 </button>

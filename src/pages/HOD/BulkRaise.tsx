@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { gp, pub } from '../../supabaseClient';
 import type { NewGatePass, NewGatePassItem, PassDirection } from '../../types';
 import { EMPTY_ITEM } from '../../types';
 import { PASS_TYPES, PASS_TYPE_LIST, requiresReturnDate } from '../../lib/passTypes';
 import { safeErrorMessage } from '../../lib/errors';
+import BulkItemRow from './BulkItemRow';
+import BulkResultList from './BulkResultList';
 
 interface BulkResult {
   pass_id: string;
@@ -121,7 +122,6 @@ export default function BulkRaise(): React.ReactElement {
           purpose: it.purpose.trim() || null,
           quantity: Number(it.quantity),
           unit: it.unit.trim() || null,
-          serial_no: it.serial_no.trim() || null,
           approx_value: it.approx_value.trim() ? Number(it.approx_value) : null,
           expected_return_date: requiresReturnDate(form.type) ? (it.expected_return_date || null) : null,
         }));
@@ -152,22 +152,7 @@ export default function BulkRaise(): React.ReactElement {
   }
 
   if (results) {
-    return (
-      <div className="card p-6">
-        <div className="alert-success mb-4">{results.length} passes created successfully.</div>
-        <div className="flex flex-col gap-2 mb-6 max-h-96 overflow-y-auto">
-          {results.map((r) => (
-            <Link key={r.pass_id} to={`/pass/${r.pass_id}`} className="list-item text-sm font-mono">
-              {r.pass_number}
-            </Link>
-          ))}
-        </div>
-        <div className="flex gap-3">
-          <button type="button" className="btn-primary" onClick={() => setResults(null)}>Create Another Batch</button>
-          <Link to="/my-passes" className="btn-secondary">View All in My Passes</Link>
-        </div>
-      </div>
-    );
+    return <BulkResultList results={results} onCreateAnother={() => setResults(null)} />;
   }
 
   return (
@@ -233,7 +218,7 @@ export default function BulkRaise(): React.ReactElement {
               onChange={(e) => update('visitor_phone', e.target.value)} placeholder="Phone number" />
           </div>
           <div>
-            <label className="label" htmlFor="bulk-address">Company Address</label>
+            <label className="label" htmlFor="bulk-address">Vendor Address</label>
             <textarea id="bulk-address" className="input" rows={1} value={form.company_address}
               onChange={(e) => update('company_address', e.target.value)} placeholder="Street, area, city, pincode" />
           </div>
@@ -261,53 +246,17 @@ export default function BulkRaise(): React.ReactElement {
           </div>
           {errors.items && <p className="field-error mb-2">{errors.items}</p>}
           {form.items.map((item, i) => (
-            <div key={i} className="flex flex-col gap-2 mb-3 p-3 bg-surface-50 rounded-lg">
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="flex-1 min-w-[140px]">
-                  <input className={`input ${errors[`item_${i}_name`] ? 'input-error' : ''}`} placeholder="Item name" value={item.name}
-                    onChange={(e) => updateItem(i, 'name', e.target.value)} />
-                </div>
-                <div className="flex-1 min-w-[140px]">
-                  <input className={`input ${errors[`item_${i}_description`] ? 'input-error' : ''}`} placeholder="Description" value={item.description}
-                    onChange={(e) => updateItem(i, 'description', e.target.value)} />
-                </div>
-              </div>
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="flex-[2] min-w-[180px]">
-                  <input className="input" placeholder="Purpose" value={item.purpose}
-                    onChange={(e) => updateItem(i, 'purpose', e.target.value)} />
-                </div>
-                {requiresReturnDate(form.type) && (
-                  <div className="w-[170px]">
-                    <input type="date" className="input" min={todayStr()} value={item.expected_return_date}
-                      onChange={(e) => updateItem(i, 'expected_return_date', e.target.value)} />
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-wrap items-end gap-2">
-                <div>
-                  <label className="label !text-[11px] !mb-1" htmlFor={`bulk-qty-${i}`}>Qty</label>
-                  <input id={`bulk-qty-${i}`} type="number" min="0.01" step="0.01" className={`input w-20 ${errors[`item_${i}_quantity`] ? 'input-error' : ''}`}
-                    value={item.quantity} onChange={(e) => updateItem(i, 'quantity', e.target.value)} />
-                  {errors[`item_${i}_quantity`] && <p className="field-error">{errors[`item_${i}_quantity`]}</p>}
-                </div>
-                <div>
-                  <label className="label !text-[11px] !mb-1" htmlFor={`bulk-unit-${i}`}>Unit</label>
-                  <input id={`bulk-unit-${i}`} className="input w-20" value={item.unit}
-                    onChange={(e) => updateItem(i, 'unit', e.target.value)} placeholder="nos" />
-                </div>
-                <div className="flex-1 min-w-[120px]">
-                  <input className="input" placeholder="Serial no." value={item.serial_no}
-                    onChange={(e) => updateItem(i, 'serial_no', e.target.value)} />
-                </div>
-                <div className="flex-1 min-w-[120px]">
-                  <input type="number" min="0" step="0.01" className="input" placeholder="Approx value" value={item.approx_value}
-                    onChange={(e) => updateItem(i, 'approx_value', e.target.value)} />
-                </div>
-                <button type="button" className="btn-danger btn-sm" disabled={form.items.length <= 1}
-                  onClick={() => removeItem(i)}>×</button>
-              </div>
-            </div>
+            <BulkItemRow
+              key={i}
+              item={item}
+              idx={i}
+              showReturnDate={requiresReturnDate(form.type)}
+              errors={errors}
+              onChange={updateItem}
+              onRemove={removeItem}
+              canRemove={form.items.length > 1}
+              todayStr={todayStr()}
+            />
           ))}
         </div>
 

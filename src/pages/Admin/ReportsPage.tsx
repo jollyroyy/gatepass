@@ -11,6 +11,7 @@ import type { GatePassView } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
 import { computeDateRange, type RangePreset } from '../../lib/reportsDateRange';
 import ReportsToolbar from './ReportsToolbar';
+import ReportsFilterBar, { type TypeFilter } from './ReportsFilterBar';
 import ReportsPrintHeader from '../../components/ReportsPrintHeader';
 import AllPassesReport from './AllPassesReport';
 import ReturnScheduleReport from './ReturnScheduleReport';
@@ -34,6 +35,8 @@ export default function ReportsPage(): React.ReactElement {
   const [date, setDate] = useState(TODAY);
   const [preset, setPreset] = useState<RangePreset>('today');
   const [view, setView] = useState<ReportView>('all');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [deptFilter, setDeptFilter] = useState<string>('all');
   // The active view reports how many rows it is actually showing (filters
   // applied), so the print header's count is the count that prints.
   const [displayCount, setDisplayCount] = useState(0);
@@ -72,8 +75,43 @@ export default function ReportsPage(): React.ReactElement {
     });
   }, [rows, range]);
 
+  // Department options come from the WHOLE loaded set, not `ranged` — a list
+  // that reshuffles itself as the admin changes the date range would drop the
+  // department they had selected out from under them.
+  const deptOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of rows) map.set(p.department_id, p.department_name);
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [rows]);
+
+  // Scope filters are applied here, before any view sees a row, so the choice
+  // holds across all three portals and prints identically from each.
+  const scoped = useMemo(
+    () =>
+      ranged.filter((p) => {
+        if (typeFilter !== 'all' && p.type !== typeFilter) return false;
+        if (deptFilter !== 'all' && p.department_id !== deptFilter) return false;
+        return true;
+      }),
+    [ranged, typeFilter, deptFilter],
+  );
+
+  function clearFilters() {
+    setTypeFilter('all');
+    setDeptFilter('all');
+  }
+
   const viewLabel = VIEWS.find((v) => v.key === view)?.label ?? 'Report';
-  const rangeLabel = preset === 'today' ? range.to : `${range.from} to ${range.to}`;
+  const dateLabel = preset === 'today' ? range.to : `${range.from} to ${range.to}`;
+  // A printed report filtered to one department must SAY so on the paper —
+  // otherwise it reads as the whole org and undercounts by an unknowable amount.
+  const scopeParts = [
+    deptOptions.find((d) => d.id === deptFilter)?.name,
+    typeFilter === 'all' ? null : typeFilter,
+  ].filter(Boolean);
+  const rangeLabel = scopeParts.length > 0 ? `${dateLabel} · ${scopeParts.join(' · ')}` : dateLabel;
 
   return (
     <div className="space-y-6 report-sheet">
@@ -90,6 +128,15 @@ export default function ReportsPage(): React.ReactElement {
         preset={preset}
         onPresetChange={setPreset}
         onPrint={() => window.print()}
+      />
+
+      <ReportsFilterBar
+        typeFilter={typeFilter}
+        onTypeChange={setTypeFilter}
+        deptFilter={deptFilter}
+        onDeptChange={setDeptFilter}
+        deptOptions={deptOptions}
+        onClear={clearFilters}
       />
 
       <div className="tab-group w-fit no-print">
@@ -116,11 +163,11 @@ export default function ReportsPage(): React.ReactElement {
           ))}
         </div>
       ) : view === 'all' ? (
-        <AllPassesReport rows={ranged} onRowsChanged={setDisplayCount} />
+        <AllPassesReport rows={scoped} onRowsChanged={setDisplayCount} />
       ) : view === 'rgp' ? (
-        <ReturnScheduleReport rows={ranged} onRowsChanged={setDisplayCount} />
+        <ReturnScheduleReport rows={scoped} onRowsChanged={setDisplayCount} />
       ) : (
-        <DepartmentSummaryReport rows={ranged} onRowsChanged={setDisplayCount} />
+        <DepartmentSummaryReport rows={scoped} onRowsChanged={setDisplayCount} />
       )}
 
       <div className="print-only report-print-footer">

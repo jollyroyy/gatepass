@@ -1,21 +1,15 @@
-// "All Passes" report view — the org-wide register, date-ranged by the parent
-// ReportsPage. Status/type/department/search filters and CSV export live here;
-// the KPI board and per-department summary now live on the Admin Dashboard.
+// "All Passes" report view — the org-wide register. Date range, department and
+// pass type are all decided by the parent ReportsPage and arrive pre-applied in
+// `rows`, so this view owns only what is specific to a register: free-text
+// search and CSV export. The KPI board and status counts live on the Admin
+// Dashboard.
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { GatePassView, PassStatus, PassType } from '../../types';
+import type { GatePassView } from '../../types';
 import Badge, { TypeChip } from '../../components/Badge';
 import { EXPIRED_STYLE, STATUS_STYLES } from '../../lib/statusStyles';
-import { PASS_TYPE_LIST, PASS_TYPES } from '../../lib/passTypes';
 import { formatDateTime } from '../../lib/formatDate';
 import { downloadCsv, type CsvColumn } from '../../lib/exportUtils';
-
-const STATUS_TABS: { key: PassStatus | 'all'; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'pending', label: 'Pending for Gate Approval' },
-  { key: 'matched', label: 'Matched' },
-  { key: 'flagged', label: 'Mismatched' },
-];
 
 export const ALL_PASSES_CSV_COLUMNS: CsvColumn[] = [
   { key: 'pass_number', header: 'Pass No' },
@@ -37,25 +31,11 @@ type Props = {
 
 export default function AllPassesReport({ rows, onRowsChanged }: Props): React.ReactElement {
   const navigate = useNavigate();
-  const [statusFilter, setStatusFilter] = useState<PassStatus | 'all'>('all');
-  const [typeFilter, setTypeFilter] = useState<PassType | 'all'>('all');
-  const [deptFilter, setDeptFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
-
-  const deptOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of rows) map.set(p.department_id, p.department_name);
-    return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [rows]);
 
   const filtered = useMemo(
     () =>
       rows.filter((p) => {
-        if (statusFilter !== 'all' && p.status !== statusFilter) return false;
-        if (typeFilter !== 'all' && p.type !== typeFilter) return false;
-        if (deptFilter !== 'all' && p.department_id !== deptFilter) return false;
         if (search.trim()) {
           const q = search.trim().toLowerCase();
           const hit =
@@ -66,7 +46,7 @@ export default function AllPassesReport({ rows, onRowsChanged }: Props): React.R
         }
         return true;
       }),
-    [rows, statusFilter, typeFilter, deptFilter, search],
+    [rows, search],
   );
 
   // Report the filtered count up so the print header's entry count tracks the
@@ -82,53 +62,16 @@ export default function AllPassesReport({ rows, onRowsChanged }: Props): React.R
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center no-print">
-        <div className="tab-group w-fit">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              className={statusFilter === tab.key ? 'tab-active' : 'tab-inactive'}
-              onClick={() => setStatusFilter(tab.key)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <input
+          className="input w-auto min-w-[220px]"
+          placeholder="Search pass no / visitor / vehicle…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
 
-        <div className="flex flex-wrap gap-3 items-center">
-          <select
-            className="input w-auto"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as PassType | 'all')}
-          >
-            <option value="all">All Types</option>
-            {PASS_TYPE_LIST.map((t) => (
-              <option key={t} value={t}>
-                {PASS_TYPES[t].code} — {PASS_TYPES[t].label}
-              </option>
-            ))}
-          </select>
-
-          <select className="input w-auto" value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
-            <option value="all">All Departments</option>
-            {deptOptions.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-
-          <input
-            className="input w-auto min-w-[220px]"
-            placeholder="Search pass no / visitor / vehicle…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-
-          <button type="button" className="btn-secondary text-sm" onClick={handleExport}>
-            Export CSV
-          </button>
-        </div>
+        <button type="button" className="btn-secondary text-sm" onClick={handleExport}>
+          Export CSV
+        </button>
       </div>
 
       {filtered.length === 0 ? (

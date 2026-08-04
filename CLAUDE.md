@@ -36,9 +36,10 @@ re-concatenated is a fix that never reaches the database.
 
 ## Current state — verified 2026-08-04
 
-Frontend typechecks, builds, and passes all **266 tests** (16 files) — verified by a real
+Frontend typechecks and passes all **302 tests** (22 files) — verified by a real
 `npm run check` run on 2026-08-04. **All migrations through `025` are applied to the live
-database**, `024`/`025` applied and verified live 2026-08-04 (see below), `023` verified live, the rest as of 2026-07-27:
+database**, `024`/`025` applied and verified live 2026-08-04 (see below), `023` verified live, the rest as of 2026-07-27.
+**No migration was written this session — every change below is frontend-only.**
 
 | Thing | State |
 |---|---|
@@ -58,6 +59,81 @@ database**, `024`/`025` applied and verified live 2026-08-04 (see below), `023` 
 | Migration `025` | ✅ **applied 2026-08-04** — **self-service profile** (see below): `my_profile()` gains `avatar_url` (drop+recreate), plus `update_my_name(text)` / `set_my_avatar(text)` |
 | `gatepass.gate_passes` | 0 rows — all passes wiped 2026-08-04 |
 | `public.departments` | ✅ 5 rows: FIN, HR, IT, SA, DEV |
+
+### UI overhaul, 2026-08-04 (frontend only — no migration)
+
+**The RGP form could not be submitted at all, and had been broken since `019`.**
+`RaisePass.validate()` required a *pass-level* `expected_return_date`, but `019` replaced
+that field with per-item dates and the form stopped rendering a pass-level input. So every
+RGP submit failed validation on a field the user could neither see nor fill, and
+`errors.expected_return_date` was never rendered either — the button just did nothing. Worse,
+`handleSubmit` never sent `p_expected_return_date`, and the view computes `is_overdue` /
+`due_state` from the **pass-level** column, so a pass that did get through could never go
+overdue. Fixed: each RGP line requires its own Return Date (error rendered inline under the
+input), and the pass-level date is derived as the **earliest** item date — a pass is due when
+its first line is due. Covered by `tests/unit/raisePassSubmit.test.tsx`.
+
+**Serial number removed from the HOD forms** — `RaisePass`, `BulkRaise`, and the
+`NewGatePassItem` form type, plus the `PassDetail` row and the `PassPrint` column.
+`gatepass.gate_pass_items.serial_no` **still exists in the database and is now write-dead**;
+dropping it needs a migration that rebuilds `v_gate_pass_items`. Deliberately deferred —
+user's call, 2026-08-04. This is the one known violation of "never leave unused schema".
+
+**Guard view split into Dashboard + Gate Console.**
+- **`/guard-dashboard`** (`GuardDashboard.tsx`) is the guard's first sidebar tab, "Dashboard".
+  Five KPI cards — Pending for Gate Approval, Matched at Gate, Mismatch at Gate, Awaiting
+  Return, Overdue — and **each is a drill**: clicking it lists the matching passes as full
+  premium cards *on the same page*, no navigation, because a guard is standing at a barrier.
+  Drill definitions live once in `src/lib/guardDrills.ts` as a `Record<DrillKey, DrillDef>`.
+  **Each KPI number is `rows.length` of the very list the click opens**, so the count and the
+  list cannot disagree — do not "optimise" this back into a separate `count: 'exact'` query.
+- **`/returns` and `Security/PendingReturns.tsx` are gone.** Its KPIs became two of the drills
+  and — critically — **`mark_returned` moved onto `GuardDrillCard.tsx`**, which is now the
+  ONLY way a guard can close an RGP. Deleting that tab without moving the action would have
+  stranded every returnable pass permanently.
+- **`/history` and `Security/History.tsx` are gone** (user's call, 2026-08-04), along with
+  `tests/unit/history.test.tsx`. Note the capability actually lost: the Matched / Mismatch
+  drills are **today-only**, so a guard can no longer look back at past verifications at all.
+  Adding a Today/All-time toggle to those two drills is the fix if that is ever missed.
+- **`GateConsole` is the pending queue and nothing else.** Its KPI row moved to the dashboard;
+  `GateLookup` moved from a full-width card above the KPIs to a compact fixed-width card
+  anchored right of the page header, with an icon-only QR button. `QueueCard.tsx` was
+  extracted to keep the file under the 300-line cap.
+
+**Session timeout is now 5 minutes, not 10.** `SessionTimeout.tsx` already existed and was
+already mounted in `AppShell` — it just never fired within the window anyone waited. It now
+exports `IDLE_TIMEOUT_MS` / `COUNTDOWN_SEC` so `tests/unit/sessionTimeout.test.tsx` asserts
+the threshold rather than trusting a comment. **Activity does not dismiss a visible prompt** —
+only "Keep session" does, so the mouse nudge that wakes a screen cannot silently cancel a
+logout nobody saw.
+
+**Reports filters lifted to the page.** The All / Pending / Matched / Mismatched status tabs
+were removed from `AllPassesReport` and those counts became KPI cards on the admin Dashboard.
+Department and RGP/NRGP filters moved OUT of `AllPassesReport` into `ReportsFilterBar.tsx`,
+rendered by `ReportsPage`, so **the scope now applies to all three report portals** and is
+appended to the printed report header (`rangeLabel`) — a filtered report that does not say so
+on the paper reads as the whole org and undercounts by an unknowable amount. `AllPassesReport`
+keeps only free-text search and CSV export.
+
+**`RGP In` added to the gate console's category filter — and `categoryKey` was wrong.**
+It took only the type and hardcoded `` `${type}-out` ``, so an RGP-in pass was filed under
+"RGP Out" and could not be filtered for at all. Bulk Create's direction select already
+allows "In" for RGP, so such rows can genuinely exist. `categoryKey(type, direction)` and
+`categoryFor(type, direction)` now take both; `PASS_CATEGORIES` gained `RGP-in` with a
+`direction` field. **Still no `NRGP-in`** — that is a goods receipt, not a gate pass
+(`gate_passes_nrgp_is_outward`). `tests/unit/lookupMaps.test.ts` had a test *named* "three
+combinations" that asserted two; corrected. Note `RaisePass` still hardcodes
+`p_direction: 'out'`, so RGP-in passes can only be created via Bulk Create today.
+
+**Sidebar labels:** admin "Admin Dashboard" → "Dashboard"; guard order is Dashboard, Gate
+Console. `ALL_LINKS` is now exported from `Sidebar.tsx` so tests can assert nav order.
+**`ROLE_HOME.guard` is still `/console`, not the new dashboard** — the console is the working
+screen. Change it if landing on the dashboard is preferred.
+
+**300-line cap:** `RaisePass` (451) and `BulkRaise` (315) were over and were split into
+`MaterialItemRow` / `MaterialItemsCard` / `PassDetailsCards` / `PassSubmittedModal` and
+`BulkItemRow` / `BulkResultList`. Still over the cap and **untouched this session**:
+`DepartmentsTab` (466), `UsersTab` (431), `HOD/Dashboard` (307), `AIAnalyticsTab` (307).
 
 ### Admin UI split — Dashboard and Reports are now separate pages (2026-08-04)
 

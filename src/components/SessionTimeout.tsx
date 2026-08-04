@@ -1,8 +1,21 @@
+// Idle-session timeout, matching VMS's component of the same name but at FIVE
+// minutes rather than VMS's ten: a gate terminal is a shared machine in a public
+// corridor, so an abandoned session is a bigger exposure than one at a desk.
+//
+// Two deliberate behaviours:
+//   * Once the prompt is visible, ordinary activity does NOT dismiss it. A mouse
+//     nudge that wakes a screen must not silently cancel a logout nobody saw —
+//     only an explicit "Keep session" does that.
+//   * It is a modal panel, never window.confirm: a blocking browser dialog stops
+//     the page dead, and the gate console has to keep receiving realtime updates.
+//
+// A convenience and a shoulder-surfing defence, not a security boundary — the
+// Supabase JWT has its own lifetime and RLS is the real authority.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../supabaseClient';
 
-const TIMEOUT_MS = 10 * 60 * 1000;
-const COUNTDOWN_SEC = 60;
+export const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+export const COUNTDOWN_SEC = 60;
 
 export default function SessionTimeout(): React.ReactElement | null {
   const [showPrompt, setShowPrompt] = useState(false);
@@ -41,7 +54,7 @@ export default function SessionTimeout(): React.ReactElement | null {
           return prev - 1;
         });
       }, 1000);
-    }, TIMEOUT_MS);
+    }, IDLE_TIMEOUT_MS);
   }, [clearTimers, signOut]);
 
   useEffect(() => {
@@ -73,7 +86,7 @@ export default function SessionTimeout(): React.ReactElement | null {
           <div>
             <h3 className="text-lg font-bold text-navy-950 font-display">Session Timeout</h3>
             <p className="text-sm text-navy-400 mt-1">
-              Your session has been idle for 10 minutes. Do you want to stay signed in?
+              Your session has been idle for 5 minutes. Do you want to stay signed in?
             </p>
           </div>
           <div className="w-full bg-surface-100 rounded-full h-1.5 overflow-hidden">
@@ -86,7 +99,7 @@ export default function SessionTimeout(): React.ReactElement | null {
             Auto-logout in <span className="font-semibold text-pending-600 tabular-nums">{countdown}s</span>
           </p>
           <div className="flex gap-3 w-full pt-1">
-            <button onClick={signOut} className="btn-secondary flex-1 text-sm">
+            <button type="button" onClick={() => void signOut()} className="btn-secondary flex-1 text-sm">
               Sign out
             </button>
             <button onClick={() => startTimer()} className="btn-primary flex-1 text-sm">

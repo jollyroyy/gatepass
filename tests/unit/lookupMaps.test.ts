@@ -67,12 +67,12 @@ describe('PASS_TYPES covers every PassType', () => {
 
 describe('PASS_CATEGORIES covers every legal type+direction combination', () => {
   it('has exactly the three combinations the DB permits', () => {
-    expect(Object.keys(PASS_CATEGORIES).sort()).toEqual(['NRGP-out', 'RGP-out'].sort());
+    expect(Object.keys(PASS_CATEGORIES).sort()).toEqual(['NRGP-out', 'RGP-in', 'RGP-out'].sort());
   });
 
   for (const c of Object.values(PASS_CATEGORIES)) {
     it(`${c.key} round-trips through categoryKey`, () => {
-      expect(categoryKey(c.type)).toBe(c.key);
+      expect(categoryKey(c.type, c.direction)).toBe(c.key);
     });
 
     it(`${c.key} has non-empty label and description`, () => {
