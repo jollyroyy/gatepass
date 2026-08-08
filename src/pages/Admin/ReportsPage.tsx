@@ -9,7 +9,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { gp } from '../../supabaseClient';
 import type { GatePassView } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
-import { computeDateRange, type RangePreset } from '../../lib/reportsDateRange';
+import { computeDateRange, localDateString, localDayBounds, type RangePreset } from '../../lib/reportsDateRange';
 import ReportsToolbar from './ReportsToolbar';
 import ReportsFilterBar, { type TypeFilter } from './ReportsFilterBar';
 import ReportsPrintHeader from '../../components/ReportsPrintHeader';
@@ -26,7 +26,8 @@ const VIEWS: { key: ReportView; label: string }[] = [
 ];
 
 const SKELETON_ROWS = 8;
-const TODAY = new Date().toISOString().slice(0, 10);
+// Local (IST) date, not UTC — toISOString() would name yesterday before 05:30 IST.
+const TODAY = localDateString(new Date());
 
 export default function ReportsPage(): React.ReactElement {
   const [rows, setRows] = useState<GatePassView[]>([]);
@@ -64,14 +65,16 @@ export default function ReportsPage(): React.ReactElement {
     load();
   }, [load]);
 
-  // Client-side date filter: created_at within the inclusive range. Same
-  // day-boundary convention the VMS register uses (`T00:00:00Z`..`T23:59:59Z`).
+  // Client-side date filter: created_at within the inclusive range. Day
+  // boundaries are LOCAL MIDNIGHT (localDayBounds), matching the
+  // dashboard-period convention — the old UTC `T00:00:00Z..T23:59:59Z`
+  // bounds made a "Today" report cover 05:30 IST yesterday to 05:29 IST
+  // today, so it disagreed with every dashboard KPI for 5.5h per day.
   const ranged = useMemo(() => {
-    const from = new Date(`${range.from}T00:00:00Z`).getTime();
-    const to = new Date(`${range.to}T23:59:59Z`).getTime();
+    const { start, end } = localDayBounds(range.from, range.to);
     return rows.filter((p) => {
       const created = new Date(p.created_at).getTime();
-      return created >= from && created <= to;
+      return created >= start && created < end;
     });
   }, [rows, range]);
 
