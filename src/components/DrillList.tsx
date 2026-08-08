@@ -1,22 +1,22 @@
-// The list a clicked HOD dashboard KPI reveals — same rows the card counted,
+// The list a clicked dashboard KPI reveals — same rows the card counted,
 // rendered as PassRows (the 2026-08-08 card rule) so it slots under the KPI
-// grid without a page nav. Mirrors the old "Recent Passes" table it replaced,
-// minus the table furniture: a drill is a list, not a register.
+// grid without a page nav. Shared by the HOD and admin dashboards; a drill is
+// a list, not a register.
 import React from 'react';
-import type { GatePassView } from '../../types';
-import PassRow from '../../components/PassRow';
-import type { DrillDef } from '../../lib/hodDrills';
+import type { GatePassView } from '../types';
+import PassRow from './PassRow';
+import type { DrillDef } from '../lib/hodDrills';
 
 const SKELETON_ROWS = 6;
 
 type Props = {
-  def: DrillDef;
+  def: DrillDef<string>;
   rows: GatePassView[];
   loading: boolean;
   onOpen: (id: string) => void;
 };
 
-export default function HodDrillList({ def, rows, loading, onOpen }: Props): React.ReactElement {
+export default function DrillList({ def, rows, loading, onOpen }: Props): React.ReactElement {
   return (
     <div className="mb-8">
       <div className="flex items-baseline gap-3 mb-3">

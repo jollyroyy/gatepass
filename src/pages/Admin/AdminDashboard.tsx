@@ -5,29 +5,26 @@
 // directly (an admin's RLS scope is org-wide) and derives every number from
 // one filtered array client-side — the same invariant the guard and HOD
 // dashboards use: a KPI's count is always `rows.length` of the exact list
-// behind it, never a second aggregate that could disagree.
+// behind it, never a second aggregate that could disagree. Every KPI is a
+// drill (2026-08-08): clicking it reveals those very rows beneath the grid.
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { gp } from '../../supabaseClient';
-import type { GatePassView, ReturnStatus } from '../../types';
+import type { GatePassView } from '../../types';
 import KpiCard from '../../components/KpiCard';
+import DrillList from '../../components/DrillList';
 import { safeErrorMessage } from '../../lib/errors';
 import { periodBounds, type DashboardPeriod } from '../../lib/dashboardPeriod';
 import DashboardPeriodFilter from '../../components/DashboardPeriodFilter';
-
-/** A pass with one line still out is still an open obligation. Exact lookup,
- *  never `.includes()` on the enum. */
-const IS_OPEN_RETURN: Record<ReturnStatus, boolean> = {
-  not_applicable: false,
-  awaiting_return: true,
-  partially_returned: true,
-  returned: false,
-};
+import { ADMIN_DRILLS, ADMIN_DRILL_ORDER, type AdminDrillKey } from '../../lib/adminDrills';
+import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 
 export default function AdminDashboard(): React.ReactElement {
+  const navigate = useNavigate();
   const [rows, setRows] = useState<GatePassView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<AdminDrillKey | null>(null);
   const [period, setPeriod] = useState<DashboardPeriod>('today');
 
   const load = useCallback(async () => {
@@ -57,13 +54,23 @@ export default function AdminDashboard(): React.ReactElement {
     return t >= start && t < end;
   });
 
-  const awaitingReturnRows = scopedRows.filter((p) => IS_OPEN_RETURN[p.return_status]);
-  const overdueRows = awaitingReturnRows.filter((p) => p.is_overdue);
+  // One pass through `scopedRows` per drill — the KPI card's number and the
+  // list its click opens come from the exact same array.
+  const drillRows = {} as Record<AdminDrillKey, GatePassView[]>;
+  for (const key of ADMIN_DRILL_ORDER) {
+    drillRows[key] = scopedRows.filter(ADMIN_DRILLS[key].match);
+  }
+
   // Return rate over the scoped rows: returned ÷ returnable (RGP passes only —
   // `not_applicable` NRGP rows never entered a return cycle at all).
-  const returnableRows = scopedRows.filter((p) => p.return_status !== 'not_applicable');
-  const returnedRows = returnableRows.filter((p) => p.return_status === 'returned');
-  const returnRate = returnableRows.length > 0 ? Math.round((returnedRows.length / returnableRows.length) * 100) : 0;
+  const returnableCount = scopedRows.filter((p) => p.return_status !== 'not_applicable').length;
+  const returnRate = returnableCount > 0 ? Math.round((drillRows.returned.length / returnableCount) * 100) : 0;
+
+  function toggleDrill(key: AdminDrillKey) {
+    setSelected((cur) => (cur === key ? null : key));
+  }
+
+  const resultsRef = useScrollIntoViewOnChange<HTMLDivElement>(selected);
 
   return (
     <div>
@@ -84,11 +91,50 @@ export default function AdminDashboard(): React.ReactElement {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Total" value={scopedRows.length} tone="neutral" loading={loading} />
-        <KpiCard label="Awaiting Return" value={awaitingReturnRows.length} tone="brand" loading={loading} />
-        <KpiCard label="Return Rate" value={`${returnRate}%`} tone="matched" loading={loading} />
-        <KpiCard label="Overdue" value={overdueRows.length} tone="overdue" loading={loading} />
+        <KpiCard
+          label={ADMIN_DRILLS.total.label}
+          value={drillRows.total.length}
+          tone={ADMIN_DRILLS.total.tone}
+          loading={loading}
+          active={selected === 'total'}
+          onClick={() => toggleDrill('total')}
+        />
+        <KpiCard
+          label={ADMIN_DRILLS.awaiting.label}
+          value={drillRows.awaiting.length}
+          tone={ADMIN_DRILLS.awaiting.tone}
+          loading={loading}
+          active={selected === 'awaiting'}
+          onClick={() => toggleDrill('awaiting')}
+        />
+        <KpiCard
+          label={ADMIN_DRILLS.returned.label}
+          value={`${returnRate}%`}
+          tone={ADMIN_DRILLS.returned.tone}
+          loading={loading}
+          active={selected === 'returned'}
+          onClick={() => toggleDrill('returned')}
+        />
+        <KpiCard
+          label={ADMIN_DRILLS.overdue.label}
+          value={drillRows.overdue.length}
+          tone={ADMIN_DRILLS.overdue.tone}
+          loading={loading}
+          active={selected === 'overdue'}
+          onClick={() => toggleDrill('overdue')}
+        />
       </div>
+
+      {selected && (
+        <div ref={resultsRef} className="mt-8">
+          <DrillList
+            def={ADMIN_DRILLS[selected]}
+            rows={drillRows[selected]}
+            loading={loading}
+            onOpen={(id) => navigate(`/pass/${id}`)}
+          />
+        </div>
+      )}
     </div>
   );
 }

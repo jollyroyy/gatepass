@@ -13,7 +13,7 @@ import { safeErrorMessage } from '../../lib/errors';
 import { formatCurrency } from '../../lib/formatCurrency';
 import { type KpiRow, mapKpiRow } from '../../lib/hodKpis';
 import FlaggedReviewCard from './FlaggedReviewCard';
-import HodDrillList from './HodDrillList';
+import DrillList from '../../components/DrillList';
 import { DRILL_DEFS, DRILL_ORDER, type DrillKey } from '../../lib/hodDrills';
 import { periodBounds, type DashboardPeriod } from '../../lib/dashboardPeriod';
 import DashboardPeriodFilter from '../../components/DashboardPeriodFilter';
@@ -266,7 +266,7 @@ export default function Dashboard(): React.ReactElement {
 
       {selected && (
         <div ref={resultsRef}>
-          <HodDrillList
+          <DrillList
             def={DRILL_DEFS[selected]}
             rows={drillRows[selected]}
             loading={loading}

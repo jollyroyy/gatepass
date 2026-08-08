@@ -16,8 +16,8 @@ import { isExpiredPending } from './statusStyles';
 export type DrillKey =
   | 'total' | 'rgpIssued' | 'nrgpIssued' | 'pending' | 'expired' | 'matched' | 'flagged' | 'awaiting' | 'overdue';
 
-export interface DrillDef {
-  key: DrillKey;
+export interface DrillDef<K extends string = DrillKey> {
+  key: K;
   label: string;
   tone: Tone;
   /** Heading above the revealed list. */
