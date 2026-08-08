@@ -8,6 +8,7 @@ import { ThemeProvider } from './lib/theme';
 import AppShell from './components/layout/AppShell';
 
 import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
 import NoAccess from './pages/NoAccess';
 import HodDashboard from './pages/HOD/Dashboard';
 import RaisePass from './pages/HOD/RaisePass';
@@ -105,6 +106,18 @@ export default function App(): React.ReactElement {
   }, []);
 
   if (resolving) return <FullPageLoader />;
+
+  // Password recovery: the emailed link lands here with a recovery token that
+  // supabase-js turned into a (temporary) session. That session is real, so the
+  // `session` gate below would pump the user straight into the console with no
+  // chance to set a password — catch the path first.
+  if (pathname === '/reset-password') {
+    return (
+      <Routes>
+        <Route path="/reset-password" element={<ResetPassword />} />
+      </Routes>
+    );
+  }
 
   if (!session) {
     return (

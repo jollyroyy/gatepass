@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { safeErrorMessage } from '../lib/errors';
 import AuthField from '../components/AuthField';
+import ForgotPasswordCard from '../components/ForgotPasswordCard';
 import { QuestLockup } from '../components/QuestMark';
 
 const MailIcon = (
@@ -38,13 +39,12 @@ const EyeOffIcon = (
 );
 
 export default function Login(): React.ReactElement {
+  const [mode, setMode] = useState<'signin' | 'forgot'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [resetSent, setResetSent] = useState(false);
-  const [resetting, setResetting] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,26 +60,6 @@ export default function Login(): React.ReactElement {
       setError(safeErrorMessage(err, 'Could not sign in.'));
     } finally {
       setBusy(false);
-    }
-  };
-
-  const handleForgotPassword = async () => {
-    if (!email.trim()) {
-      setError('Enter your email address first.');
-      return;
-    }
-    setError('');
-    setResetting(true);
-    try {
-      const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/login`,
-      });
-      if (err) throw err;
-      setResetSent(true);
-    } catch (err) {
-      setError(safeErrorMessage(err, 'Could not send reset email.'));
-    } finally {
-      setResetting(false);
     }
   };
 
@@ -133,9 +113,8 @@ export default function Login(): React.ReactElement {
           </p>
         </div>
 
-        <form
-          onSubmit={submit}
-          className="relative rounded-3xl p-7 space-y-5 overflow-hidden"
+        <div
+          className="relative rounded-3xl p-7 overflow-hidden"
           style={{
             background: '#FBFAF8',
             border: '1px solid rgba(198,161,91,0.30)',
@@ -154,17 +133,21 @@ export default function Login(): React.ReactElement {
           {/* Literal colours, not navy-* tokens: this card is fixed ivory chrome in
               both themes, and the tokens invert under `.dark` — the app's shipped
               default — which would render this heading near-white on near-white. */}
-          <div className="mb-1">
-            <h2
-              className="text-[22px] leading-tight font-normal font-display tracking-[0.01em]"
-              style={{ color: '#16161A' }}
-            >
-              Welcome back
-            </h2>
-            <p className="text-xs mt-1.5" style={{ color: '#7C766C' }}>
-              Sign in to continue to the gate console.
-            </p>
-          </div>
+          {mode === 'forgot' ? (
+            <ForgotPasswordCard onBack={() => setMode('signin')} />
+          ) : (
+            <form onSubmit={submit} className="space-y-5">
+              <div className="mb-1">
+                <h2
+                  className="text-[22px] leading-tight font-normal font-display tracking-[0.01em]"
+                  style={{ color: '#16161A' }}
+                >
+                  Welcome back
+                </h2>
+                <p className="text-xs mt-1.5" style={{ color: '#7C766C' }}>
+                  Sign in to continue to the gate console.
+                </p>
+              </div>
 
           <AuthField
             id="email"
@@ -202,17 +185,18 @@ export default function Login(): React.ReactElement {
             }
           />
 
-          <div className="flex justify-end -mt-2">
-            <button
-              type="button"
-              onClick={handleForgotPassword}
-              disabled={resetting}
-              className="text-xs font-semibold hover:underline transition-colors disabled:opacity-50"
-              style={{ color: '#A8853F' }}
-            >
-              {resetting ? 'Sending…' : resetSent ? 'Reset email sent!' : 'Forgot password?'}
-            </button>
-          </div>
+          {/* onClick switches to the email-only flow — the password field
+                  is deliberately not part of it. */}
+              <div className="flex justify-end -mt-2">
+                <button
+                  type="button"
+                  onClick={() => setMode('forgot')}
+                  className="text-xs font-semibold hover:underline transition-colors"
+                  style={{ color: '#A8853F' }}
+                >
+                  Forgot password?
+                </button>
+              </div>
 
           {error && (
             <p
@@ -261,7 +245,9 @@ export default function Login(): React.ReactElement {
               </>
             )}
           </button>
-        </form>
+            </form>
+          )}
+        </div>
 
         <p
           className="flex items-center justify-center lg:justify-start gap-1.5 text-[11px] mt-6"
