@@ -516,4 +516,69 @@ describe('SQL invariants', () => {
       ).toBe(true);
     }
   });
+
+  // Migration 033 closed two live defects: (a) a company name stored under the
+  // WRONG list_type was never matched by the raise-time trigger, and (b) the
+  // 'vehicle' type accepted any text ('thar') instead of a real Indian plate.
+  // These checks pin the final definitions so neither regression can return
+  // silently: the trigger must compare the company name against every entry
+  // regardless of type, and vehicle entries must pass is_indian_vehicle and be
+  // stored normalized.
+  it('033: the raise-time blacklist trigger matches a company name against ANY entry type, and vehicle entries are Indian-format-checked and normalized', () => {
+    const migrations = allMigrationsText();
+    const fns = extractFunctions(migrations);
+
+    const trigger = fns.filter((fn) => fn.name === 'gatepass.enforce_blacklist').pop();
+    expect(trigger, 'no migration defines gatepass.enforce_blacklist (027/033) — the raise-time blacklist is unenforced').toBeDefined();
+
+    // The company-name arm must NOT be restricted to list_type = 'company':
+    // 'Yadav Infotech' filed under 'vehicle' blocked nothing in 027. A
+    // regression to a typed comparison would re-open the hole.
+    expect(
+      /company_name_of/i.test(trigger!.body),
+      `gatepass.enforce_blacklist (${trigger!.file}) no longer reads the company via company_name_of — ` +
+        `the JSON-wrapped visitor_company would never match a blacklist value`
+    ).toBe(true);
+    expect(
+      /lower\s*\(\s*trim\s*\(\s*b\.list_value\s*\)\s*\)\s*=\s*lower\s*\(\s*trim\s*\(\s*v_company\s*\)\s*\)/i.test(trigger!.body),
+      `gatepass.enforce_blacklist (${trigger!.file}) no longer compares the company name case-insensitively ` +
+        `against ANY list entry — a vendor blacklisted under the wrong type can slip through again`
+    ).toBe(true);
+    expect(
+      /normalize_vehicle/i.test(trigger!.body),
+      `gatepass.enforce_blacklist (${trigger!.file}) no longer normalizes the vehicle number — ` +
+        `WB 09 AB 1234 and wb-09-ab-1234 would stop matching each other`
+    ).toBe(true);
+    expect(
+      /security\s+definer/i.test(trigger!.body) &&
+        /set\s+search_path\s*=\s*''/i.test(trigger!.body),
+      `gatepass.enforce_blacklist (${trigger!.file}) must stay SECURITY DEFINER with search_path pinned`
+    ).toBe(true);
+
+    const addEntry = fns.filter((fn) => fn.name === 'gatepass.add_blacklist_entry').pop();
+    expect(addEntry, 'no migration defines gatepass.add_blacklist_entry').toBeDefined();
+    expect(
+      /is_indian_vehicle/i.test(addEntry!.body),
+      `gatepass.add_blacklist_entry (${addEntry!.file}) no longer validates the Indian plate format on 'vehicle' entries — random alphanumerics can enter the blacklist again`
+    ).toBe(true);
+    expect(
+      /normalize_vehicle/i.test(addEntry!.body),
+      `gatepass.add_blacklist_entry (${addEntry!.file}) no longer stores the plate in normalized form — ` +
+        `the same car can be blacklisted under two spellings`
+    ).toBe(true);
+    expect(
+      /security\s+definer/i.test(addEntry!.body) &&
+        /set\s+search_path\s*=\s*''/i.test(addEntry!.body),
+      `gatepass.add_blacklist_entry (${addEntry!.file}) must stay SECURITY DEFINER with search_path pinned`
+    ).toBe(true);
+
+    // The gate-side warning must agree with the raise-time refusal.
+    const lookup = fns.filter((fn) => fn.name === 'gatepass.lookup_pass').pop();
+    expect(lookup, 'no migration defines gatepass.lookup_pass').toBeDefined();
+    expect(
+      /company_name_of/i.test(lookup!.body) && /normalize_vehicle/i.test(lookup!.body),
+      `gatepass.lookup_pass (${lookup!.file}) no longer applies the 033 matching rules — the guard's ` +
+        `blacklist warning would disagree with the HOD's raise-time refusal`
+    ).toBe(true);
+  });
 });

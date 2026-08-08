@@ -64,8 +64,73 @@ behavioural checks, see below).
 | Migration `030` | ✅ **applied 2026-08-08** — dropped `returnable_aging()`, whose only screen was removed |
 | Migration `031` | ✅ **applied + verified live 2026-08-08** — RLS + SELECT grants for `blacklist`/`vendor_profiles`, `lookup_pass` return renamed `blacklist_match`, dead code dropped (see below) |
 | Migration `032` | ✅ **applied + verified live 2026-08-08** — **one department per person** (see below): unique index on `hod_departments(hod_id)`, admin RPCs refuse >1 and mirror into `profiles.department_id` |
+| Migration `033` | ✅ **applied + verified live 2026-08-08** — **blacklist + vehicle format hardened** (see below): strict Indian vehicle-format CHECK, blacklist form strictness, `parseCompanyInfo` packed-keys fix |
 | `gatepass.gate_passes` | ~10 rows — real user data as of 2026-08-08. **Not a scratch database any more; do not wipe it.** |
 | `public.departments` | ✅ 5 rows: FIN, HR, IT, SA, DEV |
+
+### `033` — blacklist + vehicle format hardened (2026-08-08)
+
+**`visitor_company` used to render as raw JSON on the slip and the detail page.**
+`RaisePass` writes `JSON.stringify({n, a, v})`, and when the HOD leaves all three vendor
+fields blank it writes `{"n":"","a":"","v":""}` — a *truthy non-empty string*. Old
+`parseCompanyInfo` tested `parsed.n` for truthiness, so the empty blob fell through to the
+legacy branch and displayed the raw JSON as the company name everywhere. It now recognises
+the packed shape by its **keys** (`n/c/a/v` present), not by truthiness — and `RaisePass`
+stops writing blobs at all: `packVendor()` returns `null` when all three fields are blank,
+so the honest record of "no vendor" is a null column (`company_name_of()` already coped).
+`PassDetail` also renders `—` for a missing name.
+
+**Blacklist and vehicle numbers are now strict.** `033` adds a CHECK on `gate_passes`
+enforcing the Indian format (`IN` or `WB` … `XX 1234`/`XX9 1234`/`X9 1234`, exactly one
+space before the digits, digits 13BF to 9999) and hardens the blacklist form
+(`tests/unit/blacklistForm.test.tsx`) — blanks rejected, leading zeros rejected, etc. The
+migration also refactors `check_blacklist` to compare on the *packed* `n` key so a
+blacklisted vendor name can never slip past as `{"n":"bsc",…}`.
+
+Two live-DB quirks surfaced while applying `033`, fixed in the migration body:
+- **Postgres `overlay(to… from 3…)` REPLACES rather than inserts** — use
+  `left(…) || '0' || substring(…)` to splice a digit in.
+- **The server's collation mangled `[^A-Z0-9]`** (stripped letters) — use the POSIX class
+  `[[:alnum:]]` instead.
+
+Verified live with real anon-key JWTs: blank-vendor raise → `visitor_company = null`; the
+pass detail/slip show `—`; a blacklisted vendor by name and by number is refused; a valid
+pass matches. Probe rows cleaned up; `gate_passes` back to ~18 rows. **No commit of this
+was made before the next push (see git log — `033` ships in the same push as the docs).**
+
+### Forgot password flow fixed (2026-08-08, frontend only — no migration)
+
+**"Forgot password?" used to ask for BOTH email and password, and the reset email's link
+landed back on the login form.** `Login.tsx` already sent the recovery email with
+`redirectTo: origin + '/login'`, but this app has no reset-password page — so the email
+link deposited the user straight back at the email+password sign-in form, which is the
+panel a user who forgot the password cannot leave. Worse, the forgot flow lived inside that
+same form, keeping the password field mounted and visible.
+
+Fixed with an email-only card and a real recovery landing page:
+
+- **`ForgotPasswordCard.tsx`** — rendered by `Login` in place of the sign-in fields
+  (`mode === 'forgot'`), asks for **email only** and calls
+  `resetPasswordForEmail(email, { redirectTo: `${origin}/reset-password` })`; shows a
+  "Check your inbox" state; has "Back to sign in".
+- **`ResetPassword.tsx`** at `/reset-password` — the recovery token the email embeds is
+  an implicit-grant callback: the SDK detects it and fires the `PASSWORD_RECOVERY`
+  event, and only that event unlocks the new-password + confirm form (`updateUser`).
+  A fallback 1.5 s timer shows "link invalid" if no recovery event arrives (stale or
+  forged link). On success it `signOut()`s and shows a confirmation — password is set,
+  session is not kept.
+- **`App.tsx`** routes `/reset-password` — the render branch sits **before** the
+  `!session` gate, because the recovery session is valid but must not be treated as a
+  logged-in visit (it would bounce to the console instead of the form).
+- **Login.tsx HTML validity:** the card's own `<form>` used to nest inside the outer
+  sign-in `<form>` (invalid HTML). The outer element is now a `<div>`; the sign-in
+  content is its own inner `<form>`.
+
+Tests: `tests/unit/forgotPassword.test.tsx` (5) + `tests/unit/resetPassword.test.tsx`
+(7) — email-only assertion (no password field in forgot mode), redirect URL, recovery
+event gating, client-side minimals, `updateUser` call, error surfacing, stale-link
+fallback. Full gate: **526 tests pass** (`npm run check`, 2026-08-08). Verify with SSO /
+a real mailbox that the emailed link lands on `/reset-password`.
 
 ### UI overhaul, 2026-08-04 (frontend only — no migration)
 

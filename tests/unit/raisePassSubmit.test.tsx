@@ -195,4 +195,34 @@ describe('RaisePass — an RGP can actually be submitted', () => {
     expect(args.p_expected_return_date).toBeNull();
     expect((args.p_items as Record<string, unknown>[])[0].expected_return_date).toBeNull();
   });
+
+  it('surfaces the blacklist refusal with the reason — the HOD learns WHY it was blocked', async () => {
+    // The DB trigger (027/033) raises 'Blocked: company BSC is blacklisted
+    // (company). Reason: not good' — that exact message must reach the form so
+    // the HOD can tell a deliberate ban from a typo. safeErrorMessage passes
+    // P0001 through verbatim; this pins the whole chain.
+    rpc.mockImplementation((name: string) => {
+      if (name === 'raise_pass') {
+        return thenable({
+          data: null,
+          error: { message: 'Blocked: company BSC is blacklisted (company). Reason: not good' },
+        });
+      }
+      return thenable({ data: [], error: null });
+    });
+
+    renderRaisePass();
+    await waitFor(() => expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument());
+    fillRequiredFields();
+    fireEvent.change(screen.getByPlaceholderText('Vendor name'), { target: { value: 'BSC' } });
+    const due = futureDate(5);
+    fireEvent.change(screen.getByLabelText('Return Date'), { target: { value: due } });
+
+    fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Blocked: company BSC is blacklisted \(company\)\. Reason: not good/)).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Pass Submitted')).not.toBeInTheDocument();
+  });
 });

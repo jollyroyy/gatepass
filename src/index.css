@@ -174,9 +174,28 @@
   body {
     background: #fff !important;
   }
-  @page {
+  /* margin: 0 is what suppresses the browser's own header/footer — the
+     deployment URL, the page title, the date and "1/1" that were printing at
+     the edges of every slip. Chrome/Edge draw those INSIDE the @page margin
+     box and omit them entirely once that box is zero; there is no CSS property
+     that turns them off directly. The 10mm the sheet still needs is moved onto
+     .pass-sheet below, so the slip itself is unchanged on paper.
+
+     Caveat worth knowing: this is a Chromium behaviour. Firefox and Safari may
+     still print their own footer, and any browser's print dialog has a
+     "Headers and footers" checkbox that overrides everything here. */
+  @page pass-slip {
     size: A5;
-    margin: 10mm;
+    margin: 0;
+  }
+  /* Named page, like report-sheet — so zeroing the margin affects the gate-pass
+     slip only, and Ctrl+P on any other screen keeps normal page margins.
+     Padding replaces the margin the @page rule gave up; it sits on the sheet
+     element rather than body so a slip that ever runs to two pages keeps its
+     edge on both. */
+  .pass-sheet {
+    page: pass-slip;
+    padding: 10mm !important;
   }
 }
 .print-only {

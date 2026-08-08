@@ -191,6 +191,21 @@ export default function RaisePass(): React.ReactElement {
     return dates.length > 0 ? dates.slice().sort()[0] : null;
   }
 
+  /** The `{"n","a","v"}` blob for `visitor_company`, or null when the HOD filled
+   *  in none of the three optional vendor fields. Writing `{"n":"","a":"","v":""}`
+   *  put a JSON blob in the column for a pass that has no vendor at all — the
+   *  old `JSON.stringify({...}) || null` could never be null, since stringify
+   *  always returns a non-empty string. `gatepass.company_name_of()` and
+   *  `parseCompanyInfo()` both cope with the blob now, but a null column is the
+   *  honest record of "no vendor given". */
+  function packVendor(): string | null {
+    const n = form.visitor_company.trim();
+    const a = form.company_address.trim();
+    const v = form.visitor_phone.trim();
+    if (!n && !a && !v) return null;
+    return JSON.stringify({ n, a, v });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const errs = validate();
@@ -207,11 +222,7 @@ export default function RaisePass(): React.ReactElement {
         p_direction: 'out',
         p_department_id: departmentId,
         p_visitor_name: form.visitor_name.trim(),
-        p_visitor_company: JSON.stringify({
-          n: form.visitor_company.trim(),
-          a: form.company_address.trim(),
-          v: form.visitor_phone.trim(),
-        }) || null,
+        p_visitor_company: packVendor(),
         p_vehicle_number: form.vehicle_number.trim() || null,
         p_expected_return_date: earliestReturnDate(),
         p_items: form.items.map((item) => ({
