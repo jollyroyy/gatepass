@@ -36,8 +36,8 @@ re-concatenated is a fix that never reaches the database.
 
 ## Current state — verified 2026-08-04
 
-Frontend typechecks and passes all **302 tests** (22 files) — verified by a real
-`npm run check` run on 2026-08-04. **All migrations through `025` are applied to the live
+Frontend typechecks and passes all **383 tests** (29 files) — verified by a real
+`npm run check` run on 2026-08-08. **All migrations through `025` are applied to the live
 database**, `024`/`025` applied and verified live 2026-08-04 (see below), `023` verified live, the rest as of 2026-07-27.
 **No migration was written this session — every change below is frontend-only.**
 
@@ -405,6 +405,18 @@ camera scanner needs that header not to be restrictive.
 **Camera QR scanning cannot be tested over LAN HTTP.** `getUserMedia` only exists in a secure
 context: `localhost` qualifies, `http://<lan-ip>:5175` from a phone does not. Testing the
 scanner on a real phone requires HTTPS — i.e. a Vercel deploy or a tunnel.
+
+**The CSP in `vercel.json` is a live footgun: it applies ONLY in production.** The Vite dev
+server sends no CSP at all, so anything the policy blocks works perfectly on localhost and
+fails only once deployed — with no error the user can see. This shipped once: profile photos
+were invisible on Vercel because `img-src` was `'self' data: blob:` while avatars are served
+cross-origin from `https://oxzzeonftrmohdrancex.supabase.co/storage/v1/object/public/...`.
+`connect-src` already allowed that host, so the upload and `set_my_avatar` both *succeeded*
+and the row was written — only the `<img>` was blocked, so the symptom was "nothing happens".
+Fixed 2026-08-08 by adding the Supabase origin to `img-src`;
+`tests/security/cspAllowsSupabase.test.ts` now pins every directive the app depends on.
+**Any new remote origin — a CDN, a font host, an image bucket — needs its directive added
+there in the same commit, or it will pass every local check and break in production.**
 
 Vercel needs exactly two env vars: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
 **Never add `SUPABASE_SERVICE_ROLE_KEY`** — it is not used by any file under `src/`, and a
