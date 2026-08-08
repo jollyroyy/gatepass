@@ -152,7 +152,14 @@ export default function Verify(): React.ReactElement {
   }
 
   const companyInfo = parseCompanyInfo(pass.visitor_company);
-  const alreadyActioned = pass.status !== 'pending';
+  // `hod_reviewed` is NOT "already actioned": the HOD's approval is the
+  // middle of the flag flow, not the end of it. The guard's Match is the
+  // action that completes it (match_pass admits pending and hod_reviewed).
+  // Before this distinction existed, an HOD-approved pass could never be
+  // cleared through the UI at all — the queue hid it and this screen hid
+  // the Match button.
+  const alreadyActioned = pass.status !== 'pending' && pass.status !== 'hod_reviewed';
+  const hodApproved = pass.status === 'hod_reviewed';
   // is_expired comes from the view, which is also what match_pass enforces.
   // Never recompute it from expires_at here — a screen that disagrees with the
   // database is a guard arguing with a driver about whose clock is right.
@@ -173,6 +180,15 @@ export default function Verify(): React.ReactElement {
             <Link to={`/pass/${pass.id}`} className="underline font-semibold">
               View full details
             </Link>
+          </span>
+        </div>
+      )}
+
+      {hodApproved && !alreadyActioned && (
+        <div className="alert-warning mb-6">
+          <span>
+            <strong>Approved by the HOD.</strong> The mismatch has been reviewed and cleared by the raising
+            department. Match the pass to release the material.
           </span>
         </div>
       )}
@@ -213,7 +229,10 @@ export default function Verify(): React.ReactElement {
         <div className="flex flex-col md:flex-row gap-4">
           {/* Match is withheld once expired; Flag deliberately is not. Refusing
               to record a real mismatch because the paperwork went stale is
-              exactly backwards — the same split match_pass enforces server-side. */}
+              exactly backwards — the same split match_pass enforces server-side.
+              For a hod_reviewed pass only Match is offered: the mismatch already
+              has its outcome (the HOD's decision), so there is nothing left to
+              flag — only the go-ahead remains. */}
           <button
             type="button"
             className="btn-match"
@@ -222,9 +241,11 @@ export default function Verify(): React.ReactElement {
           >
             ✓ Match
           </button>
-          <button type="button" className="btn-flag" disabled={submitting} onClick={() => setPanel('flag')}>
-            ⚑ Flag Mismatch
-          </button>
+          {pass.status === 'pending' && (
+            <button type="button" className="btn-flag" disabled={submitting} onClick={() => setPanel('flag')}>
+              ⚑ Flag Mismatch
+            </button>
+          )}
         </div>
       )}
 

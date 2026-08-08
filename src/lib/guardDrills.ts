@@ -33,7 +33,7 @@ import { isExpiredPending } from './statusStyles';
 
 export type DrillKey =
   | 'rgpOut' | 'rgpIn' | 'nrgpOut'
-  | 'pending' | 'expired' | 'matched' | 'flagged'
+  | 'pending' | 'expired' | 'matched' | 'flagged' | 'approved'
   | 'awaiting' | 'overdue';
 
 /** Which row set a drill filters: the two day-scoped sets, or the
@@ -144,6 +144,23 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     allTime: false,
     match: (p) => p.status === 'flagged',
   },
+  // The two months of flag-flow history nearly ended here: the HOD's
+  // approval moved a pass flagged→hod_reviewed, and every guard surface then
+  // refused to act on it (queue filtered 'pending' only, Verify hid Match).
+  // The truck had been approved through but could not be cleared. This drill
+  // is what makes the mopped-up end of that chain visible again: a pass
+  // approved by the HOD is waiting on exactly one action — the gate.
+  approved: {
+    key: 'approved',
+    label: 'HOD Approved',
+    tone: 'accent',
+    heading: 'Approved by the HOD, waiting to clear',
+    empty: 'No HOD-approved passes at the gate right now.',
+    returnable: false,
+    source: 'raisedToday',
+    allTime: false,
+    match: (p) => p.status === 'hod_reviewed',
+  },
   awaiting: {
     key: 'awaiting',
     label: 'Awaiting Return',
@@ -175,7 +192,7 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
  *  status of that work, then what is still open. */
 export const DRILL_ORDER: DrillKey[] = [
   'rgpOut', 'rgpIn', 'nrgpOut',
-  'pending', 'expired', 'matched', 'flagged',
+  'pending', 'expired', 'matched', 'flagged', 'approved',
   'awaiting', 'overdue',
 ];
 

@@ -122,19 +122,20 @@ beforeEach(() => {
 });
 
 describe('Guard navigation', () => {
-  it('lists Dashboard first and Gate Console second', () => {
+  it('lists Dashboard first, then Pending Returns, then Gate Console', () => {
     const guardLinks = ALL_LINKS.filter((n) => n.roles.includes('guard')).map((n) => n.label);
     expect(guardLinks[0]).toBe('Dashboard');
-    expect(guardLinks[1]).toBe('Gate Console');
+    expect(guardLinks[1]).toBe('Pending Returns');
+    expect(guardLinks[2]).toBe('Gate Console');
   });
 
-  it('no longer offers a Pending Returns tab', () => {
+  it('offers a dedicated Pending Returns tab again (2026-08-08)', () => {
     const guardLinks = ALL_LINKS.filter((n) => n.roles.includes('guard')).map((n) => n.label);
-    expect(guardLinks).not.toContain('Pending Returns');
+    expect(guardLinks).toContain('Pending Returns');
   });
 
-  it('drops /returns from the guard route list and allows the new dashboard', () => {
-    expect(ROLE_ROUTES.guard).not.toContain('/returns');
+  it('keeps /returns in the guard route list alongside the dashboard', () => {
+    expect(ROLE_ROUTES.guard).toContain('/returns');
     expect(ROLE_ROUTES.guard).toContain('/guard-dashboard');
   });
 });

@@ -15,6 +15,7 @@ import MyPasses from './pages/HOD/MyPasses';
 import GateConsole from './pages/Security/GateConsole';
 import Verify from './pages/Security/Verify';
 import GuardDashboard from './pages/Security/GuardDashboard';
+import PendingReturns from './pages/Security/PendingReturns';
 import AdminPanel from './pages/Admin/AdminPanel';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import ReportsPage from './pages/Admin/ReportsPage';
@@ -142,6 +143,7 @@ export default function App(): React.ReactElement {
 
           {/* Security */}
           <Route path="/guard-dashboard" element={<GuardDashboard />} />
+          <Route path="/returns" element={<PendingReturns />} />
           <Route path="/console" element={<GateConsole />} />
           <Route path="/verify/:id" element={<Verify />} />
 

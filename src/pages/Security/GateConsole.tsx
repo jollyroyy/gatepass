@@ -46,10 +46,13 @@ export default function GateConsole(): React.ReactElement {
     try {
       // Queue only. Every gate figure moved to the guard dashboard, which owns
       // both the count and the list behind it — see lib/guardDrills.ts.
+      // 'hod_reviewed' rides along with 'pending': an HOD-approved pass is
+      // waiting on exactly one action — the gate — and hiding it would strand
+      // a truck that has already been cleared by its department head.
       const queueRes = await gp()
         .from('v_gate_passes')
         .select('*')
-        .eq('status', 'pending')
+        .in('status', ['pending', 'hod_reviewed'])
         .order('created_at', { ascending: true });
       if (queueRes.error) throw queueRes.error;
 

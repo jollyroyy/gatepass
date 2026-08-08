@@ -8,10 +8,9 @@ import type { UserRole } from '../types/index';
 
 export const ROLE_ROUTES: Record<UserRole, string[]> = {
   // Security at the gate
-  // `/returns` and `/history` retired. Pending Returns folded into the guard
-  // dashboard, which carries both its KPIs and the Mark Returned action;
-  // Verification History was removed with its sidebar tab.
-  guard: ['/guard-dashboard', '/console', '/verify', '/pass', '/profile'],
+  // `/history` retired. Pending Returns is its own tab again (2026-08-08):
+  // everything still out, all-time, with per-line and Return All actions.
+  guard: ['/guard-dashboard', '/returns', '/console', '/verify', '/pass', '/profile'],
   // Department heads raise passes for their own departments
   hod: ['/dashboard', '/raise', '/my-passes', '/pass', '/profile'],
   // Admin manages departments, users, and sees everything
