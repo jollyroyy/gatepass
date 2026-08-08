@@ -99,9 +99,9 @@ export default function DepartmentsTab(): React.ReactElement {
 
   const unassignedCount = useMemo(() => deptCards.filter((c) => c.strength === 0).length, [deptCards]);
 
-  // The other direction of the many-to-many: one row per HOD, listing every
-  // department they cover. Built from the same `assignments` array as deptCards,
-  // so the two views can never disagree about who heads what.
+  // The person→department view: one row per HOD, their (single) department.
+  // Built from the same `assignments` array as deptCards, so the two views can
+  // never disagree about who heads what.
   const hodEntries = useMemo(() => {
     const deptMap = new Map(departments.map((d) => [d.id, d]));
     return hodProfiles.map((hod) => ({
@@ -164,17 +164,22 @@ export default function DepartmentsTab(): React.ReactElement {
     }
   }
 
-  // Assign
+  // Assign — one department per person (032): assigning an HOD who already
+  // covers a department MOVES them (delete-then-insert), never adds a second.
   async function handleAssign(e: React.FormEvent) {
     e.preventDefault();
     if (!assignHodId || !assignDeptId) return;
     setAssigning(true);
     setAssignError(null);
     try {
+      if (assignments.some((a) => a.hod_id === assignHodId)) {
+        const { error: delErr } = await gp().from('hod_departments').delete().eq('hod_id', assignHodId);
+        if (delErr) throw delErr;
+      }
       const { error } = await gp().from('hod_departments').insert({ hod_id: assignHodId, department_id: assignDeptId });
       if (error) {
         if ((error as { code?: string }).code === '23505') {
-          throw new Error('That HOD already covers this department.');
+          throw new Error('That HOD is already assigned to this department.');
         }
         throw error;
       }
@@ -414,7 +419,7 @@ export default function DepartmentsTab(): React.ReactElement {
         <div className="modal-overlay" onClick={() => setShowAssign(false)}>
           <div className="modal-content p-6 max-w-md" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-navy-950 mb-1">Assign HOD</h2>
-            <p className="text-sm text-navy-500 mb-5">Link an HOD to a department. One HOD can cover multiple departments.</p>
+            <p className="text-sm text-navy-500 mb-5">Link an HOD to a department. A person can belong to at most one — assigning someone already assigned elsewhere moves them.</p>
             <form onSubmit={handleAssign} className="flex flex-col gap-4">
               <div>
                 <label className="label">HOD</label>

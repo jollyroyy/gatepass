@@ -4,7 +4,9 @@
 //   * Departments rendered in a 3-across grid, so a department with several HODs
 //     produced a tall narrow column of cramped rows.
 // Departments are now one full-width glass row each, and the HOD KPI opens a
-// directory of every HOD with their departments.
+// directory of every HOD with their department.
+// One department per person since migration 032: an HOD appears against a single
+// department, but a department can still host several HODs.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -19,10 +21,9 @@ const HODS = [
   { id: 'h2', full_name: 'Bikram Sen', email: 'bikram@demo.vms', role: 'hod' },
 ];
 
-// Asha covers both departments — the many-to-many the whole feature exists for.
+// Each HOD heads exactly one department; Engineering has two HODs (032 rule).
 const ASSIGNMENTS = [
   { hod_id: 'h1', department_id: 'd1', created_at: '2026-08-01T00:00:00Z' },
-  { hod_id: 'h1', department_id: 'd2', created_at: '2026-08-01T00:00:00Z' },
   { hod_id: 'h2', department_id: 'd1', created_at: '2026-08-01T00:00:00Z' },
 ];
 
@@ -90,11 +91,11 @@ describe('Departments tab — HOD directory', () => {
     expect(screen.getByText('Bikram Sen')).toBeInTheDocument();
     expect(screen.getByText('asha@demo.vms')).toBeInTheDocument();
 
-    // Asha heads two departments; both must be named against her.
+    // Asha heads Engineering; Housekeeping has no HOD of its own here.
     const ashaRow = screen.getByText('Asha Rao').closest('[data-testid="hod-row"]');
     expect(ashaRow).not.toBeNull();
     expect(ashaRow?.textContent).toContain('ENG');
-    expect(ashaRow?.textContent).toContain('HK');
+    expect(ashaRow?.textContent).not.toContain('HK');
 
     const bikramRow = screen.getByText('Bikram Sen').closest('[data-testid="hod-row"]');
     expect(bikramRow?.textContent).toContain('ENG');

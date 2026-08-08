@@ -63,6 +63,7 @@ export default function UsersTab(): React.ReactElement {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [departments, setDepartments] = useState<Dept[]>([]);
   const [deptNamesByHod, setDeptNamesByHod] = useState<Map<string, string[]>>(new Map());
+  const [deptIdByHod, setDeptIdByHod] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<RoleFilter>('all');
@@ -73,7 +74,7 @@ export default function UsersTab(): React.ReactElement {
   const [createPassword, setCreatePassword] = useState('');
   const [createName, setCreateName] = useState('');
   const [createRole, setCreateRole] = useState<'guard' | 'hod' | 'staff'>('guard');
-  const [createDeptIds, setCreateDeptIds] = useState<string[]>([]);
+  const [createDeptId, setCreateDeptId] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createNameErr, setCreateNameErr] = useState<string | null>(null);
@@ -82,7 +83,7 @@ export default function UsersTab(): React.ReactElement {
   const [editProfile, setEditProfile] = useState<Profile | null>(null);
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState<'guard' | 'hod' | 'staff'>('guard');
-  const [editDeptIds, setEditDeptIds] = useState<string[]>([]);
+  const [editDeptId, setEditDeptId] = useState('');
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [editNameErr, setEditNameErr] = useState<string | null>(null);
@@ -103,16 +104,19 @@ export default function UsersTab(): React.ReactElement {
         ((deptRes.data ?? []) as Dept[]).map((d) => [d.id, d.name]),
       );
       const map = new Map<string, string[]>();
+      const idMap = new Map<string, string>();
       for (const a of (assignRes.data ?? []) as { hod_id: string; department_id: string }[]) {
         const name = deptNameById.get(a.department_id);
         if (!name) continue;
         const list = map.get(a.hod_id) ?? [];
         list.push(name);
         map.set(a.hod_id, list);
+        if (!idMap.has(a.hod_id)) idMap.set(a.hod_id, a.department_id);
       }
       setProfiles(rows);
       setDepartments((deptRes.data as Dept[] | null) ?? []);
       setDeptNamesByHod(map);
+      setDeptIdByHod(idMap);
       setError(null);
     } catch (err) {
       setError(safeErrorMessage(err));
@@ -132,7 +136,7 @@ export default function UsersTab(): React.ReactElement {
     setCreatePassword('');
     setCreateName('');
     setCreateRole('guard');
-    setCreateDeptIds([]);
+    setCreateDeptId('');
     setCreateError(null);
     setCreateNameErr(null);
   }
@@ -154,7 +158,7 @@ export default function UsersTab(): React.ReactElement {
         p_password: password,
         p_full_name: name,
         p_role: createRole,
-        p_department_ids: createRole === 'hod' && createDeptIds.length > 0 ? createDeptIds : null,
+        p_department_ids: createRole === 'hod' && createDeptId ? [createDeptId] : null,
       });
       if (rpcErr) throw rpcErr;
       setShowCreate(false);
@@ -172,7 +176,7 @@ export default function UsersTab(): React.ReactElement {
     setEditName(p.full_name);
     const role = p.role === 'guard' || p.role === 'hod' || p.role === 'staff' ? p.role : 'staff';
     setEditRole(role);
-    setEditDeptIds([]);
+    setEditDeptId(deptIdByHod.get(p.id) ?? '');
     setEditError(null);
     setEditNameErr(null);
   }
@@ -196,7 +200,7 @@ export default function UsersTab(): React.ReactElement {
         p_user_id: editProfile.id,
         p_full_name: name,
         p_role: editRole,
-        p_department_ids: editRole === 'hod' && editDeptIds.length > 0 ? editDeptIds : editRole === 'hod' ? [] : null,
+        p_department_ids: editRole === 'hod' ? (editDeptId ? [editDeptId] : []) : null,
       });
       if (rpcErr) throw rpcErr;
       closeEdit();
@@ -331,7 +335,7 @@ export default function UsersTab(): React.ReactElement {
               </div>
               <div>
                 <label className="label">Role</label>
-                <select className="input" value={createRole} onChange={(e) => { setCreateRole(e.target.value as 'guard' | 'hod' | 'staff'); setCreateDeptIds([]); }}>
+                <select className="input" value={createRole} onChange={(e) => { setCreateRole(e.target.value as 'guard' | 'hod' | 'staff'); setCreateDeptId(''); }}>
                   {CREATE_ROLES.map((r) => (
                     <option key={r.key} value={r.key}>{r.label}</option>
                   ))}
@@ -339,22 +343,20 @@ export default function UsersTab(): React.ReactElement {
               </div>
               {createRole === 'hod' && (
                 <div>
-                  <label className="label">Departments</label>
+                  <label className="label">Department</label>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {departments.map((d) => {
-                      const selected = createDeptIds.includes(d.id);
-                      return (
-                        <button
-                          key={d.id}
-                          type="button"
-                          className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${selected ? 'bg-brand-500 text-white border-brand-500' : 'bg-surface-100 text-navy-600 border-surface-300 hover:border-brand-400'}`}
-                          onClick={() => setCreateDeptIds((prev) => selected ? prev.filter((id) => id !== d.id) : [...prev, d.id])}
-                        >
-                          {d.name} ({d.code})
-                        </button>
-                      );
-                    })}
+                    {departments.map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${createDeptId === d.id ? 'bg-brand-500 text-white border-brand-500' : 'bg-surface-100 text-navy-600 border-surface-300 hover:border-brand-400'}`}
+                        onClick={() => setCreateDeptId(createDeptId === d.id ? '' : d.id)}
+                      >
+                        {d.name} ({d.code})
+                      </button>
+                    ))}
                   </div>
+                  <p className="text-xs text-navy-400 mt-1.5">One department per person — pick a single one.</p>
                 </div>
               )}
               {createError && <div className="alert-error">{createError}</div>}
@@ -402,7 +404,7 @@ export default function UsersTab(): React.ReactElement {
               </div>
               <div>
                 <label className="label">Role</label>
-                <select className="input" value={editRole} onChange={(e) => { setEditRole(e.target.value as 'guard' | 'hod' | 'staff'); setEditDeptIds([]); }}>
+                <select className="input" value={editRole} onChange={(e) => { setEditRole(e.target.value as 'guard' | 'hod' | 'staff'); setEditDeptId(''); }}>
                   {EDIT_ROLES.map((r) => (
                     <option key={r.key} value={r.key}>{r.label}</option>
                   ))}
@@ -410,22 +412,20 @@ export default function UsersTab(): React.ReactElement {
               </div>
               {editRole === 'hod' && (
                 <div>
-                  <label className="label">Departments</label>
+                  <label className="label">Department</label>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {departments.map((d) => {
-                      const selected = editDeptIds.includes(d.id);
-                      return (
-                        <button
-                          key={d.id}
-                          type="button"
-                          className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${selected ? 'bg-brand-500 text-white border-brand-500' : 'bg-surface-100 text-navy-600 border-surface-300 hover:border-brand-400'}`}
-                          onClick={() => setEditDeptIds((prev) => selected ? prev.filter((id) => id !== d.id) : [...prev, d.id])}
-                        >
-                          {d.name} ({d.code})
-                        </button>
-                      );
-                    })}
+                    {departments.map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${editDeptId === d.id ? 'bg-brand-500 text-white border-brand-500' : 'bg-surface-100 text-navy-600 border-surface-300 hover:border-brand-400'}`}
+                        onClick={() => setEditDeptId(editDeptId === d.id ? '' : d.id)}
+                      >
+                        {d.name} ({d.code})
+                      </button>
+                    ))}
                   </div>
+                  <p className="text-xs text-navy-400 mt-1.5">One department per person — leave empty to unassign.</p>
                 </div>
               )}
               {editError && <div className="alert-error">{editError}</div>}
