@@ -517,6 +517,56 @@ describe('SQL invariants', () => {
     }
   });
 
+  // 034. GoTrue scans auth.users' token columns into Go `string`, which cannot
+  // hold NULL. Those columns are nullable with NO default, so an INSERT that
+  // omits them leaves NULLs behind and every later sign-in for that account
+  // dies inside the auth server with "converting NULL to string is
+  // unsupported" — a 500, not "invalid credentials". The account looks
+  // perfectly healthy in the dashboard; only the login fails, and only for
+  // users this RPC created.
+  it('admin_create_user writes empty strings, never NULL, into auth.users token columns', () => {
+    const migrations = allMigrationsText();
+    const fns = extractFunctions(migrations);
+
+    const definitions = fns.filter((fn) => fn.name === 'gatepass.admin_create_user');
+    expect(definitions.length, 'no migration defines gatepass.admin_create_user').toBeGreaterThan(0);
+    const final = definitions[definitions.length - 1]; // highest-numbered migration wins
+
+    // Only these four are nullable AND default-less on auth.users (verified live
+    // 2026-08-08). phone_change / phone_change_token / email_change_token_current /
+    // reauthentication_token all default to '' and so are safe to omit.
+    for (const column of [
+      'confirmation_token',
+      'recovery_token',
+      'email_change',
+      'email_change_token_new',
+    ]) {
+      expect(
+        new RegExp(`\\b${column}\\b`, 'i').test(final.body),
+        `admin_create_user's final definition (in ${final.file}) does not set auth.users.${column}. ` +
+          `It has no column default, so the row is written with NULL and GoTrue fails every ` +
+          `sign-in for that user with "converting NULL to string is unsupported" (HTTP 500)`
+      ).toBe(true);
+    }
+  });
+
+  it('a migration repairs the auth.users rows admin_create_user already wrote with NULL tokens', () => {
+    // Fixing the function only helps users created from now on. Accounts made
+    // before 034 are already broken in the live database and cannot sign in at
+    // all, so the migration must backfill them too.
+    const migrations = allMigrationsText();
+    const repaired = migrations.some(
+      (m) =>
+        /update\s+auth\.users/i.test(m.sql) &&
+        /confirmation_token\s*=\s*coalesce\s*\(\s*confirmation_token\s*,\s*''\s*\)/i.test(m.sql)
+    );
+    expect(
+      repaired,
+      "no migration backfills auth.users.confirmation_token (and its siblings) from NULL to '' — " +
+        'every user the admin panel created before this fix stays permanently unable to sign in'
+    ).toBe(true);
+  });
+
   // Migration 033 closed two live defects: (a) a company name stored under the
   // WRONG list_type was never matched by the raise-time trigger, and (b) the
   // 'vehicle' type accepted any text ('thar') instead of a real Indian plate.

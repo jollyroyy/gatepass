@@ -64,9 +64,58 @@ behavioural checks, see below).
 | Migration `030` | ✅ **applied 2026-08-08** — dropped `returnable_aging()`, whose only screen was removed |
 | Migration `031` | ✅ **applied + verified live 2026-08-08** — RLS + SELECT grants for `blacklist`/`vendor_profiles`, `lookup_pass` return renamed `blacklist_match`, dead code dropped (see below) |
 | Migration `032` | ✅ **applied + verified live 2026-08-08** — **one department per person** (see below): unique index on `hod_departments(hod_id)`, admin RPCs refuse >1 and mirror into `profiles.department_id` |
+| Migration `034` | ✅ **applied + verified live 2026-08-08** — **admin-created users can finally sign in** (see below): NULL GoTrue token columns backfilled (7 rows) and `admin_create_user` fixed |
 | Migration `033` | ✅ **applied + verified live 2026-08-08** — **blacklist + vehicle format hardened** (see below): strict Indian vehicle-format CHECK, blacklist form strictness, `parseCompanyInfo` packed-keys fix |
 | `gatepass.gate_passes` | ~10 rows — real user data as of 2026-08-08. **Not a scratch database any more; do not wipe it.** |
 | `public.departments` | ✅ 5 rows: FIN, HR, IT, SA, DEV |
+
+### `034` — every user the admin panel created was unable to log in (2026-08-08)
+
+**An admin adds a guard or HOD; the account is created and looks perfectly healthy — right
+row in `auth.users`, right role in `public.profiles` AND in `raw_app_meta_data`, email
+already confirmed, visible in the Users tab — and the person still cannot sign in.** Not
+"invalid credentials": a **500** from the auth server. Live auth logs named it:
+
+```
+converting NULL to string is unsupported
+```
+
+GoTrue scans `auth.users`' token columns into Go `string` fields, which cannot hold NULL.
+Four of them are **nullable with no column default**: `confirmation_token`,
+`recovery_token`, `email_change`, `email_change_token_new`. `admin_create_user` never
+listed them in its INSERT (021 → 023 → 032 all inherited the omission), so every account it
+created carried NULLs and died inside the auth server on the first sign-in attempt.
+
+Why nobody caught it earlier: **Supabase's own signup path writes `''` into all four**, so
+demo accounts, self-signups and `scripts/create-user.ts` (which goes through the Admin API)
+were unaffected. And the defect is invisible from GatePass's side — the RPC returns success,
+every row reads correctly, and no GatePass query touches those columns. Only the auth
+server does.
+
+`034` does two things, because fixing the function alone leaves the existing people locked
+out forever:
+1. **Backfills NULL→`''`** on those four columns (`UPDATE 7` live — every account the admin
+   panel had ever created). It touches nothing else, so a healthy row is left alone.
+2. **Recreates `admin_create_user`** with the four columns in the INSERT list, otherwise
+   byte-identical to `032`'s body (023's trigger fix and 032's one-department guard + VMS
+   mirror both preserved).
+
+The other string columns — `phone_change`, `phone_change_token`,
+`email_change_token_current`, `reauthentication_token` — each default to `''` and were
+always written correctly. They are deliberately omitted.
+
+**Verified live 2026-08-08**, end to end through the anon key, not psql: signed in as
+`admin@demo.vms`, called `admin_create_user` for real, then signed in as the brand-new user
+from a **fresh client** — succeeded, with `role: 'guard'` in the JWT. Probe user deleted;
+`still_null = 0` across all 32 `auth.users` rows.
+
+Static backstops in `tests/security/sqlInvariants.test.ts`: one test fails if the final
+`admin_create_user` definition stops setting any of the four columns, another fails if no
+migration backfills them. Both were written first and watched fail.
+
+**Rule this leaves behind: never hand-write an `insert into auth.users` without those four
+columns.** Nothing in Postgres will complain — the failure surfaces only in the auth
+server, on a later request, as a 500 with no connection to the insert that caused it.
 
 ### `033` — blacklist + vehicle format hardened (2026-08-08)
 
