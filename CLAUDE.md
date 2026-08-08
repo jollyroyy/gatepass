@@ -37,7 +37,7 @@ re-concatenated is a fix that never reaches the database.
 ## Current state — verified 2026-08-08
 
 Frontend typechecks and passes the full suite — verified by a real `npm run check` run on
-2026-08-08. **All migrations through `030` are applied to the live database**; `026`–`030`
+2026-08-08. **All migrations through `032` are applied to the live database**; `026`–`032`
 were written and applied 2026-08-08, `029` verified live with real anon-key JWTs (13/13
 behavioural checks, see below).
 
@@ -62,6 +62,8 @@ behavioural checks, see below).
 | Migration `028` | ✅ **applied + verified live 2026-08-08** — same-day expiry; `lookup_pass` blacklist JSON fix (see below) |
 | Migration `029` | ✅ **applied + verified live 2026-08-08** — per-item return timestamps; `gate_pass_items.returned_at` (see below) |
 | Migration `030` | ✅ **applied 2026-08-08** — dropped `returnable_aging()`, whose only screen was removed |
+| Migration `031` | ✅ **applied + verified live 2026-08-08** — RLS + SELECT grants for `blacklist`/`vendor_profiles`, `lookup_pass` return renamed `blacklist_match`, dead code dropped (see below) |
+| Migration `032` | ✅ **applied + verified live 2026-08-08** — **one department per person** (see below): unique index on `hod_departments(hod_id)`, admin RPCs refuse >1 and mirror into `profiles.department_id` |
 | `gatepass.gate_passes` | ~10 rows — real user data as of 2026-08-08. **Not a scratch database any more; do not wipe it.** |
 | `public.departments` | ✅ 5 rows: FIN, HR, IT, SA, DEV |
 
@@ -332,6 +334,36 @@ screen exercises and nobody reviews.
 `bulk_create_passes` is still **not** dropped — that one is pending a decision on whether
 Bulk Create returns; Returnable Aging is not coming back.
 
+### `032` — one department per person, DB-enforced (2026-08-08)
+
+Business rule: a person can belong to AT MOST ONE department, in both apps. VMS already
+models it structurally — `public.profiles.department_id` is a single column. The only place a
+user could acquire two departments was GatePass's join table. `032` closes that gap three
+ways:
+
+- **A unique index** `hod_departments_one_department_per_person` on `hod_departments (hod_id)`.
+  The database itself rejects a second row for the same person with a 23505 — no RPC can be
+  forgotten later, because every write path hits the same index.
+- **The admin functions now agree with VMS.** `admin_create_user` / `admin_update_user`
+  refuse a `p_department_ids` array longer than one ("A person can belong to at most one
+  department — found N."), and mirror the sole department into `profiles.department_id`
+  (VMS's authority) so both apps read the same fact for the same person. `[]` still clears,
+  `null` still means "unchanged".
+- **The demo seed no longer invents a multi-department HOD** — `005` seeds from
+  `profiles.department_id` only (it always did; the IT+DEV+SA cross-join is gone).
+
+Frontend follows: `DepartmentsTab`'s Assign action is now a MOVE (delete-then-insert, so
+assigning an already-assigned HOD relocates them instead of failing), and `UsersTab`'s
+create/edit modals use single-select department chips (edit pre-fills the HOD's current one;
+leave empty to unassign).
+
+**Verified live 2026-08-08:** applied cleanly (0 rows needed dedupe — all 7 HODs already
+held exactly one row); `7 people / 7 rows / max 1 per person`; a second row for a real HOD
+was refused with the exact `23505 duplicate key` and rolled back; both deployed function
+bodies carry the guard and the `department_id` mirror (checked via `pg_get_functiondef`).
+Static backstops: `tests/security/sqlInvariants.test.ts` now fails if the unique index is
+ever dropped, or if either admin function stops rejecting >1 / stops mirroring.
+
 ### KPI clicks scroll their results into view (2026-08-08, frontend only)
 
 `src/lib/useScrollIntoViewOnChange.ts` — one hook, used by `GuardDashboard` and
@@ -600,8 +632,10 @@ correct `app_metadata.role` in the JWT — which is what RLS authorizes off, not
 `422 weak_password`. Lowering that minimum would weaken it for VMS too, so `demo123` was
 chosen instead.
 
-`hod.it@demo.vms` owns three departments (IT + DEV + SA) — use it to exercise the
-many-to-many. `staff@demo.vms` is the one to use for testing the no-access path.
+`hod.it@demo.vms` heads Information Technology only — since migration `032` a person belongs
+to at most one department (unique index on `hod_departments.hod_id`), so no single account
+exercises a multi-department shape any more. `staff@demo.vms` is the one to use for testing
+the no-access path.
 
 **`auth.users` is shared with VMS**, so this changed VMS's logins as well — there is only one
 credential set across both apps. The separate **NoonHR** project (`ibxguyqsizpjfkhhuqrz`) was
@@ -690,10 +724,11 @@ Postgres RLS cannot express "you may change `status` but not `visitor_name`" —
 authority lives in `security definer` functions instead. Route new state changes through
 a new RPC; do not add an UPDATE policy.
 
-**HOD→department is many-to-many** (`gatepass.hod_departments`). VMS's single
-`profiles.department_id` cannot express "one HOD across 2-3 departments", and the live DB
-has the opposite shape too (two HODs per department). VMS's column is untouched and
-ignored here.
+**HOD→department is one-to-many** (`gatepass.hod_departments`, one row per person since
+`032`; a department may still host several HODs). VMS models the same rule structurally via
+`profiles.department_id` (a single column), and the admin functions mirror the sole
+department into it so both apps agree. Never write a second row for the same `hod_id` — the
+unique index rejects it with a 23505.
 
 **`is_overdue` is defined exactly once**, in the `gatepass.v_gate_passes` view. Never
 recompute it in TypeScript. Overdue is computed at query time — no `pg_cron` dependency.

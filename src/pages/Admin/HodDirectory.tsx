@@ -1,10 +1,10 @@
-// Who the HODs are and what each one covers — the other side of the
-// department↔HOD many-to-many.
+// Who the HODs are and what each one heads — the person→department view.
 //
 // The Departments list answers "who heads Engineering?". This answers "what does
 // Asha head?", which the department cards cannot show without the reader holding
 // three cards in their head at once. VMS's single `profiles.department_id` cannot
-// express either direction, which is why gatepass.hod_departments exists.
+// express the department→HOD direction (several HODs per department), which is
+// why gatepass.hod_departments exists — one row per person since migration 032.
 import React from 'react';
 import type { Department, Profile } from '../../types';
 

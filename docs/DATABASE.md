@@ -95,7 +95,7 @@ Two consequences worth remembering:
 
 ### `gatepass.hod_departments`
 
-Created in `001`. The many-to-many join between HODs and the mall departments they cover.
+Created in `001`. The join between HODs and the mall department they head.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -105,11 +105,14 @@ Created in `001`. The many-to-many join between HODs and the mall departments th
 
 Primary key: composite `(hod_id, department_id)`, unnamed.
 
-**Why a join table at all:** VMS's `profiles.department_id` is a single column and can only
-express one department per person. The live data contradicts that shape twice over — one HOD
-covering IT, DEV and SA simultaneously, and two HODs assigned to the same department. A join
-table is the only shape that holds both directions of that many-to-many without touching VMS's
-column, which stays untouched and ignored here.
+**One department per person since `032`:** a unique index
+(`hod_departments_one_department_per_person`) on `hod_id` means the database itself rejects a
+second row for the same person. This closes the one gap in "a person belongs to at most one
+department": VMS models that rule structurally (`profiles.department_id` is a single column),
+and `032` makes GatePass's join table agree with it. The admin functions refuse a multi-element
+department array and mirror the sole department into `profiles.department_id`, so VMS and
+GatePass read the same fact for the same person. A department may still host several HODs —
+that direction remains one-to-many, which is why the join table still exists at all.
 
 ### `gatepass.gate_passes`
 
@@ -280,6 +283,7 @@ the exact same "unsafe use of new value" trap and stays plpgsql for the same rea
 | Name | Table / columns | Unique | Partial | Migration | Status |
 |---|---|---|---|---|---|
 | `hod_departments_dept_idx` | `hod_departments (department_id)` | no | no | 001 | live |
+| `hod_departments_one_department_per_person` | `hod_departments (hod_id)` | yes | no | 032 | live |
 | `gate_passes_status_idx` | `gate_passes (status)` | no | no | 001 | live |
 | `gate_passes_dept_idx` | `gate_passes (department_id)` | no | no | 001 | live |
 | `gate_passes_raised_by_idx` | `gate_passes (raised_by)` | no | no | 001 | live |
@@ -567,7 +571,7 @@ key can't shortcut the state machine.
 | 002 | `002_gatepass_rls.sql` | Grants to `authenticated` only (none to `anon`); adds `app_role()`, `is_security()`, `is_admin()`, `my_department_ids()`; enables RLS and defines the select/insert policies; adds `gate_passes` to the `supabase_realtime` publication. |
 | 003 | `003_gatepass_rpcs.sql` | Adds `match_pass`, `flag_pass`, `mark_returned` — the only legal way to move a pass between statuses. |
 | 004 | `004_gatepass_view.sql` | Adds `v_gate_passes` (with `is_overdue`), `kpis()`, and `v_verifications`. |
-| 005 | `005_seed_hod_departments.sql` | **Optional demo seed — skip in a real deployment.** Backfills `hod_departments` from VMS's `public.profiles.department_id`, then gives one HOD extra departments to demonstrate the many-to-many. Idempotent. |
+| 005 | `005_seed_hod_departments.sql` | **Optional demo seed — skip in a real deployment.** Backfills `hod_departments` from VMS's `public.profiles.department_id` (one department per person, since `032`). Idempotent. |
 | 006 | `006_profiles_rls_isolation.sql` | Fixes a `42P17 infinite recursion` crash caused by `v_gate_passes` (under `security_invoker`) hitting VMS's recursive `public.profiles` policy. Adds owner-rights view `profile_names`, plus `my_profile()` and `admin_list_profiles()`, and repoints both views away from `public.profiles`. |
 | 007 | `007_service_role_grants.sql` | Grants `service_role` the narrowest set that unblocks `scripts/verify-rls.mjs`. Deliberately grants it nothing on `gate_passes`. |
 | 008 | `008_qr_token_expiry_cancel.sql` | Adds `site_tz()`; adds `qr_token`, `expires_at`, `cancel_reason`; adds the `'cancelled'` enum label to two enums; rewrites `set_pass_number`; backfills then sets `expires_at not null`; adds `normalize_material()` and the one-pending-per-material unique partial index; creates `scan_attempts` with RLS and `lookup_pass()`; extends `match_pass` with the expiry check; adds `cancel_pass()`; rebuilds `v_gate_passes` with `is_expired`. |

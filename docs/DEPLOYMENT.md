@@ -103,9 +103,10 @@ Because `auth.users` is shared with VMS, **every existing VMS guard automaticall
 loading-bay console access** and every VMS HOD can raise passes once assigned a department.
 Audit the VMS user list before go-live.
 
-An HOD must then be assigned departments in `gatepass.hod_departments` (the admin panel
-does this) — the mapping is many-to-many, so one HOD can cover Housekeeping, Engineering
-and Facilities at once.
+An HOD must then be assigned their department in `gatepass.hod_departments` (the admin panel
+does this) — one department per person since migration `032` (unique index on `hod_id`, with
+the same department mirrored into VMS's `profiles.department_id`). A department can still host
+several HODs.
 
 ## 7. Deploying to Vercel
 
