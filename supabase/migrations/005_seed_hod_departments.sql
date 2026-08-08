@@ -9,10 +9,15 @@
 -- This seeds from VMS's existing public.profiles.department_id, which is already
 -- populated for all 6 HOD accounts. Idempotent — safe to re-run.
 --
+-- As of migration 032 a person can belong to AT MOST ONE department (enforced
+-- by hod_departments_one_department_per_person, a unique index on hod_id), so
+-- the old multi-department demonstration for hod.it is gone — profiles.department_id
+-- is single-column, and this seed now mirrors exactly that single department.
+--
 -- SKIP THIS FILE in a real deployment; use the Admin → Departments screen instead.
 -- ============================================================================
 
--- 1) Every HOD gets the department VMS already has them against.
+-- 1) Every HOD gets the single department VMS already has them against.
 insert into gatepass.hod_departments (hod_id, department_id)
 select p.id, p.department_id
   from public.profiles p
@@ -20,20 +25,8 @@ select p.id, p.department_id
    and p.department_id is not null
 on conflict (hod_id, department_id) do nothing;
 
--- 2) Demonstrate the multi-department case the brief actually asked for:
---    one HOD covering several departments. Gives hod.it@demo.vms the two
---    departments that currently have no HOD at all (Sales, and the DEV one),
---    so a single login shows the multi-department picker on the raise form.
-insert into gatepass.hod_departments (hod_id, department_id)
-select p.id, d.id
-  from public.profiles p
- cross join public.departments d
- where p.email = 'hod.it@demo.vms'
-   and d.code in ('SA', 'DEV')
-on conflict (hod_id, department_id) do nothing;
-
--- Result to expect:
---   hod.it@demo.vms   → Information Technology + Sales + (DEV)   ← multi-department
+-- Result to expect (one department per person — 032):
+--   hod.it@demo.vms   → Information Technology
 --   hod2.it@demo.vms  → Information Technology
 --   hod.hr / hod2.hr  → Human Resources
 --   hod.fin / hod2.fin→ Finance & Accounts

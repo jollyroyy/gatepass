@@ -6006,6 +6006,461 @@ grant select on gatepass.v_gate_pass_items to authenticated;
 drop function if exists gatepass.returnable_aging(uuid);
 
 -- ═══════════════════════════════════════════════════════════
+-- 031_harden_ref_data_and_drop_dead.sql
+-- ═══════════════════════════════════════════════════════════
+-- ============================================================================
+-- 031 — RLS + read grants for reference data, lookup column rename, dead code
+--
+-- Four mutually-reinforcing defects, all verified live on 2026-08-08:
+--
+-- 1. `gatepass.blacklist` and `gatepass.vendor_profiles` had RLS DISABLED and
+--    no SELECT grant at all. `list_blacklist_entries()` and
+--    `list_vendor_profiles()` are plain (invoker) SQL functions, so every call
+--    threw `42501 permission denied for table` — live-proven on 2026-08-08.
+--    The RLS policies below are not decoration: they are what keeps a guard
+--    from reading the blacklist (a gate-side summary of criminal vendors) and
+--    an HOD from reading another department's vendor profiles, which the
+--    earlier "no grants at all" posture achieved by throwing an error on
+--    everyone. Scoped rows beat a blanket 42501.
+--
+-- 2. `lookup_pass` returned its blacklist column as `blacklist_note`, but
+--    every client (GateLookup.tsx:76,88; types/index.ts:225) reads
+--    `blacklist_match`. The guard scan silently dropped the reason. 028 fixed
+--    the VALUE (raw-JSON comparison) but shipped it under the wrong column
+--    name. The table column for the audit trail stays `blacklist_note`
+--    (scan_attempts.audit); only the RPC's return name changes.
+--
+-- 3. Dead code sweep — the 'held' state has no UI button anywhere
+--    (search verify-rls.mjs 'hm strong claim' — no caller in src/), bulk
+--    create was deleted from the app 2026-08-08 and `bulk_create_passes` has
+--    THREE overloads accumulated across 016/018/019, the 018-era 11-arg
+--    `raise_pass` is superseded by the 019 9-arg (the only one the client
+--    calls), `delete_vendor_profile` lost its page in the same frontend cut,
+--    and `check_blacklist` is a plpgsql/sql function nobody calls (027's
+--    trigger inlines its own lookup). All dropped. The `held` enum label
+--    stays — Postgres cannot drop enum values — but no code path can set it
+--    after this.
+--
+-- 4. The 020 per-pass material index was widened to unblock
+--    bulk_create_passes (which is now dropped). With no bulk path, restore
+--    the ORIGINAL invariant: one OPEN line per (department, material) —
+--    migration 008's actual, documented intent, whose comment says precisely
+--    "one pending pass per material per department".
+--
+-- 5. `storage.pass-images` was created `public=true` with an **anon** read
+--    policy — anyone with the project ref could read a photographed
+--    material. Nothing inside the app writes to it anymore (image upload
+--    died with the 018-era UI). Lock it down: bucket private, read policy
+--    restricted to authenticated.
+--
+-- ============================================================================
+
+-- ─── 1. RLS on reference tables + read grants ───────────────────────────────
+alter table gatepass.blacklist       enable row level security;
+alter table gatepass.vendor_profiles enable row level security;
+
+-- Blacklist: only admins may read it. A non-admin reading the blacklist needs
+-- to be an explicit, reviewed decision — the gate's blacklist warning arrives
+-- via lookup_pass (SECURITY DEFINER), never a table scan.
+drop policy if exists blacklist_select_only_admin on gatepass.blacklist;
+create policy blacklist_select_only_admin
+  on gatepass.blacklist for select to authenticated
+  using (gatepass.is_admin());
+
+-- Vendor profiles: admins read all; an HOD reads only their own departments.
+-- my_department_ids() is SECURITY DEFINER (002) so this policy cannot recurse.
+drop policy if exists vendor_profiles_select_scoped on gatepass.vendor_profiles;
+create policy vendor_profiles_select_scoped
+  on gatepass.vendor_profiles for select to authenticated
+  using (
+    gatepass.is_admin()
+    or (
+      gatepass.app_role() = 'hod'
+      and department_id in (select gatepass.my_department_ids())
+    )
+  );
+
+-- The missing grants behind every 42501 above. Execute grants for the RPCs
+-- already exist (016); these table grants let the invoker bodies run.
+grant select on gatepass.blacklist       to authenticated;
+grant select on gatepass.vendor_profiles to authenticated;
+
+-- ─── 2. lookup_pass: blacklist_note → blacklist_match (return column) ───────
+drop function if exists gatepass.lookup_pass(p_code text);
+
+create or replace function gatepass.lookup_pass(p_code text)
+returns table (outcome text, pass_id uuid, blacklist_match text)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_pass           gatepass.gate_passes;
+  v_code           text := trim(coalesce(p_code, ''));
+  v_uuid           uuid;
+  v_outcome        text;
+  v_blacklist_item record;
+  v_blacklist_text text := null;
+begin
+  if not gatepass.is_security() then
+    raise exception 'Only security can scan a gate pass.';
+  end if;
+
+  if v_code = '' then
+    raise exception 'Nothing was scanned.';
+  end if;
+
+  begin
+    v_uuid := v_code::uuid;
+  exception when invalid_text_representation then
+    v_uuid := null;
+  end;
+
+  if v_uuid is not null then
+    select * into v_pass from gatepass.gate_passes where qr_token = v_uuid;
+  else
+    select * into v_pass from gatepass.gate_passes where pass_number = upper(v_code);
+  end if;
+
+  if not found then
+    v_outcome := 'not_found';
+  elsif v_pass.status::text = 'hod_reviewed' then
+    v_outcome := 'ok';
+  elsif v_pass.status::text <> 'pending' then
+    v_outcome := 'already_' || v_pass.status::text;
+  elsif v_pass.expires_at < pg_catalog.now() then
+    v_outcome := 'expired';
+  else
+    v_outcome := 'ok';
+  end if;
+
+  if v_pass.id is not null and v_outcome = 'ok' then
+    select b.list_type, b.list_value, b.reason
+      into v_blacklist_item
+      from gatepass.blacklist b
+     where (b.list_type = 'company'
+            and lower(b.list_value)
+                = lower(trim(coalesce(gatepass.company_name_of(v_pass.visitor_company), ''))))
+        or (b.list_type = 'vehicle'
+            and lower(b.list_value) = lower(trim(coalesce(v_pass.vehicle_number, ''))))
+     limit 1;
+
+    if v_blacklist_item.reason is not null then
+      v_blacklist_text := v_blacklist_item.reason;
+    end if;
+  end if;
+
+  insert into gatepass.scan_attempts (scanned_code, gate_pass_id, scanned_by, outcome, blacklist_note)
+  values (v_code, v_pass.id, auth.uid(), v_outcome, v_blacklist_text);
+
+  return query select v_outcome, v_pass.id, v_blacklist_text;
+end;
+$$;
+
+revoke all on function gatepass.lookup_pass(p_code text) from public;
+grant execute on function gatepass.lookup_pass(p_code text) to authenticated;
+
+-- ─── 3. Dead code ───────────────────────────────────────────────────────────
+-- Bulk create (016/018-era successor overwritten only twice... actually three
+-- overloads exist live, from 016, 018 and 019). Drop all three.
+drop function if exists gatepass.bulk_create_passes(
+  gatepass.pass_type, gatepass.pass_direction, uuid, text, text,
+  text, date, jsonb, integer, text);
+
+drop function if exists gatepass.bulk_create_passes(
+  gatepass.pass_type, gatepass.pass_direction, uuid, text, text,
+  integer, text, date, jsonb, text);
+
+drop function if exists gatepass.bulk_create_passes(
+  gatepass.pass_type, gatepass.pass_direction, uuid, text, text,
+  text, date, jsonb, integer, text, text);
+
+-- The 018-era raise_pass that took p_image_url/p_category (superseded by 019's
+-- 9-arg signature, the only one the client calls).
+drop function if exists gatepass.raise_pass(
+  gatepass.pass_type, gatepass.pass_direction, uuid, text, text, text,
+  text, date, jsonb, text, text);
+
+-- No caller in src/ since the HOD Vendor Profiles page was deleted.
+drop function if exists gatepass.delete_vendor_profile(uuid);
+
+-- Nobody calls it; the per-pass hold UI never shipped.
+drop function if exists gatepass.hold_pass(uuid, text, text, jsonb);
+
+-- Nobody calls: the 027 trigger inlines the sole blacklist lookup.
+drop function if exists gatepass.check_blacklist(text, text, text);
+
+-- ─── 4. Restore the per-department material-uniqueness index ────────────────
+-- 020 widened it to per-pass to let bulk_create_passes insert N identical
+-- lines in one transaction. Bulk create is gone (dropped above); the intent
+-- this index enforces is 008's: one OPEN line per (department, material).
+drop index if exists gatepass.gate_pass_items_one_open_per_material_idx;
+
+create unique index gate_pass_items_one_open_per_department_material_idx
+  on gatepass.gate_pass_items
+     (department_id, gatepass.normalize_material(description))
+  where is_open;
+
+comment on index gatepass.gate_pass_items_one_open_per_department_material_idx is
+  'One OPEN line per (department, material) — the 008 invariant, restored in 031 '
+  '(020 widened this per-pass to unblock the now-deleted bulk_create_passes).';
+
+-- ─── 5. Lock down storage.pass-images ───────────────────────────────────────
+update storage.buckets
+   set public = false
+ where id = 'pass-images';
+
+do $$ begin
+  drop policy if exists "anyone can view pass-images" on storage.objects;
+exception when others then null; end $$;
+
+do $$ begin
+  create policy "authenticated can view pass-images"
+    on storage.objects for select
+    to authenticated
+    using (bucket_id = 'pass-images');
+exception when duplicate_object then null; end $$;
+
+-- ═══════════════════════════════════════════════════════════
+-- 032_one_department_per_person.sql
+-- ═══════════════════════════════════════════════════════════
+-- ============================================================================
+-- 032 — One department per person (GatePass and VMS must agree)
+--
+-- Business rule, 2026-08-08: a person can belong to AT MOST ONE department.
+-- VMS models this structurally — public.profiles.department_id is a single
+-- column — so VMS was already constrained. GatePass's join table
+-- (gatepass.hod_departments) was a many-to-many and the one place a user
+-- could acquire two departments. This migration closes that gap three ways:
+--
+--   1. A UNIQUE index on hod_departments (hod_id): the database itself
+--      rejects a second row for the same person. No RPC can be forgotten
+--      later, because the failing path is a 23505 no matter who writes.
+--   2. The department-bearing admin functions (admin_create_user,
+--      admin_update_user) now REJECT more than one department with a clear
+--      message, and — critically for "VMS and GatePass" — mirror the chosen
+--      department into public.profiles.department_id, VMS's single-column
+--      authority. The two apps then read the same fact for the same person.
+--   3. The demo seed 005 no longer invents a multi-department HOD (it only
+--      ever seeded from profiles.department_id — itself single).
+--
+-- A department may still have several HODs; the live DB's shape is exactly
+-- that (two HODs in HR, two in IT, three in FIN). Only the person→department
+-- direction becomes one-to-one.
+--
+-- No one currently in the database has more than one row (verified 2026-08-08:
+-- all 7 HODs carry exactly one assignment), so this migration contains NO data
+-- repair. The dedupe below is defensive only — it keeps one row per person
+-- (the department the VMS profile already names, else the newest) so a DB that
+-- somehow accumulated duplicates cannot break the paste.
+-- ============================================================================
+
+-- 1) Defensive dedupe: keep per person the row matching profiles.department_id
+--    (VMS is the authority), else the newest. Distinct on (hod_id).
+with keeper as (
+  select distinct on (hod_id) hod_id, department_id
+    from gatepass.hod_departments hd
+   order by hod_id,
+     department_id = (
+       select p.department_id from public.profiles p where p.id = hd.hod_id
+     ) desc,
+     created_at desc
+)
+delete from gatepass.hod_departments hd
+where (hd.hod_id, hd.department_id) not in (select hod_id, department_id from keeper);
+
+-- 2) THE constraint: one row per person.
+create unique index hod_departments_one_department_per_person
+  on gatepass.hod_departments (hod_id);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- admin_create_user — recreated: at most one department, mirrored to VMS
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Replaces the 021/025-era definition. All prior behaviours preserved (023's
+-- trigger-collision fix included); the department handling is now single:
+--   * more than one department is refused outright;
+--   * the chosen (sole) department is written to BOTH gatepass.hod_departments
+--     AND public.profiles.department_id (VMS), so the two apps agree.
+create or replace function gatepass.admin_create_user(
+  p_email          text,
+  p_password       text,
+  p_full_name      text,
+  p_role           text,
+  p_department_ids uuid[] default null
+)
+returns json
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_user_id uuid;
+  v_now     timestamptz := now();
+  v_dept    uuid;
+begin
+  if not gatepass.is_admin() then
+    raise exception 'Only an admin can create users.';
+  end if;
+
+  if p_role in ('admin', 'super_admin') then
+    raise exception 'Cannot create an admin user. Use the CLI with the service-role key.';
+  end if;
+
+  if p_role not in ('guard', 'hod', 'staff') then
+    raise exception 'Invalid role "%". Allowed: guard, hod, staff.', p_role;
+  end if;
+
+  if p_department_ids is not null and array_length(p_department_ids, 1) > 1 then
+    raise exception 'A person can belong to at most one department — found %.', array_length(p_department_ids, 1);
+  end if;
+
+  v_dept := case
+    when p_department_ids is not null and array_length(p_department_ids, 1) = 1
+    then p_department_ids[1]
+    else null
+  end;
+
+  if exists (select 1 from auth.users where email = p_email) then
+    raise exception 'A user with email "%" already exists.', p_email;
+  end if;
+
+  v_user_id := gen_random_uuid();
+
+  -- This insert fires public.handle_new_user(), which creates the matching
+  -- public.profiles row (role defaulted to 'staff') — corrected below, not
+  -- re-inserted, or this collides with the trigger's own row (023).
+  insert into auth.users (
+    instance_id, id, aud, role,
+    email, encrypted_password,
+    email_confirmed_at, confirmation_sent_at,
+    raw_app_meta_data, raw_user_meta_data,
+    created_at, updated_at,
+    is_sso_user
+  ) values (
+    '00000000-0000-0000-0000-000000000000',
+    v_user_id,
+    'authenticated',
+    'authenticated',
+    p_email,
+    extensions.crypt(p_password, extensions.gen_salt('bf')),
+    v_now, v_now,
+    jsonb_build_object('provider', 'email', 'providers', array['email'], 'role', p_role),
+    jsonb_build_object('full_name', p_full_name),
+    v_now, v_now,
+    false
+  );
+
+  update public.profiles
+  set role = p_role::public.user_role,
+      department_id = v_dept
+  where id = v_user_id;
+
+  update auth.users
+  set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('role', p_role)
+  where id = v_user_id;
+
+  if p_role = 'hod' and v_dept is not null then
+    insert into gatepass.hod_departments (hod_id, department_id)
+    values (v_user_id, v_dept);
+  end if;
+
+  return json_build_object(
+    'id', v_user_id::text,
+    'email', p_email,
+    'role', p_role
+  );
+end;
+$$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- admin_update_user — recreated: one department max, mirrored to VMS
+-- ═══════════════════════════════════════════════════════════════════════════
+-- p_department_ids = null  → departments unchanged
+-- p_department_ids = []    → clear the person's assignments (and VMS column)
+-- p_department_ids = [d]   → replace with exactly d (VMS column mirrors it)
+create or replace function gatepass.admin_update_user(
+  p_user_id        uuid,
+  p_full_name      text default null,
+  p_role           text default null,
+  p_department_ids uuid[] default null
+)
+returns json
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_current_role text;
+  v_dept         uuid;
+begin
+  if not gatepass.is_admin() then
+    raise exception 'Only an admin can update users.';
+  end if;
+
+  if p_role is not null then
+    if p_role in ('admin', 'super_admin') then
+      raise exception 'Cannot promote to admin. Use the CLI with the service-role key.';
+    end if;
+    if p_role not in ('guard', 'hod', 'staff') then
+      raise exception 'Invalid role "%". Allowed: guard, hod, staff.', p_role;
+    end if;
+  end if;
+
+  -- Look up current role to guard against the caller changing their own role
+  select role::text into v_current_role
+  from public.profiles
+  where id = p_user_id;
+
+  if not found then
+    raise exception 'User not found.';
+  end if;
+
+  if p_department_ids is not null and array_length(p_department_ids, 1) > 1 then
+    raise exception 'A person can belong to at most one department — found %.', array_length(p_department_ids, 1);
+  end if;
+
+  v_dept := case
+    when p_department_ids is not null and array_length(p_department_ids, 1) = 1
+    then p_department_ids[1]
+    else null
+  end;
+
+  -- Update profile (department_id changes only when the caller spoke of it)
+  update public.profiles
+  set
+    full_name = coalesce(p_full_name, full_name),
+    role      = coalesce(p_role::public.user_role, role),
+    department_id = case when p_department_ids is not null then v_dept else department_id end
+  where id = p_user_id;
+
+  -- Sync role to auth.users app_metadata
+  if p_role is not null then
+    update auth.users
+    set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('role', p_role),
+        updated_at = now()
+    where id = p_user_id;
+  end if;
+
+  -- Reassign the person's single department (only meaningful for HOD)
+  if p_department_ids is not null then
+    delete from gatepass.hod_departments where hod_id = p_user_id;
+    if v_dept is not null then
+      insert into gatepass.hod_departments (hod_id, department_id)
+      values (p_user_id, v_dept);
+    end if;
+  end if;
+
+  return json_build_object('id', p_user_id::text, 'updated', true);
+end;
+$$;
+
+-- 021 grants cover these signatures; re-asserting keeps a fresh paste
+-- self-contained (create or replace inherits grants on the same signature,
+-- so this is belt-and-braces only).
+grant execute on function gatepass.admin_create_user(text, text, text, text, uuid[]) to authenticated;
+grant execute on function gatepass.admin_update_user(uuid, text, text, uuid[]) to authenticated;
+
+-- ═══════════════════════════════════════════════════════════
 -- 005_seed_hod_departments.sql
 -- ═══════════════════════════════════════════════════════════
 -- ============================================================================
@@ -6019,10 +6474,15 @@ drop function if exists gatepass.returnable_aging(uuid);
 -- This seeds from VMS's existing public.profiles.department_id, which is already
 -- populated for all 6 HOD accounts. Idempotent — safe to re-run.
 --
+-- As of migration 032 a person can belong to AT MOST ONE department (enforced
+-- by hod_departments_one_department_per_person, a unique index on hod_id), so
+-- the old multi-department demonstration for hod.it is gone — profiles.department_id
+-- is single-column, and this seed now mirrors exactly that single department.
+--
 -- SKIP THIS FILE in a real deployment; use the Admin → Departments screen instead.
 -- ============================================================================
 
--- 1) Every HOD gets the department VMS already has them against.
+-- 1) Every HOD gets the single department VMS already has them against.
 insert into gatepass.hod_departments (hod_id, department_id)
 select p.id, p.department_id
   from public.profiles p
@@ -6030,20 +6490,8 @@ select p.id, p.department_id
    and p.department_id is not null
 on conflict (hod_id, department_id) do nothing;
 
--- 2) Demonstrate the multi-department case the brief actually asked for:
---    one HOD covering several departments. Gives hod.it@demo.vms the two
---    departments that currently have no HOD at all (Sales, and the DEV one),
---    so a single login shows the multi-department picker on the raise form.
-insert into gatepass.hod_departments (hod_id, department_id)
-select p.id, d.id
-  from public.profiles p
- cross join public.departments d
- where p.email = 'hod.it@demo.vms'
-   and d.code in ('SA', 'DEV')
-on conflict (hod_id, department_id) do nothing;
-
--- Result to expect:
---   hod.it@demo.vms   → Information Technology + Sales + (DEV)   ← multi-department
+-- Result to expect (one department per person — 032):
+--   hod.it@demo.vms   → Information Technology
 --   hod2.it@demo.vms  → Information Technology
 --   hod.hr / hod2.hr  → Human Resources
 --   hod.fin / hod2.fin→ Finance & Accounts

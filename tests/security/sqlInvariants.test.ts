@@ -455,4 +455,65 @@ describe('SQL invariants', () => {
         `disagreeing answers for the same pass`
     ).toBe(1);
   });
+
+  it('one department per person: the unique index on hod_departments (hod_id) exists and is never dropped', () => {
+    // Migration 032: a person belongs to AT MOST ONE department. VMS models
+    // this structurally (public.profiles.department_id is a single column);
+    // gatepass.hod_departments was a join table, so this unique index is the
+    // one enforcement that closes both apps' gap. Admin RPCs validate too,
+    // but the index is the backstop — any writer, past or future, hits a
+    // 23505 instead of silently creating a two-department person.
+    const migrations = allMigrationsText();
+
+    const created = migrations.some((m) =>
+      /create\s+unique\s+index\s+(?:if not exists\s+)?hod_departments_one_department_per_person\s+on\s+gatepass\.hod_departments\s*\(\s*hod_id\s*\)/i.test(m.sql)
+    );
+    expect(
+      created,
+      'no migration creates a unique index on gatepass.hod_departments (hod_id) — the ' +
+        'one-department-per-person rule has no database enforcement at all'
+    ).toBe(true);
+
+    const dropped = migrations.some((m) =>
+      /drop\s+index\s+(?:if exists\s+)?(?:gatepass\.)?hod_departments_one_department_per_person/i.test(m.sql)
+    );
+    expect(
+      dropped,
+      'hod_departments_one_department_per_person is dropped by a later migration — that would ' +
+        'silently reopen the many-to-many; if the rule changes, delete this test in the same change'
+    ).toBe(false);
+  });
+
+  it('admin_create_user and admin_update_user refuse >1 department and mirror it into public.profiles.department_id', () => {
+    // The RPCs themselves must not be a second source of truth: they REJECT
+    // a multi-department array (so the UI cannot even produce a doomed
+    // insert), and they write the sole department into VMS's single-column
+    // authority so both apps read the same fact for the same person (032).
+    const migrations = allMigrationsText();
+    const fns = extractFunctions(migrations);
+
+    for (const name of ['gatepass.admin_create_user', 'gatepass.admin_update_user']) {
+      const definitions = fns.filter((fn) => fn.name === name);
+      expect(definitions.length, `no migration defines ${name}`).toBeGreaterThan(0);
+      const final = definitions[definitions.length - 1]; // highest-numbered migration wins
+
+      const hasGuard = /array_length\s*\(\s*p_department_ids\s*,\s*1\s*\)\s*>\s*1/i.test(final.body);
+      expect(
+        hasGuard,
+        `${name}'s final definition (in ${final.file}) does not reject a p_department_ids array ` +
+          `longer than one — the UI could then build a two-department person that only the unique ` +
+          `index would catch (after a 23505 surfacing as a confusing "already exists" error)`
+      ).toBe(true);
+
+      const mirrors =
+        /update\s+public\.profiles[\s\S]*?department_id/i.test(final.body) &&
+        /\bv_dept\b/i.test(final.body);
+      expect(
+        mirrors,
+        `${name}'s final definition (in ${final.file}) does not write the chosen department into ` +
+          `public.profiles.department_id — GatePass and VMS would then disagree about which ` +
+          `department this person belongs to`
+      ).toBe(true);
+    }
+  });
 });
