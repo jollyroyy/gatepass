@@ -33,15 +33,14 @@ function pass(over: Partial<GatePassView>): GatePassView {
   } as any;
 }
 
-// Raised today: one of each category, plus an outstanding and an overdue RGP.
+// A number of days ago, well outside "today" by any local-timezone reckoning.
+const DAYS_AGO = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+
+// Raised today: one of each category, plus a today-raised outstanding pass.
 const RAISED_TODAY: GatePassView[] = [
   pass({ id: 'p1', pass_number: 'PEND-0001', status: 'pending', type: 'RGP', direction: 'out' }),
   pass({ id: 'i1', pass_number: 'RGPIN-0001', status: 'pending', type: 'RGP', direction: 'in' }),
   pass({ id: 'n1', pass_number: 'NRGP-0001', status: 'pending', type: 'NRGP', direction: 'out' }),
-  pass({ id: 'a1', pass_number: 'AWAIT-0001', status: 'matched', type: 'RGP', direction: 'out',
-         return_status: 'awaiting_return', expected_return_date: '2026-09-01' }),
-  pass({ id: 'o1', pass_number: 'OVER-0001', status: 'matched', type: 'RGP', direction: 'out',
-         return_status: 'awaiting_return', expected_return_date: '2026-07-01', is_overdue: true }),
 ];
 
 // Verified today — a separate axis, because a pass raised yesterday and matched
@@ -52,17 +51,34 @@ const VERIFIED_TODAY: GatePassView[] = [
          verified_at: new Date().toISOString() }),
 ];
 
-/** Query builder mock: the dashboard now issues exactly two day-scoped
- *  queries — .gte('created_at', today) and .gte('verified_at', today) — and
- *  filters every drill out of those two sets client-side. */
+// Open obligations — NOT date-filtered at all. Includes one raised days ago
+// that is still out, and one raised days ago that is overdue. These are the
+// regression guard: today-scoping this set would strand `mark_returned`.
+const OPEN_OBLIGATIONS: GatePassView[] = [
+  pass({ id: 'a1', pass_number: 'AWAIT-0001', status: 'matched', type: 'RGP', direction: 'out',
+         return_status: 'awaiting_return', expected_return_date: '2026-09-01', created_at: DAYS_AGO }),
+  pass({ id: 'o1', pass_number: 'OVER-0001', status: 'matched', type: 'RGP', direction: 'out',
+         return_status: 'awaiting_return', expected_return_date: '2026-07-01', is_overdue: true,
+         created_at: DAYS_AGO }),
+];
+
+/** Query builder mock: the dashboard now issues three queries —
+ *  .gte('created_at', start).lt('created_at', end),
+ *  .gte('verified_at', start).lt('verified_at', end), and
+ *  .eq('return_status', 'awaiting_return') with no date filter — and filters
+ *  every drill out of those three sets client-side. */
 function builder() {
-  let axis: string | null = null;
+  let axis: 'created_at' | 'verified_at' | 'return_status' | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const obj: any = {};
-  for (const m of ['select', 'order', 'limit', 'in', 'lte', 'eq']) obj[m] = () => obj;
-  obj.gte = (col: string) => { axis = col; return obj; };
+  for (const m of ['select', 'order', 'limit', 'in', 'lte', 'lt']) obj[m] = () => obj;
+  obj.gte = (col: string) => { axis = col as typeof axis; return obj; };
+  obj.eq = (col: string) => { if (col === 'return_status') axis = 'return_status'; return obj; };
   obj.then = (onOk: (v: unknown) => unknown, onErr?: (e: unknown) => unknown) => {
-    const data = axis === 'verified_at' ? VERIFIED_TODAY : RAISED_TODAY;
+    const data =
+      axis === 'verified_at' ? VERIFIED_TODAY :
+      axis === 'return_status' ? OPEN_OBLIGATIONS :
+      RAISED_TODAY;
     return Promise.resolve({ data, error: null, count: data.length }).then(onOk, onErr);
   };
   return obj;
@@ -129,6 +145,7 @@ describe('GuardDashboard — KPI drills', () => {
     await waitFor(() => expect(screen.getByText('Pending for Gate Approval')).toBeInTheDocument());
     // "Successful Gate Passes" — every pass the gate cleared today, any type
     // or direction. `matched` is the status match_pass sets, so it IS success.
+    expect(screen.getByText('Expired')).toBeInTheDocument();
     expect(screen.getByText('Successful Gate Passes')).toBeInTheDocument();
     expect(screen.getByText('Mismatch at Gate')).toBeInTheDocument();
     expect(screen.getByText('Awaiting Return')).toBeInTheDocument();
@@ -199,6 +216,51 @@ describe('GuardDashboard — KPI drills', () => {
 
     await waitFor(() => expect(markReturned).toHaveBeenCalled());
     expect(markReturned.mock.calls[0][0]).toBe('mark_returned');
+  });
+
+  it('excludes a pass raised days ago from Pending, Matched and Mismatch — and their counts', async () => {
+    renderAt(<GuardDashboard />);
+    await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
+    // Pending: only today's three.
+    expect(screen.getByRole('button', { name: /Pending for Gate Approval/i })).toHaveTextContent('3');
+    expect(screen.queryByText('AWAIT-0001')).not.toBeInTheDocument();
+    expect(screen.queryByText('OVER-0001')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Successful Gate Passes'));
+    await waitFor(() => expect(screen.getByText('MTCH-0001')).toBeInTheDocument());
+    expect(screen.queryByText('AWAIT-0001')).not.toBeInTheDocument();
+    expect(screen.queryByText('OVER-0001')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Mismatch at Gate'));
+    await waitFor(() => expect(screen.getByText('FLAG-0001')).toBeInTheDocument());
+    expect(screen.queryByText('AWAIT-0001')).not.toBeInTheDocument();
+    expect(screen.queryByText('OVER-0001')).not.toBeInTheDocument();
+  });
+
+  it('keeps a days-old pass that is still awaiting_return visible on Awaiting Return and Overdue — the mark_returned regression guard', async () => {
+    renderAt(<GuardDashboard />);
+    await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Awaiting Return/i }));
+    await waitFor(() => expect(screen.getByText('AWAIT-0001')).toBeInTheDocument());
+    expect(screen.getByText('OVER-0001')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Awaiting Return/i })).toHaveTextContent('2');
+
+    fireEvent.click(screen.getByRole('button', { name: /^Overdue/i }));
+    await waitFor(() => expect(screen.getByText('OVER-0001')).toBeInTheDocument());
+    expect(screen.queryByText('AWAIT-0001')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Overdue/i })).toHaveTextContent('1');
+  });
+
+  it('marks Awaiting Return and Overdue as all-time on the card', async () => {
+    renderAt(<GuardDashboard />);
+    await waitFor(() => expect(screen.getByText('Awaiting Return')).toBeInTheDocument());
+    const awaitingCard = screen.getByRole('button', { name: /Awaiting Return/i });
+    const overdueCard = screen.getByRole('button', { name: /^Overdue/i });
+    const pendingCard = screen.getByRole('button', { name: /Pending for Gate Approval/i });
+    expect(awaitingCard).toHaveTextContent(/all time/i);
+    expect(overdueCard).toHaveTextContent(/all time/i);
+    expect(pendingCard).not.toHaveTextContent(/all time/i);
   });
 
   it('does not offer Mark Returned on the pending drill — nothing has left yet', async () => {

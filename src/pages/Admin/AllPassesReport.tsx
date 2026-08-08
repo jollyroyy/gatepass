@@ -7,7 +7,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { GatePassView } from '../../types';
 import Badge, { TypeChip } from '../../components/Badge';
-import { EXPIRED_STYLE, STATUS_STYLES } from '../../lib/statusStyles';
+import { EXPIRED_STYLE, STATUS_STYLES, isExpiredPending } from '../../lib/statusStyles';
 import { formatDateTime } from '../../lib/formatDate';
 import { downloadCsv, type CsvColumn } from '../../lib/exportUtils';
 
@@ -104,7 +104,7 @@ export default function AllPassesReport({ rows, onRowsChanged }: Props): React.R
                   <td className="max-w-[220px] truncate">{p.material_summary ?? ''}</td>
                   <td className="tabular">{p.item_count} item(s)</td>
                   <td>
-                    <Badge style={p.is_expired && p.status === 'pending' ? EXPIRED_STYLE : STATUS_STYLES[p.status]} />
+                    <Badge style={isExpiredPending(p) ? EXPIRED_STYLE : STATUS_STYLES[p.status]} />
                   </td>
                   <td>{p.raised_by_name}</td>
                   <td className="tabular whitespace-nowrap">{formatDateTime(p.created_at)}</td>

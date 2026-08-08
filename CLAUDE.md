@@ -36,7 +36,7 @@ re-concatenated is a fix that never reaches the database.
 
 ## Current state — verified 2026-08-04
 
-Frontend typechecks and passes all **383 tests** (29 files) — verified by a real
+Frontend typechecks and passes all **419 tests** (33 files) — verified by a real
 `npm run check` run on 2026-08-08. **All migrations through `025` are applied to the live
 database**, `024`/`025` applied and verified live 2026-08-04 (see below), `023` verified live, the rest as of 2026-07-27.
 **No migration was written this session — every change below is frontend-only.**
@@ -58,6 +58,8 @@ database**, `024`/`025` applied and verified live 2026-08-04 (see below), `023` 
 | Migration `024` | ✅ **applied 2026-08-04** — **cancellation removed entirely** (see below): `cancel_pass` dropped, HOD delete revoked, flagged-review `reject` removed, `cancel_reason` column dropped |
 | Migration `025` | ✅ **applied 2026-08-04** — **self-service profile** (see below): `my_profile()` gains `avatar_url` (drop+recreate), plus `update_my_name(text)` / `set_my_avatar(text)` |
 | Migration `026` | ✅ **applied + verified live 2026-08-08** — HOD override was 100% broken; `flag_reason` now survives it (see below) |
+| Migration `027` | ✅ **applied + verified live 2026-08-08** — blacklist actually enforced (trigger), HOD final rejection (see below) |
+| Migration `028` | ✅ **applied + verified live 2026-08-08** — same-day expiry; `lookup_pass` blacklist JSON fix (see below) |
 | `gatepass.gate_passes` | 0 rows — all passes wiped 2026-08-04 |
 | `public.departments` | ✅ 5 rows: FIN, HR, IT, SA, DEV |
 
@@ -130,6 +132,34 @@ combinations" that asserted two; corrected. Note `RaisePass` still hardcodes
 Console. `ALL_LINKS` is now exported from `Sidebar.tsx` so tests can assert nav order.
 **`ROLE_HOME.guard` is still `/console`, not the new dashboard** — the console is the working
 screen. Change it if landing on the dashboard is preferred.
+
+### Dashboards are period-scoped, and every KPI is a drill (2026-08-08)
+
+**All three dashboards default to today.** Historical data is reached through Reports
+(`/all-passes`, admin) or My Passes (`/my-passes`, HOD) — user's call: a dashboard is a
+snapshot, not an archive.
+
+- **HOD and Admin** carry a **period filter** top-right (`src/components/DashboardPeriodFilter.tsx`,
+  bounds in `src/lib/dashboardPeriod.ts`): Today / Weekly / Biweekly / Monthly / Yearly,
+  rolling windows ending at midnight tomorrow, default Today. `todayBounds()` in
+  `src/lib/hodKpis.ts` now delegates to `periodBounds('today')` — do not let a second
+  "start of today" implementation reappear.
+- **HOD dashboard**: Recent Passes is gone; every KPI is a clickable drill
+  (`src/lib/hodDrills.ts` + `HodDrillList.tsx`), including **RGP Issued**, **NRGP Issued**
+  and **Expired**. The **`<FlaggedReviewCard>` is deliberately fed by UNSCOPED rows** — a
+  mismatch raised yesterday still needs a decision today. Keep that comment.
+- **Admin dashboard** no longer calls the `kpis()` RPC (it aggregates all-time and takes no
+  date parameter); it derives its four KPIs from `v_gate_passes` rows instead. `kpis()` still
+  has one caller, the HOD dashboard.
+- **Guard dashboard is deliberately mixed-scope, and this is load-bearing.** Pending /
+  Matched / Mismatch / Expired are today-only; **Awaiting Return and Overdue are all-time**
+  and labelled "all time" on the card. They were previously (and wrongly) scoped to
+  `raisedToday`, which meant an RGP raised last week and still out was **invisible** — and
+  since `mark_returned` is reachable nowhere else in the UI, those passes could never be
+  closed at all. Do not "fix" the inconsistency by scoping them.
+
+**The invariant across all three:** a KPI's number is `rows.length` of the very list the
+click opens, both from the same filtered array. Never a separate `count: 'exact'` query.
 
 ### HOD nav trimmed + admin lands on the KPI board (2026-08-08, frontend only)
 
@@ -204,6 +234,63 @@ JWT: name updated, avatar set/cleared, and the empty-name case rejected with HTT
 `isNavActive()` (in `src/lib/roleRoutes.ts`) matches exact or parent-segment only. **AI
 Analytics was removed from the HOD view** (sidebar link, `/analytics` route,
 `HodAnalytics.tsx` deleted); the admin's AI Analytics tab under `/admin` is untouched.
+
+### `027` / `028` — the blacklist was decorative, and the JSON trap that hid it
+
+**`visitor_company` does not hold a company name.** `RaisePass` writes
+`JSON.stringify({n: name, a: address, v: phone})`, so the column holds
+`{"n":"BSC","a":"…","v":"…"}`. Every blacklist comparison in the codebase was
+`lower(list_value) = lower(trim(visitor_company))`, which can never equal `'bsc'`. This bit
+in **two** separate places, and both looked correct on inspection:
+- `check_blacklist()` (016) was never called at raise time at all — the list was advisory
+  data no code path consulted. `027` fixes this with a **BEFORE INSERT trigger**
+  (`gate_passes_enforce_blacklist`), not a check inside `raise_pass`: there are TWO
+  `raise_pass` overloads plus `bulk_create_passes`, and a trigger covers every insert path
+  including ones added later. The refusal message includes the reason, because an HOD told
+  only "blocked" cannot tell a deliberate ban from a typo and will just retry.
+- `lookup_pass()` compared the same raw JSON on the **gate** side, so a guard's scan
+  silently returned a null blacklist note every time — indistinguishable from "this vendor
+  is fine". `028` fixes it.
+
+`gatepass.company_name_of(text)` (027) unwraps the JSON and falls back to the raw text for
+legacy rows that stored a bare name. **Use it for any future comparison against
+`visitor_company`.** The trigger fires on INSERT only — blacklisting a vendor must not break
+the gate for passes already standing at the barrier.
+
+**Verified live 2026-08-08** (real anon-key JWTs): the JSON-wrapped, lowercased+padded, and
+legacy bare-text spellings of a blacklisted company were all refused with the reason; a clean
+vendor still got through; and rejection/matching behaved as designed. Probe rows deleted.
+
+**HOD final rejection (027).** A flagged pass could only ever be *approved*, so one the HOD
+did not want released sat at `flagged` forever. `hod_review_flagged_pass` now accepts
+`p_action = 'reject'`, moving the pass to **`cancelled`** and keeping `flag_reason`. This does
+not reopen what `024` closed: `024` stopped an HOD voiding their own pass on a whim; this
+applies only to a pass security has already stopped, only by the raising HOD, and adds no
+DELETE grant or UPDATE policy. Verified live: a rejected pass is refused by `match_pass`.
+
+**`'cancelled'` cannot appear in a CHECK constraint.** `026` used an allow-list
+(`status in ('flagged','hod_reviewed','matched')`); `027` needed `cancelled` too, and naming
+it **aborts the whole `APPLY_ALL.sql` paste** — the label is added by `008`, and the paste is
+ONE transaction, so Postgres hits "unsafe use of new value" at DDL time. It would have worked
+on this live DB and failed on every fresh deploy. `tests/security/sqlInvariants.test.ts`
+caught it. The constraint is now an inverted deny-list, `status not in ('pending','held')`,
+which names only original `001` labels and states `012`'s intent more directly anyway.
+
+### `028` — expiry is now same-day
+
+`expires_at` was end of the **next** day; it is now **end of the raising day** in
+`site_tz()`. Verified live: raised 09:47 IST → expires 23:59:59 the same day.
+
+**Trade-off to know about:** a pass raised at 23:50 is now valid for ten minutes. The old
+`+2 days` existed precisely to avoid that cliff. If it bites, the fix is "end of the raising
+day, but never less than N hours" — not a return to `+2 days`.
+
+**There is deliberately no `'expired'` status enum label and no `pg_cron` job.** Expiry is
+derived at query time from `expires_at`, exactly like `is_overdue`, and surfaced as
+`is_expired` on `v_gate_passes`. A pass reads as Expired when
+**`status === 'pending' && is_expired`** — a matched or flagged pass already reached its
+outcome. `src/lib/statusStyles.ts` exports `isExpiredPending()`; use it rather than
+re-deriving the pair, and **never recompute expiry from `expires_at` in TypeScript.**
 
 ### `026` — the HOD override could never have worked (2026-08-08)
 

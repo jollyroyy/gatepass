@@ -1,55 +1,41 @@
-// Admin Dashboard — the org-wide operational snapshot, not a period report.
-// Status counts (pending / matched / mismatched) live here as KPI cards
-// alongside the return/overdue metrics; the full register and per-department
-// breakdown still live under Reports (/all-passes).
+// Admin Dashboard — today-only operational snapshot, not a period report.
+// Every dashboard in this app shows only today's data; historical data lives
+// in Reports (/all-passes), which has its own date-range toolbar. There is no
+// `kpis()`-style RPC for a single day, so this page reads `v_gate_passes`
+// directly (an admin's RLS scope is org-wide) and derives every number from
+// one filtered array client-side — the same invariant the guard and HOD
+// dashboards use: a KPI's count is always `rows.length` of the exact list
+// behind it, never a second aggregate that could disagree.
 import React, { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { gp } from '../../supabaseClient';
-import type { PassKpis } from '../../types';
-import { EMPTY_KPIS } from '../../types';
+import type { GatePassView, ReturnStatus } from '../../types';
 import KpiCard from '../../components/KpiCard';
 import { safeErrorMessage } from '../../lib/errors';
+import { periodBounds, type DashboardPeriod } from '../../lib/dashboardPeriod';
+import DashboardPeriodFilter from '../../components/DashboardPeriodFilter';
 
-interface KpiRow {
-  total: number;
-  pending: number;
-  matched: number;
-  flagged: number;
-  awaiting_return: number;
-  overdue: number;
-  raised_today: number;
-  overdue_value: number;
-  flagged_rate: number;
-  return_rate: number;
-}
-
-function mapKpiRow(row: KpiRow | undefined): PassKpis {
-  if (!row) return EMPTY_KPIS;
-  return {
-    total: row.total ?? 0,
-    pending: row.pending ?? 0,
-    matched: row.matched ?? 0,
-    flagged: row.flagged ?? 0,
-    awaitingReturn: row.awaiting_return ?? 0,
-    overdue: row.overdue ?? 0,
-    raisedToday: row.raised_today ?? 0,
-    overdueValue: row.overdue_value ?? 0,
-    flaggedRate: row.flagged_rate ?? 0,
-    returnRate: row.return_rate ?? 0,
-  };
-}
+/** A pass with one line still out is still an open obligation. Exact lookup,
+ *  never `.includes()` on the enum. */
+const IS_OPEN_RETURN: Record<ReturnStatus, boolean> = {
+  not_applicable: false,
+  awaiting_return: true,
+  partially_returned: true,
+  returned: false,
+};
 
 export default function AdminDashboard(): React.ReactElement {
-  const [kpis, setKpis] = useState<PassKpis>(EMPTY_KPIS);
+  const [rows, setRows] = useState<GatePassView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [period, setPeriod] = useState<DashboardPeriod>('today');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const kpiRes = await gp().rpc('kpis', { p_department_id: null });
-      if (kpiRes.error) throw kpiRes.error;
-      const kpiRows = (kpiRes.data as KpiRow[] | null) ?? [];
-      setKpis(mapKpiRow(kpiRows[0]));
+      const res = await gp().from('v_gate_passes').select('*');
+      if (res.error) throw res.error;
+      setRows((res.data as GatePassView[] | null) ?? []);
       setError(null);
     } catch (err) {
       setError(safeErrorMessage(err));
@@ -62,29 +48,46 @@ export default function AdminDashboard(): React.ReactElement {
     load();
   }, [load]);
 
+  // Selected period (default Today), applied once here so every KPI below is
+  // derived from the same filtered array and cannot disagree with the number
+  // it shows.
+  const { start, end } = periodBounds(period);
+  const scopedRows = rows.filter((p) => {
+    const t = new Date(p.created_at).getTime();
+    return t >= start && t < end;
+  });
+
+  const awaitingReturnRows = scopedRows.filter((p) => IS_OPEN_RETURN[p.return_status]);
+  const overdueRows = awaitingReturnRows.filter((p) => p.is_overdue);
+  // Return rate over the scoped rows: returned ÷ returnable (RGP passes only —
+  // `not_applicable` NRGP rows never entered a return cycle at all).
+  const returnableRows = scopedRows.filter((p) => p.return_status !== 'not_applicable');
+  const returnedRows = returnableRows.filter((p) => p.return_status === 'returned');
+  const returnRate = returnableRows.length > 0 ? Math.round((returnedRows.length / returnableRows.length) * 100) : 0;
+
   return (
     <div>
-      <div className="page-header">
-        <h1 className="page-title">Admin Dashboard</h1>
-        <p className="page-subtitle">Org-wide operational snapshot.</p>
+      <div className="page-header flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="page-title">Admin Dashboard</h1>
+          <p className="page-subtitle">Org-wide operational snapshot.</p>
+        </div>
+        <DashboardPeriodFilter value={period} onChange={setPeriod} />
       </div>
 
       {error && <div className="alert-error mb-6">{error}</div>}
 
+      <div className="flex items-baseline gap-2 mb-3">
+        <span className="text-[11px] text-navy-400">
+          Older passes are in <Link to="/all-passes" className="link-inline">Reports</Link>.
+        </span>
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          label="Total"
-          value={kpis.total}
-          tone="neutral"
-          loading={loading}
-          delta={kpis.returnRate > 0 ? `${kpis.returnRate}% return rate` : kpis.raisedToday > 0 ? `▲ ${kpis.raisedToday} today` : undefined}
-        />
-        <KpiCard label="Pending for Gate Approval" value={kpis.pending} tone="pending" loading={loading} />
-        <KpiCard label="Matched" value={kpis.matched} tone="matched" loading={loading} />
-        <KpiCard label="Mismatched" value={kpis.flagged} tone="flagged" loading={loading} />
-        <KpiCard label="Awaiting Return" value={kpis.awaitingReturn} tone="brand" loading={loading} />
-        <KpiCard label="Return Rate" value={`${kpis.returnRate}%`} tone="matched" loading={loading} />
-        <KpiCard label="Overdue" value={kpis.overdue} tone="overdue" loading={loading} delta={kpis.overdueValue > 0 ? `₹${kpis.overdueValue.toLocaleString('en-IN')} in value` : undefined} />
+        <KpiCard label="Total" value={scopedRows.length} tone="neutral" loading={loading} />
+        <KpiCard label="Awaiting Return" value={awaitingReturnRows.length} tone="brand" loading={loading} />
+        <KpiCard label="Return Rate" value={`${returnRate}%`} tone="matched" loading={loading} />
+        <KpiCard label="Overdue" value={overdueRows.length} tone="overdue" loading={loading} />
       </div>
     </div>
   );

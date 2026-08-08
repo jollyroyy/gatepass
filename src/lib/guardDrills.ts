@@ -1,6 +1,6 @@
 // The guard dashboard's drills, defined once.
 //
-// EVERYTHING ON THE GUARD DASHBOARD IS SCOPED TO TODAY and resets at local
+// MOST OF THE GUARD DASHBOARD IS SCOPED TO TODAY and resets at local
 // midnight — it is a shift board, not a backlog. Two day axes, because "today"
 // means different things for a pass and for a gate action:
 //
@@ -9,21 +9,36 @@
 //   verifiedToday — the GUARD acted today (verified_at). Used by Matched and
 //                   Mismatch, which describe this shift's work, not the pass's age.
 //
-// Each drill is a KPI card AND the predicate behind the cards it reveals, so the
-// number on the card is `rows.length` of the very list the click opens. Two
-// separate queries — one counting, one listing — is exactly how a dashboard ends
-// up saying "4 awaiting return" above three cards.
+// AWAITING RETURN AND OVERDUE ARE THE DELIBERATE EXCEPTION — they are NOT
+// today-scoped, and that is a considered decision, not an oversight:
+//
+//   Pending / Matched / Mismatch describe an EVENT that happened today (a
+//   pass was raised, or the guard verified it), so "today only" is simply
+//   correct for them. Awaiting Return and Overdue describe an ONGOING
+//   OBLIGATION — material that is still outside the gate — which does not
+//   stop being true just because the calendar rolled over. An RGP raised
+//   last week whose material never came back is *more* urgent today than
+//   one raised an hour ago, not less, and it must not silently vanish from
+//   the board at midnight. Worse, `mark_returned` is reachable ONLY from
+//   the Awaiting Return drill card (GuardDrillCard) — today-scoping it would
+//   make a pass raised on an earlier day permanently unreturnable through
+//   the UI. So these two use the `openObligations` source: every pass
+//   currently `awaiting_return`, full stop, no date filter. They are marked
+//   `allTime: true` so the card visibly says so instead of looking like an
+//   inconsistency nobody noticed.
 import type { GatePassView } from '../types';
 import type { Tone } from '../components/KpiCard';
 import { categoryKey } from './passTypes';
+import { isExpiredPending } from './statusStyles';
 
 export type DrillKey =
   | 'rgpOut' | 'rgpIn' | 'nrgpOut'
-  | 'pending' | 'matched' | 'flagged'
+  | 'pending' | 'expired' | 'matched' | 'flagged'
   | 'awaiting' | 'overdue';
 
-/** Which of the two day-scoped row sets a drill filters. */
-export type DrillSource = 'raisedToday' | 'verifiedToday';
+/** Which row set a drill filters: the two day-scoped sets, or the
+ *  never-date-filtered set of open (still awaiting_return) passes. */
+export type DrillSource = 'raisedToday' | 'verifiedToday' | 'openObligations';
 
 export interface DrillDef {
   key: DrillKey;
@@ -36,6 +51,8 @@ export interface DrillDef {
   /** Only material that has actually left the gate can be marked returned. */
   returnable: boolean;
   source: DrillSource;
+  /** True for the two drills that are intentionally NOT today-scoped. */
+  allTime: boolean;
   match: (p: GatePassView) => boolean;
 }
 
@@ -50,6 +67,7 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     empty: 'No returnable material has gone out today.',
     returnable: false,
     source: 'raisedToday',
+    allTime: false,
     match: (p) => categoryKey(p.type, p.direction) === 'RGP-out',
   },
   rgpIn: {
@@ -60,6 +78,7 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     empty: 'No inbound returnable material today.',
     returnable: false,
     source: 'raisedToday',
+    allTime: false,
     match: (p) => categoryKey(p.type, p.direction) === 'RGP-in',
   },
   nrgpOut: {
@@ -70,6 +89,7 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     empty: 'No non-returnable material has gone out today.',
     returnable: false,
     source: 'raisedToday',
+    allTime: false,
     match: (p) => categoryKey(p.type, p.direction) === 'NRGP-out',
   },
   pending: {
@@ -80,7 +100,24 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     empty: 'Queue clear — nothing raised today is waiting.',
     returnable: false,
     source: 'raisedToday',
+    allTime: false,
     match: (p) => p.status === 'pending',
+  },
+  // Same today-scoping as `pending` — this is about today's gate activity:
+  // passes raised today whose paperwork went stale before anyone showed up.
+  // Not a status enum value; `is_expired` is derived by the database and only
+  // means anything while the pass is still pending (see isExpiredPending).
+  // Red (flagged tone) — this demands the same attention as a mismatch.
+  expired: {
+    key: 'expired',
+    label: 'Expired',
+    tone: 'flagged',
+    heading: 'Expired without reaching the gate',
+    empty: 'Nothing has expired today.',
+    returnable: false,
+    source: 'raisedToday',
+    allTime: false,
+    match: isExpiredPending,
   },
   matched: {
     key: 'matched',
@@ -93,6 +130,7 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     empty: 'No gate pass has been cleared today.',
     returnable: false,
     source: 'verifiedToday',
+    allTime: false,
     match: (p) => p.status === 'matched',
   },
   flagged: {
@@ -103,26 +141,32 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     empty: 'No mismatches recorded today.',
     returnable: false,
     source: 'verifiedToday',
+    allTime: false,
     match: (p) => p.status === 'flagged',
   },
   awaiting: {
     key: 'awaiting',
     label: 'Awaiting Return',
     tone: 'brand',
-    heading: 'Raised today, still out',
-    empty: 'Nothing raised today is still out.',
+    // Deliberately NOT today-scoped — see the module comment. An obligation
+    // that started last week is still open today.
+    heading: 'Still out (all time)',
+    empty: 'Nothing is currently out.',
     returnable: true,
-    source: 'raisedToday',
+    source: 'openObligations',
+    allTime: true,
     match: isAwaiting,
   },
   overdue: {
     key: 'overdue',
     label: 'Overdue',
     tone: 'overdue',
-    heading: 'Raised today and already past its return date',
-    empty: 'Nothing raised today is overdue.',
+    // Deliberately NOT today-scoped — see the module comment.
+    heading: 'Past its return date (all time)',
+    empty: 'Nothing is overdue.',
     returnable: true,
-    source: 'raisedToday',
+    source: 'openObligations',
+    allTime: true,
     match: (p) => isAwaiting(p) && p.is_overdue,
   },
 };
@@ -131,14 +175,7 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
  *  status of that work, then what is still open. */
 export const DRILL_ORDER: DrillKey[] = [
   'rgpOut', 'rgpIn', 'nrgpOut',
-  'pending', 'matched', 'flagged',
+  'pending', 'expired', 'matched', 'flagged',
   'awaiting', 'overdue',
 ];
 
-/** Local midnight, so the board resets with the calendar day the guard is in —
- *  not with UTC, which rolls over at 05:30 IST in the middle of a night shift. */
-export function startOfTodayIso(): string {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
-}

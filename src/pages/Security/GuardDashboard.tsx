@@ -9,13 +9,20 @@ import { gp, supabase } from '../../supabaseClient';
 import type { GatePassView } from '../../types';
 import KpiCard from '../../components/KpiCard';
 import { safeErrorMessage } from '../../lib/errors';
-import { DRILL_DEFS, DRILL_ORDER, startOfTodayIso, type DrillKey } from '../../lib/guardDrills';
+import { DRILL_DEFS, DRILL_ORDER, type DrillKey } from '../../lib/guardDrills';
+import { todayBounds } from '../../lib/hodKpis';
 import GuardDrillCard from './GuardDrillCard';
 
 type DrillRows = Record<DrillKey, GatePassView[]>;
-type DaySets = { raisedToday: GatePassView[]; verifiedToday: GatePassView[] };
+type DaySets = {
+  raisedToday: GatePassView[];
+  verifiedToday: GatePassView[];
+  /** Every pass currently awaiting_return, with NO date filter — see the
+   *  reasoning in guardDrills.ts. Powers Awaiting Return and Overdue. */
+  openObligations: GatePassView[];
+};
 
-const EMPTY_SETS: DaySets = { raisedToday: [], verifiedToday: [] };
+const EMPTY_SETS: DaySets = { raisedToday: [], verifiedToday: [], openObligations: [] };
 
 /** One pass through each day set, filtered by each drill's own predicate. The
  *  card's number and the card list it opens are therefore the same array. */
@@ -38,22 +45,29 @@ export default function GuardDashboard(): React.ReactElement {
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      // Two day-scoped queries, not eight. Every drill is a client-side filter
-      // of one of them, so the board resets at local midnight by construction.
-      const today = startOfTodayIso();
+      // Three queries, not eight. Every drill is a client-side filter of one
+      // of them, so the board resets at local midnight by construction — with
+      // the deliberate exception of `openObligations`, which carries no date
+      // filter at all (see guardDrills.ts for why Awaiting Return / Overdue
+      // must not be today-scoped).
+      const { start, end } = todayBounds();
+      const startIso = new Date(start).toISOString();
+      const endIso = new Date(end).toISOString();
       const base = () => gp().from('v_gate_passes').select('*');
-      const [raised, verified] = await Promise.all([
-        base().gte('created_at', today).order('created_at', { ascending: true }),
-        base().gte('verified_at', today).order('verified_at', { ascending: false }),
+      const [raised, verified, open] = await Promise.all([
+        base().gte('created_at', startIso).lt('created_at', endIso).order('created_at', { ascending: true }),
+        base().gte('verified_at', startIso).lt('verified_at', endIso).order('verified_at', { ascending: false }),
+        base().eq('return_status', 'awaiting_return').order('created_at', { ascending: true }),
       ]);
 
-      for (const res of [raised, verified]) {
+      for (const res of [raised, verified, open]) {
         if (res.error) throw res.error;
       }
 
       setSets({
         raisedToday: (raised.data as GatePassView[] | null) ?? [],
         verifiedToday: (verified.data as GatePassView[] | null) ?? [],
+        openObligations: (open.data as GatePassView[] | null) ?? [],
       });
       setError(null);
     } catch (err) {
@@ -115,11 +129,25 @@ export default function GuardDashboard(): React.ReactElement {
       <div className="page-header">
         <h1 className="page-title">Dashboard</h1>
         <p className="page-subtitle">
-          Today only — every figure resets at midnight. Tap one to see the passes behind it.
+          <span className="font-semibold text-navy-700">Showing today</span> — every figure
+          resets at midnight, except Awaiting Return and Overdue, which stay open until the
+          material actually comes back. Tap one to see the passes behind it. Historical
+          passes of any date live in Reports.
         </p>
       </div>
 
       {error && <div className="alert-error mb-6">{error}</div>}
+
+      {/* Zero-count renders nothing. Reads the same `rows.expired` array the
+          Expired KPI card counts, so the two can never disagree. */}
+      {rows.expired.length > 0 && (
+        <div className="bg-flagged-500/10 border-l-4 border-flagged-500 rounded-r-lg px-4 py-3 mb-6">
+          <p className="text-sm font-semibold text-flagged-700">
+            {rows.expired.length} {rows.expired.length === 1 ? 'pass' : 'passes'} expired without reaching the
+            gate today.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
         {DRILL_ORDER.map((key) => (
@@ -128,6 +156,7 @@ export default function GuardDashboard(): React.ReactElement {
             label={DRILL_DEFS[key].label}
             value={rows[key].length}
             tone={DRILL_DEFS[key].tone}
+            delta={DRILL_DEFS[key].allTime ? 'all time' : undefined}
             loading={loading}
             active={key === selected}
             onClick={() => setSelected(key)}

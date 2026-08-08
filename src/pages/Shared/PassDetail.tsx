@@ -12,6 +12,7 @@ import { safeErrorMessage } from '../../lib/errors';
 import { parseCompanyInfo } from '../../lib/companyInfo';
 import Badge, { TypeChip } from '../../components/Badge';
 import QrPass from '../../components/QrPass';
+import FlaggedReviewActions from './FlaggedReviewActions';
 
 /** `gatepass.v_verifications` — the table plus the security officer's name. */
 interface VerificationView extends Verification {
@@ -188,26 +189,11 @@ export default function PassDetail(): React.ReactElement {
               <p className="text-xs text-flagged-700">
                 Approving lets this material through despite the mismatch. The reason above stays on the record.
               </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={async () => {
-                    try {
-                      const { error: rpcErr } = await gp().rpc('hod_review_flagged_pass', {
-                        p_pass_id: pass.id,
-                        p_action: 'approve',
-                      });
-                      if (rpcErr) throw rpcErr;
-                      setReloadKey((k) => k + 1);
-                    } catch (err) {
-                      setError(safeErrorMessage(err));
-                    }
-                  }}
-                >
-                  Approve Override
-                </button>
-              </div>
+              <FlaggedReviewActions
+                passId={pass.id}
+                onDone={() => setReloadKey((k) => k + 1)}
+                onError={(message) => setError(message)}
+              />
             </div>
           )}
         </div>
@@ -221,6 +207,19 @@ export default function PassDetail(): React.ReactElement {
           {pass.flag_reason && (
             <p className="text-sm text-navy-500 whitespace-pre-wrap break-words">
               Originally flagged for: {pass.flag_reason}
+            </p>
+          )}
+        </div>
+      )}
+
+      {pass.status === 'cancelled' && (
+        <div className="alert-error flex-col items-start gap-1">
+          <p className="font-semibold">
+            Rejected by HOD — this pass is closed and cannot be used at the gate
+          </p>
+          {pass.flag_reason && (
+            <p className="text-sm text-navy-500 whitespace-pre-wrap break-words">
+              Security flagged it for: {pass.flag_reason}
             </p>
           )}
         </div>

@@ -7,7 +7,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { GatePassView } from '../../types';
 import Badge, { TypeChip } from '../../components/Badge';
-import { EXPIRED_STYLE, RETURN_STYLES, STATUS_STYLES } from '../../lib/statusStyles';
+import { EXPIRED_STYLE, RETURN_STYLES, STATUS_STYLES, isExpiredPending } from '../../lib/statusStyles';
 import { formatDateOnly } from '../../lib/formatDate';
 import { downloadCsv, type CsvColumn } from '../../lib/exportUtils';
 
@@ -107,7 +107,7 @@ export default function ReturnScheduleReport({ rows, onRowsChanged }: Props): Re
                     <Badge style={RETURN_STYLES[p.return_status]} />
                   </td>
                   <td>
-                    <Badge style={p.is_expired && p.status === 'pending' ? EXPIRED_STYLE : STATUS_STYLES[p.status]} />
+                    <Badge style={isExpiredPending(p) ? EXPIRED_STYLE : STATUS_STYLES[p.status]} />
                   </td>
                 </tr>
               ))}

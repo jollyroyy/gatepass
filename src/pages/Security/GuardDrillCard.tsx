@@ -10,7 +10,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView } from '../../types';
 import Badge, { TypeChip } from '../../components/Badge';
-import { OVERDUE_STYLE, STATUS_STYLES } from '../../lib/statusStyles';
+import { EXPIRED_STYLE, OVERDUE_STYLE, STATUS_STYLES, isExpiredPending } from '../../lib/statusStyles';
 import { formatDateOnly, formatDateTime } from '../../lib/formatDate';
 import { parseCompanyInfo } from '../../lib/companyInfo';
 
@@ -54,7 +54,9 @@ export default function GuardDrillCard({ pass, returnable, onMarkReturned }: Pro
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <TypeChip type={pass.type} />
-          <Badge style={pass.is_overdue ? OVERDUE_STYLE : STATUS_STYLES[pass.status]} />
+          <Badge
+            style={isExpiredPending(pass) ? EXPIRED_STYLE : pass.is_overdue ? OVERDUE_STYLE : STATUS_STYLES[pass.status]}
+          />
         </div>
         <Link
           to={`/pass/${pass.id}`}

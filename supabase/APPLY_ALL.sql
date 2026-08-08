@@ -5382,6 +5382,397 @@ alter table gatepass.gate_passes
         or status in ('flagged', 'hod_reviewed', 'matched'));
 
 -- ═══════════════════════════════════════════════════════════
+-- 027_blacklist_enforced_and_hod_rejection.sql
+-- ═══════════════════════════════════════════════════════════
+-- 027 — enforce the blacklist at raise time, and give the HOD a final rejection
+--
+-- ============================================================================
+-- PART 1 — the blacklist was decorative
+-- ============================================================================
+-- `gatepass.blacklist` and `gatepass.check_blacklist()` have existed since 016,
+-- but NOTHING called check_blacklist at raise time. A blacklisted vendor could
+-- be given a gate pass exactly as easily as any other; the list was advisory
+-- data that no code path consulted. (Live proof: the table already holds
+-- company 'BSC' / reason 'not good', and passes for it were never refused.)
+--
+-- WHY A TRIGGER AND NOT A CHECK INSIDE raise_pass
+--
+-- The requirement is that a blacklisted vendor cannot be raised *anywhere*.
+-- Enforcing inside raise_pass only covers the paths someone remembered to
+-- patch, and this schema currently carries TWO raise_pass overloads (a 9-arg
+-- and a stale 11-arg one from 018) plus bulk_create_passes. A BEFORE INSERT
+-- trigger on the table covers every one of them, including any RPC added
+-- later, and cannot be bypassed by picking a different overload.
+--
+-- THE JSON TRAP
+--
+-- `visitor_company` does NOT hold a plain company name. RaisePass writes
+-- JSON.stringify({n: name, a: address, v: phone}), so the column holds
+-- '{"n":"BSC","a":"...","v":"..."}'. check_blacklist compares
+-- lower(list_value) = lower(trim(p_company)), which can never match that blob —
+-- so a naive hook-up would have looked correct, passed review, and blocked
+-- nothing at all. company_name_of() below unwraps it, falling back to the raw
+-- text for older passes that stored a bare name.
+
+create or replace function gatepass.company_name_of(p_raw text)
+returns text
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v jsonb;
+begin
+  if p_raw is null or trim(p_raw) = '' then
+    return null;
+  end if;
+
+  -- Older rows hold a bare company name, which is not valid JSON. A failed
+  -- cast is the signal to treat the value as the name itself, not an error.
+  begin
+    v := p_raw::jsonb;
+  exception when others then
+    return trim(p_raw);
+  end;
+
+  if jsonb_typeof(v) = 'object' then
+    return nullif(trim(coalesce(v ->> 'n', '')), '');
+  end if;
+
+  return trim(p_raw);
+end;
+$$;
+
+comment on function gatepass.company_name_of(text) is
+  'Unwraps the {"n","a","v"} JSON in gate_passes.visitor_company to the company name. Falls back to the raw text for legacy rows that stored a bare name.';
+
+create or replace function gatepass.enforce_blacklist()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_company text;
+  v_hit     record;
+begin
+  v_company := gatepass.company_name_of(new.visitor_company);
+
+  select b.list_type, b.list_value, b.reason
+    into v_hit
+    from gatepass.blacklist b
+   where (v_company is not null
+          and b.list_type = 'company'
+          and lower(b.list_value) = lower(trim(v_company)))
+      or (new.vehicle_number is not null
+          and b.list_type = 'vehicle'
+          and lower(b.list_value) = lower(trim(new.vehicle_number)))
+      or (new.visitor_name is not null
+          and b.list_type = 'driver'
+          and lower(b.list_value) = lower(trim(new.visitor_name)))
+   limit 1;
+
+  if found then
+    -- The reason is part of the refusal on purpose: an HOD told only "blocked"
+    -- has no way to tell a deliberate ban from a typo, and will just retry.
+    raise exception 'Blocked: this % is blacklisted (%). Reason: %',
+      v_hit.list_type,
+      v_hit.list_value,
+      coalesce(nullif(trim(coalesce(v_hit.reason, '')), ''), 'no reason recorded');
+  end if;
+
+  return new;
+end;
+$$;
+
+-- BEFORE INSERT only, deliberately. Firing on UPDATE would mean that
+-- blacklisting a vendor today breaks the gate for passes raised before the ban:
+-- the guard could no longer match or flag material already standing at the
+-- barrier. A ban stops NEW passes; it does not rewrite history.
+drop trigger if exists gate_passes_enforce_blacklist on gatepass.gate_passes;
+create trigger gate_passes_enforce_blacklist
+  before insert on gatepass.gate_passes
+  for each row execute function gatepass.enforce_blacklist();
+
+-- ============================================================================
+-- PART 2 — the HOD can now finally reject a flagged pass, not only approve it
+-- ============================================================================
+-- 024 removed the 'reject' branch, leaving approve as the only outcome: a
+-- flagged pass the HOD did NOT want to release just sat at 'flagged' forever,
+-- with no way to say "security was right, this material stays".
+--
+-- The terminal state is 'cancelled', which already exists in BOTH
+-- gatepass.pass_status and gatepass.verify_action. That matters: a NEW enum
+-- label cannot be referenced by a check constraint in the transaction that adds
+-- it, and APPLY_ALL.sql is pasted as ONE transaction — so introducing a
+-- 'rejected' label would abort the whole paste at the constraint below.
+-- Reusing an existing label sidesteps that entirely.
+--
+-- This does NOT reopen the cancellation 024 closed. 024 stopped an HOD voiding
+-- their own pass on a whim. This is narrower by construction: it applies only
+-- to a pass security has ALREADY stopped, and only the raising HOD may do it.
+-- Nothing here restores a DELETE grant or an UPDATE policy; the state machine
+-- stays RPC-only.
+create or replace function gatepass.hod_review_flagged_pass(
+  p_pass_id uuid,
+  p_action  text,
+  p_reason  text default null
+)
+returns gatepass.gate_passes
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_pass    gatepass.gate_passes;
+  v_user_id uuid;
+begin
+  v_user_id := auth.uid();
+  if v_user_id is null then
+    raise exception 'Not authenticated.';
+  end if;
+
+  select * into v_pass from gatepass.gate_passes where id = p_pass_id for update;
+  if not found then
+    raise exception 'Gate pass not found.';
+  end if;
+
+  if v_pass.raised_by <> v_user_id then
+    raise exception 'Only the HOD who raised this pass can review it.';
+  end if;
+
+  if v_pass.status::text <> 'flagged' then
+    raise exception 'Only a flagged pass can be reviewed. This pass is %.', v_pass.status;
+  end if;
+
+  if p_action not in ('approve', 'reject') then
+    raise exception 'A flagged pass can only be approved or rejected.';
+  end if;
+
+  if p_action = 'approve' then
+    update gatepass.gate_passes
+       set status = 'hod_reviewed'::gatepass.pass_status
+     where id = p_pass_id
+     returning * into v_pass;
+
+    insert into gatepass.verifications
+      (gate_pass_id, action, security_user_id, remarks)
+    values
+      (p_pass_id, 'hod_reviewed'::gatepass.verify_action, v_user_id,
+       'HOD approved override of security flag');
+  else
+    -- flag_reason is deliberately preserved (see 026): a rejected pass must
+    -- keep the record of WHY security stopped it.
+    update gatepass.gate_passes
+       set status = 'cancelled'::gatepass.pass_status
+     where id = p_pass_id
+     returning * into v_pass;
+
+    insert into gatepass.verifications
+      (gate_pass_id, action, security_user_id, remarks)
+    values
+      (p_pass_id, 'cancelled'::gatepass.verify_action, v_user_id,
+       coalesce(nullif(trim(coalesce(p_reason, '')), ''),
+                'HOD upheld the security flag and rejected this pass'));
+  end if;
+
+  return v_pass;
+end;
+$$;
+
+revoke all on function gatepass.hod_review_flagged_pass(uuid, text, text) from public;
+grant execute on function gatepass.hod_review_flagged_pass(uuid, text, text) to authenticated;
+
+-- 026 widened this to an allow-list of flagged/hod_reviewed/matched. A rejected
+-- pass is 'cancelled' and keeps its reason, so that state must be permitted too
+-- — but the constraint is INVERTED to a deny-list rather than simply appending
+-- 'cancelled', and that is not a style choice.
+--
+-- 'cancelled' is added to gatepass.pass_status by migration 008. APPLY_ALL.sql
+-- is pasted as ONE transaction, and Postgres evaluates a CHECK expression at
+-- DDL time, so a constraint naming 'cancelled' aborts the entire paste with
+-- "unsafe use of new value". It would work on this live database (where 008 ran
+-- long ago) and fail on every fresh deploy — the worst kind of bug to ship.
+-- tests/security/sqlInvariants.test.ts catches exactly this and caught it here.
+--
+-- Naming only 'pending' and 'held' — both original 001 labels — sidesteps it,
+-- and states 012's real intent more directly anyway: no accusation may sit on a
+-- pass that nobody has acted on yet. Every state that CAN carry a reason is a
+-- state something has already happened in.
+alter table gatepass.gate_passes
+  drop constraint if exists gate_passes_flag_reason_only_when_flagged,
+  add  constraint gate_passes_flag_reason_only_when_flagged
+    check (flag_reason is null
+        or status not in ('pending', 'held'));
+
+-- ═══════════════════════════════════════════════════════════
+-- 028_same_day_expiry_and_lookup_blacklist_fix.sql
+-- ═══════════════════════════════════════════════════════════
+-- 028 — a pass that never reaches the gate expires at the end of ITS OWN day,
+--       and the guard-side blacklist check stops reading raw JSON
+--
+-- ============================================================================
+-- PART 1 — same-day expiry
+-- ============================================================================
+-- 008 set expires_at to the end of the NEXT day in gatepass.site_tz()
+-- (`date_trunc('day', now) + interval '2 days' - 1us`). The business rule is
+-- now: if material does not come to the gate on the day the pass was raised,
+-- the pass is dead at midnight. So the window becomes the raising day only.
+--
+-- TRADE-OFF, STATED EXPLICITLY: a pass raised at 23:50 is now valid for ten
+-- minutes. The old +2 days existed precisely to avoid that cliff. This is the
+-- requested rule and it is implemented as asked, but late-evening passes will
+-- expire almost immediately and have to be re-raised the next morning. If that
+-- bites, the fix is to make the window "end of the raising day, but never less
+-- than N hours", not to go back to +2 days.
+--
+-- There is deliberately NO new 'expired' enum label and NO pg_cron job.
+-- Expiry is derived at query time from expires_at, exactly like is_overdue:
+-- `is_expired` already exists in gatepass.v_gate_passes and needs no change.
+-- A background job that flipped a status column would be a second source of
+-- truth that is wrong between runs, and enum labels cannot be dropped once
+-- added. The UI renders a pending pass with is_expired = true as "Expired".
+--
+-- match_pass already refuses an expired pass, and flag_pass deliberately still
+-- does not — refusing to record a real mismatch because the paperwork went
+-- stale is backwards. Neither is changed here.
+create or replace function gatepass.set_pass_number()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  date_str text;
+  prefix   text;
+  seq_val  integer;
+  tz       text := gatepass.site_tz();
+begin
+  date_str := pg_catalog.to_char((pg_catalog.now() at time zone 'UTC')::date, 'YYYYMMDD');
+  prefix   := new.type::text || '-' || upper(new.direction::text) || '-' || date_str;
+
+  -- Serialise number generation for this prefix. A plain max()+1 lets two
+  -- concurrent inserts pick the same value and collide on the unique index.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('gatepass_pass_number_' || prefix));
+
+  select coalesce(max(substring(pass_number from '\d+$')::integer), 0)
+    into seq_val
+    from gatepass.gate_passes
+   where pass_number like prefix || '-%';
+
+  new.pass_number := prefix || '-' || lpad((seq_val + 1)::text, 4, '0');
+
+  -- Server-owned columns. The client must never choose any of these: the number
+  -- and timestamp are the audit anchor, and a crafted qr_token could pre-register
+  -- a code for a pass nobody ever held.
+  new.created_at  := pg_catalog.now();
+  new.updated_at  := pg_catalog.now();
+  new.qr_token    := gen_random_uuid();
+
+  -- End of the raising day in site_tz (was: end of the NEXT day).
+  new.expires_at  := ((date_trunc('day', (pg_catalog.now() at time zone tz)) + interval '1 day')
+                       at time zone tz) - interval '1 microsecond';
+
+  return new;
+end;
+$$;
+
+-- ============================================================================
+-- PART 2 — lookup_pass compared the blacklist against raw JSON
+-- ============================================================================
+-- `visitor_company` does NOT hold a plain company name: RaisePass writes
+-- JSON.stringify({n: name, a: address, v: phone}), so the column holds
+-- '{"n":"BSC","a":"...","v":"..."}'. lookup_pass compared
+--     lower(b.list_value) = lower(trim(coalesce(v_pass.visitor_company,'')))
+-- which can never equal 'bsc'. So the guard's scan NEVER surfaced a blacklist
+-- note for a company — it silently returned null every time, which reads
+-- exactly like "this vendor is fine".
+--
+-- 027 introduced gatepass.company_name_of() for precisely this and fixed the
+-- raise-time path; this is the same bug on the gate-side read path. The vehicle
+-- branch was always fine (vehicle_number is a bare string).
+--
+-- DROP first, not `create or replace`: the live function's OUT-parameter row
+-- type differs from the one declared below, and Postgres refuses to change a
+-- function's return type in place ("cannot change return type of existing
+-- function"). Migration 025 hit the same wall with my_profile(). The execute
+-- grant is re-applied immediately after, in this same transaction, so the
+-- function is never left callable-by-nobody.
+drop function if exists gatepass.lookup_pass(text);
+
+create or replace function gatepass.lookup_pass(p_code text)
+returns table (outcome text, pass_id uuid, blacklist_note text)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_pass           gatepass.gate_passes;
+  v_code           text := trim(coalesce(p_code, ''));
+  v_uuid           uuid;
+  v_outcome        text;
+  v_blacklist_item record;
+  v_blacklist_text text := null;
+begin
+  if not gatepass.is_security() then
+    raise exception 'Only security can scan a gate pass.';
+  end if;
+
+  if v_code = '' then
+    raise exception 'Nothing was scanned.';
+  end if;
+
+  begin
+    v_uuid := v_code::uuid;
+  exception when invalid_text_representation then
+    v_uuid := null;
+  end;
+
+  if v_uuid is not null then
+    select * into v_pass from gatepass.gate_passes where qr_token = v_uuid;
+  else
+    select * into v_pass from gatepass.gate_passes where pass_number = upper(v_code);
+  end if;
+
+  if not found then
+    v_outcome := 'not_found';
+  elsif v_pass.status::text = 'hod_reviewed' then
+    v_outcome := 'ok';
+  elsif v_pass.status::text <> 'pending' then
+    v_outcome := 'already_' || v_pass.status::text;
+  elsif v_pass.expires_at < pg_catalog.now() then
+    v_outcome := 'expired';
+  else
+    v_outcome := 'ok';
+  end if;
+
+  if v_pass.id is not null and v_outcome = 'ok' then
+    select b.list_type, b.list_value, b.reason
+      into v_blacklist_item
+      from gatepass.blacklist b
+     where (b.list_type = 'company'
+            and lower(b.list_value)
+                = lower(trim(coalesce(gatepass.company_name_of(v_pass.visitor_company), ''))))
+        or (b.list_type = 'vehicle'
+            and lower(b.list_value) = lower(trim(coalesce(v_pass.vehicle_number, ''))))
+     limit 1;
+
+    if v_blacklist_item.reason is not null then
+      v_blacklist_text := v_blacklist_item.reason;
+    end if;
+  end if;
+
+  insert into gatepass.scan_attempts (scanned_code, gate_pass_id, scanned_by, outcome, blacklist_note)
+  values (v_code, v_pass.id, auth.uid(), v_outcome, v_blacklist_text);
+
+  return query select v_outcome, v_pass.id, v_blacklist_text;
+end;
+$$;
+
+revoke all on function gatepass.lookup_pass(text) from public;
+grant execute on function gatepass.lookup_pass(text) to authenticated;
+
+-- ═══════════════════════════════════════════════════════════
 -- 005_seed_hod_departments.sql
 -- ═══════════════════════════════════════════════════════════
 -- ============================================================================

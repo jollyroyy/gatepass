@@ -31,6 +31,16 @@ export const EXPIRED_STYLE: StatusStyle = {
   bg: 'bg-overdue-50', text: 'text-overdue-700', dot: 'bg-overdue-500', label: 'Expired',
 };
 
+/** A pass reads as "Expired" only while it is still `pending` — once it
+ *  reaches an outcome (matched/flagged/held/hod_reviewed/cancelled) it is no
+ *  longer waiting on the gate, so a stale `expires_at` no longer means
+ *  anything for it. `is_expired` itself comes straight off `v_gate_passes`
+ *  and is never recomputed here — this only combines it with status. Exact
+ *  equality, never fuzzy string matching on the enum. */
+export function isExpiredPending(p: { status: PassStatus; is_expired: boolean }): boolean {
+  return p.status === 'pending' && p.is_expired;
+}
+
 export const RETURN_STYLES: Record<ReturnStatus, StatusStyle> = {
   not_applicable: { bg: 'bg-surface-100', text: 'text-navy-500', dot: 'bg-navy-400', label: '—' },
   awaiting_return: { bg: 'bg-brand-50', text: 'text-brand-700', dot: 'bg-brand-500', label: 'Awaiting Return' },

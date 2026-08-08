@@ -1,86 +1,25 @@
-// HOD landing page: KPIs, flagged passes needing attention, and a recent-passes
-// table. Realtime updates use a *silent* refresh (no `setLoading(true)`) so the
-// KPI numbers and tables update in place instead of flashing skeletons.
+// HOD landing page: KPIs and flagged passes needing attention. Every KPI is a
+// drill — clicking it lists the passes behind it, on this same page, mirroring
+// the guard dashboard (src/pages/Security/GuardDashboard.tsx). Realtime
+// updates use a *silent* refresh (no `setLoading(true)`) so the KPI numbers
+// and lists update in place instead of flashing skeletons.
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase, gp, pub } from '../../supabaseClient';
 import type { GatePassView, PassKpis, ReturnableAgingBucket } from '../../types';
 import { EMPTY_KPIS } from '../../types';
 import KpiCard from '../../components/KpiCard';
-import Badge, { TypeChip } from '../../components/Badge';
-import { STATUS_STYLES } from '../../lib/statusStyles';
-import { relativeAge } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
+import { formatCurrency } from '../../lib/formatCurrency';
+import { type KpiRow, mapKpiRow } from '../../lib/hodKpis';
 import FlaggedReviewCard from './FlaggedReviewCard';
+import HodDrillList from './HodDrillList';
+import ReturnableAging from './ReturnableAging';
+import { DRILL_DEFS, DRILL_ORDER, type DrillKey } from '../../lib/hodDrills';
+import { periodBounds, type DashboardPeriod } from '../../lib/dashboardPeriod';
+import DashboardPeriodFilter from '../../components/DashboardPeriodFilter';
 
 const FLAGGED_LIMIT = 5;
-const RECENT_LIMIT = 10;
-const SKELETON_ROWS = 6;
-
-function formatCurrency(n: number): string {
-  if (n >= 100000) return '₹' + (n / 100000).toFixed(1) + 'L';
-  if (n >= 1000) return '₹' + (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'K';
-  return '₹' + Math.round(n).toLocaleString('en-IN');
-}
-
-function ReturnableAging({ rows, loading }: { rows: ReturnableAgingBucket[]; loading: boolean }): React.ReactElement | null {
-  if (loading || rows.length === 0) return null;
-  const BUCKET_LABEL: Record<string, string> = { '0-7d': '0–7 days', '8-30d': '8–30 days', '31-90d': '31–90 days', '90+': '90+ days' };
-  return (
-    <div className="mb-8">
-      <h2 className="section-title mb-3">Returnable Aging</h2>
-      <div className="table-wrap">
-        <table className="table-base">
-          <thead>
-            <tr>
-              <th>Period</th>
-              <th>Items Out</th>
-              <th>Estimated Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.bucket}>
-                <td className="font-semibold text-navy-900">{BUCKET_LABEL[r.bucket] ?? r.bucket}</td>
-                <td className="tabular">{r.item_count}</td>
-                <td className="tabular">{formatCurrency(r.total_value)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-interface KpiRow {
-  total: number;
-  pending: number;
-  matched: number;
-  flagged: number;
-  awaiting_return: number;
-  overdue: number;
-  raised_today: number;
-  overdue_value: number;
-  flagged_rate: number;
-  return_rate: number;
-}
-
-function mapKpiRow(row: KpiRow | undefined): PassKpis {
-  if (!row) return EMPTY_KPIS;
-  return {
-    total: row.total ?? 0,
-    pending: row.pending ?? 0,
-    matched: row.matched ?? 0,
-    flagged: row.flagged ?? 0,
-    awaitingReturn: row.awaiting_return ?? 0,
-    overdue: row.overdue ?? 0,
-    raisedToday: row.raised_today ?? 0,
-    overdueValue: row.overdue_value ?? 0,
-    flaggedRate: row.flagged_rate ?? 0,
-    returnRate: row.return_rate ?? 0,
-  };
-}
 
 export default function Dashboard(): React.ReactElement {
   const navigate = useNavigate();
@@ -89,13 +28,19 @@ export default function Dashboard(): React.ReactElement {
   const [deptNames, setDeptNames] = useState<string[]>([]);
   const [kpis, setKpis] = useState<PassKpis>(EMPTY_KPIS);
   const [flagged, setFlagged] = useState<GatePassView[]>([]);
-  const [recent, setRecent] = useState<GatePassView[]>([]);
+  const [allRows, setAllRows] = useState<GatePassView[]>([]);
   const [agingBuckets, setAgingBuckets] = useState<ReturnableAgingBucket[]>([]);
+  const [selected, setSelected] = useState<DrillKey | null>(null);
+  const [period, setPeriod] = useState<DashboardPeriod>('today');
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [kpiRes, flaggedRes, recentRes, agingRes] = await Promise.all([
+      // `kpiRes` supplies only the decorative deltas below (today's count,
+      // overdue value, mismatch rate, return rate) — every KPI's own number
+      // and the list its click opens both come from `allRes`, so they can
+      // never disagree.
+      const [kpiRes, flaggedRes, allRes, agingRes] = await Promise.all([
         gp().rpc('kpis', { p_department_id: null }),
         gp()
           .from('v_gate_passes')
@@ -103,19 +48,19 @@ export default function Dashboard(): React.ReactElement {
           .eq('status', 'flagged')
           .order('verified_at', { ascending: false })
           .limit(FLAGGED_LIMIT),
-        gp().from('v_gate_passes').select('*').order('created_at', { ascending: false }).limit(RECENT_LIMIT),
+        gp().from('v_gate_passes').select('*').order('created_at', { ascending: false }),
         gp().rpc('returnable_aging', { p_department_id: null }),
       ]);
 
       if (kpiRes.error) throw kpiRes.error;
       if (flaggedRes.error) throw flaggedRes.error;
-      if (recentRes.error) throw recentRes.error;
+      if (allRes.error) throw allRes.error;
       if (agingRes.error) throw agingRes.error;
 
       const rows = (kpiRes.data as KpiRow[] | null) ?? [];
       setKpis(mapKpiRow(rows[0]));
       setFlagged((flaggedRes.data as GatePassView[] | null) ?? []);
-      setRecent((recentRes.data as GatePassView[] | null) ?? []);
+      setAllRows((allRes.data as GatePassView[] | null) ?? []);
       setAgingBuckets((agingRes.data as ReturnableAgingBucket[] | null) ?? []);
       setError(null);
     } catch (err) {
@@ -175,36 +120,120 @@ export default function Dashboard(): React.ReactElement {
     };
   }, [load]);
 
+  // The selected period (default Today) scopes every KPI and drill — historical
+  // data beyond a year still lives in Reports (/my-passes for an HOD, since
+  // /all-passes is admin-only per roleRoutes.ts). This filter applies BEFORE
+  // any drill predicate runs, so every KPI number and every drill list
+  // reflects the same period boundary consistently.
+  const { start, end } = periodBounds(period);
+  const scopedRows = allRows.filter((p) => {
+    const t = new Date(p.created_at).getTime();
+    return t >= start && t < end;
+  });
+
+  // One pass through `scopedRows` per drill, filtered by that drill's own
+  // predicate. The KPI card's number and the list its click opens therefore
+  // come from the exact same array — they cannot disagree.
+  const drillRows = {} as Record<DrillKey, GatePassView[]>;
+  for (const key of DRILL_ORDER) {
+    drillRows[key] = scopedRows.filter(DRILL_DEFS[key].match);
+  }
+
+  function toggleDrill(key: DrillKey) {
+    setSelected((cur) => (cur === key ? null : key));
+  }
+
   return (
     <div>
-      <div className="page-header">
-        <h1 className="page-title">Dashboard</h1>
-        <p className="page-subtitle">{deptNames.length > 0 ? deptNames.join(' · ') : 'Your departments'}</p>
+      <div className="page-header flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="page-title">Dashboard</h1>
+          <p className="page-subtitle">{deptNames.length > 0 ? deptNames.join(' · ') : 'Your departments'}</p>
+        </div>
+        <DashboardPeriodFilter value={period} onChange={setPeriod} />
       </div>
 
       {error && <div className="alert-error mb-6">{error}</div>}
 
+      {/* Zero-count renders nothing — an empty red banner would be noise, and
+          this must never disagree with the Expired KPI card's own number
+          since both read `drillRows.expired`. */}
+      {drillRows.expired.length > 0 && (
+        <div className="bg-flagged-500/10 border-l-4 border-flagged-500 rounded-r-lg px-4 py-3 mb-6">
+          <p className="text-sm font-semibold text-flagged-700">
+            {drillRows.expired.length} {drillRows.expired.length === 1 ? 'pass' : 'passes'} expired without
+            reaching the gate.
+          </p>
+        </div>
+      )}
+
+      <div className="flex items-baseline gap-2 mb-3">
+        <span className="text-[11px] text-navy-400">
+          Older passes are in{' '}
+          <Link to="/my-passes" className="text-accent-600 hover:underline font-semibold">
+            My Passes
+          </Link>
+          .
+        </span>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
         <KpiCard
-          label="Total Raised"
-          value={kpis.total}
-          tone="neutral"
+          label={DRILL_DEFS.total.label}
+          value={drillRows.total.length}
+          tone={DRILL_DEFS.total.tone}
           loading={loading}
+          active={selected === 'total'}
+          onClick={() => toggleDrill('total')}
           delta={kpis.raisedToday > 0 ? `▲ ${kpis.raisedToday} today` : undefined}
         />
         <KpiCard
-          label="Pending Verification"
-          value={kpis.pending}
-          tone="pending"
-          to="/my-passes?status=pending"
+          label={DRILL_DEFS.rgpIssued.label}
+          value={drillRows.rgpIssued.length}
+          tone={DRILL_DEFS.rgpIssued.tone}
           loading={loading}
+          active={selected === 'rgpIssued'}
+          onClick={() => toggleDrill('rgpIssued')}
         />
-        <KpiCard label="Matched" value={kpis.matched} tone="matched" loading={loading} />
         <KpiCard
-          label="Mismatched"
-          value={kpis.flagged}
-          tone="flagged"
-          to="/my-passes?status=flagged"
+          label={DRILL_DEFS.nrgpIssued.label}
+          value={drillRows.nrgpIssued.length}
+          tone={DRILL_DEFS.nrgpIssued.tone}
+          loading={loading}
+          active={selected === 'nrgpIssued'}
+          onClick={() => toggleDrill('nrgpIssued')}
+        />
+        <KpiCard
+          label={DRILL_DEFS.pending.label}
+          value={drillRows.pending.length}
+          tone={DRILL_DEFS.pending.tone}
+          loading={loading}
+          active={selected === 'pending'}
+          onClick={() => toggleDrill('pending')}
+        />
+        <KpiCard
+          label={DRILL_DEFS.expired.label}
+          value={drillRows.expired.length}
+          tone={DRILL_DEFS.expired.tone}
+          loading={loading}
+          active={selected === 'expired'}
+          onClick={() => toggleDrill('expired')}
+        />
+        <KpiCard
+          label={DRILL_DEFS.matched.label}
+          value={drillRows.matched.length}
+          tone={DRILL_DEFS.matched.tone}
+          loading={loading}
+          active={selected === 'matched'}
+          onClick={() => toggleDrill('matched')}
+        />
+        <KpiCard
+          label={DRILL_DEFS.flagged.label}
+          value={drillRows.flagged.length}
+          tone={DRILL_DEFS.flagged.tone}
+          loading={loading}
+          active={selected === 'flagged'}
+          onClick={() => toggleDrill('flagged')}
           delta={kpis.flaggedRate > 0 ? `${kpis.flaggedRate}% mismatch rate` : undefined}
         />
         <KpiCard
@@ -214,69 +243,38 @@ export default function Dashboard(): React.ReactElement {
           loading={loading}
         />
         <KpiCard
-          label="Awaiting Return"
-          value={kpis.awaitingReturn}
-          tone="brand"
-          to="/my-passes?ret=awaiting_return"
+          label={DRILL_DEFS.awaiting.label}
+          value={drillRows.awaiting.length}
+          tone={DRILL_DEFS.awaiting.tone}
           loading={loading}
+          active={selected === 'awaiting'}
+          onClick={() => toggleDrill('awaiting')}
         />
         <KpiCard
-          label="Overdue"
-          value={kpis.overdue}
-          tone="overdue"
+          label={DRILL_DEFS.overdue.label}
+          value={drillRows.overdue.length}
+          tone={DRILL_DEFS.overdue.tone}
           loading={loading}
+          active={selected === 'overdue'}
+          onClick={() => toggleDrill('overdue')}
           delta={kpis.overdueValue > 0 ? formatCurrency(kpis.overdueValue) : undefined}
         />
       </div>
 
       <ReturnableAging rows={agingBuckets} loading={loading} />
 
+      {/* Fed by `flagged` (unscoped `v_gate_passes` fetch), never `scopedRows` —
+          a mismatch raised yesterday still needs the HOD's decision today, and
+          the Today toggle must not hide an open action item. */}
       {!loading && <FlaggedReviewCard rows={flagged} onOpen={(id) => navigate(`/pass/${id}`)} />}
 
-      <h2 className="section-title mb-3">Recent Passes</h2>
-      {loading ? (
-        <div className="table-wrap p-4 flex flex-col gap-2">
-          {Array.from({ length: SKELETON_ROWS }).map((_, i) => (
-            <div key={i} className="skeleton h-10 w-full" />
-          ))}
-        </div>
-      ) : recent.length === 0 ? (
-        <div className="table-wrap empty-state">No passes raised yet.</div>
-      ) : (
-        <div className="table-wrap">
-          <table className="table-base">
-            <thead>
-              <tr>
-                <th>Pass No</th>
-                <th>Type</th>
-                <th>Visitor</th>
-                <th>Material</th>
-                <th>Qty</th>
-                <th>Status</th>
-                <th>Age</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recent.map((p) => (
-                <tr key={p.id} className="cursor-pointer" onClick={() => navigate(`/pass/${p.id}`)}>
-                  <td className="font-semibold text-navy-900">{p.pass_number}</td>
-                  <td>
-                    <TypeChip type={p.type} />
-                  </td>
-                  <td>{p.visitor_name}</td>
-                  <td className="max-w-[220px] truncate">{p.material_summary ?? ''}</td>
-                  <td className="tabular">
-                    {p.item_count} item(s)
-                  </td>
-                  <td>
-                    <Badge style={STATUS_STYLES[p.status]} />
-                  </td>
-                  <td className="tabular">{relativeAge(p.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {selected && (
+        <HodDrillList
+          def={DRILL_DEFS[selected]}
+          rows={drillRows[selected]}
+          loading={loading}
+          onOpen={(id) => navigate(`/pass/${id}`)}
+        />
       )}
     </div>
   );
