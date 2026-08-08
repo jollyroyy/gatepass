@@ -171,31 +171,43 @@ export default function PassDetail(): React.ReactElement {
       </div>
 
       {pass.status === 'flagged' && (
-        <div className="alert-error flex-col items-start gap-2">
+        <div className="alert-error flex-col items-start gap-3">
           <p className="font-semibold">
             Mismatched by {pass.verified_by_name ?? 'security'} — {formatDateTime(pass.verified_at)}
           </p>
-          <p>{pass.flag_reason ?? 'No reason recorded.'}</p>
+          <div className="bg-flagged-500/10 border-l-4 border-flagged-500 rounded-r-lg px-3 py-2 w-full">
+            <p className="text-xs font-bold text-flagged-700 uppercase tracking-wider mb-1">
+              Reason given by security
+            </p>
+            <p className="text-sm font-semibold text-flagged-700 whitespace-pre-wrap break-words">
+              {pass.flag_reason ?? 'No reason recorded.'}
+            </p>
+          </div>
           {userId !== null && pass.raised_by === userId && (
-            <div className="flex flex-wrap gap-2 mt-1">
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={async () => {
-                  try {
-                    const { error: rpcErr } = await gp().rpc('hod_review_flagged_pass', {
-                      p_pass_id: pass.id,
-                      p_action: 'approve',
-                    });
-                    if (rpcErr) throw rpcErr;
-                    setReloadKey((k) => k + 1);
-                  } catch (err) {
-                    setError(safeErrorMessage(err));
-                  }
-                }}
-              >
-                Approve Override
-              </button>
+            <div className="flex flex-col gap-2 mt-1">
+              <p className="text-xs text-flagged-700">
+                Approving lets this material through despite the mismatch. The reason above stays on the record.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={async () => {
+                    try {
+                      const { error: rpcErr } = await gp().rpc('hod_review_flagged_pass', {
+                        p_pass_id: pass.id,
+                        p_action: 'approve',
+                      });
+                      if (rpcErr) throw rpcErr;
+                      setReloadKey((k) => k + 1);
+                    } catch (err) {
+                      setError(safeErrorMessage(err));
+                    }
+                  }}
+                >
+                  Approve Override
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -206,6 +218,11 @@ export default function PassDetail(): React.ReactElement {
           <p className="font-semibold">
             HOD approved — awaiting dispatch at the gate
           </p>
+          {pass.flag_reason && (
+            <p className="text-sm text-navy-500 whitespace-pre-wrap break-words">
+              Originally flagged for: {pass.flag_reason}
+            </p>
+          )}
         </div>
       )}
 

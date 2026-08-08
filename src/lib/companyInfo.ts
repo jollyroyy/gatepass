@@ -1,6 +1,6 @@
 /**
  * `gate_passes.visitor_company` has no separate columns for address/phone, so
- * RaisePass and BulkRaise pack all three into one JSON string:
+ * RaisePass packs all three into one JSON string:
  * `{"n": name, "a": address, "v": phone}` ("c" for contact person is also
  * read, for forward compatibility, though nothing currently writes it).
  * Older passes have a plain company name in this column instead — JSON.parse

@@ -11,8 +11,6 @@ import Login from './pages/Login';
 import NoAccess from './pages/NoAccess';
 import HodDashboard from './pages/HOD/Dashboard';
 import RaisePass from './pages/HOD/RaisePass';
-import BulkRaise from './pages/HOD/BulkRaise';
-import VendorProfiles from './pages/HOD/VendorProfiles';
 import MyPasses from './pages/HOD/MyPasses';
 import GateConsole from './pages/Security/GateConsole';
 import Verify from './pages/Security/Verify';
@@ -140,8 +138,6 @@ export default function App(): React.ReactElement {
           {/* HOD */}
           <Route path="/dashboard" element={<HodDashboard />} />
           <Route path="/raise" element={<RaisePass />} />
-          <Route path="/raise/bulk" element={<BulkRaise />} />
-          <Route path="/vendors" element={<VendorProfiles />} />
           <Route path="/my-passes" element={<MyPasses />} />
 
           {/* Security */}

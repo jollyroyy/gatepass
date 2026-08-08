@@ -13,20 +13,27 @@ export const ROLE_ROUTES: Record<UserRole, string[]> = {
   // Verification History was removed with its sidebar tab.
   guard: ['/guard-dashboard', '/console', '/verify', '/pass', '/profile'],
   // Department heads raise passes for their own departments
-  hod: ['/dashboard', '/raise', '/my-passes', '/vendors', '/pass', '/profile'],
+  hod: ['/dashboard', '/raise', '/my-passes', '/pass', '/profile'],
   // Admin manages departments, users, and sees everything
-  admin: ['/admin', '/admin-dashboard', '/all-passes', '/pass', '/profile'],
-  super_admin: ['/admin', '/admin-dashboard', '/all-passes', '/pass', '/profile'],
+  admin: ['/admin-dashboard', '/admin', '/all-passes', '/pass', '/profile'],
+  super_admin: ['/admin-dashboard', '/admin', '/all-passes', '/pass', '/profile'],
   // Staff have no business in this app at all.
   staff: [],
 };
 
-/** Where each role lands after signing in. */
+/**
+ * Where each role lands after signing in.
+ *
+ * Admin lands on the KPI board, not the Departments & Users screen: managing
+ * people is an occasional errand, while the state of the gate is what an admin
+ * opens the app to check. The guard stays on /console (the working queue) by
+ * the same reasoning.
+ */
 export const ROLE_HOME: Record<UserRole, string> = {
   guard: '/console',
   hod: '/dashboard',
-  admin: '/admin',
-  super_admin: '/admin',
+  admin: '/admin-dashboard',
+  super_admin: '/admin-dashboard',
   staff: '/no-access',
 };
 
@@ -46,7 +53,7 @@ export function homeFor(role: UserRole | null): string {
  * Whether a sidebar nav link should render as active for a given pathname.
  *
  * Exact match wins; a pathname also activates the link of any parent segment
- * (`/raise/bulk` activates `/raise`). A naive `startsWith(to)` is NOT used —
+ * (`/pass/<uuid>` activates `/pass`). A naive `startsWith(to)` is NOT used —
  * it would activate `/admin` for the pathname `/admin-dashboard` and light up
  * two sidebar links at once on the admin screens.
  */

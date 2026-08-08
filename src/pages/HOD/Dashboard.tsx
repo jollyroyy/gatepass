@@ -11,6 +11,7 @@ import Badge, { TypeChip } from '../../components/Badge';
 import { STATUS_STYLES } from '../../lib/statusStyles';
 import { relativeAge } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
+import FlaggedReviewCard from './FlaggedReviewCard';
 
 const FLAGGED_LIMIT = 5;
 const RECENT_LIMIT = 10;
@@ -230,32 +231,7 @@ export default function Dashboard(): React.ReactElement {
 
       <ReturnableAging rows={agingBuckets} loading={loading} />
 
-      {!loading && flagged.length > 0 && (
-        <div className="card border border-flagged-500/30 bg-flagged-50/40 p-5 mb-8">
-          <h2 className="section-title text-flagged-700 mb-3">Mismatches needing review</h2>
-          <div className="flex flex-col gap-1">
-            {flagged.map((p) => (
-              <div
-                key={p.id}
-                className="list-item cursor-pointer rounded-xl hover:bg-flagged-100/40"
-                onClick={() => navigate(`/pass/${p.id}`)}
-              >
-                <div className="flex flex-col gap-1 flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-navy-900 text-sm">{p.pass_number}</span>
-                    <TypeChip type={p.type} />
-                    <span className="text-sm text-navy-600">{p.visitor_name}</span>
-                  </div>
-                   <p className="text-xs text-navy-400 truncate">{p.material_summary ?? ''}</p>
-                  <p className="text-sm font-semibold text-flagged-700 mt-0.5">
-                    Reason: {p.flag_reason ?? 'No reason recorded'}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {!loading && <FlaggedReviewCard rows={flagged} onOpen={(id) => navigate(`/pass/${id}`)} />}
 
       <h2 className="section-title mb-3">Recent Passes</h2>
       {loading ? (

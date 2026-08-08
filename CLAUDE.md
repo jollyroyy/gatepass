@@ -57,6 +57,7 @@ database**, `024`/`025` applied and verified live 2026-08-04 (see below), `023` 
 | Migration `023` | ✅ **applied 2026-07-30** — fixes `admin_create_user` false "already exists" (see below) |
 | Migration `024` | ✅ **applied 2026-08-04** — **cancellation removed entirely** (see below): `cancel_pass` dropped, HOD delete revoked, flagged-review `reject` removed, `cancel_reason` column dropped |
 | Migration `025` | ✅ **applied 2026-08-04** — **self-service profile** (see below): `my_profile()` gains `avatar_url` (drop+recreate), plus `update_my_name(text)` / `set_my_avatar(text)` |
+| Migration `026` | ✅ **applied + verified live 2026-08-08** — HOD override was 100% broken; `flag_reason` now survives it (see below) |
 | `gatepass.gate_passes` | 0 rows — all passes wiped 2026-08-04 |
 | `public.departments` | ✅ 5 rows: FIN, HR, IT, SA, DEV |
 
@@ -130,6 +131,31 @@ Console. `ALL_LINKS` is now exported from `Sidebar.tsx` so tests can assert nav 
 **`ROLE_HOME.guard` is still `/console`, not the new dashboard** — the console is the working
 screen. Change it if landing on the dashboard is preferred.
 
+### HOD nav trimmed + admin lands on the KPI board (2026-08-08, frontend only)
+
+**`ROLE_HOME.admin` / `.super_admin` is now `/admin-dashboard`, not `/admin`** — an admin
+signing in sees the KPI board, not Departments & Users. `ROLE_ROUTES` was reordered to keep
+the documented "first entry is the landing page" convention true; `tests/unit/roleRoutes.test.ts`
+now pins it.
+
+**Vendors and Bulk Create were removed from the HOD sidebar entirely** (user's call,
+2026-08-08). Deleted: `HOD/VendorProfiles.tsx`, `HOD/BulkRaise.tsx`, `HOD/BulkItemRow.tsx`,
+`HOD/BulkResultList.tsx`, `tests/unit/bulkRaise.test.tsx`, both routes and both `ALL_LINKS`
+entries, and `/vendors` from `ROLE_ROUTES.hod`. `tests/unit/hodNav.test.tsx` pins the
+surviving HOD nav (Dashboard, Raise Gate Pass, My Passes) so neither tab can creep back.
+
+Two consequences worth knowing:
+- **RGP-in passes can no longer be created at all.** `RaisePass` hardcodes
+  `p_direction: 'out'` and Bulk Create was the only screen whose direction select allowed
+  "In". The `RGP In` filter in the gate console will now never match anything. Giving
+  `RaisePass` a direction selector is the fix if inbound returnables are ever needed.
+- **The vendor *prefill* inside Raise Gate Pass deliberately stays** — the "Vendor Details"
+  card, the "Load from vendor…" dropdown, the "Save as vendor profile" checkbox and the
+  `list_vendor_profiles` / `save_vendor_profile` RPCs are all untouched. Only the standalone
+  browse/manage page went. So vendors can still be saved and reused, just not browsed.
+- `bulk_create_passes` in the database now has **no caller**. Left in place rather than
+  dropped, pending a decision on whether Bulk Create returns.
+
 **300-line cap:** `RaisePass` (451) and `BulkRaise` (315) were over and were split into
 `MaterialItemRow` / `MaterialItemsCard` / `PassDetailsCards` / `PassSubmittedModal` and
 `BulkItemRow` / `BulkResultList`. Still over the cap and **untouched this session**:
@@ -178,6 +204,32 @@ JWT: name updated, avatar set/cleared, and the empty-name case rejected with HTT
 `isNavActive()` (in `src/lib/roleRoutes.ts`) matches exact or parent-segment only. **AI
 Analytics was removed from the HOD view** (sidebar link, `/analytics` route,
 `HodAnalytics.tsx` deleted); the admin's AI Analytics tab under `/admin` is untouched.
+
+### `026` — the HOD override could never have worked (2026-08-08)
+
+`hod_review_flagged_pass` moves a pass `flagged → hod_reviewed` without touching
+`flag_reason`, but `012` added `gate_passes_flag_reason_only_when_flagged`
+(`flag_reason is null or status = 'flagged'`). Since `flagged_needs_reason` guarantees a
+flagged pass *has* a reason, that UPDATE aborted every single time:
+**"new row … violates check constraint gate_passes_flag_reason_only_when_flagged"**.
+Broken for every pass since `012`, not intermittently.
+
+The fix is NOT to null the reason in the RPC — that destroys the audit trail at exactly the
+moment it matters, and erases the text the HOD screens display. `026` widens the constraint
+to `status in ('flagged','hod_reviewed','matched')` instead. `matched` is included because
+**`match_pass` explicitly admits `hod_reviewed`**, so the real path is
+`flagged → hod_reviewed → matched` and a matched pass legitimately keeps the reason it was
+once flagged for. `pending`/`held`/`cancelled` still cannot carry one, so `012`'s actual
+intent — no accusation on a pass nobody acted on — is fully preserved.
+
+**Verified live 2026-08-08** with real anon-key JWTs (hod.it + guard): raise → flag →
+override → match all succeeded, `flag_reason` intact at every step, and a control pending
+pass still came back with `flag_reason = null`. Probe rows deleted; `gate_passes` back to 0.
+
+**Consequence for the UI: a `matched` pass CAN now carry a `flag_reason`.** The note on
+commit `89726b3` ("matched passes never have a flag_reason, so the Mismatch Reason column is
+pure noise on the Matched tab") is **no longer true** — an overridden-then-matched pass has
+one. Revisit that column's visibility if overrides become common.
 
 ### `024` — cancellation removed: a raised gate pass is permanent
 

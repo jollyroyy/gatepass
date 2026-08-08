@@ -124,3 +124,31 @@ describe('homeFor', () => {  for (const role of ALL_ROLES) {
     });
   }
 });
+
+// An admin signing in must see the operational KPI board first, not the
+// Departments & Users administration screen. Managing people is an occasional
+// errand; the state of the gate is what an admin opens the app to check.
+describe('admin lands on the KPI dashboard', () => {
+  for (const role of ['admin', 'super_admin'] as const) {
+    it(`${role} lands on /admin-dashboard, not /admin`, () => {
+      expect(ROLE_HOME[role]).toBe('/admin-dashboard');
+      expect(homeFor(role)).toBe('/admin-dashboard');
+    });
+
+    it(`${role} can still reach /admin directly`, () => {
+      expect(isForbidden('/admin', role)).toBe(false);
+    });
+
+    // ROLE_ROUTES is documented as "first entry is the landing page"
+    // (Profile.tsx relies on the same convention). Keep it true.
+    it(`${role}'s route list leads with its landing page`, () => {
+      expect(ROLE_ROUTES[role][0]).toBe(ROLE_HOME[role]);
+    });
+  }
+
+  it('leaves the other roles landing where they were', () => {
+    expect(ROLE_HOME.guard).toBe('/console');
+    expect(ROLE_HOME.hod).toBe('/dashboard');
+    expect(ROLE_HOME.staff).toBe('/no-access');
+  });
+});
