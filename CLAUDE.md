@@ -25,9 +25,9 @@ references are not followed without `--build`, so it type-checks **zero files** 
 exits 0. It passed cleanly while `PassDetail.tsx` had a real missing-enum-key error.
 Use `npm run check`.
 
-`npx vitest run path/to/one.test.tsx` runs a single spec. **266 tests across 16 files
-currently pass** (`tests/unit/`, `tests/security/`) — the "zero test specs" note that
-used to live here is obsolete.
+`npx vitest run path/to/one.test.tsx` runs a single spec. **551 tests across 43 files
+currently pass** (`tests/unit/`, `tests/security/`) — see "Current state" below for the
+authoritative gate run.
 
 **After editing any file in `supabase/migrations/`, run `npm run build:sql`.**
 `APPLY_ALL.sql` is the artifact a human actually pastes; a migration edited but not
@@ -37,9 +37,9 @@ re-concatenated is a fix that never reaches the database.
 ## Current state — verified 2026-08-08
 
 Frontend typechecks and passes the full suite — verified by a real `npm run check` run on
-2026-08-08. **All migrations through `032` are applied to the live database**; `026`–`032`
-were written and applied 2026-08-08, `029` verified live with real anon-key JWTs (13/13
-behavioural checks, see below).
+2026-08-08 (**551 tests across 43 files**). **All migrations through `035` are applied to
+the live database**; `026`–`035` were written and applied 2026-08-08, `029` verified live
+with real anon-key JWTs (13/13 behavioural checks, see below).
 
 | Thing | State |
 |---|---|
@@ -66,8 +66,76 @@ behavioural checks, see below).
 | Migration `032` | ✅ **applied + verified live 2026-08-08** — **one department per person** (see below): unique index on `hod_departments(hod_id)`, admin RPCs refuse >1 and mirror into `profiles.department_id` |
 | Migration `034` | ✅ **applied + verified live 2026-08-08** — **admin-created users can finally sign in** (see below): NULL GoTrue token columns backfilled (7 rows) and `admin_create_user` fixed |
 | Migration `033` | ✅ **applied + verified live 2026-08-08** — **blacklist + vehicle format hardened** (see below): strict Indian vehicle-format CHECK, blacklist form strictness, `parseCompanyInfo` packed-keys fix |
+| Migration `035` | ✅ **applied + verified live 2026-08-08** — **HOD override = fresh pass** (see below): override refreshes `expires_at` to end of day, `flag_pass` admits `hod_reviewed`, view carries `flagged_at` / `hod_reviewed_at` |
 | `gatepass.gate_passes` | ~10 rows — real user data as of 2026-08-08. **Not a scratch database any more; do not wipe it.** |
 | `public.departments` | ✅ 5 rows: FIN, HR, IT, SA, DEV |
+
+### `035` — HOD override = fresh pass, and the timeline the boss asked for (2026-08-08)
+
+Business rule (user's call, 2026-08-08): **when the HOD overrides a flag, the pass is a
+FRESH gate pass.** The department head has settled the paper; the truck is standing at the
+barrier — the pass must be eligible to leave again THAT day, and the gate must be able to
+either match it or re-flag it. Before `035`, an overridden pass kept its old `expires_at`
+(so one flagged at 09:00 died at midnight even if the HOD cleared it at 11:00) and
+`flag_pass` refused `hod_reviewed` outright — the queue/Verify changes made in the same
+session would have been cosmetic without it.
+
+Three parts:
+
+1. **`hod_review_flagged_pass` (approve) refreshes `expires_at`** to the end of the
+   CURRENT day in `site_tz()` — the exact expression `028` uses for a brand-new pass
+   (`((date_trunc('day', (now() at time zone gatepass.site_tz())) + interval '1 day') at
+   time zone gatepass.site_tz()) - interval '1 microsecond'`), so "overridden" and
+   "freshly raised" can never disagree about when the pass dies. Same 028 trade-off: an
+   override approved at 23:50 is valid for ten minutes. The reject branch is unchanged
+   (status `'cancelled'` + a `verifications` row), and both branches now write a
+   `verifications` row (`'hod_reviewed'` / `'cancelled'`) so the timeline reads from one
+   table.
+2. **`flag_pass` admits `hod_reviewed`** (`drop function` + recreate, since the
+   signature `(uuid, text, text, jsonb, jsonb)` from 013 is unchanged in shape; the
+   5-arg drop is required or `create or replace` cannot change the body. Error text now
+   says "Only a pending, held or HOD-approved pass can be flagged." Deliberately NO
+   expiry check: refusing to record a real mismatch because the paperwork went stale is
+   backwards (008's rule, still true).
+3. **`v_gate_passes` gains `flagged_at` / `hod_reviewed_at`** — scalar subselects over
+   `gatepass.verifications` (`max(created_at) where action = 'flagged'` / `'hod_reviewed'`).
+   These are the SPECIFIC moments; `verified_at` is the LATEST verification and stays what
+   it was. Dropped + rebuilt because `create or replace view` cannot absorb new columns;
+   `grant select` re-applied, `notify pgrst, 'reload schema'`.
+
+Frontend (same session, TDD):
+
+- **`GateConsole` queue query**: `.in('status', ['pending','hod_reviewed']).gte('expires_at', nowIso)`
+  — the queue still shows only actionable passes — hide rows whose OWN expiry passed
+  (works for both states; `is_expired'' covers pending only). An override approved
+  yesterday that was never matched drops off too; `flag_pass` still admits it via lookup.
+- **`Verify`**: Flag Mismatch now renders for `status !== 'matched'` — an override
+  approval is a judgement about the paper, not a fact about the material, so the guard at
+  the barrier must be able to re-flag a fresh pass whose mismatch was not actually fixed.
+- **`PassRow`** (`src/components/PassRow.tsx`): the 2026-08-08 card rule lands — every
+  pass card is a horizontal row (number / type / vendor / visitor / material / vehicle /
+  dept / the Raised → Mismatch → Override timeline / status badge) with optional
+  expansion for the full detail. Consumers converted: `QueueCard` (Link to `/verify/:id`,
+  wait pill), `GuardDrillCard` (row starts expanded — the drill IS the detail),
+  `FlaggedReviewCard` (flag reason stays visually focused), `HodDrillList` and
+  `MyPassesTable` (rows, not tables). Status badge is STATUS-only (EXPIRED for an
+  expired-pending pass, else `STATUS_STYLES[status]`) — an overdue pass gets the overdue
+  RING, never an 'Overdue' label, because several drills sit beside KPIs named "Overdue"
+  / "Expired" and exact-text lookups of those labels must stay unambiguous.
+
+**Verification**: applied to the live DB 2026-08-08 and **verified behaviourally
+2026-08-08 with real anon-key JWTs** (`node scripts/verify-035.mjs`, hod.it + guard,
+10/10) — raise has the 028 same-day `expires_at`; flag → `flagged_at` timeline column
+is set; HOD approve keeps the reason, sets `hod_reviewed_at`, and refreshes `expires_at`
+to the end of the CURRENT raising day (verified equal to a brand-new pass's); the fresh
+pass then MATCHES at the gate AND can be RE-FLAGGED with a new reason; a `hod_reviewed`
+pass still carries an `expires_at` for the queue's `.gte` filter. Probe rows cleaned up
+(`visitor_name = '035 Probe'` swept via psql; 0 remain). Catalog counts also confirmed
+via psql (`information_schema` shows `flagged_at`/`hod_reviewed_at`; both
+`pg_get_functiondef` checks t/t). Static backstops: `tests/security/sqlInvariants.test.ts`
+"035: ..." fails if the final `hod_review_flagged_pass` stops refreshing `expires_at`,
+if `flag_pass` stops admitting `hod_reviewed`, or if the view loses either column;
+all written-first.
 
 ### `034` — every user the admin panel created was unable to log in (2026-08-08)
 
@@ -116,6 +184,32 @@ migration backfills them. Both were written first and watched fail.
 **Rule this leaves behind: never hand-write an `insert into auth.users` without those four
 columns.** Nothing in Postgres will complain — the failure surfaces only in the auth
 server, on a later request, as a 500 with no connection to the insert that caused it.
+
+### `safeErrorMessage` hardened — no blobs, no constraint names (2026-08-08, frontend only)
+
+Two follow-ups from `034`, both in `src/lib/errors.ts`:
+
+- **A message that says nothing to a human is now replaced by the caller's fallback.**
+  `OPAQUE_MESSAGES` catches `{}`, `[]`, `[object Object]`, `null`, `undefined` — what
+  supabase-js hands over when it cannot turn a response body into a sentence. Before this,
+  a login failure could render as bare punctuation, which reads as a broken UI rather than
+  an error. **Matched exactly, after trimming, never as a substring** — a real sentence may
+  legitimately contain braces (the packed vendor blob in a blacklist refusal does), and
+  must still be shown.
+- **`AUTH_CODE_MESSAGES`** maps GoTrue codes (`AuthApiError.code` — auth-server strings,
+  **not** SQLSTATEs, hence a separate map). `unexpected_failure` is the one that matters:
+  it is how a 500 from the auth server arrives, and its own text is "Database error
+  querying schema". Checked *after* the SQLSTATE map so a Postgres code can never be
+  shadowed. An unlisted auth code still shows GoTrue's own text.
+- **`public.profiles`' three name checks are now named** in `CONSTRAINT_MESSAGES`:
+  `profiles_full_name_charset` (letters, spaces, full stops, apostrophes, hyphens — so a
+  name with a digit, like "Probe 034", is refused), `_length` (2–80), `_trimmed`. These are
+  VMS-owned `NOT VALID` checks and fire on the admin Users tab and the profile page.
+
+**23514 has deliberately NOT been added to `CODE_MESSAGES`.** A catch-all "that value is
+not allowed" would be *less* informative than the constraint name for every check this map
+does not name — `033`'s vehicle-format check among them. Name the constraint instead;
+`tests/unit/errors.test.ts` pins that an unnamed 23514 still passes its text through.
 
 ### `033` — blacklist + vehicle format hardened (2026-08-08)
 
@@ -178,8 +272,31 @@ Fixed with an email-only card and a real recovery landing page:
 Tests: `tests/unit/forgotPassword.test.tsx` (5) + `tests/unit/resetPassword.test.tsx`
 (7) — email-only assertion (no password field in forgot mode), redirect URL, recovery
 event gating, client-side minimals, `updateUser` call, error surfacing, stale-link
-fallback. Full gate: **526 tests pass** (`npm run check`, 2026-08-08). Verify with SSO /
+fallback. Full gate: **551 tests pass** (`npm run check`, 2026-08-08). Verify with SSO /
 a real mailbox that the emailed link lands on `/reset-password`.
+
+### Reset email rate limit — the built-in sender is capped at ~2 emails/hour (2026-08-08)
+
+**The built-in Supabase email provider allows only ~2 emails per hour, PROJECT-WIDE** —
+signup + reset emails from *both* GatePass and VMS (shared project) count against the same
+budget. The dashboard's Rate Limits settings do NOT lift it — "Custom SMTP only" per the
+docs. Users hitting it see `over_email_send_rate_limit` (429), which `safeErrorMessage`
+already translated. Two follow-ups landed:
+
+- **The message now says it is an hourly cap**, not "a few minutes"
+  (`src/lib/errors.ts`, tests pin `/hour/i`) — with the built-in sender the wait really
+  can be until the next hour.
+- **`ForgotPasswordCard` now enforces a 60-second client-side resend cooldown**, stored in
+  `sessionStorage` (`COOLDOWN_KEY`), so the button is disabled with a live countdown in
+  whatever state the card remounts in. The cap is *project-wide*: a user hammering the
+  button in one tab burns the budget for everyone until the hour rolls over. The cooldown
+  is session-scoped and client-side only; the server enforces its own 60s-per-user window
+  and treats each request as a consume-one of the 2/hr budget regardless.
+
+To raise the cap for real: configure a **custom SMTP** provider in Authentication →
+Settings (e.g. Resend), then raise `rate_limit_email_sent` in Authentication → Rate
+Limits or via the Management API (`/v1/projects/oxzzeonftrmohdrancex/config/auth`).
+Full gate: **551 tests pass** (`npm run check`, 2026-08-08).
 
 ### UI overhaul, 2026-08-04 (frontend only — no migration)
 

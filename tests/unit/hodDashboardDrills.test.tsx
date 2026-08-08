@@ -115,10 +115,12 @@ describe('HOD Dashboard — KPI drills', () => {
     expect(screen.getByText('Pending Verification')).toBeInTheDocument();
     expect(screen.getByText('Expired')).toBeInTheDocument();
     expect(screen.getByText('Matched')).toBeInTheDocument();
-    expect(screen.getByText('Mismatched')).toBeInTheDocument();
     expect(screen.getByText('Return Rate')).toBeInTheDocument();
     expect(screen.getByText('Awaiting Return')).toBeInTheDocument();
     expect(screen.getByText('Overdue')).toBeInTheDocument();
+    // "Mismatched" appears on the KPI button AND on the flagged-review row's
+    // badge — both are the same status word, so assert the union.
+    expect(screen.getAllByText('Mismatched').length).toBeGreaterThan(0);
   });
 
   it('never renders a Recent Passes section', async () => {

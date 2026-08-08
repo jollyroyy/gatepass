@@ -1,16 +1,19 @@
-// One pass, fully described, as a premium card — the payload of a dashboard KPI
-// drill. A guard clicking "Overdue" needs to act without a second navigation, so
-// everything they would otherwise open the pass detail for is here: who, which
-// company, which vehicle, what material, and the dates that matter.
+// One pass, fully described, as the payload of a dashboard KPI drill. A guard
+// clicking "Overdue" needs to act without a second navigation, so everything
+// they would otherwise open the pass detail for is here: who, which company,
+// which vehicle, what material, and the dates that matter.
 //
-// On the returnable drills this card also carries Mark Returned. That action
-// used to live on the Pending Returns page; when that tab was removed this
-// became the ONLY way a guard can close an RGP, so it must stay.
+// The 2026-08-08 card rule: the card is a horizontal PassRow (nobody reads a
+// wall of vertical cards anymore), and the drill's point IS the detail, so the
+// row starts expanded. On the returnable drills it also carries Record
+// Returns; that action used to live on the Pending Returns page, and when that
+// tab was removed this became the ONLY way a guard can close an RGP, so it
+// must stay. Per-line returns stay lazy: ItemReturnList mounts only once the
+// guard opens one card's panel.
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView } from '../../types';
-import Badge, { TypeChip } from '../../components/Badge';
-import { EXPIRED_STYLE, OVERDUE_STYLE, STATUS_STYLES, isExpiredPending } from '../../lib/statusStyles';
+import PassRow from '../../components/PassRow';
 import { formatDateOnly, formatDateTime } from '../../lib/formatDate';
 import { parseCompanyInfo } from '../../lib/companyInfo';
 import ItemReturnList from './ItemReturnList';
@@ -57,29 +60,8 @@ export default function GuardDrillCard({
     }
   }
 
-  return (
-    <div
-      className={`flex flex-col gap-4 p-5 rounded-2xl card ${pass.is_overdue ? 'ring-1 ring-overdue-500/40' : ''}`}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <TypeChip type={pass.type} />
-          <Badge
-            style={isExpiredPending(pass) ? EXPIRED_STYLE : pass.is_overdue ? OVERDUE_STYLE : STATUS_STYLES[pass.status]}
-          />
-        </div>
-        <Link
-          to={`/pass/${pass.id}`}
-          className="text-xs font-semibold text-accent-600 hover:underline shrink-0"
-        >
-          Full details →
-        </Link>
-      </div>
-
-      <span className="font-bold text-navy-950 text-lg font-display tracking-tight truncate">
-        {pass.pass_number}
-      </span>
-
+  const detail = (
+    <>
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         <Field label="Vendor" value={company.name || '—'} />
         <Field label="Visitor" value={pass.visitor_name} />
@@ -94,34 +76,30 @@ export default function GuardDrillCard({
       </div>
 
       {pass.material_summary && (
-        <div className="border-t border-surface-200/60 pt-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-navy-400 mb-1">
-            Material · {pass.item_count} item{pass.item_count !== 1 ? 's' : ''}
-          </p>
+        <div className="flex items-baseline justify-between gap-3">
           <p className="text-sm text-navy-600 leading-relaxed">{pass.material_summary}</p>
+          <span className="text-xs font-semibold text-navy-500 tabular shrink-0">
+            {pass.item_count} item{pass.item_count !== 1 ? 's' : ''}
+          </span>
         </div>
       )}
 
-      {pass.flag_reason && (
-        <div className="border-t border-surface-200/60 pt-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-flagged-500 mb-1">
-            Mismatch Reason
-          </p>
-          <p className="text-sm text-navy-700">{pass.flag_reason}</p>
-        </div>
-      )}
-
-      {returnable && !open && (
-        <button type="button" className="btn-secondary w-full" onClick={() => setOpen(true)}>
-          Record Returns
-        </button>
-      )}
+      <div className="flex items-center justify-between gap-3">
+        <Link to={`/pass/${pass.id}`} className="text-xs font-semibold text-accent-600 hover:underline shrink-0">
+          Full details →
+        </Link>
+        {returnable && !open && (
+          <button type="button" className="btn-secondary" onClick={() => setOpen(true)}>
+            Record Returns
+          </button>
+        )}
+      </div>
 
       {returnable && open && (
         <div className="flex flex-col gap-3 border-t border-surface-200/60 pt-3">
-          {/* Per-line returns. Mounted only once the guard opens THIS card, so
-              a long Awaiting Return drill does not fire one query per pass on
-              a device standing at a barrier. The pass closes itself in the
+          {/* Per-line returns. Mounted only once the guard opens THIS card, so a
+              long Awaiting Return drill does not fire one query per pass on a
+              device standing at a barrier. The pass closes itself in the
               database when the last line lands, so onReturned re-reads it. */}
           <p className="text-[10px] font-semibold uppercase tracking-wider text-navy-400">
             Return items individually
@@ -149,6 +127,14 @@ export default function GuardDrillCard({
           </div>
         </div>
       )}
+    </>
+  );
+
+  return (
+    <div
+      className={`card overflow-hidden ${pass.is_overdue ? 'ring-1 ring-overdue-500/40' : ''}`}
+    >
+      <PassRow pass={pass} defaultOpen detail={detail} />
     </div>
   );
 }

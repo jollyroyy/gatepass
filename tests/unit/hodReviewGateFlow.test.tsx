@@ -115,17 +115,22 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
       );
     }
 
-    it('offers a Match for a hod_reviewed pass and no Flag', async () => {
+    it('offers both Match and Flag for a hod_reviewed pass', async () => {
       verifyRow = APPROVED;
       await renderVerify();
 
       await waitFor(() => expect(screen.getByText(/APPROVED-0001/)).toBeInTheDocument());
-      const matchBtn = screen.getByRole('button', { name: /match/i });
+      // The two buttons now share the word "match" (Match / Flag Mismatch), so
+      // pin each by its full label instead of a substring.
+      const matchBtn = screen.getByRole('button', { name: '✓ Match' });
       expect(matchBtn).toBeInTheDocument();
       expect(matchBtn).toBeEnabled();
-      // The mismatch already has its outcome — the HOD's decision — so re-
-      // flagging is not offered; only the go-ahead remains.
-      expect(screen.queryByRole('button', { name: /flag mismatch/i })).not.toBeInTheDocument();
+      // 035: an override approval is not a fact about the material — the guard
+      // at the barrier must still be able to re-flag a fresh pass whose
+      // mismatch was not actually fixed. flag_pass admits hod_reviewed now.
+      const flagBtn = screen.getByRole('button', { name: /flag mismatch/i });
+      expect(flagBtn).toBeInTheDocument();
+      expect(flagBtn).toBeEnabled();
     });
 
     it('shows an HOD-approved banner on the Verify screen', async () => {

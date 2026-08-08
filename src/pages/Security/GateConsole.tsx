@@ -46,13 +46,24 @@ export default function GateConsole(): React.ReactElement {
     try {
       // Queue only. Every gate figure moved to the guard dashboard, which owns
       // both the count and the list behind it — see lib/guardDrills.ts.
+      //
       // 'hod_reviewed' rides along with 'pending': an HOD-approved pass is
       // waiting on exactly one action — the gate — and hiding it would strand
-      // a truck that has already been cleared by its department head.
+      // a truck that has already been cleared by its department head. The HOD
+      // approval ALSO refreshes expiry (migration 035), so an overridden pass
+      // is a FRESH pass: it loses its original expires_at the moment the HOD
+      // clears the override, and only expires again at the end of today.
+      //
+      // The `gte` on expires_at is the "don't show passes whose date has
+      // passed" half of the 2026-08-08 rule. `is_expired` covers pending only;
+      // filtering the row's own expiry instead covers BOTH states uniformly
+      // and never needs recomputing in TypeScript.
+      const nowIso = new Date().toISOString();
       const queueRes = await gp()
         .from('v_gate_passes')
         .select('*')
         .in('status', ['pending', 'hod_reviewed'])
+        .gte('expires_at', nowIso)
         .order('created_at', { ascending: true });
       if (queueRes.error) throw queueRes.error;
 
@@ -183,7 +194,7 @@ export default function GateConsole(): React.ReactElement {
           <p>Queue clear — nothing waiting at the gate.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="flex flex-col gap-3">
           {filteredQueue.map((p, idx) => (
             <QueueCard key={p.id} pass={p} isOldest={idx === 0} />
           ))}

@@ -202,6 +202,15 @@ export interface GatePassView extends GatePass {
   is_expired: boolean;
   due_state: DueState;
 
+  /** When security first flagged this pass (migration 035 — from
+   *  `verifications`, not `verified_at`, which the LATEST verification
+   *  overwrites). Null on a pass that was never flagged. Cards use it to show
+   *  the "Raised → Mismatch → HOD override" timeline. */
+  flagged_at: string | null;
+  /** When the raising HOD override-approved this pass (035). Null until the
+   *  HOD acts. */
+  hod_reviewed_at: string | null;
+
   /** Item roll-ups, computed in the view so a list row needs no second query. */
   item_count: number;
   total_quantity: number;

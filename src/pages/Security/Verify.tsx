@@ -230,9 +230,11 @@ export default function Verify(): React.ReactElement {
           {/* Match is withheld once expired; Flag deliberately is not. Refusing
               to record a real mismatch because the paperwork went stale is
               exactly backwards — the same split match_pass enforces server-side.
-              For a hod_reviewed pass only Match is offered: the mismatch already
-              has its outcome (the HOD's decision), so there is nothing left to
-              flag — only the go-ahead remains. */}
+              Since 035 the Flag is offered for a hod_reviewed pass too: an HOD
+              override is a judgement about the paper, not a fact about the
+              material, so the guard at the barrier must still be able to say
+              "this does not match" — flag_pass admits hod_reviewed and the
+              pass returns to the HOD for another round. */}
           <button
             type="button"
             className="btn-match"
@@ -241,7 +243,7 @@ export default function Verify(): React.ReactElement {
           >
             ✓ Match
           </button>
-          {pass.status === 'pending' && (
+          {pass.status !== 'matched' && (
             <button type="button" className="btn-flag" disabled={submitting} onClick={() => setPanel('flag')}>
               ⚑ Flag Mismatch
             </button>

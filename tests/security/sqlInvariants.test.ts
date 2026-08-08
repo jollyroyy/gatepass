@@ -567,6 +567,49 @@ describe('SQL invariants', () => {
     ).toBe(true);
   });
 
+  // 035 — an override approval makes the pass FRESH at the gate.
+  // - hod_review_flagged_pass (approve) must refresh expires_at to the end of
+  //   the current day, or an old flagged pass that the HOD clears today would
+  //   still be refused by match_pass's expiry check and the whole override
+  //   flow would be a dead end.
+  // - flag_pass must accept hod_reviewed, so a guard can re-flag a pass whose
+  //   HOD override did not fix the mismatch — the gate keeps both options.
+  // - v_gate_passes must expose flagged_at and hod_reviewed_at so every card
+  //   can show the full timeline (raised → mismatch → override) from ONE row.
+  it('035: the HOD override refreshes expiry, flag_pass accepts hod_reviewed, and the view carries the audit timestamps', () => {
+    const migrations = allMigrationsText();
+    const fns = extractFunctions(migrations);
+
+    const review = fns.filter((fn) => fn.name === 'gatepass.hod_review_flagged_pass').pop();
+    expect(review, 'no migration defines gatepass.hod_review_flagged_pass (015/024/027)').toBeDefined();
+    expect(
+      /update\s+gatepass\.gate_passes[\s\S]*?set\s+[\s\S]*?expires_at\s*=/i.test(review!.body),
+      `hod_review_flagged_pass's final definition (in ${review!.file}) no longer refreshes ` +
+        `expires_at on approve — an override-approved pass keeps its original expiry and is refused ` +
+        `by match_pass the moment it has passed, making the HOD's clearance a dead end`
+    ).toBe(true);
+
+    const flag = fns.filter((fn) => fn.name === 'gatepass.flag_pass').pop();
+    expect(flag, 'no migration defines gatepass.flag_pass (003/014?)').toBeDefined();
+    expect(
+      /'\s*hod_reviewed\s*'/i.test(flag!.body),
+      `flag_pass's final definition (in ${flag!.file}) no longer admits 'hod_reviewed'. The gate ` +
+        `must keep the mismatch option open on an override-approved pass — approving is HOD's ` +
+        `judgement, not a fact about the material.`
+    ).toBe(true);
+
+    const view = extractViews(migrations)
+      .filter((v) => v.name === 'gatepass.v_gate_passes')
+      .pop();
+    expect(view, 'no migration defines gatepass.v_gate_passes').toBeDefined();
+    expect(
+      /\bas\s+flagged_at\b/i.test(view!.body) && /\bas\s+hod_reviewed_at\b/i.test(view!.body),
+      `v_gate_passes' final definition (in ${view!.file}) does not expose flagged_at and ` +
+        `hod_reviewed_at. The card timeline (raised → mismatched → override-approved) needs them ` +
+        `on the one row every list already reads.`
+    ).toBe(true);
+  });
+
   // Migration 033 closed two live defects: (a) a company name stored under the
   // WRONG list_type was never matched by the raise-time trigger, and (b) the
   // 'vehicle' type accepted any text ('thar') instead of a real Indian plate.
