@@ -34,12 +34,12 @@ used to live here is obsolete.
 re-concatenated is a fix that never reaches the database.
 `tests/security/applyAllIntegrity.test.ts` is the backstop that catches the drift.
 
-## Current state — verified 2026-08-04
+## Current state — verified 2026-08-08
 
-Frontend typechecks and passes all **419 tests** (33 files) — verified by a real
-`npm run check` run on 2026-08-08. **All migrations through `025` are applied to the live
-database**, `024`/`025` applied and verified live 2026-08-04 (see below), `023` verified live, the rest as of 2026-07-27.
-**No migration was written this session — every change below is frontend-only.**
+Frontend typechecks and passes the full suite — verified by a real `npm run check` run on
+2026-08-08. **All migrations through `030` are applied to the live database**; `026`–`030`
+were written and applied 2026-08-08, `029` verified live with real anon-key JWTs (13/13
+behavioural checks, see below).
 
 | Thing | State |
 |---|---|
@@ -60,7 +60,9 @@ database**, `024`/`025` applied and verified live 2026-08-04 (see below), `023` 
 | Migration `026` | ✅ **applied + verified live 2026-08-08** — HOD override was 100% broken; `flag_reason` now survives it (see below) |
 | Migration `027` | ✅ **applied + verified live 2026-08-08** — blacklist actually enforced (trigger), HOD final rejection (see below) |
 | Migration `028` | ✅ **applied + verified live 2026-08-08** — same-day expiry; `lookup_pass` blacklist JSON fix (see below) |
-| `gatepass.gate_passes` | 0 rows — all passes wiped 2026-08-04 |
+| Migration `029` | ✅ **applied + verified live 2026-08-08** — per-item return timestamps; `gate_pass_items.returned_at` (see below) |
+| Migration `030` | ✅ **applied 2026-08-08** — dropped `returnable_aging()`, whose only screen was removed |
+| `gatepass.gate_passes` | ~10 rows — real user data as of 2026-08-08. **Not a scratch database any more; do not wipe it.** |
 | `public.departments` | ✅ 5 rows: FIN, HR, IT, SA, DEV |
 
 ### UI overhaul, 2026-08-04 (frontend only — no migration)
@@ -281,6 +283,71 @@ ONE transaction, so Postgres hits "unsafe use of new value" at DDL time. It woul
 on this live DB and failed on every fresh deploy. `tests/security/sqlInvariants.test.ts`
 caught it. The constraint is now an inverted deny-list, `status not in ('pending','held')`,
 which names only original `001` labels and states `012`'s intent more directly anyway.
+
+### `029` — per-item returns, and the RPC that had no caller for three migrations
+
+**`apply_item_returns` has taken `[{item_id, qty}]` since `013` and nothing ever called it.**
+The only return action reachable in the UI was `mark_returned`, which closes every line at
+once — so a trolley that went out with a drill, two ladders and a coil could only come back
+all together, and the record showed a single timestamp on the parent for a return that
+physically happened over three days. `029` adds `gate_pass_items.returned_at` and
+`src/pages/Security/ItemReturnList.tsx` is the first caller.
+
+- **`returned_at` is stamped only when a line becomes FULLY returned.** A partially-returned
+  line (2 of 3 ladders) stays null: it still owes material, and a date on it reads as "this
+  came back" on every screen that renders one. Outstanding quantity expresses a partial
+  return; the timestamp expresses closure. It is nullable for the same reason — a
+  `not null default now()` would stamp every line at raise time.
+- **The stamp is set in the same UPDATE that moves `returned_qty`**, with
+  `coalesce(returned_at, ...)` so it can never be moved once written.
+- **The pass closes itself.** The roll-up (unchanged since `013`) sets `return_status =
+  'returned'` in the same call once no line has `returned_qty < quantity`. The client never
+  decides closure — `ItemReturnList` calls back so the dashboard *re-reads* it. Do not
+  compute "all items are back" in TypeScript and act on it.
+- `v_gate_pass_items` was drop+rebuilt (TRAP 2 — `select i.*` cannot absorb a new base
+  column) and its grant re-applied in the same transaction.
+- The guard card's button is now **Record Returns**, opening per-line buttons plus a
+  **Return All** fallback for the single-move common case. Items load only when a card is
+  opened, so a long Awaiting Return drill doesn't fire one query per pass at the barrier.
+
+**Verified live 2026-08-08**, real anon-key JWTs for `hod.it` + `guard`, 13/13: a 3-line RGP
+raised and matched; line 1 returned alone → stamped, lines 2–3 null, pass
+`partially_returned` with no `actual_return_date`; 1 of 2 ladders returned → still no stamp
+on that line; remainder returned → all three stamped with **distinct** times, line 1's
+original stamp unchanged, pass `returned` with an `actual_return_date`. A closed pass refuses
+a further return; an HOD is refused outright ("Only security can record a return."). Probe
+row deleted via psql — note the anon path **cannot** clean up, because nobody holds DELETE on
+`gate_passes`. `tests/security/perItemReturns.test.ts` + `tests/unit/itemReturnList.test.tsx`.
+
+### `030` — Returnable Aging removed (2026-08-08, user's call)
+
+The HOD dashboard's Returnable Aging card (Period / Items Out / Estimated Value) is gone:
+`src/pages/HOD/ReturnableAging.tsx` deleted, the `returnable_aging` RPC call and its state
+removed from `HOD/Dashboard.tsx`, `ReturnableAgingBucket` dropped from `src/types/index.ts`,
+and `030` drops `gatepass.returnable_aging(uuid)` itself. An unused SECURITY DEFINER function
+stays EXECUTE-able over PostgREST by every authenticated user — it is attack surface no
+screen exercises and nobody reviews.
+
+`formatCurrency` was **kept**: still used by the HOD Overdue KPI and `PassPrint`.
+`bulk_create_passes` is still **not** dropped — that one is pending a decision on whether
+Bulk Create returns; Returnable Aging is not coming back.
+
+### KPI clicks scroll their results into view (2026-08-08, frontend only)
+
+`src/lib/useScrollIntoViewOnChange.ts` — one hook, used by `GuardDashboard` and
+`HOD/Dashboard`, that scrolls the revealed drill list to the top of the viewport when the
+selected KPI changes. Three things in it are load-bearing:
+- **It never scrolls on first mount.** A page that jumps on load is worse than one that
+  doesn't scroll.
+- **`scrollIntoView` does not exist in jsdom** — it is called only after a
+  `typeof el.scrollIntoView === 'function'` check. Without that guard every dashboard test
+  crashes.
+- **`prefers-reduced-motion: reduce` downgrades to `behavior: 'auto'`**, with `matchMedia`
+  itself feature-detected because jsdom may not implement it.
+
+**The admin dashboard is deliberately not wired up: its four KPIs are not clickable at all**
+(no `onClick`, no drill list to reveal), so there is nothing to scroll to. Making them drills
+is the prerequisite if that is ever wanted.
 
 ### `028` — expiry is now same-day
 

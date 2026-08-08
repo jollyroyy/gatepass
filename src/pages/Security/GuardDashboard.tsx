@@ -11,6 +11,7 @@ import KpiCard from '../../components/KpiCard';
 import { safeErrorMessage } from '../../lib/errors';
 import { DRILL_DEFS, DRILL_ORDER, type DrillKey } from '../../lib/guardDrills';
 import { todayBounds } from '../../lib/hodKpis';
+import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 import GuardDrillCard from './GuardDrillCard';
 
 type DrillRows = Record<DrillKey, GatePassView[]>;
@@ -120,9 +121,18 @@ export default function GuardDashboard(): React.ReactElement {
     [load],
   );
 
+  // One line came back. `apply_item_returns` may have closed the whole pass in
+  // the same statement — re-read rather than infer it here, so the KPI counts
+  // and the pass's own status come from the database's decision, not ours.
+  // Silent: a guard mid-return must not see the list flash out from under them.
+  const handleItemReturned = useCallback(() => {
+    void load(true);
+  }, [load]);
+
   const rows = buildRows(sets);
   const def = DRILL_DEFS[selected];
   const list = rows[selected];
+  const resultsRef = useScrollIntoViewOnChange<HTMLDivElement>(selected);
 
   return (
     <div>
@@ -164,37 +174,40 @@ export default function GuardDashboard(): React.ReactElement {
         ))}
       </div>
 
-      <div className="flex items-baseline gap-3 mb-4">
-        <h2 className="section-title mb-0">{def.heading}</h2>
-        <span className="text-xs font-medium text-navy-400 tabular">
-          {list.length} {list.length === 1 ? 'pass' : 'passes'}
-        </span>
+      <div ref={resultsRef}>
+        <div className="flex items-baseline gap-3 mb-4">
+          <h2 className="section-title mb-0">{def.heading}</h2>
+          <span className="text-xs font-medium text-navy-400 tabular">
+            {list.length} {list.length === 1 ? 'pass' : 'passes'}
+          </span>
+        </div>
+
+        {actionError && <div className="alert-error mb-4">{actionError}</div>}
+
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="skeleton h-64 w-full" />
+            ))}
+          </div>
+        ) : list.length === 0 ? (
+          <div className="card empty-state">
+            <p>{def.empty}</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {list.map((p) => (
+              <GuardDrillCard
+                key={p.id}
+                pass={p}
+                returnable={def.returnable}
+                onMarkReturned={handleMarkReturned}
+                onItemReturned={handleItemReturned}
+              />
+            ))}
+          </div>
+        )}
       </div>
-
-      {actionError && <div className="alert-error mb-4">{actionError}</div>}
-
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="skeleton h-64 w-full" />
-          ))}
-        </div>
-      ) : list.length === 0 ? (
-        <div className="card empty-state">
-          <p>{def.empty}</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {list.map((p) => (
-            <GuardDrillCard
-              key={p.id}
-              pass={p}
-              returnable={def.returnable}
-              onMarkReturned={handleMarkReturned}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }

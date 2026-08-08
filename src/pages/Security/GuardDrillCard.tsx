@@ -13,12 +13,17 @@ import Badge, { TypeChip } from '../../components/Badge';
 import { EXPIRED_STYLE, OVERDUE_STYLE, STATUS_STYLES, isExpiredPending } from '../../lib/statusStyles';
 import { formatDateOnly, formatDateTime } from '../../lib/formatDate';
 import { parseCompanyInfo } from '../../lib/companyInfo';
+import ItemReturnList from './ItemReturnList';
 
 type Props = {
   pass: GatePassView;
   /** Whether this drill's material has left the gate and can be closed. */
   returnable: boolean;
   onMarkReturned: (pass: GatePassView, remarks: string) => Promise<void>;
+  /** A single line came back. The pass may now be closed — the DATABASE decided
+   *  that in `apply_item_returns`, so the caller must re-read rather than
+   *  infer it. Optional so existing callers keep compiling. */
+  onItemReturned?: () => void;
 };
 
 function Field({ label, value }: { label: string; value: string }): React.ReactElement {
@@ -30,7 +35,12 @@ function Field({ label, value }: { label: string; value: string }): React.ReactE
   );
 }
 
-export default function GuardDrillCard({ pass, returnable, onMarkReturned }: Props): React.ReactElement {
+export default function GuardDrillCard({
+  pass,
+  returnable,
+  onMarkReturned,
+  onItemReturned,
+}: Props): React.ReactElement {
   const [open, setOpen] = useState(false);
   const [remarks, setRemarks] = useState('');
   const [busy, setBusy] = useState(false);
@@ -103,14 +113,23 @@ export default function GuardDrillCard({ pass, returnable, onMarkReturned }: Pro
 
       {returnable && !open && (
         <button type="button" className="btn-secondary w-full" onClick={() => setOpen(true)}>
-          Mark Returned
+          Record Returns
         </button>
       )}
 
       {returnable && open && (
         <div className="flex flex-col gap-3 border-t border-surface-200/60 pt-3">
-          <label className="label" htmlFor={`remarks-${pass.id}`}>
-            Remarks (optional)
+          {/* Per-line returns. Mounted only once the guard opens THIS card, so
+              a long Awaiting Return drill does not fire one query per pass on
+              a device standing at a barrier. The pass closes itself in the
+              database when the last line lands, so onReturned re-reads it. */}
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-navy-400">
+            Return items individually
+          </p>
+          <ItemReturnList passId={pass.id} onReturned={onItemReturned ?? (() => {})} />
+
+          <label className="label pt-1 border-t border-surface-200/60" htmlFor={`remarks-${pass.id}`}>
+            …or return everything at once — remarks (optional)
           </label>
           <textarea
             id={`remarks-${pass.id}`}
@@ -125,7 +144,7 @@ export default function GuardDrillCard({ pass, returnable, onMarkReturned }: Pro
               Cancel
             </button>
             <button type="button" className="btn-primary flex-1" onClick={submitReturn} disabled={busy}>
-              {busy ? 'Recording…' : 'Confirm Return'}
+              {busy ? 'Recording…' : 'Return All'}
             </button>
           </div>
         </div>

@@ -1,0 +1,24 @@
+-- ============================================================================
+-- 030 — drop returnable_aging(), whose only screen has been removed
+--
+-- The HOD dashboard's "Returnable Aging" card (Period / Items Out / Estimated
+-- Value) was removed 2026-08-08 at the user's request. `gatepass.returnable_aging`
+-- from 016 was its only caller and now has none.
+--
+-- WHY DROP RATHER THAN LEAVE IT: an unused SECURITY DEFINER function is not
+-- inert. It stays EXECUTE-able over PostgREST by every authenticated user, so
+-- it remains reachable attack surface that no screen exercises and nobody is
+-- reviewing. This repo's rule is to retire schema in the same change that
+-- retires the feature using it.
+--
+-- SAFE TO DROP: no view, constraint, trigger or other function references it —
+-- it was called only from the deleted src/pages/HOD/ReturnableAging.tsx via
+-- the client. `drop function if exists` with the exact signature, so a re-run
+-- of APPLY_ALL.sql is idempotent and this cannot accidentally match an overload
+-- added later.
+--
+-- NOT dropped here: gatepass.bulk_create_passes, which also has no caller since
+-- Bulk Create was removed from the HOD sidebar. That one is pending a decision
+-- on whether the screen returns; this one is not coming back.
+-- ============================================================================
+drop function if exists gatepass.returnable_aging(uuid);

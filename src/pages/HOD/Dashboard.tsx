@@ -6,7 +6,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase, gp, pub } from '../../supabaseClient';
-import type { GatePassView, PassKpis, ReturnableAgingBucket } from '../../types';
+import type { GatePassView, PassKpis } from '../../types';
 import { EMPTY_KPIS } from '../../types';
 import KpiCard from '../../components/KpiCard';
 import { safeErrorMessage } from '../../lib/errors';
@@ -14,10 +14,10 @@ import { formatCurrency } from '../../lib/formatCurrency';
 import { type KpiRow, mapKpiRow } from '../../lib/hodKpis';
 import FlaggedReviewCard from './FlaggedReviewCard';
 import HodDrillList from './HodDrillList';
-import ReturnableAging from './ReturnableAging';
 import { DRILL_DEFS, DRILL_ORDER, type DrillKey } from '../../lib/hodDrills';
 import { periodBounds, type DashboardPeriod } from '../../lib/dashboardPeriod';
 import DashboardPeriodFilter from '../../components/DashboardPeriodFilter';
+import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 
 const FLAGGED_LIMIT = 5;
 
@@ -29,7 +29,6 @@ export default function Dashboard(): React.ReactElement {
   const [kpis, setKpis] = useState<PassKpis>(EMPTY_KPIS);
   const [flagged, setFlagged] = useState<GatePassView[]>([]);
   const [allRows, setAllRows] = useState<GatePassView[]>([]);
-  const [agingBuckets, setAgingBuckets] = useState<ReturnableAgingBucket[]>([]);
   const [selected, setSelected] = useState<DrillKey | null>(null);
   const [period, setPeriod] = useState<DashboardPeriod>('today');
 
@@ -40,7 +39,7 @@ export default function Dashboard(): React.ReactElement {
       // overdue value, mismatch rate, return rate) — every KPI's own number
       // and the list its click opens both come from `allRes`, so they can
       // never disagree.
-      const [kpiRes, flaggedRes, allRes, agingRes] = await Promise.all([
+      const [kpiRes, flaggedRes, allRes] = await Promise.all([
         gp().rpc('kpis', { p_department_id: null }),
         gp()
           .from('v_gate_passes')
@@ -49,19 +48,16 @@ export default function Dashboard(): React.ReactElement {
           .order('verified_at', { ascending: false })
           .limit(FLAGGED_LIMIT),
         gp().from('v_gate_passes').select('*').order('created_at', { ascending: false }),
-        gp().rpc('returnable_aging', { p_department_id: null }),
       ]);
 
       if (kpiRes.error) throw kpiRes.error;
       if (flaggedRes.error) throw flaggedRes.error;
       if (allRes.error) throw allRes.error;
-      if (agingRes.error) throw agingRes.error;
 
       const rows = (kpiRes.data as KpiRow[] | null) ?? [];
       setKpis(mapKpiRow(rows[0]));
       setFlagged((flaggedRes.data as GatePassView[] | null) ?? []);
       setAllRows((allRes.data as GatePassView[] | null) ?? []);
-      setAgingBuckets((agingRes.data as ReturnableAgingBucket[] | null) ?? []);
       setError(null);
     } catch (err) {
       setError(safeErrorMessage(err));
@@ -142,6 +138,8 @@ export default function Dashboard(): React.ReactElement {
   function toggleDrill(key: DrillKey) {
     setSelected((cur) => (cur === key ? null : key));
   }
+
+  const resultsRef = useScrollIntoViewOnChange<HTMLDivElement>(selected);
 
   return (
     <div>
@@ -261,20 +259,20 @@ export default function Dashboard(): React.ReactElement {
         />
       </div>
 
-      <ReturnableAging rows={agingBuckets} loading={loading} />
-
       {/* Fed by `flagged` (unscoped `v_gate_passes` fetch), never `scopedRows` —
           a mismatch raised yesterday still needs the HOD's decision today, and
           the Today toggle must not hide an open action item. */}
       {!loading && <FlaggedReviewCard rows={flagged} onOpen={(id) => navigate(`/pass/${id}`)} />}
 
       {selected && (
-        <HodDrillList
-          def={DRILL_DEFS[selected]}
-          rows={drillRows[selected]}
-          loading={loading}
-          onOpen={(id) => navigate(`/pass/${id}`)}
-        />
+        <div ref={resultsRef}>
+          <HodDrillList
+            def={DRILL_DEFS[selected]}
+            rows={drillRows[selected]}
+            loading={loading}
+            onOpen={(id) => navigate(`/pass/${id}`)}
+          />
+        </div>
       )}
     </div>
   );

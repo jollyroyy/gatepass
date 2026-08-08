@@ -202,7 +202,7 @@ describe('GuardDashboard — KPI drills', () => {
     expect(screen.getAllByText('Drill, Ladder').length).toBeGreaterThan(0);
   });
 
-  it('offers Mark Returned on the Awaiting Return drill and calls the RPC', async () => {
+  it('offers Return All on the Awaiting Return drill and calls the RPC', async () => {
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
 
@@ -210,9 +210,11 @@ describe('GuardDashboard — KPI drills', () => {
     await waitFor(() => expect(screen.getByText('AWAIT-0001')).toBeInTheDocument());
 
     // Both the outstanding and the overdue RGP are awaiting return, so there
-    // is a Mark Returned button per card — act on the first.
-    fireEvent.click(screen.getAllByRole('button', { name: /mark returned/i })[0]);
-    fireEvent.click(await screen.findByRole('button', { name: /confirm return/i }));
+    // is a Record Returns button per card — act on the first. Per-line returns
+    // live inside that panel (ItemReturnList); this is the close-everything
+    // path, which must survive alongside them for the single-move common case.
+    fireEvent.click(screen.getAllByRole('button', { name: /record returns/i })[0]);
+    fireEvent.click(await screen.findByRole('button', { name: /return all/i }));
 
     await waitFor(() => expect(markReturned).toHaveBeenCalled());
     expect(markReturned.mock.calls[0][0]).toBe('mark_returned');
@@ -263,9 +265,10 @@ describe('GuardDashboard — KPI drills', () => {
     expect(pendingCard).not.toHaveTextContent(/all time/i);
   });
 
-  it('does not offer Mark Returned on the pending drill — nothing has left yet', async () => {
+  it('does not offer returns on the pending drill — nothing has left yet', async () => {
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /record returns/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /mark returned/i })).not.toBeInTheDocument();
   });
 });

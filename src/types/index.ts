@@ -174,6 +174,11 @@ export interface GatePassItem {
   serial_no: string | null;
   approx_value: number | null;
   returned_qty: number;
+  /** When THIS line was fully returned (migration 029). Null while any quantity
+   *  is still outstanding — including a partially-returned line, which still
+   *  owes material and must not read as "came back". Written only by
+   *  `apply_item_returns`, never overwritten. */
+  returned_at: string | null;
   department_id: string;
   is_open: boolean;
   created_at: string;
@@ -334,13 +339,6 @@ export const EMPTY_KPIS: PassKpis = {
   flaggedRate: 0,
   returnRate: 0,
 };
-
-// ─── Returnable aging ─────────────────────────────────────────────────────
-export interface ReturnableAgingBucket {
-  bucket: string;
-  item_count: number;
-  total_value: number;
-}
 
 // ─── Vendor profiles ──────────────────────────────────────────────────────
 export interface VendorProfile {
