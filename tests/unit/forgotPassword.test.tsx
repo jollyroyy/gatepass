@@ -30,6 +30,7 @@ vi.mock('../../src/supabaseClient', () => ({
 beforeEach(() => {
   resetPasswordForEmail.mockReset();
   resetPasswordForEmail.mockResolvedValue({ error: null });
+  sessionStorage.clear();
 });
 
 describe('Forgot password flow', () => {
@@ -107,5 +108,42 @@ describe('Forgot password flow', () => {
 
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+  });
+
+  it('shows a countdown and refuses a second send within the cooldown window', async () => {
+    render(
+      <MemoryRouter>
+        <Login />
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByRole('button', { name: /forgot password/i }));
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'hod.it@demo.vms' } });
+    fireEvent.click(screen.getByRole('button', { name: /send reset link/i }));
+    await screen.findByText(/check your inbox/i);
+
+    // Leave the forgot card and come back — the cooldown must survive the
+    // unmount (it lives in sessionStorage, not component state), or a user who
+    // clicks away and back can hammer the email quota again.
+    fireEvent.click(screen.getByRole('button', { name: /back to sign in/i }));
+    fireEvent.click(screen.getByRole('button', { name: /forgot password/i }));
+
+    expect(screen.getByText(/send another/i)).toBeInTheDocument();
+    const sendBtn = screen.getByRole('button', { name: /send reset link/i });
+    expect(sendBtn).toBeDisabled();
+    fireEvent.click(sendBtn);
+    expect(resetPasswordForEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows a fresh send once the cooldown window has elapsed', () => {
+    sessionStorage.setItem('gatepass.forgot-cooldown-until', String(Date.now() - 5_000));
+    render(
+      <MemoryRouter>
+        <Login />
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByRole('button', { name: /forgot password/i }));
+
+    expect(screen.queryByText(/send another/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /send reset link/i })).toBeEnabled();
   });
 });

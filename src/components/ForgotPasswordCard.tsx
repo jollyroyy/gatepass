@@ -1,7 +1,28 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { safeErrorMessage } from '../lib/errors';
 import AuthField from './AuthField';
+
+/**
+ * The built-in email provider sits behind a PROJECT-WIDE quota (2 emails/hour),
+ * so a reset request can legitimately fail with over_email_send_rate_limit even
+ * when the user has done nothing wrong. This cooldown exists to keep a user
+ * from hammering that shared budget by double-clicking or retrying — the button
+ * refuses a second send within the window, and the window SURVIVES the card
+ * being unmounted (it lives in sessionStorage, not component state), because
+ * the natural flow is send → leave → come back to try again.
+ */
+const RESEND_COOLDOWN_MS = 60_000;
+const COOLDOWN_KEY = 'gatepass.forgot-cooldown-until';
+
+function readCooldownRemaining(): number {
+  try {
+    const until = Number(sessionStorage.getItem(COOLDOWN_KEY) ?? 0);
+    return Number.isFinite(until) ? Math.max(0, until - Date.now()) : 0;
+  } catch {
+    return 0;
+  }
+}
 
 const MailIcon = (
   <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
@@ -29,6 +50,17 @@ export default function ForgotPasswordCard({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [cooldownMs, setCooldownMs] = useState(readCooldownRemaining);
+
+  useEffect(() => {
+    if (cooldownMs <= 0) return;
+    const t = window.setInterval(() => {
+      const remaining = readCooldownRemaining();
+      setCooldownMs(remaining);
+      if (remaining <= 0) window.clearInterval(t);
+    }, 1000);
+    return () => window.clearInterval(t);
+  }, [cooldownMs]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +71,12 @@ export default function ForgotPasswordCard({
         redirectTo: `${window.location.origin}/reset-password`,
       });
       if (err) throw err;
+      try {
+        sessionStorage.setItem(COOLDOWN_KEY, String(Date.now() + RESEND_COOLDOWN_MS));
+      } catch {
+        // Storage unavailable (private browsing) — the send succeeded regardless.
+      }
+      setCooldownMs(RESEND_COOLDOWN_MS);
       setSent(true);
     } catch (err) {
       setError(safeErrorMessage(err, 'Could not send reset email.'));
@@ -125,9 +163,31 @@ export default function ForgotPasswordCard({
           </p>
         )}
 
+        {cooldownMs > 0 && (
+          <p
+            className="text-xs mt-2 flex items-start gap-2"
+            style={{ color: '#A8853F' }}
+          >
+            <svg
+              className="w-3.5 h-3.5 shrink-0 mt-0.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.8}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+              />
+            </svg>
+            You can send another link in {Math.ceil(cooldownMs / 1000)}s.
+          </p>
+        )}
+
         <button
           type="submit"
-          disabled={busy}
+          disabled={busy || cooldownMs > 0}
           className="w-full rounded-xl px-5 py-3 text-sm font-bold uppercase tracking-[0.12em]
                      text-shell-ink bg-gradient-to-r from-brand-500 to-brand-600
                      hover:brightness-105 active:scale-[0.985]

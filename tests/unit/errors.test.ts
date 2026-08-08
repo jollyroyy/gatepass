@@ -79,6 +79,127 @@ describe('safeErrorMessage — constraint-name mapping (checked before the gener
   });
 });
 
+describe('safeErrorMessage — public.profiles name constraints (VMS-owned, 23514)', () => {
+  // A check violation is 23514, which is deliberately NOT in the generic
+  // SQLSTATE map — most check constraints are better explained by name than by
+  // a catch-all. These three fire on any screen that writes a person's name
+  // (the admin Users tab via admin_create_user / admin_update_user, and the
+  // profile page via update_my_name) and without a mapping they reach the
+  // admin as raw text: 'new row for relation "profiles" violates check
+  // constraint "profiles_full_name_charset"'. That names no field the admin
+  // recognises and never says which characters are actually allowed.
+  //
+  // Definitions read live from pg_constraint 2026-08-08:
+  //   charset  full_name ~ '^[A-Za-z .''-]+$'   (letters, space, dot, apostrophe, hyphen)
+  //   length   2..80 characters
+  //   trimmed  full_name = btrim(full_name)
+  it('charset: says which characters are allowed, so "Probe 034" is actionable', () => {
+    const msg = safeErrorMessage({
+      code: '23514',
+      message:
+        'new row for relation "profiles" violates check constraint "profiles_full_name_charset"',
+    });
+    expect(msg).toContain('letters');
+    expect(msg).not.toContain('profiles_full_name_charset');
+  });
+
+  it('length: states the 2–80 bound rather than the constraint name', () => {
+    const msg = safeErrorMessage({
+      code: '23514',
+      message:
+        'new row for relation "profiles" violates check constraint "profiles_full_name_length"',
+    });
+    expect(msg).toContain('2');
+    expect(msg).toContain('80');
+    expect(msg).not.toContain('profiles_full_name_length');
+  });
+
+  it('trimmed: explains the leading/trailing space rather than the constraint name', () => {
+    const msg = safeErrorMessage({
+      code: '23514',
+      message:
+        'new row for relation "profiles" violates check constraint "profiles_full_name_trimmed"',
+    });
+    expect(msg).toMatch(/space/i);
+    expect(msg).not.toContain('profiles_full_name_trimmed');
+  });
+
+  it('matches when the constraint arrives via `constraint` instead of `message`', () => {
+    expect(
+      safeErrorMessage({ code: '23514', constraint: 'profiles_full_name_charset' })
+    ).toContain('letters');
+  });
+
+  it('an UNnamed 23514 still passes its text through — no catch-all that hides which rule failed', () => {
+    // e.g. 033's vehicle-format check. A generic "that value is not allowed"
+    // would be strictly less informative than the constraint name itself.
+    expect(
+      safeErrorMessage({
+        code: '23514',
+        message: 'violates check constraint "gate_passes_vehicle_number_format"',
+      })
+    ).toContain('gate_passes_vehicle_number_format');
+  });
+});
+
+describe('safeErrorMessage — GoTrue auth codes', () => {
+  // supabase-js surfaces auth failures as AuthApiError, whose `code` is a
+  // GoTrue string (not a SQLSTATE). These are server-side conditions the user
+  // cannot act on, and GoTrue's own wording ("Database error querying schema")
+  // describes the server's internals rather than anything the user can do.
+  it.each([
+    ['unexpected_failure', /authentication service/i],
+    ['over_request_rate_limit', /wait/i],
+    ['over_email_send_rate_limit', /hour/i],
+    ['email_not_confirmed', /confirmed/i],
+  ])('GoTrue code %s is translated', (code, pattern) => {
+    expect(safeErrorMessage({ code, message: 'Database error querying schema' })).toMatch(pattern);
+  });
+
+  it('invalid_credentials says which two fields to check', () => {
+    expect(safeErrorMessage({ code: 'invalid_credentials', message: 'Invalid login credentials' }))
+      .toMatch(/email or password/i);
+  });
+
+  it('an unknown auth code still shows GoTrue\'s own text rather than a fallback', () => {
+    expect(safeErrorMessage({ code: 'some_future_code', message: 'Signups not allowed.' })).toBe(
+      'Signups not allowed.'
+    );
+  });
+});
+
+describe('safeErrorMessage — never renders an opaque blob at the user', () => {
+  // The bug that made 034 so hard to read: a body supabase-js could not turn
+  // into a sentence reached the screen as bare punctuation ("{}"), which looks
+  // like a UI glitch rather than an error and tells the user nothing at all.
+  it.each(['{}', '[]', '[object Object]', 'null', 'undefined'])(
+    'a message of %s falls back instead of being shown',
+    (blob) => {
+      expect(safeErrorMessage({ message: blob }, 'Could not sign in.')).toBe('Could not sign in.');
+    }
+  );
+
+  it('an object message stringifies to [object Object] and is caught too', () => {
+    expect(safeErrorMessage({ message: {} }, 'Could not sign in.')).toBe('Could not sign in.');
+  });
+
+  it('an Error whose message is a blob falls back as well', () => {
+    expect(safeErrorMessage(new Error('{}'), 'Could not sign in.')).toBe('Could not sign in.');
+  });
+
+  it('a mapped code still wins over the blob guard', () => {
+    expect(safeErrorMessage({ code: '42501', message: '{}' })).toBe(
+      'You do not have permission to do that.'
+    );
+  });
+
+  it('a legitimate message that merely CONTAINS braces is still shown', () => {
+    expect(safeErrorMessage({ message: 'Vendor {n} is blacklisted.' })).toBe(
+      'Vendor {n} is blacklisted.'
+    );
+  });
+});
+
 describe('safeErrorMessage — unmapped codes pass their message through verbatim', () => {
   it('shows an RPC-raised P0001 message unchanged (already written for the end user)', () => {
     expect(safeErrorMessage({ code: 'P0001', message: 'Only security can verify a gate pass.' }))
