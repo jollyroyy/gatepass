@@ -26,11 +26,16 @@ export const ROLE_ROUTES: Record<UserRole, string[]> = {
  *
  * Admin lands on the KPI board, not the Departments & Users screen: managing
  * people is an occasional errand, while the state of the gate is what an admin
- * opens the app to check. The guard stays on /console (the working queue) by
- * the same reasoning.
+ * opens the app to check.
+ *
+ * The guard lands on the KPI board too. The console is still where the shift is
+ * spent, but it shows only the pending queue — Expired, Awaiting Return and
+ * Overdue appear nowhere else in the guard's UI, and `mark_returned` is
+ * reachable only from a dashboard drill. Landing on the queue meant those were
+ * seen only if someone thought to click across.
  */
 export const ROLE_HOME: Record<UserRole, string> = {
-  guard: '/console',
+  guard: '/guard-dashboard',
   hod: '/dashboard',
   admin: '/admin-dashboard',
   super_admin: '/admin-dashboard',

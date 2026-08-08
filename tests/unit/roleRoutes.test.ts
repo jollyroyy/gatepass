@@ -147,8 +147,27 @@ describe('admin lands on the KPI dashboard', () => {
   }
 
   it('leaves the other roles landing where they were', () => {
-    expect(ROLE_HOME.guard).toBe('/console');
     expect(ROLE_HOME.hod).toBe('/dashboard');
     expect(ROLE_HOME.staff).toBe('/no-access');
+  });
+});
+
+// A guard signing in sees the KPI board first. The console is still one click
+// away and is where they spend the shift, but the dashboard answers "what is
+// waiting for me right now" — including the Expired, Awaiting Return and
+// Overdue counts that exist nowhere else in the guard's UI.
+describe('guard lands on the KPI dashboard', () => {
+  it('lands on /guard-dashboard, not /console', () => {
+    expect(ROLE_HOME.guard).toBe('/guard-dashboard');
+    expect(homeFor('guard')).toBe('/guard-dashboard');
+  });
+
+  it('can still reach /console directly', () => {
+    expect(isForbidden('/console', 'guard')).toBe(false);
+  });
+
+  // Same "first entry is the landing page" convention the admin rows pin.
+  it('route list leads with its landing page', () => {
+    expect(ROLE_ROUTES.guard[0]).toBe(ROLE_HOME.guard);
   });
 });

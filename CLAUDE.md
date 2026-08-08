@@ -130,8 +130,14 @@ combinations" that asserted two; corrected. Note `RaisePass` still hardcodes
 
 **Sidebar labels:** admin "Admin Dashboard" → "Dashboard"; guard order is Dashboard, Gate
 Console. `ALL_LINKS` is now exported from `Sidebar.tsx` so tests can assert nav order.
-**`ROLE_HOME.guard` is still `/console`, not the new dashboard** — the console is the working
-screen. Change it if landing on the dashboard is preferred.
+**All four roles now land on their KPI board** (2026-08-08): `ROLE_HOME.guard` is
+`/guard-dashboard` (was `/console`), matching admin's `/admin-dashboard` and HOD's
+`/dashboard`. The console is still where a shift is spent, but it shows only the pending
+queue — **Expired, Awaiting Return and Overdue appear nowhere else in the guard's UI, and
+`mark_returned` is reachable only from a dashboard drill**, so landing on the queue meant
+those were seen only if someone thought to click across. `tests/unit/roleRoutes.test.ts`
+pins each role's landing page and the "first entry of `ROLE_ROUTES` is the landing page"
+convention for guard and admin alike.
 
 ### Dashboards are period-scoped, and every KPI is a drill (2026-08-08)
 
