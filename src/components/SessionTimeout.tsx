@@ -13,6 +13,7 @@
 // Supabase JWT has its own lifetime and RLS is the real authority.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../supabaseClient';
+import ModalShell from './ModalShell';
 
 export const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 export const COUNTDOWN_SEC = 60;
@@ -74,9 +75,17 @@ export default function SessionTimeout(): React.ReactElement | null {
 
   if (!showPrompt) return null;
 
+  // Closing this popup (×, Escape, backdrop click) is deliberately wired to
+  // the SAME safe action as the "Keep session" button, never to a silent
+  // no-op and never to sign-out: dismissing a "do you want to stay signed
+  // in?" prompt must not leave a countdown ticking down out of sight. This is
+  // the same "closing must equal Cancel, never Confirm" rule as a destructive
+  // confirmation, just with the roles swapped — here "Keep session" is the
+  // safe path and "Sign out" is the one closing must never trigger. Ambient
+  // mouse/keyboard activity still does NOT dismiss the prompt (unchanged,
+  // see the resetOnActivity guard above) — only this explicit close does.
   return (
-    <div className="modal-overlay z-[9999]">
-      <div className="modal-content p-6">
+    <ModalShell onClose={startTimer} overlayClassName="z-[9999]" labelledBy="session-timeout-title">
         <div className="flex flex-col items-center text-center space-y-4">
           <div className="h-12 w-12 rounded-2xl bg-pending-50 border border-pending-500/20 flex items-center justify-center">
             <svg className="w-6 h-6 text-pending-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -84,7 +93,7 @@ export default function SessionTimeout(): React.ReactElement | null {
             </svg>
           </div>
           <div>
-            <h3 className="text-lg font-bold text-navy-950 font-display">Session Timeout</h3>
+            <h3 id="session-timeout-title" className="text-xl font-normal text-navy-950 font-display tracking-tight">Session Timeout</h3>
             <p className="text-sm text-navy-400 mt-1">
               Your session has been idle for 5 minutes. Do you want to stay signed in?
             </p>
@@ -107,7 +116,6 @@ export default function SessionTimeout(): React.ReactElement | null {
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

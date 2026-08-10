@@ -7,6 +7,7 @@ import { fetchDisplayName } from '../../lib/profiles';
 import { useTheme } from '../../lib/theme';
 import SidebarProfile from './SidebarProfile';
 import { QuestMark, QuestLockup } from '../QuestMark';
+import { useEscapeKey } from '../../lib/useEscapeKey';
 
 type Props = {
   session: Session;
@@ -86,6 +87,8 @@ export default function Sidebar({ session, role, collapsed: collapsedProp, onCol
   }, [collapsed]);
 
   useEffect(() => { setMobileOpen(false); }, [loc.pathname]);
+
+  useEscapeKey(() => setMobileOpen(false), mobileOpen);
 
   // Profile name — best effort; falls back to a name derived from the email.
   // Goes through gatepass.my_profile() — never public.profiles, whose policies
@@ -167,6 +170,16 @@ export default function Sidebar({ session, role, collapsed: collapsedProp, onCol
         <div className="lg:hidden fixed inset-0 z-40">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in" onClick={() => setMobileOpen(false)} />
           <aside className="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] shell-sidebar animate-slide-down overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(false)}
+              aria-label="Close"
+              className="absolute top-3 right-3 z-10 h-8 w-8 rounded-full flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/10 active:scale-95 transition-all duration-150"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
             {navContent(false)}
           </aside>
         </div>

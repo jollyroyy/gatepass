@@ -35,7 +35,7 @@ type Props = { rows: DeptBreakdown[] };
 export default function DeptBreakdownTable({ rows }: Props): React.ReactElement {
   return (
     <div className="mb-8">
-      <h2 className="section-title mb-3">By Department</h2>
+      <h2 className="card-title mb-3">By Department</h2>
       <div className="table-wrap">
         <table className="table-base">
           <thead>

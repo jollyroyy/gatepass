@@ -226,7 +226,7 @@ export default function PassDetail(): React.ReactElement {
       )}
 
       <div className="card p-6">
-        <h2 className="section-title mb-4">Pass Details</h2>
+        <h2 className="card-title mb-4">Pass Details</h2>
         <dl className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <DetailRow label="Authorized Person" value={pass.visitor_name} />
           <DetailRow label="Contact No" value={companyInfo.phone || '—'} />
@@ -240,7 +240,7 @@ export default function PassDetail(): React.ReactElement {
       </div>
 
       <div className="card p-6">
-        <h2 className="section-title mb-4">Material Items ({pass.item_count})</h2>
+        <h2 className="card-title mb-4">Material Items ({pass.item_count})</h2>
         <div className="flex flex-col gap-4">
           {items.map((item) => (
             <div key={item.id} className="border border-navy-200 rounded-lg p-4 bg-surface-50">
@@ -258,7 +258,7 @@ export default function PassDetail(): React.ReactElement {
       </div>
 
       <div className="card p-6">
-        <h2 className="section-title mb-4">Verification Timeline</h2>
+        <h2 className="card-title mb-4">Verification Timeline</h2>
         {verifications.length === 0 ? (
           <p className="empty-state !py-6">Not yet verified at the gate.</p>
         ) : (

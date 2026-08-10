@@ -7,6 +7,7 @@ import { nameError, deptCodeError } from '../../lib/nameValidation';
 import KpiCard from '../../components/KpiCard';
 import HodDirectory from './HodDirectory';
 import DepartmentNameCodeFields from './DepartmentNameCodeFields';
+import ModalShell from '../../components/ModalShell';
 
 const SKELETON_ROWS = 4;
 
@@ -327,7 +328,7 @@ export default function DepartmentsTab(): React.ReactElement {
               <div className="flex flex-col lg:flex-row lg:items-start gap-5">
               <div className="flex items-start justify-between gap-3 lg:w-72 lg:shrink-0">
                 <div className="min-w-0">
-                  <h3 className="font-bold text-navy-950 text-base font-display truncate">{c.dept.name}</h3>
+                  <h3 className="font-normal text-navy-950 text-lg font-display tracking-tight truncate">{c.dept.name}</h3>
                   <span className="type-chip mt-1 inline-block">{c.dept.code}</span>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -391,9 +392,12 @@ export default function DepartmentsTab(): React.ReactElement {
 
       {/* ── Create Department Modal ── */}
       {showCreate && (
-        <div className="modal-overlay" onClick={() => setShowCreate(false)}>
-          <div className="modal-content p-6 max-w-md" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-navy-950 mb-1">Add Department</h2>
+        <ModalShell
+          onClose={() => { setShowCreate(false); setCreateError(null); setCreateNameErr(null); setCreateCodeErr(null); }}
+          className="max-w-md"
+          labelledBy="create-dept-title"
+        >
+            <h2 id="create-dept-title" className="text-h2 text-navy-950 mb-1">Add Department</h2>
             <p className="text-sm text-navy-500 mb-5">Create a new department visible to both GatePass and VMS.</p>
             <form onSubmit={handleCreate} className="flex flex-col gap-4">
               <DepartmentNameCodeFields
@@ -410,15 +414,13 @@ export default function DepartmentsTab(): React.ReactElement {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {/* ── Assign HOD Modal ── */}
       {showAssign && (
-        <div className="modal-overlay" onClick={() => setShowAssign(false)}>
-          <div className="modal-content p-6 max-w-md" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-navy-950 mb-1">Assign HOD</h2>
+        <ModalShell onClose={() => { setShowAssign(false); setAssignError(null); }} className="max-w-md" labelledBy="assign-hod-title">
+            <h2 id="assign-hod-title" className="text-h2 text-navy-950 mb-1">Assign HOD</h2>
             <p className="text-sm text-navy-500 mb-5">Link an HOD to a department. A person can belong to at most one — assigning someone already assigned elsewhere moves them.</p>
             <form onSubmit={handleAssign} className="flex flex-col gap-4">
               <div>
@@ -447,15 +449,13 @@ export default function DepartmentsTab(): React.ReactElement {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {/* ── Edit Department Modal ── */}
       {editDept && (
-        <div className="modal-overlay" onClick={() => { setEditDept(null); setEditError(null); }}>
-          <div className="modal-content p-6 max-w-md" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-navy-950 mb-1">Edit Department</h2>
+        <ModalShell onClose={() => { setEditDept(null); setEditError(null); }} className="max-w-md" labelledBy="edit-dept-title">
+            <h2 id="edit-dept-title" className="text-h2 text-navy-950 mb-1">Edit Department</h2>
             <p className="text-sm text-navy-500 mb-5">Update details for <strong>{editDept.name}</strong>.</p>
             <form onSubmit={handleEdit} className="flex flex-col gap-4">
               <DepartmentNameCodeFields
@@ -472,15 +472,14 @@ export default function DepartmentsTab(): React.ReactElement {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {/* ── Delete Department Confirmation Modal ── */}
+      {/* Closing (×, Escape, backdrop) all route to Cancel — never Delete. */}
       {deleteTarget && (
-        <div className="modal-overlay" onClick={() => { setDeleteTarget(null); setDeleteError(null); }}>
-          <div className="modal-content p-6 max-w-md" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-flagged-600 mb-1">Delete Department?</h2>
+        <ModalShell onClose={() => { setDeleteTarget(null); setDeleteError(null); }} className="max-w-md" labelledBy="delete-dept-title">
+            <h2 id="delete-dept-title" className="text-h2 text-flagged-600 mb-1">Delete Department?</h2>
             <p className="text-sm text-navy-600 mt-4">
               This will permanently delete &ldquo;{deleteTarget.dept.name}&rdquo; ({deleteTarget.dept.code}). This cannot be undone.
             </p>
@@ -509,8 +508,7 @@ export default function DepartmentsTab(): React.ReactElement {
                 {deleting ? 'Deleting…' : 'Delete Department'}
               </button>
             </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );

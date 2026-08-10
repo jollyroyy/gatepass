@@ -25,7 +25,7 @@ export default function MaterialItemsCard({
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="section-title mb-0">Material Items</h2>
+        <h2 className="card-title mb-0">Material Items</h2>
         <span className="text-xs font-medium text-navy-400 bg-surface-100 px-2 py-1 rounded-full">{items.length} item{items.length !== 1 ? 's' : ''}</span>
       </div>
       <div className="flex flex-col gap-2">

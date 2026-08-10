@@ -42,8 +42,22 @@ function fakeFrom(table: string) {
 
 const rpc = vi.fn((name: string) => {
   if (name === 'raise_pass') {
+    // A realistic slice of what `raise_pass` actually returns (a full
+    // gate_passes row) — PassSubmittedModal reads status/direction/vehicle
+    // off it now, not just the four fields this fixture used to carry.
     return thenable({
-      data: { id: 'p1', pass_number: 'RGP-OUT-20260804-0001', type: 'RGP', visitor_name: 'Ravi' },
+      data: {
+        id: 'p1',
+        pass_number: 'RGP-OUT-20260804-0001',
+        type: 'RGP',
+        direction: 'out',
+        status: 'pending',
+        visitor_name: 'Ravi',
+        visitor_company: null,
+        vehicle_number: 'WB01AB1234',
+        created_at: '2026-08-04T10:00:00Z',
+        total_quantity: 2,
+      },
       error: null,
     });
   }

@@ -102,4 +102,31 @@ describe('SessionTimeout', () => {
     fireEvent.click(screen.getByRole('button', { name: /sign out/i }));
     expect(signOut).toHaveBeenCalled();
   });
+
+  it('has a × close button that keeps the session, never signs out', () => {
+    render(<SessionTimeout />);
+    advance(IDLE_TIMEOUT_MS);
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    expect(screen.queryByText('Session Timeout')).not.toBeInTheDocument();
+    expect(signOut).not.toHaveBeenCalled();
+    advance(COUNTDOWN_SEC * 1000);
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it('Escape also keeps the session rather than signing out', () => {
+    render(<SessionTimeout />);
+    advance(IDLE_TIMEOUT_MS);
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.queryByText('Session Timeout')).not.toBeInTheDocument();
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it('clicking inside the prompt does not dismiss it', () => {
+    render(<SessionTimeout />);
+    advance(IDLE_TIMEOUT_MS);
+    fireEvent.click(screen.getByText('Session Timeout'));
+    expect(screen.getByText('Session Timeout')).toBeInTheDocument();
+  });
 });

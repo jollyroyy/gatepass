@@ -29,7 +29,7 @@ export default function HodDirectory({ entries }: Props): React.ReactElement {
       }}
     >
       <div className="flex items-baseline justify-between gap-3 mb-4">
-        <h3 className="section-title mb-0">Heads of Department</h3>
+        <h3 className="card-title mb-0">Heads of Department</h3>
         <span className="text-xs font-medium text-navy-400 tabular">
           {entries.length} {entries.length === 1 ? 'person' : 'people'}
         </span>

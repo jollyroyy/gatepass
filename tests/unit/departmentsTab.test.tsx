@@ -41,8 +41,12 @@ const ch: any = {};
 ch.on = () => ch;
 ch.subscribe = () => ch;
 
+// Hoisted so the close-behaviour tests below can assert the destructive RPC
+// was never dialled just because the delete confirmation was dismissed.
+const rpcSpy = vi.hoisted(() => vi.fn(() => Promise.resolve({ data: null, error: null })));
+
 vi.mock('../../src/supabaseClient', () => ({
-  gp: () => ({ from: () => thenable(ASSIGNMENTS), rpc: () => thenable(null) }),
+  gp: () => ({ from: () => thenable(ASSIGNMENTS), rpc: rpcSpy }),
   pub: () => ({ from: () => thenable(DEPARTMENTS) }),
   supabase: {
     auth: { getUser: () => Promise.resolve({ data: { user: { id: 'u1' } } }) },
@@ -150,5 +154,58 @@ describe('Departments tab — row-wise layout', () => {
     expect(screen.getByText('Housekeeping')).toBeInTheDocument();
     expect(screen.getByText('ENG')).toBeInTheDocument();
     expect(screen.getByText('HK')).toBeInTheDocument();
+  });
+});
+
+describe('Departments tab — popup close controls', () => {
+  it('Add Department has a working × that discards the draft without creating anything', async () => {
+    render(<DepartmentsTab />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Departments' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Department' }));
+    expect(screen.getByRole('heading', { name: 'Add Department' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('heading', { name: 'Add Department' })).not.toBeInTheDocument();
+  });
+
+  it('Delete Department confirmation: × closes without deleting, never calls admin_delete_department', async () => {
+    render(<DepartmentsTab />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Departments' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /show all departments/i }));
+    await waitFor(() => expect(screen.getByText('Engineering')).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByTitle('Delete department')[0]);
+    expect(screen.getByRole('heading', { name: 'Delete Department?' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('heading', { name: 'Delete Department?' })).not.toBeInTheDocument();
+    expect(rpcSpy).not.toHaveBeenCalledWith('admin_delete_department', expect.anything());
+  });
+
+  it('Delete Department confirmation: Escape also closes without deleting', async () => {
+    render(<DepartmentsTab />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Departments' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /show all departments/i }));
+    await waitFor(() => expect(screen.getByText('Engineering')).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByTitle('Delete department')[0]);
+    expect(screen.getByRole('heading', { name: 'Delete Department?' })).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('heading', { name: 'Delete Department?' })).not.toBeInTheDocument();
+    expect(rpcSpy).not.toHaveBeenCalledWith('admin_delete_department', expect.anything());
+  });
+
+  it('a click inside the delete confirmation does not close it', async () => {
+    render(<DepartmentsTab />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Departments' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /show all departments/i }));
+    await waitFor(() => expect(screen.getByText('Engineering')).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByTitle('Delete department')[0]);
+    const heading = screen.getByRole('heading', { name: 'Delete Department?' });
+    fireEvent.click(heading);
+    expect(screen.getByRole('heading', { name: 'Delete Department?' })).toBeInTheDocument();
   });
 });

@@ -297,6 +297,7 @@ export default function RaisePass(): React.ReactElement {
           submittedPass={submittedPass}
           deptName={deptName}
           itemCount={form.items.length}
+          onClose={() => setSubmittedPass(null)}
         />
       )}
     </div>

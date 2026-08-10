@@ -236,7 +236,7 @@ export default function AIAnalyticsTab(): React.ReactElement {
 
           {/* ── Section: Daily trend ────────────────────────────────────── */}
           <div className="card p-5 mb-6">
-            <h2 className="section-title mb-4">Daily Throughput (Last {DAYS} Days)</h2>
+            <h2 className="card-title mb-4">Daily Throughput (Last {DAYS} Days)</h2>
             <div className="flex flex-col gap-1">
               {daily.map((d) => {
                 const wPending = maxDaily > 0 ? (d.pending / maxDaily) * 100 : 0;
@@ -265,7 +265,7 @@ export default function AIAnalyticsTab(): React.ReactElement {
           {/* ── Two-column section ──────────────────────────────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <div className="card p-5">
-              <h2 className="section-title mb-4">Department Activity</h2>
+              <h2 className="card-title mb-4">Department Activity</h2>
               {depts.length === 0 ? (
                 <div className="empty-state py-8">No department data available.</div>
               ) : (
@@ -288,7 +288,7 @@ export default function AIAnalyticsTab(): React.ReactElement {
             </div>
 
             <div className="card p-5">
-              <h2 className="section-title mb-4">Peak Hours</h2>
+              <h2 className="card-title mb-4">Peak Hours</h2>
               {hours.every((h) => h.count === 0) ? (
                 <div className="empty-state py-8">No hourly data.</div>
               ) : (

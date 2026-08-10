@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications, notifTime } from '../../lib/notifications';
+import { useEscapeKey } from '../../lib/useEscapeKey';
 
 export default function NotificationBell(): React.ReactElement {
   const { notifications, unreadCount, dismiss, dismissAll } = useNotifications();
@@ -18,6 +19,8 @@ export default function NotificationBell(): React.ReactElement {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open]);
+
+  useEscapeKey(() => setOpen(false), open);
 
   const handleNotifClick = useCallback(
     (passId: string | null, notifId: string) => {
@@ -52,15 +55,27 @@ export default function NotificationBell(): React.ReactElement {
             <span className="text-sm font-semibold text-navy-900 dark:text-slate-100">
               Notifications
             </span>
-            {notifications.length > 0 && (
+            <div className="flex items-center gap-3">
+              {notifications.length > 0 && (
+                <button
+                  type="button"
+                  onClick={dismissAll}
+                  className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:underline"
+                >
+                  Dismiss all
+                </button>
+              )}
               <button
                 type="button"
-                onClick={dismissAll}
-                className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:underline"
+                onClick={() => setOpen(false)}
+                aria-label="Close"
+                className="h-6 w-6 rounded-full flex items-center justify-center text-navy-400 hover:text-navy-700 hover:bg-surface-100 dark:hover:bg-navy-700 active:scale-95 transition-all duration-150"
               >
-                Dismiss all
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
-            )}
+            </div>
           </div>
 
           <div className="max-h-[360px] overflow-y-auto">

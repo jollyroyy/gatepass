@@ -6,6 +6,7 @@ import { safeErrorMessage } from '../../lib/errors';
 import { formatDateOnly } from '../../lib/formatDate';
 import { nameError } from '../../lib/nameValidation';
 import ResetPasswordSection from './ResetPasswordSection';
+import ModalShell from '../../components/ModalShell';
 
 type RoleFilter = 'all' | 'hod' | 'guard' | 'admin' | 'staff';
 
@@ -298,7 +299,12 @@ export default function UsersTab(): React.ReactElement {
                           type="button"
                           className="text-xs font-medium text-flagged-600 hover:text-flagged-800"
                           disabled={deletingId === p.id}
-                          onClick={() => handleSoftDelete(p)}
+                          // Opens the confirmation — never deactivates directly.
+                          // This used to call handleSoftDelete(p), so one stray
+                          // click on a dense table row revoked a person's access
+                          // with no prompt, and the confirmation dialog below was
+                          // unreachable dead UI.
+                          onClick={() => setDeactivateTarget(p)}
                         >
                           {deletingId === p.id ? '…' : 'Deactivate'}
                         </button>
@@ -316,9 +322,8 @@ export default function UsersTab(): React.ReactElement {
 
       {/* ── Create User Modal ── */}
       {showCreate && (
-        <div className="modal-overlay" onClick={() => setShowCreate(false)}>
-          <div className="modal-content p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-navy-950 mb-1">Add User</h2>
+        <ModalShell onClose={() => { setShowCreate(false); resetCreate(); }} labelledBy="create-user-title">
+            <h2 id="create-user-title" className="text-h2 text-navy-950 mb-1">Add User</h2>
             <p className="text-sm text-navy-500 mb-5">Provision a new guard, HOD, or staff account.</p>
             <form onSubmit={handleCreate} className="flex flex-col gap-4">
               <div>
@@ -368,15 +373,14 @@ export default function UsersTab(): React.ReactElement {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {/* ── Deactivate Confirmation ── */}
+      {/* Closing (×, Escape, backdrop) all route to Cancel — never Deactivate. */}
       {deactivateTarget && (
-        <div className="modal-overlay" onClick={() => setDeactivateTarget(null)}>
-          <div className="modal-content p-6 max-w-sm" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-navy-950 mb-1">Deactivate User?</h2>
+        <ModalShell onClose={() => setDeactivateTarget(null)} className="max-w-sm" labelledBy="deactivate-user-title">
+            <h2 id="deactivate-user-title" className="text-h2 text-navy-950 mb-1">Deactivate User?</h2>
             <p className="text-sm text-navy-600 mb-2">
               <strong>{deactivateTarget.full_name}</strong> ({deactivateTarget.email}) will lose all app access.
             </p>
@@ -387,15 +391,13 @@ export default function UsersTab(): React.ReactElement {
                 {deletingId === deactivateTarget.id ? 'Deactivating…' : 'Deactivate'}
               </button>
             </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {/* ── Edit User Modal ── */}
       {editProfile && (
-        <div className="modal-overlay" onClick={closeEdit}>
-          <div className="modal-content p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-navy-950 mb-1">Edit User</h2>
+        <ModalShell onClose={closeEdit} labelledBy="edit-user-title">
+            <h2 id="edit-user-title" className="text-h2 text-navy-950 mb-1">Edit User</h2>
             <p className="text-sm text-navy-500 mb-5">{editProfile.email}</p>
             <div className="flex flex-col gap-4">
               <div>
@@ -439,8 +441,7 @@ export default function UsersTab(): React.ReactElement {
 
               <ResetPasswordSection profile={editProfile} />
             </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );

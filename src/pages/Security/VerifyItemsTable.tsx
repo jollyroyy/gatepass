@@ -37,7 +37,7 @@ export default function VerifyItemsTable({ items, showReturnDates, totalQuantity
   return (
     <div className="card p-6 mb-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
-        <h2 className="section-title mb-0">Material</h2>
+        <h2 className="card-title mb-0">Material</h2>
         <span className="text-sm font-medium text-navy-500 tabular">
           {items.length} item{items.length !== 1 ? 's' : ''} · {totalQuantity} total qty
           {anyValueDeclared && (

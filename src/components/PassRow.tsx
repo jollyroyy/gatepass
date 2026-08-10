@@ -91,7 +91,7 @@ export default function PassRow({
   const content = (
     <>
       {/* Steady-state row: the main details, one line. */}
-      <span className="font-bold text-navy-950 text-[15px] font-display tracking-tight truncate shrink-0">
+      <span className="font-normal text-navy-950 text-base font-display tracking-tight truncate shrink-0">
         {p.pass_number}
       </span>
       <TypeChip type={p.type} />
@@ -116,7 +116,7 @@ export default function PassRow({
           at={p.status === 'hod_reviewed' ? (p.hod_reviewed_at ?? p.verified_at) : null}
         />
         {badge}
-        <span className={`${badgeStyle.bg} ${badgeStyle.text} px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap`}>
+        <span className={`status-badge ${badgeStyle.bg} ${badgeStyle.text}`}>
           {badgeStyle.label}
         </span>
       </span>

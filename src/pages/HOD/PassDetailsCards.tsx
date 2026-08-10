@@ -26,7 +26,7 @@ export default function PassDetailsCards({
     <>
       {/* Pass Type & Department */}
       <div className="card p-5">
-        <h2 className="section-title mb-4">Pass Details</h2>
+        <h2 className="card-title mb-4">Pass Details</h2>
         <div>
           <label className="label">Pass Type</label>
           <PassTypeSelector value={form.type} onChange={onTypeChange} />
@@ -35,7 +35,7 @@ export default function PassDetailsCards({
 
       {/* Collector Details */}
       <div className="card p-5">
-        <h2 className="section-title mb-4">Collector Details</h2>
+        <h2 className="card-title mb-4">Collector Details</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="label">Authorized Person</label>
@@ -51,7 +51,7 @@ export default function PassDetailsCards({
 
       {/* Vendor Details */}
       <div className="card p-5">
-        <h2 className="section-title mb-4">Vendor Details</h2>
+        <h2 className="card-title mb-4">Vendor Details</h2>
         <div>
           <label className="label">Vendor Name</label>
           <input className="input" value={form.visitor_company} onChange={(e) => onUpdate('visitor_company', e.target.value)} placeholder="Vendor name" />

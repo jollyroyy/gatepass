@@ -165,8 +165,36 @@ export default {
         // presence comes from size and letter-spacing, not weight.
         display: ['"Antic Didone"', 'Georgia', '"Times New Roman"', 'serif'],
       },
+      // ── Type scale — Minor Third (1.2), seven steps + the KPI numeral ──────
+      // Size, weight and tracking travel TOGETHER, so a heading cannot be used
+      // at the wrong weight by accident. The rule this encodes: a heading sits
+      // at least two steps above, and 200 weight units heavier than, the text
+      // directly beneath it. Everything read as flat before because headings
+      // were a hair larger than their own subtext and no heavier.
+      //
+      // `font-display` (Antic Didone) is weight 400 ONLY — see fontFamily
+      // above. So h1 may use the display face and take its presence from size
+      // and negative tracking, while h2/h3 are Inter and carry real weight.
+      // Never pair font-display with h2/h3.
+      fontSize: {
+        micro: ['0.6875rem', { lineHeight: '1rem', letterSpacing: '0.08em', fontWeight: '600' }],
+        caption: ['0.75rem', { lineHeight: '1.125rem', fontWeight: '500' }],
+        body: ['0.875rem', { lineHeight: '1.375rem', fontWeight: '400' }],
+        'body-lg': ['1rem', { lineHeight: '1.5rem', fontWeight: '400' }],
+        h3: ['1.125rem', { lineHeight: '1.5rem', letterSpacing: '-0.005em', fontWeight: '600' }],
+        h2: ['1.375rem', { lineHeight: '1.75rem', letterSpacing: '-0.01em', fontWeight: '700' }],
+        h1: ['1.75rem', { lineHeight: '2.125rem', letterSpacing: '-0.02em', fontWeight: '700' }],
+        // Tabular figures are applied via .tabular, not here — a KPI that
+        // reflows its own width as it ticks reads as broken.
+        kpi: ['2.25rem', { lineHeight: '2.5rem', letterSpacing: '-0.02em', fontWeight: '800' }],
+      },
       boxShadow: {
         xs: '0 1px 2px 0 rgb(0 0 0 / 0.03)',
+        // Two soft layers — a tight contact shadow plus a wide ambient one.
+        // A single heavy drop shadow is what makes a card look cheap; this
+        // reads as lift without announcing itself.
+        'card-premium': '0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -12px rgb(0 0 0 / 0.10)',
+        'card-premium-hover': '0 1px 2px rgb(0 0 0 / 0.05), 0 12px 32px -12px rgb(0 0 0 / 0.16)',
         soft: '0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.03)',
         card: '0 1px 3px 0 rgb(0 0 0 / 0.06), 0 4px 12px -4px rgb(0 0 0 / 0.04)',
         elevated: '0 4px 24px -4px rgb(0 0 0 / 0.1), 0 2px 8px -2px rgb(0 0 0 / 0.04)',

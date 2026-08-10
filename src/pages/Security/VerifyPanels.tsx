@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { GatePassItemView, GatePassView } from '../../types';
+import ModalShell from '../../components/ModalShell';
 
 interface LineQty {
   item_id: string;
@@ -47,9 +48,8 @@ export function MatchPanel({ pass, items, submitting, error, onCancel, onConfirm
   }
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content p-6">
-        <h2 className="text-lg font-bold text-navy-950 mb-1">Confirm Match</h2>
+    <ModalShell onClose={onCancel} labelledBy="match-panel-title">
+        <h2 id="match-panel-title" className="text-h2 text-navy-950 mb-1">Confirm Match</h2>
         <p className="text-sm text-navy-500 mb-5">Verify each item's quantity at the gate, then confirm.</p>
 
         <div className="flex flex-col gap-4 mb-5">
@@ -108,8 +108,7 @@ export function MatchPanel({ pass, items, submitting, error, onCancel, onConfirm
             {submitting ? 'Confirming…' : '✓ Confirm Match'}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -125,9 +124,8 @@ export function FlagPanel({ submitting, error, onCancel, onConfirm }: FlagPanelP
   const valid = reason.trim().length > 0;
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content p-6">
-        <h2 className="text-lg font-bold text-navy-950 mb-1">Report Mismatch</h2>
+    <ModalShell onClose={onCancel} labelledBy="flag-panel-title">
+        <h2 id="flag-panel-title" className="text-h2 text-navy-950 mb-1">Report Mismatch</h2>
         <p className="text-sm text-navy-500 mb-5">Describe what doesn&apos;t match. This is required.</p>
 
         <div className="mb-5">
@@ -157,7 +155,6 @@ export function FlagPanel({ submitting, error, onCancel, onConfirm }: FlagPanelP
             {submitting ? 'Submitting…' : '⚑ Confirm Mismatch'}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
