@@ -36,7 +36,7 @@ export default function NotificationBell(): React.ReactElement {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="relative h-9 w-9 rounded-xl flex items-center justify-center bg-white dark:bg-navy-800 shadow-md border border-slate-200 dark:border-navy-600 text-navy-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors"
+        className="relative h-9 w-9 rounded-xl flex items-center justify-center bg-white shadow-md border border-surface-200 text-navy-600 hover:bg-surface-100 transition-colors"
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
@@ -50,9 +50,9 @@ export default function NotificationBell(): React.ReactElement {
       </button>
 
       {open && (
-        <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 rounded-xl bg-white dark:bg-navy-800 shadow-xl border border-slate-200 dark:border-navy-600 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-navy-700">
-            <span className="text-sm font-semibold text-navy-900 dark:text-slate-100">
+        <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 rounded-xl bg-white shadow-xl border border-surface-200 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-surface-100">
+            <span className="text-sm font-semibold text-navy-900">
               Notifications
             </span>
             <div className="flex items-center gap-3">
@@ -69,7 +69,7 @@ export default function NotificationBell(): React.ReactElement {
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close"
-                className="h-6 w-6 rounded-full flex items-center justify-center text-navy-400 hover:text-navy-700 hover:bg-surface-100 dark:hover:bg-navy-700 active:scale-95 transition-all duration-150"
+                className="h-6 w-6 rounded-full flex items-center justify-center text-navy-500 hover:text-navy-700 hover:bg-surface-100 active:scale-95 transition-all duration-150"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -80,7 +80,7 @@ export default function NotificationBell(): React.ReactElement {
 
           <div className="max-h-[360px] overflow-y-auto">
             {notifications.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-navy-400 dark:text-navy-500">
+              <div className="px-4 py-8 text-center text-sm text-navy-500">
                 No notifications
               </div>
             ) : (
@@ -89,7 +89,7 @@ export default function NotificationBell(): React.ReactElement {
                   key={n.id}
                   type="button"
                   onClick={() => handleNotifClick(n.passId, n.id)}
-                  className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-navy-700/50 border-b border-slate-50 dark:border-navy-700/50 last:border-b-0 transition-colors"
+                  className="w-full text-left px-4 py-3 hover:bg-surface-50 border-b border-surface-100 last:border-b-0 transition-colors"
                 >
                   <div className="flex items-start gap-3">
                     <span className="shrink-0 mt-0.5">
@@ -114,13 +114,13 @@ export default function NotificationBell(): React.ReactElement {
                       )}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-navy-900 dark:text-slate-100 truncate">
+                      <p className="text-sm font-semibold text-navy-900 truncate">
                         {n.title}
                       </p>
-                      <p className="text-xs text-navy-500 dark:text-navy-400 mt-0.5 line-clamp-2">
+                      <p className="text-xs text-navy-500 mt-0.5 line-clamp-2">
                         {n.message}
                       </p>
-                      <p className="text-[10px] text-navy-400 dark:text-navy-500 mt-1 tabular-nums">
+                      <p className="text-[10px] text-navy-500 mt-1 tabular-nums">
                         {notifTime(n.timestamp)}
                       </p>
                     </div>
@@ -130,7 +130,7 @@ export default function NotificationBell(): React.ReactElement {
                         e.stopPropagation();
                         dismiss(n.id);
                       }}
-                      className="shrink-0 h-5 w-5 rounded-full flex items-center justify-center text-navy-300 hover:text-navy-600 dark:hover:text-slate-300 hover:bg-slate-200 dark:hover:bg-navy-600 transition-colors"
+                      className="shrink-0 h-5 w-5 rounded-full flex items-center justify-center text-navy-300 hover:text-navy-600 hover:bg-surface-200 transition-colors"
                       aria-label="Dismiss"
                     >
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

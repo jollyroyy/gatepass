@@ -1,6 +1,9 @@
-// HOD's own pass list: status tabs, type/department filters, text search, and
-// CSV export. Status and "awaiting return" filters live in the URL so the
-// Dashboard KPI cards can deep-link straight into a filtered view.
+// HOD's own pass list: period (top-right, same premium control as the
+// dashboards), status tabs, type/department filters, text search, and CSV
+// export. Status and "awaiting return" filters live in the URL so the
+// Dashboard KPI cards can deep-link straight into a filtered view. The PERIOD
+// filter is deliberately local state, not a URL param — it is a viewing
+// preference, not a destination.
 import React, { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { gp } from '../../supabaseClient';
@@ -8,6 +11,12 @@ import type { GatePassView, PassStatus, PassType } from '../../types';
 import { PASS_TYPE_LIST, PASS_TYPES } from '../../lib/passTypes';
 import { safeErrorMessage } from '../../lib/errors';
 import { downloadCsv, type CsvColumn } from '../../lib/exportUtils';
+import {
+  MY_PASSES_PERIODS,
+  myPassesPeriodBounds,
+  type MyPassesPeriod,
+} from '../../lib/myPassesPeriod';
+import DashboardPeriodFilter from '../../components/DashboardPeriodFilter';
 import MyPassesTable from './MyPassesTable';
 
 const STATUS_TABS: { key: PassStatus | 'all'; label: string }[] = [
@@ -38,6 +47,10 @@ export default function MyPasses(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<PassType | 'all'>('all');
   const [search, setSearch] = useState('');
+  // Default Last 30 Days: My Passes is the HISTORY page — the dashboard links
+  // here for "older passes", so a Today default would show a nearly empty
+  // stack. Today and the other windows are one click away.
+  const [period, setPeriod] = useState<MyPassesPeriod>('last30');
 
   const statusParam = searchParams.get('status');
   const statusFilter: PassStatus | 'all' = VALID_STATUSES.includes(statusParam as PassStatus)
@@ -80,7 +93,11 @@ export default function MyPasses(): React.ReactElement {
     load();
   }, [load]);
 
+  const { start, end } = myPassesPeriodBounds(period);
+
   const filtered = rows.filter((p) => {
+    const t = new Date(p.created_at).getTime();
+    if (t < start || t >= end) return false;
     if (statusFilter !== 'all' && p.status !== statusFilter) return false;
     if (typeFilter !== 'all' && p.type !== typeFilter) return false;
     if (onlyAwaitingReturn && p.return_status !== 'awaiting_return') return false;
@@ -106,9 +123,12 @@ export default function MyPasses(): React.ReactElement {
           <h1 className="page-title">My Passes</h1>
           <p className="page-subtitle">All gate passes raised for your departments.</p>
         </div>
-        <button type="button" className="btn-secondary" onClick={handleExport}>
-          Export CSV
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <DashboardPeriodFilter value={period} onChange={setPeriod} periods={MY_PASSES_PERIODS} />
+          <button type="button" className="btn-secondary" onClick={handleExport}>
+            Export CSV
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 mb-6">

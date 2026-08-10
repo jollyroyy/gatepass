@@ -334,7 +334,6 @@
 
   /* Theme neutrals invert under `.dark`; paper needs fixed near-black/grey.
      Status hues stay meaningful but print-safe (fixed hex). */
-  .report-table .text-navy-400,
   .report-table .text-navy-500 {
     color: #666 !important;
   }
@@ -471,7 +470,7 @@
   }
   .btn-icon {
     @apply h-9 w-9 rounded-xl flex items-center justify-center
-           text-navy-400 hover:text-navy-700 hover:bg-surface-100
+           text-navy-500 hover:text-navy-700 hover:bg-surface-100
            active:scale-[0.95] transition-all duration-200;
   }
 
@@ -581,7 +580,7 @@
     @apply card p-6 flex flex-col gap-2;
   }
   .kpi-label {
-    @apply text-micro text-navy-400 uppercase;
+    @apply text-micro text-navy-500 uppercase;
   }
   /* Deliberately NOT font-display: KPI numerals need a real heavy weight and
      tabular figures, neither of which the single-weight display serif has. */
@@ -589,7 +588,7 @@
     @apply text-kpi tabular;
   }
   .kpi-delta {
-    @apply text-caption text-navy-400 tabular;
+    @apply text-caption text-navy-500 tabular;
   }
 
   /* --- Status badge --- */
@@ -618,7 +617,7 @@
     background: rgb(255 255 255 / 0.1);
   }
   .tab-inactive {
-    @apply text-navy-400 hover:text-navy-600 tab-item;
+    @apply text-navy-500 hover:text-navy-600 tab-item;
   }
 
   /* --- Table --- */
@@ -629,7 +628,7 @@
     @apply w-full text-sm;
   }
   .table-base thead th {
-    @apply text-micro text-navy-400 uppercase text-left px-4 py-3.5
+    @apply text-micro text-navy-500 uppercase text-left px-4 py-3.5
            border-b border-surface-200 whitespace-nowrap;
   }
   .table-base tbody td {
@@ -685,14 +684,14 @@
   }
   @media (max-width: 767.98px) {
     .item-cell[data-label]::before {
-      @apply text-micro text-navy-400 uppercase;
+      @apply text-micro text-navy-500 uppercase;
       content: attr(data-label);
     }
   }
 
   /* --- Empty state --- */
   .empty-state {
-    @apply text-center py-16 text-sm text-navy-400;
+    @apply text-center py-16 text-sm text-navy-500;
   }
 
   /* --- Modal --- */
@@ -718,7 +717,7 @@
      of the shell (unlike the printed slip, which is always-light). */
   .modal-close-btn {
     @apply absolute top-3 right-3 h-8 w-8 rounded-full flex items-center justify-center
-           text-navy-400 hover:text-navy-700 hover:bg-surface-100 active:scale-95
+           text-navy-500 hover:text-navy-700 hover:bg-surface-100 active:scale-95
            transition-all duration-150 z-10;
   }
   .dark .modal-close-btn:hover {

@@ -28,7 +28,7 @@ function Fact({ label, value, emphasize }: { label: string; value: React.ReactNo
   const shown = value === null || value === undefined || value === '' ? '—' : value;
   return (
     <div className="min-w-0">
-      <dt className="text-[10px] font-bold text-navy-400 uppercase tracking-wider">{label}</dt>
+      <dt className="text-[10px] font-bold text-navy-500 uppercase tracking-wider">{label}</dt>
       <dd className={`mt-0.5 truncate ${emphasize ? 'text-base font-bold text-navy-950' : 'text-sm font-medium text-navy-700'}`}>
         {shown}
       </dd>
@@ -100,7 +100,7 @@ export default function PassSubmittedModal({
 
       {/* Timeline — just the one event so far, in the same visual language as
           the pass-detail Raised → Mismatch → Override timeline. */}
-      <div className="flex items-center gap-2 text-xs text-navy-400 mb-5">
+      <div className="flex items-center gap-2 text-xs text-navy-500 mb-5">
         <span className="w-1.5 h-1.5 rounded-full bg-pending-500 shrink-0" />
         Raised {formatDateTime(submittedPass.created_at)} — now in the security queue.
       </div>

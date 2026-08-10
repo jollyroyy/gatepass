@@ -151,7 +151,7 @@ export default function Login(): React.ReactElement {
                   Welcome back
                 </h2>
                 <p className="text-xs mt-1.5" style={{ color: '#7C766C' }}>
-                  Sign in to continue to the gate console.
+                  Sign in
                 </p>
               </div>
 

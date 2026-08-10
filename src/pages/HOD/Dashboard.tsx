@@ -166,7 +166,7 @@ export default function Dashboard(): React.ReactElement {
       )}
 
       <div className="flex items-baseline gap-2 mb-3">
-        <span className="text-[11px] text-navy-400">
+        <span className="text-[11px] text-navy-500">
           Older passes are in{' '}
           <Link to="/my-passes" className="text-accent-600 hover:underline font-semibold">
             My Passes

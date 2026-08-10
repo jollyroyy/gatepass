@@ -177,7 +177,7 @@ export default function GuardDashboard(): React.ReactElement {
       <div ref={resultsRef}>
         <div className="flex items-baseline gap-3 mb-4">
           <h2 className="section-title mb-0">{def.heading}</h2>
-          <span className="text-xs font-medium text-navy-400 tabular">
+          <span className="text-xs font-medium text-navy-500 tabular">
             {list.length} {list.length === 1 ? 'pass' : 'passes'}
           </span>
         </div>

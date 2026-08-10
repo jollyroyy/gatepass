@@ -52,7 +52,7 @@ export default function ReportsFilterBar({
   return (
     <div className="card px-5 py-4 flex flex-wrap items-center gap-x-6 gap-y-4 no-print">
       <div className="flex items-center gap-3">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-navy-400">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-navy-500">
           Pass Type
         </span>
         <div className="tab-group" role="group" aria-label="Pass type">
@@ -75,7 +75,7 @@ export default function ReportsFilterBar({
       <div className="flex items-center gap-3">
         <label
           htmlFor="report-dept"
-          className="text-[11px] font-semibold uppercase tracking-widest text-navy-400"
+          className="text-[11px] font-semibold uppercase tracking-widest text-navy-500"
         >
           Department
         </label>

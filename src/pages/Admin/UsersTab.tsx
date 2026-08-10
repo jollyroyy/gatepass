@@ -295,22 +295,40 @@ export default function UsersTab(): React.ReactElement {
                         >
                           Edit
                         </button>
-                        <button
-                          type="button"
-                          className="text-xs font-medium text-flagged-600 hover:text-flagged-800"
-                          disabled={deletingId === p.id}
-                          // Opens the confirmation — never deactivates directly.
-                          // This used to call handleSoftDelete(p), so one stray
-                          // click on a dense table row revoked a person's access
-                          // with no prompt, and the confirmation dialog below was
-                          // unreachable dead UI.
-                          onClick={() => setDeactivateTarget(p)}
-                        >
-                          {deletingId === p.id ? '…' : 'Deactivate'}
-                        </button>
+                        {p.role === 'staff' ? (
+                          // A `staff` row is already deactivated (it's what
+                          // "Deactivate" sets, and it's what the Inactive
+                          // filter shows) — a "Deactivate" action here does
+                          // nothing meaningful. There is no reactivation RPC,
+                          // only `admin_update_user`'s role param, so
+                          // reactivating means giving the person a real role
+                          // again — this opens the same Edit modal Edit does,
+                          // where guard/HOD/staff can be chosen.
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-matched-600 hover:text-matched-800"
+                            onClick={() => openEdit(p)}
+                          >
+                            Reactivate
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-flagged-600 hover:text-flagged-800"
+                            disabled={deletingId === p.id}
+                            // Opens the confirmation — never deactivates directly.
+                            // This used to call handleSoftDelete(p), so one stray
+                            // click on a dense table row revoked a person's access
+                            // with no prompt, and the confirmation dialog below was
+                            // unreachable dead UI.
+                            onClick={() => setDeactivateTarget(p)}
+                          >
+                            {deletingId === p.id ? '…' : 'Deactivate'}
+                          </button>
+                        )}
                       </div>
                     ) : (
-                      <span className="text-xs text-navy-400">—</span>
+                      <span className="text-xs text-navy-500">—</span>
                     )}
                   </td>
                 </tr>
@@ -355,14 +373,14 @@ export default function UsersTab(): React.ReactElement {
                       <button
                         key={d.id}
                         type="button"
-                        className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${createDeptId === d.id ? 'bg-brand-500 text-white border-brand-500' : 'bg-surface-100 text-navy-600 border-surface-300 hover:border-brand-400'}`}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${createDeptId === d.id ? 'bg-brand-500 text-brand-ink border-brand-500' : 'bg-surface-100 text-navy-600 border-surface-300 hover:border-brand-400'}`}
                         onClick={() => setCreateDeptId(createDeptId === d.id ? '' : d.id)}
                       >
                         {d.name} ({d.code})
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs text-navy-400 mt-1.5">One department per person — pick a single one.</p>
+                  <p className="text-xs text-navy-500 mt-1.5">One department per person — pick a single one.</p>
                 </div>
               )}
               {createError && <div className="alert-error">{createError}</div>}
@@ -384,7 +402,7 @@ export default function UsersTab(): React.ReactElement {
             <p className="text-sm text-navy-600 mb-2">
               <strong>{deactivateTarget.full_name}</strong> ({deactivateTarget.email}) will lose all app access.
             </p>
-            <p className="text-xs text-navy-400 mb-5">Their pass history is preserved. This can be reversed by changing their role back.</p>
+            <p className="text-xs text-navy-500 mb-5">Their pass history is preserved. This can be reversed by changing their role back.</p>
             <div className="flex flex-col-reverse md:flex-row gap-3">
               <button type="button" className="btn-secondary flex-1" onClick={() => setDeactivateTarget(null)}>Cancel</button>
               <button type="button" className="btn-danger flex-1" disabled={deletingId === deactivateTarget.id} onClick={() => { const t = deactivateTarget; setDeactivateTarget(null); void handleSoftDelete(t); }}>
@@ -421,14 +439,14 @@ export default function UsersTab(): React.ReactElement {
                       <button
                         key={d.id}
                         type="button"
-                        className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${editDeptId === d.id ? 'bg-brand-500 text-white border-brand-500' : 'bg-surface-100 text-navy-600 border-surface-300 hover:border-brand-400'}`}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${editDeptId === d.id ? 'bg-brand-500 text-brand-ink border-brand-500' : 'bg-surface-100 text-navy-600 border-surface-300 hover:border-brand-400'}`}
                         onClick={() => setEditDeptId(editDeptId === d.id ? '' : d.id)}
                       >
                         {d.name} ({d.code})
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs text-navy-400 mt-1.5">One department per person — leave empty to unassign.</p>
+                  <p className="text-xs text-navy-500 mt-1.5">One department per person — leave empty to unassign.</p>
                 </div>
               )}
               {editError && <div className="alert-error">{editError}</div>}

@@ -53,7 +53,7 @@ function FullPageLoader(): React.ReactElement {
     <div className="min-h-screen flex items-center justify-center bg-surface-50">
       <div className="flex flex-col items-center gap-3">
         <div className="h-8 w-8 rounded-full border-2 border-brand-600 border-t-transparent animate-spin" />
-        <p className="text-sm text-navy-400">Loading…</p>
+        <p className="text-sm text-navy-500">Loading…</p>
       </div>
     </div>
   );

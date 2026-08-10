@@ -58,6 +58,7 @@ export default function MyPassesTable({
           key={p.id}
           pass={p}
           to={`/pass/${p.id}`}
+          compact
           badge={
             <span className="inline-flex items-center gap-2">
               {p.item_count > 0 && (

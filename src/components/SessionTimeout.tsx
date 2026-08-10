@@ -94,7 +94,7 @@ export default function SessionTimeout(): React.ReactElement | null {
           </div>
           <div>
             <h3 id="session-timeout-title" className="text-xl font-normal text-navy-950 font-display tracking-tight">Session Timeout</h3>
-            <p className="text-sm text-navy-400 mt-1">
+            <p className="text-sm text-navy-500 mt-1">
               Your session has been idle for 5 minutes. Do you want to stay signed in?
             </p>
           </div>
@@ -104,7 +104,7 @@ export default function SessionTimeout(): React.ReactElement | null {
               style={{ width: `${(countdown / COUNTDOWN_SEC) * 100}%` }}
             />
           </div>
-          <p className="text-xs text-navy-400">
+          <p className="text-xs text-navy-500">
             Auto-logout in <span className="font-semibold text-pending-600 tabular-nums">{countdown}s</span>
           </p>
           <div className="flex gap-3 w-full pt-1">

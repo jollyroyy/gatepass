@@ -45,14 +45,14 @@ export default function VerifyItemsTable({ items, showReturnDates, totalQuantity
             <>
               {' · '}
               <span className="font-bold text-navy-900">{formatRupees(declaredValue)}</span>
-              <span className="text-navy-400"> declared</span>
+              <span className="text-navy-500"> declared</span>
             </>
           )}
         </span>
       </div>
 
       {items.length === 0 ? (
-        <p className="text-sm text-navy-400 italic">No item lines recorded on this pass.</p>
+        <p className="text-sm text-navy-500 italic">No item lines recorded on this pass.</p>
       ) : (
         <div className="flex flex-col gap-3">
           {items.map((item, i) => (
@@ -76,12 +76,12 @@ export default function VerifyItemsTable({ items, showReturnDates, totalQuantity
 
               <div className="flex flex-wrap gap-x-6 gap-y-1">
                 <div className="min-w-0">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-navy-400">Reason</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-navy-500">Reason</span>
                   <p className="text-sm text-navy-700">{item.purpose}</p>
                 </div>
                 {showReturnDates && item.expected_return_date && (
                   <div>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-navy-400">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-navy-500">
                       Expected Return
                     </span>
                     <p className="text-sm text-navy-700 tabular">{formatDateOnly(item.expected_return_date)}</p>

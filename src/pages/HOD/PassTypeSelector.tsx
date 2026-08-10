@@ -28,7 +28,7 @@ export default function PassTypeSelector({ value, onChange }: PassTypeSelectorPr
           >
             <span className="type-chip w-fit">{info.code}</span>
             <span className="font-semibold text-navy-900 text-sm">{info.label}</span>
-            <span className="text-xs text-navy-400">{info.description}</span>
+            <span className="text-xs text-navy-500">{info.description}</span>
           </button>
         );
       })}

@@ -1,8 +1,10 @@
 // "Mismatches needing review" card on the HOD dashboard. The guard's mismatch
 // reason is the single most important input to the HOD's approve/leave-flagged
 // decision, so it is rendered as the visual focus of each row — not a footnote.
-// Each pass is a PassRow (the 2026-08-08 card rule); the reason rides under it
-// in flagged red, and the row's only click opens the pass detail.
+// Each pass is a COMPACT PassRow (the 2026-08-10 stack presentation: Item /
+// Value / Reason collapsed, everything else revealed on click); the flag reason
+// rides under the collapsed card in flagged red, and the opened card's "View
+// full pass" affordance opens the pass detail.
 import React from 'react';
 import type { GatePassView } from '../../types';
 import PassRow from '../../components/PassRow';
@@ -21,7 +23,7 @@ export default function FlaggedReviewCard({
       <h2 className="card-title text-flagged-700 mb-3">Mismatches needing review</h2>
       <div className="flex flex-col gap-4">
         {rows.map((p) => (
-          <PassRow key={p.id} pass={p} onOpen={onOpen} />
+          <PassRow key={p.id} pass={p} onOpen={onOpen} compact />
         ))}
       </div>
     </div>

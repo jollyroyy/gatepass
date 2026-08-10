@@ -85,7 +85,7 @@ export default function AdminDashboard(): React.ReactElement {
       {error && <div className="alert-error mb-6">{error}</div>}
 
       <div className="flex items-baseline gap-2 mb-3">
-        <span className="text-[11px] text-navy-400">
+        <span className="text-[11px] text-navy-500">
           Older passes are in <Link to="/all-passes" className="link-inline">Reports</Link>.
         </span>
       </div>

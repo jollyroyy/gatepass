@@ -30,13 +30,13 @@ export default function HodDirectory({ entries }: Props): React.ReactElement {
     >
       <div className="flex items-baseline justify-between gap-3 mb-4">
         <h3 className="card-title mb-0">Heads of Department</h3>
-        <span className="text-xs font-medium text-navy-400 tabular">
+        <span className="text-xs font-medium text-navy-500 tabular">
           {entries.length} {entries.length === 1 ? 'person' : 'people'}
         </span>
       </div>
 
       {entries.length === 0 ? (
-        <p className="text-sm text-navy-400 italic">No HOD accounts yet.</p>
+        <p className="text-sm text-navy-500 italic">No HOD accounts yet.</p>
       ) : (
         <div className="flex flex-col gap-2">
           {entries.map(({ hod, departments }) => (
@@ -47,7 +47,7 @@ export default function HodDirectory({ entries }: Props): React.ReactElement {
             >
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-navy-900 truncate">{hod.full_name}</p>
-                <p className="text-[11px] text-navy-400 truncate">{hod.email}</p>
+                <p className="text-[11px] text-navy-500 truncate">{hod.email}</p>
               </div>
               <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                 {departments.length === 0 ? (

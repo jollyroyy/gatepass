@@ -63,7 +63,7 @@ export default function FlaggedReviewActions({
           This is final. The pass will be closed and the material will not be released.
         </p>
         <div className="flex flex-col gap-1">
-          <label htmlFor="reject-reason" className="text-xs font-bold text-navy-400 uppercase tracking-wider">
+          <label htmlFor="reject-reason" className="text-xs font-bold text-navy-500 uppercase tracking-wider">
             Reason (optional)
           </label>
           <textarea

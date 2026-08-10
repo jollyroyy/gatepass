@@ -220,6 +220,12 @@ export interface GatePassView extends GatePass {
   /** Line descriptions joined with ", " — for list rows, search and CSV. The
    *  detail and print screens read the real rows instead. */
   material_summary: string | null;
+  /** Sum of the lines' `approx_value` (migration 038). Defined in the view and
+   *  nowhere else — never re-sum item rows in TypeScript, or a card and the
+   *  overdue KPI (016's `overdue_value`, summed the same way) can disagree.
+   *  0 when no line declared a value: approx_value is optional and approximate,
+   *  so "nothing declared" and "declared zero" are deliberately the same here. */
+  total_value: number;
 
   department_name: string;
   department_code: string;

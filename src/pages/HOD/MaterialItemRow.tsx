@@ -21,6 +21,22 @@ import { itemGridStyle } from './materialItemGrid';
 
 export const UNITS = ['nos', 'kg', 'box', 'roll', 'litre', 'metre', 'set'] as const;
 
+// Display text only — the submitted `value` stays the lowercase code
+// (`gate_pass_items.unit` is free `text`, and existing rows already store
+// these lowercase codes; changing what gets submitted would just create a
+// second casing convention in the same column). This map exists because the
+// client found the raw code ("nos") read as an opaque abbreviation in the
+// dropdown — capitalising the label is a pure display fix.
+const UNIT_LABELS: Record<(typeof UNITS)[number], string> = {
+  nos: 'Nos',
+  kg: 'Kg',
+  box: 'Box',
+  roll: 'Roll',
+  litre: 'Litre',
+  metre: 'Metre',
+  set: 'Set',
+};
+
 interface MaterialItemRowErrors {
   name?: string;
   description?: string;
@@ -52,7 +68,7 @@ export default function MaterialItemRow({
 }: MaterialItemRowProps): React.ReactElement {
   return (
     <div className="flex flex-col gap-1.5 p-3 bg-surface-50 rounded-lg">
-      <span className="text-xs font-bold text-navy-400">Item #{idx + 1}</span>
+      <span className="text-xs font-bold text-navy-500">Item #{idx + 1}</span>
 
       <div className="item-grid" style={itemGridStyle(showReturnDate)}>
         <div className="item-cell" data-label="Item Name">
@@ -110,7 +126,7 @@ export default function MaterialItemRow({
             onChange={(e) => onChange('unit', e.target.value)}
           >
             {UNITS.map((u) => (
-              <option key={u} value={u}>{u}</option>
+              <option key={u} value={u}>{UNIT_LABELS[u]}</option>
             ))}
           </select>
         </div>

@@ -150,11 +150,16 @@ export default function QrScanner({ onScan, onClose }: QrScannerProps): React.Re
   }
 
   return (
-    <div className="rounded-xl border border-navy-200 bg-navy-950 overflow-hidden">
+    <div className="rounded-xl border border-navy-200 bg-black overflow-hidden">
       <div className="relative">
+        {/* Deliberately bg-black, not a navy-* token: this is a camera
+            viewfinder, always dark regardless of theme. navy-950 inverts to
+            near-white under `.dark` — the app's shipped default — which would
+            put the white "Starting camera…" text (below) on a near-white
+            panel, invisible by default. */}
         <video
           ref={videoRef}
-          className="w-full max-h-[60vh] object-cover bg-navy-950"
+          className="w-full max-h-[60vh] object-cover bg-black"
           muted
           playsInline
           aria-label="Camera viewfinder for scanning a gate pass QR code"
@@ -167,7 +172,7 @@ export default function QrScanner({ onScan, onClose }: QrScannerProps): React.Re
         </div>
 
         {starting && (
-          <div className="absolute inset-0 grid place-items-center bg-navy-950/70">
+          <div className="absolute inset-0 grid place-items-center bg-black/70">
             <p className="text-white text-sm font-medium">Starting camera…</p>
           </div>
         )}

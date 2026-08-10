@@ -152,7 +152,7 @@ export default function PassDetail(): React.ReactElement {
             <Badge style={STATUS_STYLES[pass.status]} />
             {pass.is_overdue && <Badge style={OVERDUE_STYLE} />}
           </div>
-          <p className="text-sm text-navy-400">{PASS_TYPES[pass.type].label}</p>
+          <p className="text-sm text-navy-500">{PASS_TYPES[pass.type].label}</p>
           <div className="flex flex-wrap gap-2 mt-1">
             <Link to={`/pass/${pass.id}/print`} className="btn-secondary w-fit">
               Print Pass
@@ -255,7 +255,7 @@ export default function PassDetail(): React.ReactElement {
                     <p className="text-sm font-semibold text-navy-900">
                       {ACTION_LABEL[v.action]} — {v.security_name}
                     </p>
-                    <p className="text-xs text-navy-400">{formatDateTime(v.created_at)}</p>
+                    <p className="text-xs text-navy-500">{formatDateTime(v.created_at)}</p>
                     {qtyMismatch && (
                       <p className="text-sm font-semibold text-flagged-700">
                         Counted {v.verified_quantity} — declared {pass.total_quantity}

@@ -35,16 +35,16 @@ export default function MaterialItemsCard({
     <div className="card p-5">
       <div className="flex items-center justify-between mb-3">
         <h2 className="card-title mb-0">Material Items</h2>
-        <span className="text-xs font-medium text-navy-400 bg-surface-100 px-2 py-1 rounded-full">{items.length} item{items.length !== 1 ? 's' : ''}</span>
+        <span className="text-xs font-medium text-navy-500 bg-surface-100 px-2 py-1 rounded-full">{items.length} item{items.length !== 1 ? 's' : ''}</span>
       </div>
 
       <div className="item-grid hidden md:grid mb-1 px-3" style={itemGridStyle(showReturnDate)}>
         {HEADER_LABELS.map((label) => (
-          <span key={label} className="text-micro text-navy-400 uppercase">
+          <span key={label} className="text-micro text-navy-500 uppercase">
             {label}
           </span>
         ))}
-        {showReturnDate && <span className="text-micro text-navy-400 uppercase">Return Date</span>}
+        {showReturnDate && <span className="text-micro text-navy-500 uppercase">Return Date</span>}
         <span aria-hidden="true" />
       </div>
 

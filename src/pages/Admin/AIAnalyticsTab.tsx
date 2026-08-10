@@ -136,7 +136,7 @@ function MiniBar({ value, max, color, label }: { value: number; max: number; col
   const pct = max > 0 ? Math.min(Math.round((value / max) * 100), 100) : 0;
   return (
     <div className="flex items-center gap-2">
-      {label && <span className="text-xs text-navy-400 w-10 text-right tabular shrink-0">{label}</span>}
+      {label && <span className="text-xs text-navy-500 w-10 text-right tabular shrink-0">{label}</span>}
       <div className="flex-1 h-4 bg-surface-100 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color} transition-all duration-700`} style={{ width: `${pct}%` }} />
       </div>
@@ -244,7 +244,7 @@ export default function AIAnalyticsTab(): React.ReactElement {
                 const wFlagged = maxDaily > 0 ? (d.flagged / maxDaily) * 100 : 0;
                 return (
                   <div key={d.date} className="flex items-center gap-2 text-xs">
-                    <span className="text-navy-400 w-20 shrink-0 tabular">{d.date.slice(5)}</span>
+                    <span className="text-navy-500 w-20 shrink-0 tabular">{d.date.slice(5)}</span>
                     <div className="flex-1 h-5 bg-surface-100 rounded-full overflow-hidden flex">
                       {d.pending > 0 && <div className="h-full bg-pending-400 transition-all duration-500" style={{ width: `${wPending}%` }} title={`${d.pending} pending`} />}
                       {d.matched > 0 && <div className="h-full bg-matched-500 transition-all duration-500" style={{ width: `${wMatched}%` }} title={`${d.matched} matched`} />}
@@ -255,7 +255,7 @@ export default function AIAnalyticsTab(): React.ReactElement {
                 );
               })}
             </div>
-            <div className="flex gap-4 mt-3 text-xs text-navy-400">
+            <div className="flex gap-4 mt-3 text-xs text-navy-500">
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-pending-400" /> Pending for Gate Approval</span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-matched-500" /> Matched</span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-flagged-500" /> Mismatched</span>
@@ -274,7 +274,7 @@ export default function AIAnalyticsTab(): React.ReactElement {
                     <div key={d.name}>
                       <div className="flex justify-between text-xs mb-1">
                         <span className="font-semibold text-navy-700">{d.name}</span>
-                        <span className="text-navy-400 tabular">{d.total} passes · {d.flagRate}% mismatched</span>
+                        <span className="text-navy-500 tabular">{d.total} passes · {d.flagRate}% mismatched</span>
                       </div>
                       <MiniBar
                         value={d.total}

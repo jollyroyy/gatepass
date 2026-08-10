@@ -21,7 +21,7 @@ function ReadOnlyField({ label, value, hint }: { label: string; value: string; h
     <div>
       <p className="label">{label}</p>
       <p className="text-sm font-semibold text-navy-950 mt-1">{value}</p>
-      <p className="text-[11px] text-navy-400 mt-0.5">{hint}</p>
+      <p className="text-[11px] text-navy-500 mt-0.5">{hint}</p>
     </div>
   );
 }
@@ -54,7 +54,7 @@ export default function ProfileDetails({ fullName, email, role, deptNames, creat
             {busy ? 'Saving…' : 'Save'}
           </button>
         </div>
-        <p className="text-[11px] text-navy-400">This is the name guards and admins see next to your actions.</p>
+        <p className="text-[11px] text-navy-500">This is the name guards and admins see next to your actions.</p>
         {error && <p role="alert" className="text-xs font-semibold text-flagged-600">{error}</p>}
         {saved && !error && <p className="text-xs font-semibold text-matched-700">Name saved.</p>}
       </form>

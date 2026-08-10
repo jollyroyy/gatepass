@@ -21,7 +21,7 @@ export default function DrillList({ def, rows, loading, onOpen }: Props): React.
     <div className="mb-8">
       <div className="flex items-baseline gap-3 mb-3">
         <h2 className="section-title mb-0">{def.heading}</h2>
-        <span className="text-xs font-medium text-navy-400 tabular">
+        <span className="text-xs font-medium text-navy-500 tabular">
           {rows.length} {rows.length === 1 ? 'pass' : 'passes'}
         </span>
       </div>

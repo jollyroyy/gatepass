@@ -115,7 +115,7 @@ export default function GateLookup(): React.ReactElement {
       data-testid="gate-lookup"
       className="card p-4 flex flex-col gap-3 w-full lg:w-auto lg:min-w-[380px] max-w-md shrink-0"
     >
-      <label className="text-[11px] font-semibold uppercase tracking-widest text-navy-400" htmlFor="gate-lookup">
+      <label className="text-[11px] font-semibold uppercase tracking-widest text-navy-500" htmlFor="gate-lookup">
         Find a Pass
       </label>
 
@@ -130,7 +130,7 @@ export default function GateLookup(): React.ReactElement {
       >
         <div className="relative flex-1 min-w-0">
           <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-navy-400 pointer-events-none"
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-navy-500 pointer-events-none"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"

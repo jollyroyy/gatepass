@@ -138,7 +138,7 @@ export default function GateConsole(): React.ReactElement {
 
       <div ref={queueRef} id="queue" className="mb-5">
         <div className="inline-flex items-center gap-2 bg-surface-100/60 border border-surface-200 rounded-xl px-3 py-2 backdrop-blur-sm">
-          <svg className="w-4 h-4 text-navy-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="w-4 h-4 text-navy-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
           </svg>
           <select
@@ -177,7 +177,7 @@ export default function GateConsole(): React.ReactElement {
 
           <span className="w-px h-5 bg-surface-300" />
 
-          <span className="text-xs font-medium text-navy-400 tabular whitespace-nowrap">
+          <span className="text-xs font-medium text-navy-500 tabular whitespace-nowrap">
             {filteredQueue.length}<span className="text-navy-300 mx-0.5">/</span>{queue.length}
           </span>
         </div>

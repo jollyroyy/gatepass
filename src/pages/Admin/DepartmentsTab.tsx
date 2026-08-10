@@ -285,7 +285,7 @@ export default function DepartmentsTab(): React.ReactElement {
           </button>
           <button
             type="button"
-            className={`text-sm font-medium px-4 py-2 rounded-xl border transition-all ${showList ? 'bg-brand-500 text-white border-brand-500' : 'bg-surface-100 text-navy-600 border-surface-300 hover:border-brand-400'}`}
+            className={`text-sm font-medium px-4 py-2 rounded-xl border transition-all ${showList ? 'bg-brand-500 text-brand-ink border-brand-500' : 'bg-surface-100 text-navy-600 border-surface-300 hover:border-brand-400'}`}
             onClick={() => setShowList((p) => !p)}
           >
             {showList ? 'Hide Departments' : 'Show All Departments'}
@@ -296,7 +296,7 @@ export default function DepartmentsTab(): React.ReactElement {
       {/* ── Department cards ── */}
       {!showList ? (
         <div className="card p-8 text-center">
-          <p className="text-navy-400 text-sm">Click <strong>"Show All Departments"</strong> to view the department directory.</p>
+          <p className="text-navy-500 text-sm">Click <strong>"Show All Departments"</strong> to view the department directory.</p>
         </div>
       ) : loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -306,7 +306,7 @@ export default function DepartmentsTab(): React.ReactElement {
         </div>
       ) : deptCards.length === 0 ? (
         <div className="card p-8 text-center">
-          <p className="text-navy-400 text-sm">No departments yet. Add one to get started.</p>
+          <p className="text-navy-500 text-sm">No departments yet. Add one to get started.</p>
         </div>
       ) : (
         // One department per full-width row. The old 3-across grid squeezed a
@@ -355,20 +355,20 @@ export default function DepartmentsTab(): React.ReactElement {
                   <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-brand-50 text-brand-700 text-xs font-bold tabular">
                     {c.strength}
                   </span>
-                  <span className="text-[10px] font-medium text-navy-400 uppercase tracking-wider">HODs</span>
+                  <span className="text-[10px] font-medium text-navy-500 uppercase tracking-wider">HODs</span>
                 </div>
               </div>
 
               {/* HOD list */}
               <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {c.hods.length === 0 ? (
-                  <p className="text-xs text-navy-400 italic">No HOD assigned</p>
+                  <p className="text-xs text-navy-500 italic">No HOD assigned</p>
                 ) : (
                   c.hods.map((hod) => (
                     <div key={hod.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface-100/60 px-3 py-2">
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-navy-800 truncate">{hod.full_name}</p>
-                        <p className="text-[11px] text-navy-400 truncate">{hod.email}</p>
+                        <p className="text-[11px] text-navy-500 truncate">{hod.email}</p>
                       </div>
                       <button
                         type="button"

@@ -675,3 +675,31 @@ describe('SQL invariants', () => {
     ).toBe(true);
   });
 });
+
+// 038: v_gate_passes must carry total_value, and rebuilding the view must not
+// silently drop security_invoker. That flag is the whole reason the view is
+// safe: without it the view runs as its OWNER and bypasses RLS entirely, so
+// every HOD would read every department's passes. A view rebuild is exactly
+// when it gets forgotten, because `create or replace` cannot add a column and
+// the drop+create is written by hand.
+describe('038 — pass total_value', () => {
+  const sql = sqlMigrations().find((m) => m.name.startsWith('038'))!.sql;
+
+  it('adds total_value to the view', () => {
+    expect(sql).toMatch(/AS total_value/);
+  });
+
+  it('sums approx_value, matching 016 overdue_value', () => {
+    // If this ever becomes sum(quantity * approx_value), a pass's card and the
+    // overdue KPI will report different money for the same pass.
+    expect(sql).toMatch(/sum\(i\.approx_value\)/);
+  });
+
+  it('rebuilds the view WITH security_invoker', () => {
+    expect(sql).toMatch(/create view gatepass\.v_gate_passes with \(security_invoker = true\)/i);
+  });
+
+  it('re-applies the select grant the drop took away', () => {
+    expect(sql).toMatch(/grant select on gatepass\.v_gate_passes to authenticated/i);
+  });
+});

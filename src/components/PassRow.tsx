@@ -20,6 +20,7 @@ import { isToday } from 'date-fns';
 import type { GatePassView } from '../types';
 import { TypeChip } from './Badge';
 import PassRowBody from './PassRowBody';
+import PassRowCompact from './PassRowCompact';
 import { formatDateOnly, formatTime } from '../lib/formatDate';
 import { parseCompanyInfo } from '../lib/companyInfo';
 import { EXPIRED_STYLE, STATUS_STYLES, isExpiredPending } from '../lib/statusStyles';
@@ -71,6 +72,11 @@ type Props = {
    *  the shadcn Card idiom — identity-only header, PassRowBody content, a
    *  muted-surface footer for `detail`. */
   variant?: 'row' | 'drill';
+  /** Row variant only: the stack presentation (My Passes, HOD flagged review).
+   *  Collapsed it shows exactly three facts — Item, Value, Reason — plus
+   *  identity and status; clicking reveals the rest inline (PassRowCompact),
+   *  with `to` / `onOpen` surviving as a "View full pass" affordance inside. */
+  compact?: boolean;
 };
 
 export default function PassRow({
@@ -82,11 +88,12 @@ export default function PassRow({
   detail,
   defaultOpen = false,
   variant = 'row',
+  compact = false,
 }: Props): React.ReactElement {
   const [open, setOpen] = useState(defaultOpen);
   const company = parseCompanyInfo(p.visitor_company);
   const badgeStyle = isExpiredPending(p) ? EXPIRED_STYLE : STATUS_STYLES[p.status];
-  const expandable = Boolean(detail || variant === 'drill') && !to;
+  const expandable = compact || (Boolean(detail || variant === 'drill') && !to);
   const isRgp = p.type === 'RGP';
 
   if (variant === 'drill') {
@@ -197,7 +204,7 @@ export default function PassRow({
 
   const chevron = expandable && (
     <svg
-      className={`w-4 h-4 text-navy-400 shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+      className={`w-4 h-4 text-navy-500 shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -221,6 +228,25 @@ export default function PassRow({
       {detail}
     </div>
   ) : null;
+
+  // Stack card (My Passes, HOD flagged review): collapsed = three facts only;
+  // the click expands inline rather than navigating — the "View full pass"
+  // affordance inside the opened card preserves the old navigation path.
+  if (compact) {
+    return (
+      <div onClick={() => setOpen(!open)} className={rootClass}>
+        <PassRowCompact
+          pass={p}
+          open={open}
+          badge={badge}
+          statusBadge={<span className={`status-badge ${badgeStyle.bg} ${badgeStyle.text}`}>{badgeStyle.label}</span>}
+          detailUrl={to}
+          onViewDetail={onOpen}
+        />
+        {chevron}
+      </div>
+    );
+  }
 
   if (to) {
     return (
