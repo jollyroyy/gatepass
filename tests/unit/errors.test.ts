@@ -250,3 +250,46 @@ describe('safeErrorMessage — edge inputs', () => {
     expect(safeErrorMessage({ message: 42 })).toBe('42');
   });
 });
+
+// A 23505 from the open-material index used to surface as the generic
+// "That record already exists." — which tells an HOD nothing about WHAT was
+// duplicated or what to do next. It was reported from the field on 2026-08-10
+// by an IT HOD who simply could not raise an RGP.
+//
+// The map named `gate_passes_one_pending_per_material_idx`, the 008 spelling,
+// which stopped existing when 020 moved the rule onto gate_pass_items. So the
+// entry could never match and the fallback always won. Migration 037 settles
+// the index name; these pin the message to the name actually in the database.
+describe('duplicate-material violations say something useful', () => {
+  it('names the real per-pass index and explains the fix', () => {
+    const msg = safeErrorMessage({
+      code: '23505',
+      message:
+        'duplicate key value violates unique constraint '
+        + '"gate_pass_items_one_open_per_material_idx"',
+    });
+    expect(msg).toMatch(/same material/i);
+    // It must not fall through to the generic text.
+    expect(msg).not.toMatch(/^That record already exists/);
+  });
+
+  it('still handles the department-scoped spelling that 037 removed', () => {
+    // An older deployment may not have 037 yet; the message should still be
+    // actionable rather than generic while that is true.
+    const msg = safeErrorMessage({
+      code: '23505',
+      message:
+        'duplicate key value violates unique constraint '
+        + '"gate_pass_items_one_open_per_department_material_idx"',
+    });
+    expect(msg).not.toMatch(/^That record already exists/);
+  });
+
+  it('leaves an unrelated 23505 on the generic message', () => {
+    const msg = safeErrorMessage({
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "some_other_key"',
+    });
+    expect(msg).toMatch(/already exists/i);
+  });
+});

@@ -80,9 +80,26 @@ function isOpaque(message: string): boolean {
  * tests/unit/errors.test.ts pins the pairing.
  */
 const CONSTRAINT_MESSAGES: Record<string, string> = {
+  // 008's original index. It no longer exists on the database (020 moved the
+  // rule onto gate_pass_items), so this entry cannot fire today — kept only
+  // because an un-migrated environment could still raise it.
   gate_passes_one_pending_per_material_idx:
     'A pending gate pass already exists for this material in this department. ' +
     'Void it or have it verified at the gate before raising another.',
+
+  // The per-PASS rule (037). Two lines of ONE pass may not name the same
+  // material — that is a double-typed line, not a second consignment.
+  gate_pass_items_one_open_per_material_idx:
+    'This pass already has a line for the same material. ' +
+    'Combine them into one line and increase the quantity instead.',
+  // The pre-037 DEPARTMENT-scoped spelling. Kept because an environment that
+  // has not run 037 still enforces the old, much broader rule, and an HOD
+  // hitting it deserves to know it is about someone ELSE's open pass rather
+  // than anything they typed — that ambiguity is exactly what made the
+  // original field report ("why can't I raise an RGP?") so hard to diagnose.
+  gate_pass_items_one_open_per_department_material_idx:
+    'Another open gate pass in this department already lists the same material. ' +
+    'It must be returned or verified at the gate before this one can be raised.',
 
   // public.profiles' name rules are VMS-owned (three NOT VALID checks, read
   // from pg_constraint 2026-08-08) and fire on every screen that writes a

@@ -185,9 +185,9 @@ export default function GuardDashboard(): React.ReactElement {
         {actionError && <div className="alert-error mb-4">{actionError}</div>}
 
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="flex flex-col gap-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="skeleton h-64 w-full" />
+              <div key={i} className="skeleton h-40 w-full" />
             ))}
           </div>
         ) : list.length === 0 ? (
@@ -195,7 +195,9 @@ export default function GuardDashboard(): React.ReactElement {
             <p>{def.empty}</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          // Full-width stacked rows, never a 2/3-up grid — the client asked
+          // for a KPI drill to scan top-to-bottom like a list, not a mosaic.
+          <div className="flex flex-col gap-4 w-full">
             {list.map((p) => (
               <GuardDrillCard
                 key={p.id}

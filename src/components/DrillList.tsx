@@ -35,7 +35,7 @@ export default function DrillList({ def, rows, loading, onOpen }: Props): React.
       ) : rows.length === 0 ? (
         <div className="table-wrap empty-state">{def.empty}</div>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4 w-full">
           {rows.map((p) => (
             <PassRow key={p.id} pass={p} onOpen={onOpen} />
           ))}

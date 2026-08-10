@@ -654,6 +654,42 @@
     border-bottom: none;
   }
 
+  /* --- Material item grid (RaisePass — MaterialItemsCard / MaterialItemRow) ---
+     The 2026-08-10 fix for "the date and item fields are not properly aligned
+     in the same line, currently haphazard": one grid template, set once via
+     the `--item-grid-cols` custom property, shared by the header row AND
+     every item row so the columns can never drift apart from each other.
+     Below `md` this collapses to a single column and each row reads as a
+     stacked card instead of a table row.
+
+     `.item-cell[data-label]::before` is deliberately CSS-generated content,
+     not a real DOM text node — a real per-row `<label>Return Date</label>`
+     next to the shared column header would put TWO "Return Date" text nodes
+     in the document for a single item, which is exactly the kind of
+     inconsistency this fix removes. The accessible name for every field
+     still comes from `aria-label` on the input itself, so it does not depend
+     on this pseudo-element at all. */
+  .item-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem 1rem;
+  }
+  @media (min-width: 768px) {
+    .item-grid {
+      grid-template-columns: var(--item-grid-cols);
+      align-items: start;
+    }
+  }
+  .item-cell {
+    @apply flex flex-col gap-1 min-w-0;
+  }
+  @media (max-width: 767.98px) {
+    .item-cell[data-label]::before {
+      @apply text-micro text-navy-400 uppercase;
+      content: attr(data-label);
+    }
+  }
+
   /* --- Empty state --- */
   .empty-state {
     @apply text-center py-16 text-sm text-navy-400;
@@ -822,5 +858,21 @@
   }
   .stagger-4 {
     animation-delay: 0.2s;
+  }
+}
+
+/* Respect prefers-reduced-motion globally — placed after every layer so it
+ * wins the cascade for any transitioning/animating element, including the
+ * drill card's ring/shadow hover and the shimmer skeleton. Pure CSS: nothing
+ * here needs the JS matchMedia feature-detection that
+ * useScrollIntoViewOnChange.ts uses for its own (JS-triggered) scroll. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }

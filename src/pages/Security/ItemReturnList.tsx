@@ -17,6 +17,7 @@ import { gp } from '../../supabaseClient';
 import type { GatePassItemView } from '../../types';
 import { formatDateTime } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
+import ItemOrdinal from '../../components/ItemOrdinal';
 
 type Props = {
   passId: string;
@@ -82,7 +83,7 @@ export default function ItemReturnList({ passId, onReturned }: Props): React.Rea
         <p className="text-sm text-navy-500">No material lines on this pass.</p>
       )}
 
-      {items.map((item) => {
+      {items.map((item, i) => {
         const done = item.outstanding_qty <= 0;
         return (
           <div
@@ -93,8 +94,10 @@ export default function ItemReturnList({ passId, onReturned }: Props): React.Rea
                 : 'border-surface-200/60 bg-surface-50/40'
             }`}
           >
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-navy-900 truncate">{item.name}</p>
+            <div className="min-w-0 flex-1 flex items-center gap-2.5">
+              <ItemOrdinal index={i + 1} total={items.length} />
+              <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-navy-900 truncate">{item.name}</p>
               <p className="text-xs text-navy-500">
                 {done
                   ? `${item.quantity} ${item.unit} · returned`
@@ -110,6 +113,7 @@ export default function ItemReturnList({ passId, onReturned }: Props): React.Rea
                   Returned {formatDateTime(item.returned_at)}
                 </p>
               )}
+              </div>
             </div>
 
             {done ? (

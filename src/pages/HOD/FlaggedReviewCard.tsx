@@ -19,7 +19,7 @@ export default function FlaggedReviewCard({
   return (
     <div className="card border border-flagged-500/30 bg-flagged-50/40 p-5 mb-8">
       <h2 className="card-title text-flagged-700 mb-3">Mismatches needing review</h2>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         {rows.map((p) => (
           <PassRow key={p.id} pass={p} onOpen={onOpen} />
         ))}

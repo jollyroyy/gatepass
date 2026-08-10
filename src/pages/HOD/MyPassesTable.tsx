@@ -52,7 +52,7 @@ export default function MyPassesTable({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       {filtered.map((p) => (
         <PassRow
           key={p.id}

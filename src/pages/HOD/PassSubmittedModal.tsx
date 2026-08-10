@@ -88,7 +88,7 @@ export default function PassSubmittedModal({
         </FactBlock>
 
         <FactBlock title="Vendor &amp; Visitor">
-          <Fact label="Authorized Person" value={submittedPass.visitor_name} />
+          <Fact label="Visitor Name" value={submittedPass.visitor_name} />
           <Fact label="Vendor / Company" value={company.name} />
         </FactBlock>
 

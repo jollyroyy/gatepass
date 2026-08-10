@@ -12,6 +12,7 @@
 import React from 'react';
 import type { GatePassItemView } from '../../types';
 import { formatDateOnly } from '../../lib/formatDate';
+import ItemOrdinal from '../../components/ItemOrdinal';
 
 /** Indian digit grouping — ₹14,500 not ₹14.5K. A guard reads this against a
  *  delivery note, so it must match the figure written on the paper. */
@@ -54,11 +55,11 @@ export default function VerifyItemsTable({ items, showReturnDates, totalQuantity
         <p className="text-sm text-navy-400 italic">No item lines recorded on this pass.</p>
       ) : (
         <div className="flex flex-col gap-3">
-          {items.map((item) => (
+          {items.map((item, i) => (
             <div key={item.id} className="rounded-xl bg-surface-50 p-4">
               <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
-                <div className="min-w-0">
-                  <span className="text-[11px] font-bold text-navy-300 mr-2 tabular">#{item.line_no}</span>
+                <div className="min-w-0 flex items-center gap-2.5">
+                  <ItemOrdinal index={i + 1} total={items.length} />
                   <span className="font-semibold text-navy-900">{item.name}</span>
                   <span className="text-navy-300 mx-1.5" aria-hidden="true">·</span>
                   <span className="text-sm text-navy-500">{item.description}</span>

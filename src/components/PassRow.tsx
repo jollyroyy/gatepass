@@ -1,35 +1,25 @@
-// One gate pass as a horizontal row card, shared by every role.
+// One gate pass, shared by every role. Two presentations:
 //
-// The 2026-08-08 rule: EVERY pass card in the app is a compact horizontal row
-// with the main details on one line, and drilling/expanding it reveals the
-// full detail. The visual language is defined once here instead of in five
-// near-copies (QueueCard, GuardDrillCard, FlaggedReviewCard, drill list rows,
-// reports rows).
+//   variant="row" (default) — a compact horizontal line: identity, a few
+//   inline facts, the timeline, the status badge. Used by QueueCard,
+//   FlaggedReviewCard, MyPassesTable and DrillList (the HOD drills) — none of
+//   these render a second "expanded" copy of the same facts, so nothing here
+//   duplicates.
 //
-// What stays in the steady row: pass number, type, vendor, visitor, material
-// (truncated), vehicle, department, the "Raised → Mismatch → Override"
-// timeline dates, and the status badge. Everything else — the field grid,
-// flag reason, return actions, line items — lives in `detail`, which the row
-// reveals when it is expanded.
-//
-// The row itself may be:
-//   - a Link (when `to` is given — e.g. the gate console rows drill straight
-//     into /verify/:id, report rows into /pass/:id),
-//   - a focused button (when `onOpen` is given — dashboard KPI drills keep
-//     the click on the page and hand the id to the caller), or
-//   - a plain expander (when only `detail` is given).
-//
-// The status badge is deliberately STATUS-only: EXPIRED_STYLE for an
-// expired-pending pass, otherwise `STATUS_STYLES[status]`. An overdue pass
-// earns the overdue RING, not an 'Overdue' badge label — every drill row that
-// is in a list whose KPI is named "Overdue"/"Expired" must not repeat that
-// exact word inside the card (several tests and one a11y name depend on
-// exact-text lookups of the KPI's own label).
+//   variant="drill" — the shadcn Card idiom (client feedback 2026-08-10): a
+//   CardHeader that is IDENTITY + STATE ONLY (pass number, type chip, status
+//   pill — no vendor/visitor/material/vehicle/department), a CardContent body
+//   (PassRowBody) carrying every other fact EXACTLY ONCE, and an optional
+//   CardFooter (`detail`) on a distinct muted surface for actions. This is
+//   what GuardDrillCard uses; the old version showed every fact in the header
+//   AND again in its own detail grid, which was the client's actual
+//   complaint ("I see the vendor name on top and also in the body").
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { isToday } from 'date-fns';
 import type { GatePassView } from '../types';
 import { TypeChip } from './Badge';
+import PassRowBody from './PassRowBody';
 import { formatDateOnly, formatTime } from '../lib/formatDate';
 import { parseCompanyInfo } from '../lib/companyInfo';
 import { EXPIRED_STYLE, STATUS_STYLES, isExpiredPending } from '../lib/statusStyles';
@@ -41,18 +31,21 @@ function TimelineItem({ label, at }: { label: string; at: string | null }): Reac
   return (
     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-navy-500 whitespace-nowrap">
       <span className="w-1 h-1 rounded-full bg-navy-300" />
-      <span className="uppercase tracking-wider text-navy-400 text-[10px] font-semibold">{label}</span>
+      <span className="uppercase tracking-wider text-navy-500 text-[10px] font-semibold">{label}</span>
       {shown}
     </span>
   );
 }
 
-/** One tiny fact: "Vehicle WB01AB1234". */
-function Fact({ label, value }: { label: string; value: string }): React.ReactElement {
+/** One tiny fact: "Vehicle WB01AB1234". `emphasize` bumps the value's weight
+ *  only (never colour) for the facts the client asked to read as primary. */
+function Fact({ label, value, emphasize }: { label: string; value: string; emphasize?: boolean }): React.ReactElement {
   return (
     <span className="inline-flex items-baseline gap-1.5 min-w-0">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-navy-400">{label}</span>
-      <span className="text-sm font-medium text-navy-800 truncate">{value}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-navy-500">{label}</span>
+      <span className={`text-sm truncate ${emphasize ? 'font-bold text-navy-900' : 'font-medium text-navy-800'}`}>
+        {value}
+      </span>
     </span>
   );
 }
@@ -64,14 +57,20 @@ type Props = {
   /** Clicking the row calls this instead (dashboard KPI drills). */
   onOpen?: (id: string) => void;
   /** Extra chips at the right edge, before the status badge (e.g. a wait pill
-   *  or a return badge). */
+   *  or a return badge). Row variant only. */
   badge?: React.ReactNode;
   /** The head of a queue gets the gold ring. */
   isOldest?: boolean;
-  /** Expanded content: field grid, flag reason, return actions, line items. */
+  /** Expanded content. Row variant: a free-form detail block. Drill variant:
+   *  the CardFooter — actions on their own muted surface, below the
+   *  auto-rendered CardContent body. */
   detail?: React.ReactNode;
   /** Start expanded (e.g. a drill card, whose whole point is the detail). */
   defaultOpen?: boolean;
+  /** "row" (default): compact single-line card, used in every list. "drill":
+   *  the shadcn Card idiom — identity-only header, PassRowBody content, a
+   *  muted-surface footer for `detail`. */
+  variant?: 'row' | 'drill';
 };
 
 export default function PassRow({
@@ -82,11 +81,72 @@ export default function PassRow({
   isOldest,
   detail,
   defaultOpen = false,
+  variant = 'row',
 }: Props): React.ReactElement {
   const [open, setOpen] = useState(defaultOpen);
   const company = parseCompanyInfo(p.visitor_company);
   const badgeStyle = isExpiredPending(p) ? EXPIRED_STYLE : STATUS_STYLES[p.status];
-  const expandable = Boolean(detail) && !to;
+  const expandable = Boolean(detail || variant === 'drill') && !to;
+  const isRgp = p.type === 'RGP';
+
+  if (variant === 'drill') {
+    // CardHeader: identity + state, nothing else. `justify-between` is the
+    // shadcn header grid's stand-in for CardAction pinning the status pill
+    // top-right without absolute positioning.
+    // The header is the ONLY toggle control — its accessible name is just the
+    // pass number, chip and status. Putting role="button" on the whole card
+    // instead would give it an accessible name equal to its ENTIRE text
+    // content (including footer button labels), which broke `getByRole` name
+    // matching on 'Return All' during testing and would read just as badly to
+    // a screen reader.
+    const header = (
+      <div
+        className="flex items-center justify-between gap-3 px-5 pt-5 cursor-pointer"
+        data-testid="pass-card-header"
+        onClick={() => setOpen(!open)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setOpen(!open);
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="text-h3 font-semibold tabular-nums tracking-tight text-navy-900 truncate">
+            {p.pass_number}
+          </span>
+          <TypeChip type={p.type} />
+        </div>
+        <span className={`status-badge shrink-0 ${badgeStyle.bg} ${badgeStyle.text}`}>{badgeStyle.label}</span>
+      </div>
+    );
+
+    const content = open ? (
+      <div>
+        {/* CardContent */}
+        <div className="px-5 pb-5 pt-4" data-testid="pass-card-body">
+          <PassRowBody pass={p} />
+        </div>
+        {/* CardFooter — a distinct muted band, never the same surface as the
+            body, or the card flattens back into an unstructured box. */}
+        {detail && (
+          <div className="bg-surface-100/60 border-t border-surface-200 px-5 py-4" data-testid="pass-card-footer">
+            {detail}
+          </div>
+        )}
+      </div>
+    ) : null;
+
+    return (
+      <div>
+        {header}
+        {content}
+      </div>
+    );
+  }
 
   const content = (
     <>
@@ -101,11 +161,15 @@ export default function PassRow({
         <span className="text-sm text-navy-800 truncate">{p.visitor_name}</span>
       )}
       <span className="hidden lg:inline-flex items-baseline gap-1.5 min-w-0 max-w-56">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-navy-400">Material</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-navy-500">Material</span>
         <span className="text-sm text-navy-600 truncate">{p.material_summary ?? '—'}</span>
       </span>
       {p.vehicle_number && <Fact label="Vehicle" value={p.vehicle_number} />}
       {p.department_code && <Fact label="Dept" value={p.department_code} />}
+      <Fact label="Raised By" value={p.raised_by_name} emphasize />
+      {isRgp && p.expected_return_date && (
+        <Fact label="Return" value={formatDateOnly(p.expected_return_date)} emphasize />
+      )}
 
       {/* Timeline: the dates the boss asked to see on every card. */}
       <span className="ms-auto flex items-center gap-3 shrink-0">
@@ -152,7 +216,7 @@ export default function PassRow({
   // Detail sits inside a container that swallows its own clicks, so buttons
   // inside it (Record Returns, Return All) never bubble up and collapse the
   // row under their own hands.
-  const detailBlock = open && expandable ? (
+  const detailBlock = open && expandable && detail ? (
     <div className="w-full mt-3 pt-3 border-t border-surface-200/60" onClick={(e) => e.stopPropagation()}>
       {detail}
     </div>

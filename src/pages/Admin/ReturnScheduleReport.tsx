@@ -15,7 +15,7 @@ export const RETURN_SCHEDULE_CSV_COLUMNS: CsvColumn[] = [
   { key: 'pass_number', header: 'Pass No' },
   { key: 'type', header: 'Type' },
   { key: 'department_name', header: 'Department' },
-  { key: 'visitor_name', header: 'Visitor' },
+  { key: 'visitor_name', header: 'Visitor Name' },
   { key: 'material_summary', header: 'Material' },
   { key: 'item_count', header: 'Items' },
   { key: 'expected_return_date', header: 'Expected Return' },
@@ -81,7 +81,7 @@ export default function ReturnScheduleReport({ rows, onRowsChanged }: Props): Re
                 <th>Pass No</th>
                 <th>Type</th>
                 <th>Department</th>
-                <th>Visitor</th>
+                <th>Visitor Name</th>
                 <th>Material</th>
                 <th>Qty</th>
                 <th>Expected Return</th>

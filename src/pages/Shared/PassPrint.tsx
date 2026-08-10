@@ -116,7 +116,7 @@ export default function PassPrint(): React.ReactElement {
           <table className="w-full border-collapse text-sm mb-4">
             <tbody>
               {([
-                ['Authorized Person', pass.visitor_name],
+                ['Visitor Name', pass.visitor_name],
                 ['Contact No', companyInfo.phone],
                 ['Vendor', companyInfo.name],
                 ['Vendor Address', companyInfo.address],
@@ -151,9 +151,11 @@ export default function PassPrint(): React.ReactElement {
                 </tr>
               </thead>
               <tbody>
-                {items.length > 0 ? items.map((item) => (
+                {items.length > 0 ? items.map((item, i) => (
                   <tr key={item.id}>
-                    <td className="border border-black px-2 py-1 text-black text-center">{item.line_no}</td>
+                    <td className="border border-black px-2 py-1 text-black text-center font-extrabold">
+                      {items.length > 1 ? i + 1 : item.line_no}
+                    </td>
                     <td className="border border-black px-2 py-1 text-black font-semibold">{item.name}</td>
                     <td className="border border-black px-2 py-1 text-black">{item.description}</td>
                     <td className="border border-black px-2 py-1 text-black text-[10px]">{item.purpose}</td>

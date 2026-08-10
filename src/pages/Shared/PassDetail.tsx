@@ -13,6 +13,8 @@ import { parseCompanyInfo } from '../../lib/companyInfo';
 import Badge, { TypeChip } from '../../components/Badge';
 import QrPass from '../../components/QrPass';
 import FlaggedReviewActions from './FlaggedReviewActions';
+import DetailRow from './DetailRow';
+import PassDetailItems from './PassDetailItems';
 
 /** `gatepass.v_verifications` — the table plus the security officer's name. */
 interface VerificationView extends Verification {
@@ -36,15 +38,6 @@ const ACTION_LABEL: Record<VerifyAction, string> = {
   hod_reviewed: 'HOD approved override',
   cancelled: 'Voided by HOD',
 };
-
-function DetailRow({ label, value }: { label: string; value: React.ReactNode }): React.ReactElement {
-  return (
-    <div>
-      <dt className="text-xs font-bold text-navy-400 uppercase tracking-wider">{label}</dt>
-      <dd className="text-sm text-navy-900 mt-0.5">{value ?? '—'}</dd>
-    </div>
-  );
-}
 
 export default function PassDetail(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
@@ -228,34 +221,23 @@ export default function PassDetail(): React.ReactElement {
       <div className="card p-6">
         <h2 className="card-title mb-4">Pass Details</h2>
         <dl className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <DetailRow label="Authorized Person" value={pass.visitor_name} />
+          <DetailRow label="Visitor Name" value={pass.visitor_name} />
           <DetailRow label="Contact No" value={companyInfo.phone || '—'} />
-          <DetailRow label="Vendor" value={companyInfo.name || '—'} />
+          <DetailRow label="Vendor" value={companyInfo.name || '—'} emphasize />
           <DetailRow label="Vendor Address" value={companyInfo.address || '—'} />
           <DetailRow label="Vehicle Number" value={pass.vehicle_number} />
           <DetailRow label="Department" value={pass.department_name} />
-          <DetailRow label="Raised By" value={pass.raised_by_name} />
+          <DetailRow label="Raised By" value={pass.raised_by_name} emphasize />
           <DetailRow label="Raised At" value={formatDateTime(pass.created_at)} />
+          {/* RGP only — an NRGP never comes back, so omit rather than show a
+              misleading "—" that reads as missing data. */}
+          {pass.type === 'RGP' && pass.expected_return_date && (
+            <DetailRow label="Expected Return" value={formatDateOnly(pass.expected_return_date)} emphasize />
+          )}
         </dl>
       </div>
 
-      <div className="card p-6">
-        <h2 className="card-title mb-4">Material Items ({pass.item_count})</h2>
-        <div className="flex flex-col gap-4">
-          {items.map((item) => (
-            <div key={item.id} className="border border-navy-200 rounded-lg p-4 bg-surface-50">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                <DetailRow label="Item Name" value={item.name} />
-                <DetailRow label="Description" value={item.description} />
-                <DetailRow label="Purpose / Reason" value={item.purpose} />
-                <DetailRow label="Quantity" value={`${item.quantity} ${item.unit}`} />
-                <DetailRow label="Approx Value" value={item.approx_value != null ? `₹${item.approx_value.toLocaleString('en-IN')}` : '—'} />
-                <DetailRow label="Expected Return Date" value={item.expected_return_date ? formatDateOnly(item.expected_return_date) : '—'} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <PassDetailItems items={items} itemCount={pass.item_count} passType={pass.type} />
 
       <div className="card p-6">
         <h2 className="card-title mb-4">Verification Timeline</h2>

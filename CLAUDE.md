@@ -69,7 +69,7 @@ with real anon-key JWTs (13/13 behavioural checks, see below).
 | Migration `035` | ✅ **applied + verified live 2026-08-08** — **HOD override = fresh pass** (see below): override refreshes `expires_at` to end of day, `flag_pass` admits `hod_reviewed`, view carries `flagged_at` / `hod_reviewed_at` |
 | Migration `036` | ✅ **applied + verified live 2026-08-10** — **admin-assisted password reset** (see below): `admin_reset_user_password`, `set_my_password`, `my_profile()` carries `must_change_password`. **Requires VMS `064` first** |
 | `gatepass.gate_passes` | ~10 rows — real user data as of 2026-08-08. **Not a scratch database any more; do not wipe it.** |
-| `public.departments` | ✅ 5 rows: FIN, HR, IT, SA, DEV |
+| `public.departments` | ✅ **12 rows** (verified live 2026-08-10): FIN, DEV, HT, HR, IT, IS, MR, OPS, SA, OFT, TH, VLG. Real data — do not wipe. |
 
 ### `035` — HOD override = fresh pass, and the timeline the boss asked for (2026-08-08)
 
@@ -387,10 +387,17 @@ user's call, 2026-08-04. This is the one known violation of "never leave unused 
   Drill definitions live once in `src/lib/guardDrills.ts` as a `Record<DrillKey, DrillDef>`.
   **Each KPI number is `rows.length` of the very list the click opens**, so the count and the
   list cannot disagree — do not "optimise" this back into a separate `count: 'exact'` query.
-- **`/returns` and `Security/PendingReturns.tsx` are gone.** Its KPIs became two of the drills
-  and — critically — **`mark_returned` moved onto `GuardDrillCard.tsx`**, which is now the
-  ONLY way a guard can close an RGP. Deleting that tab without moving the action would have
-  stranded every returnable pass permanently.
+- ~~**`/returns` and `Security/PendingReturns.tsx` are gone.**~~ **THIS IS FALSE — corrected
+  2026-08-10.** Both still exist and are fully wired: `PendingReturns.tsx` is on disk,
+  `App.tsx:184` routes `/returns`, `ROLE_ROUTES.guard` permits it, and `Sidebar.tsx`
+  offers it to guards as "Pending Returns". Either the deletion was never carried out or
+  it was reverted; the doc was never corrected. Verified by
+  `tests/unit/navLinksResolve.test.ts`, which now fails if any nav link stops resolving to
+  a real, permitted route.
+  What IS true from that change: its KPIs also became guard-dashboard drills, and
+  **`mark_returned` is reachable from `GuardDrillCard.tsx`** as well. So there are now TWO
+  routes to closing an RGP, not one — worth deciding deliberately rather than leaving to
+  drift. **Before believing any "X was deleted" claim in this file, check the disk.**
 - **`/history` and `Security/History.tsx` are gone** (user's call, 2026-08-04), along with
   `tests/unit/history.test.tsx`. Note the capability actually lost: the Matched / Mismatch
   drills are **today-only**, so a guard can no longer look back at past verifications at all.
