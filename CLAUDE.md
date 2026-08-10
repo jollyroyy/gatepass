@@ -241,21 +241,37 @@ pass detail/slip show `—`; a blacklisted vendor by name and by number is refus
 pass matches. Probe rows cleaned up; `gate_passes` back to ~18 rows. **No commit of this
 was made before the next push (see git log — `033` ships in the same push as the docs).**
 
-### Forgot password flow fixed (2026-08-08, frontend only — no migration)
+### Password reset is admin-assisted — self-service is GONE (2026-08-10, frontend only)
 
-**"Forgot password?" used to ask for BOTH email and password, and the reset email's link
-landed back on the login form.** `Login.tsx` already sent the recovery email with
-`redirectTo: origin + '/login'`, but this app has no reset-password page — so the email
-link deposited the user straight back at the email+password sign-in form, which is the
-panel a user who forgot the password cannot leave. Worse, the forgot flow lived inside that
-same form, keeping the password field mounted and visible.
+**There is no "Forgot password?" link any more** (user's call, 2026-08-10). The login card
+carries a line of help text instead: *"Forgot your password? Contact the administrator at
+admin@demo.vms to have it reset."*, with the address as a `mailto:` link.
+`src/components/ForgotPasswordCard.tsx` was **deleted** along with `Login`'s `mode` state,
+so `resetPasswordForEmail` now has **no caller anywhere in `src/`**.
 
-Fixed with an email-only card and a real recovery landing page:
+The address lives in **one** place — `ADMIN_CONTACT_EMAIL`, exported from
+`src/pages/Login.tsx` — so the test asserts the same constant the page renders and the two
+cannot drift. Change it there if the real administrator's mailbox differs from the demo one.
 
-- **`ForgotPasswordCard.tsx`** — rendered by `Login` in place of the sign-in fields
-  (`mode === 'forgot'`), asks for **email only** and calls
-  `resetPasswordForEmail(email, { redirectTo: `${origin}/reset-password` })`; shows a
-  "Check your inbox" state; has "Back to sign in".
+Why removing it is an improvement and not a regression: the built-in Supabase sender is
+capped at **~2 emails/hour project-wide** (see the section below, still true), so the
+self-serve button failed for most people who pressed it and left them with a rate-limit
+error and no next step. A named human is a better answer than a button that usually fails.
+
+**`ResetPassword.tsx` and the `/reset-password` route are deliberately KEPT.** They are no
+longer reachable from inside the app, but they are still the landing page for a recovery
+email the **admin** triggers from the Supabase dashboard — which is exactly the flow this
+change institutes. Deleting them would break the new process, not tidy it. This is a
+knowing exception to "never leave unused code": the page has a caller, it is just not in
+this codebase. `tests/unit/resetPassword.test.tsx` (7) still covers it.
+
+`tests/unit/forgotPassword.test.tsx` was rewritten (4 tests) and now pins the *absence* of
+the control plus the presence of the mailto — so the link cannot creep back in. Full gate:
+**555 tests across 43 files pass** (`npm run check`, 2026-08-10).
+
+The original 2026-08-08 fix that this supersedes is kept below only for the recovery-page
+mechanics, which are unchanged:
+
 - **`ResetPassword.tsx`** at `/reset-password` — the recovery token the email embeds is
   an implicit-grant callback: the SDK detects it and fires the `PASSWORD_RECOVERY`
   event, and only that event unlocks the new-password + confirm form (`updateUser`).
@@ -266,14 +282,11 @@ Fixed with an email-only card and a real recovery landing page:
   `!session` gate, because the recovery session is valid but must not be treated as a
   logged-in visit (it would bounce to the console instead of the form).
 - **Login.tsx HTML validity:** the card's own `<form>` used to nest inside the outer
-  sign-in `<form>` (invalid HTML). The outer element is now a `<div>`; the sign-in
-  content is its own inner `<form>`.
+  sign-in `<form>` (invalid HTML). The outer element is a `<div>`; the sign-in content is
+  its own inner `<form>`. Keep it that way — it is still the only `<form>` on the card.
 
-Tests: `tests/unit/forgotPassword.test.tsx` (5) + `tests/unit/resetPassword.test.tsx`
-(7) — email-only assertion (no password field in forgot mode), redirect URL, recovery
-event gating, client-side minimals, `updateUser` call, error surfacing, stale-link
-fallback. Full gate: **551 tests pass** (`npm run check`, 2026-08-08). Verify with SSO /
-a real mailbox that the emailed link lands on `/reset-password`.
+Still worth verifying with a real mailbox: that the link in an **admin-triggered** recovery
+email lands on `/reset-password` and the form there accepts a new password.
 
 ### Reset email rate limit — the built-in sender is capped at ~2 emails/hour (2026-08-08)
 
@@ -286,12 +299,11 @@ already translated. Two follow-ups landed:
 - **The message now says it is an hourly cap**, not "a few minutes"
   (`src/lib/errors.ts`, tests pin `/hour/i`) — with the built-in sender the wait really
   can be until the next hour.
-- **`ForgotPasswordCard` now enforces a 60-second client-side resend cooldown**, stored in
-  `sessionStorage` (`COOLDOWN_KEY`), so the button is disabled with a live countdown in
-  whatever state the card remounts in. The cap is *project-wide*: a user hammering the
-  button in one tab burns the budget for everyone until the hour rolls over. The cooldown
-  is session-scoped and client-side only; the server enforces its own 60s-per-user window
-  and treats each request as a consume-one of the 2/hr budget regardless.
+- ~~`ForgotPasswordCard`'s 60-second client-side resend cooldown~~ — **gone with the card
+  itself on 2026-08-10** (see the section above). Nothing in the app sends a reset email
+  any more, so no client-side throttle is needed. **The cap itself still applies** to
+  whatever the admin triggers from the Supabase dashboard, and it is still project-wide
+  and shared with VMS.
 
 To raise the cap for real: configure a **custom SMTP** provider in Authentication →
 Settings (e.g. Resend), then raise `rate_limit_email_sent` in Authentication → Rate

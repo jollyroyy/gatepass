@@ -2,8 +2,18 @@ import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { safeErrorMessage } from '../lib/errors';
 import AuthField from '../components/AuthField';
-import ForgotPasswordCard from '../components/ForgotPasswordCard';
 import { QuestLockup } from '../components/QuestMark';
+
+/**
+ * Password reset is administrator-assisted, not self-service (user's call,
+ * 2026-08-10). The self-serve "Forgot password?" flow was removed along with
+ * ForgotPasswordCard: the built-in Supabase email sender is capped at ~2 mails
+ * per hour PROJECT-WIDE (shared with VMS), so most people who clicked it got a
+ * rate-limit error and no way forward. A named human is a better answer than a
+ * button that usually fails. The admin triggers the recovery mail instead, and
+ * its link still lands on /reset-password (that page stays for exactly this).
+ */
+export const ADMIN_CONTACT_EMAIL = 'admin@demo.vms';
 
 const MailIcon = (
   <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
@@ -39,7 +49,6 @@ const EyeOffIcon = (
 );
 
 export default function Login(): React.ReactElement {
-  const [mode, setMode] = useState<'signin' | 'forgot'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -133,10 +142,7 @@ export default function Login(): React.ReactElement {
           {/* Literal colours, not navy-* tokens: this card is fixed ivory chrome in
               both themes, and the tokens invert under `.dark` — the app's shipped
               default — which would render this heading near-white on near-white. */}
-          {mode === 'forgot' ? (
-            <ForgotPasswordCard onBack={() => setMode('signin')} />
-          ) : (
-            <form onSubmit={submit} className="space-y-5">
+          <form onSubmit={submit} className="space-y-5">
               <div className="mb-1">
                 <h2
                   className="text-[22px] leading-tight font-normal font-display tracking-[0.01em]"
@@ -185,18 +191,20 @@ export default function Login(): React.ReactElement {
             }
           />
 
-          {/* onClick switches to the email-only flow — the password field
-                  is deliberately not part of it. */}
-              <div className="flex justify-end -mt-2">
-                <button
-                  type="button"
-                  onClick={() => setMode('forgot')}
-                  className="text-xs font-semibold hover:underline transition-colors"
+          {/* There is no self-service reset. A forgotten password is handled by
+                  the administrator, so the card names them and makes the address
+                  actionable in one tap rather than leaving a dead end. */}
+              <p className="text-xs -mt-2 leading-relaxed" style={{ color: '#7C766C' }}>
+                Forgot your password? Contact the administrator at{' '}
+                <a
+                  href={`mailto:${ADMIN_CONTACT_EMAIL}`}
+                  className="font-semibold hover:underline transition-colors"
                   style={{ color: '#A8853F' }}
                 >
-                  Forgot password?
-                </button>
-              </div>
+                  {ADMIN_CONTACT_EMAIL}
+                </a>{' '}
+                to have it reset.
+              </p>
 
           {error && (
             <p
@@ -245,8 +253,7 @@ export default function Login(): React.ReactElement {
               </>
             )}
           </button>
-            </form>
-          )}
+          </form>
         </div>
 
         <p

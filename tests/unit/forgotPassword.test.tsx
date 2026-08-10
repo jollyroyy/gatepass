@@ -1,22 +1,22 @@
-// The forgot-password card must ask for the EMAIL ONLY — never the current
-// password. The regression: the reset button used to live on the same form as
-// the password field, so a user who had forgotten the password was asked for
-// it anyway ("If I knew the password, why am I here?"). The card must also
-// send the recovery to /reset-password, where the actual new-password form
-// lives, not back to /login.
+// Password reset is NOT self-service in this app (user's call, 2026-08-10).
+// The old "Forgot password?" link opened an email-only card that sent a Supabase
+// recovery mail — that whole flow is gone, because the built-in email sender is
+// capped at ~2 messages/hour PROJECT-WIDE (shared with VMS), so the link failed
+// for most people who clicked it and left them with no next step. The login card
+// now points at a human instead: contact the administrator.
+//
+// These tests pin BOTH halves — the link must not come back, and the admin's
+// address must actually be on the page and clickable.
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import Login from '../../src/pages/Login';
-
-const { resetPasswordForEmail } = vi.hoisted(() => ({ resetPasswordForEmail: vi.fn() }));
+import Login, { ADMIN_CONTACT_EMAIL } from '../../src/pages/Login';
 
 vi.mock('../../src/supabaseClient', () => ({
   supabase: {
     auth: {
       signInWithPassword: vi.fn().mockResolvedValue({ error: null }),
-      resetPasswordForEmail,
     },
   },
   gp: () => ({
@@ -27,123 +27,37 @@ vi.mock('../../src/supabaseClient', () => ({
   }),
 }));
 
-beforeEach(() => {
-  resetPasswordForEmail.mockReset();
-  resetPasswordForEmail.mockResolvedValue({ error: null });
-  sessionStorage.clear();
-});
+const renderLogin = () =>
+  render(
+    <MemoryRouter>
+      <Login />
+    </MemoryRouter>
+  );
 
-describe('Forgot password flow', () => {
-  it('asks for the email only — no password field on the forgot screen', () => {
-    render(
-      <MemoryRouter>
-        <Login />
-      </MemoryRouter>
-    );
-    fireEvent.click(screen.getByRole('button', { name: /forgot password/i }));
+describe('Password reset is admin-assisted, not self-service', () => {
+  it('has no "Forgot password?" control at all', () => {
+    renderLogin();
+    expect(screen.queryByRole('button', { name: /forgot password/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /forgot password/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /send reset link/i })).not.toBeInTheDocument();
+  });
 
+  it('tells the user to contact the administrator, and names the address', () => {
+    renderLogin();
+    expect(screen.getByText(/contact the administrator/i)).toBeInTheDocument();
+    expect(screen.getByText(ADMIN_CONTACT_EMAIL)).toBeInTheDocument();
+  });
+
+  it('makes the admin address a mailto link so it can be actioned in one tap', () => {
+    renderLogin();
+    const link = screen.getByRole('link', { name: ADMIN_CONTACT_EMAIL });
+    expect(link).toHaveAttribute('href', `mailto:${ADMIN_CONTACT_EMAIL}`);
+  });
+
+  it('still renders the sign-in form itself', () => {
+    renderLogin();
     expect(screen.getByLabelText('Email')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /send reset link/i })).toBeInTheDocument();
-  });
-
-  it('sends the reset email for the typed address to /reset-password', async () => {
-    render(
-      <MemoryRouter>
-        <Login />
-      </MemoryRouter>
-    );
-    fireEvent.click(screen.getByRole('button', { name: /forgot password/i }));
-
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'hod.it@demo.vms' } });
-    fireEvent.click(screen.getByRole('button', { name: /send reset link/i }));
-
-    await waitFor(() =>
-      expect(resetPasswordForEmail).toHaveBeenCalledWith(
-        'hod.it@demo.vms',
-        expect.objectContaining({
-          redirectTo: expect.stringMatching(/\/reset-password$/),
-        })
-      )
-    );
-  });
-
-  it('shows a confirmation once the email is on its way', async () => {
-    render(
-      <MemoryRouter>
-        <Login />
-      </MemoryRouter>
-    );
-    fireEvent.click(screen.getByRole('button', { name: /forgot password/i }));
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'hod.it@demo.vms' } });
-    fireEvent.click(screen.getByRole('button', { name: /send reset link/i }));
-
-    expect(await screen.findByText(/check your inbox/i)).toBeInTheDocument();
-    expect(screen.queryByLabelText('Email')).not.toBeInTheDocument();
-  });
-
-  it('surfaces the Supabase error and stays on the forgot form', async () => {
-    resetPasswordForEmail.mockResolvedValue({ error: { message: 'Rate limit exceeded' } });
-    render(
-      <MemoryRouter>
-        <Login />
-      </MemoryRouter>
-    );
-    fireEvent.click(screen.getByRole('button', { name: /forgot password/i }));
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'hod.it@demo.vms' } });
-    fireEvent.click(screen.getByRole('button', { name: /send reset link/i }));
-
-    expect(await screen.findByText('Rate limit exceeded')).toBeInTheDocument();
-    expect(screen.getByLabelText('Email')).toBeInTheDocument();
-  });
-
-  it('lets the user escape back to the full sign-in form', () => {
-    render(
-      <MemoryRouter>
-        <Login />
-      </MemoryRouter>
-    );
-    fireEvent.click(screen.getByRole('button', { name: /forgot password/i }));
-    fireEvent.click(screen.getByRole('button', { name: /back to sign in/i }));
-
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
-  });
-
-  it('shows a countdown and refuses a second send within the cooldown window', async () => {
-    render(
-      <MemoryRouter>
-        <Login />
-      </MemoryRouter>
-    );
-    fireEvent.click(screen.getByRole('button', { name: /forgot password/i }));
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'hod.it@demo.vms' } });
-    fireEvent.click(screen.getByRole('button', { name: /send reset link/i }));
-    await screen.findByText(/check your inbox/i);
-
-    // Leave the forgot card and come back — the cooldown must survive the
-    // unmount (it lives in sessionStorage, not component state), or a user who
-    // clicks away and back can hammer the email quota again.
-    fireEvent.click(screen.getByRole('button', { name: /back to sign in/i }));
-    fireEvent.click(screen.getByRole('button', { name: /forgot password/i }));
-
-    expect(screen.getByText(/send another/i)).toBeInTheDocument();
-    const sendBtn = screen.getByRole('button', { name: /send reset link/i });
-    expect(sendBtn).toBeDisabled();
-    fireEvent.click(sendBtn);
-    expect(resetPasswordForEmail).toHaveBeenCalledTimes(1);
-  });
-
-  it('allows a fresh send once the cooldown window has elapsed', () => {
-    sessionStorage.setItem('gatepass.forgot-cooldown-until', String(Date.now() - 5_000));
-    render(
-      <MemoryRouter>
-        <Login />
-      </MemoryRouter>
-    );
-    fireEvent.click(screen.getByRole('button', { name: /forgot password/i }));
-
-    expect(screen.queryByText(/send another/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /send reset link/i })).toBeEnabled();
   });
 });
