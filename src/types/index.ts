@@ -81,6 +81,8 @@ export interface Profile {
   department_id: string | null;
   avatar_url?: string | null;
   created_at: string;
+  /** Migration 036: set by an admin password reset, cleared only by set_my_password. */
+  must_change_password?: boolean;
 }
 
 export interface Department {

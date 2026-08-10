@@ -5,6 +5,7 @@ import { fetchDirectory } from '../../lib/profiles';
 import { safeErrorMessage } from '../../lib/errors';
 import { formatDateOnly } from '../../lib/formatDate';
 import { nameError } from '../../lib/nameValidation';
+import ResetPasswordSection from './ResetPasswordSection';
 
 type RoleFilter = 'all' | 'hod' | 'guard' | 'admin' | 'staff';
 
@@ -435,6 +436,8 @@ export default function UsersTab(): React.ReactElement {
                   {saving ? 'Saving…' : 'Save Changes'}
                 </button>
               </div>
+
+              <ResetPasswordSection profile={editProfile} />
             </div>
           </div>
         </div>

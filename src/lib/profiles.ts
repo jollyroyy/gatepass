@@ -63,6 +63,19 @@ export async function fetchDisplayName(email: string | null | undefined): Promis
   }
 }
 
+/**
+ * Whether the signed-in user still owes us a password change (migration 036,
+ * admin-triggered reset). Goes through fetchMyProfile() rather than a bare
+ * RPC call, so App.tsx and ForcePasswordChange.tsx never reference
+ * `my_profile` directly (tests/security/noDirectProfilesRead.test.ts pins
+ * that only this file and supabaseClient.ts may). A lookup failure is
+ * allowed to propagate — App.tsx decides to fail open on it, not this file.
+ */
+export async function fetchMustChangePassword(): Promise<boolean> {
+  const profile = await fetchMyProfile();
+  return Boolean(profile?.must_change_password);
+}
+
 /** "sudeshna.pal@x.com" → "Sudeshna". Exported for the tests. */
 export function nameFromEmail(email: string | null | undefined): string {
   const part = (email ?? '').split('@')[0]?.split('.')[0] ?? '';

@@ -4,11 +4,13 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase, getUserRole } from './supabaseClient';
 import type { UserRole } from './types/index';
 import { homeFor, isForbidden } from './lib/roleRoutes';
+import { fetchMustChangePassword } from './lib/profiles';
 import { ThemeProvider } from './lib/theme';
 import AppShell from './components/layout/AppShell';
 
 import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
+import ForcePasswordChange from './pages/ForcePasswordChange';
 import NoAccess from './pages/NoAccess';
 import HodDashboard from './pages/HOD/Dashboard';
 import RaisePass from './pages/HOD/RaisePass';
@@ -62,6 +64,12 @@ export default function App(): React.ReactElement {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [resolving, setResolving] = useState(true);
+  // Does the signed-in user still owe us a password change (admin reset)?
+  // Read fresh on every resolution — it lives only in gatepass.my_profile(),
+  // never in the JWT, so it cannot be cached alongside the role. A lookup
+  // failure fails OPEN (false) rather than locking out every existing session
+  // over a transient network error.
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,13 +78,21 @@ export default function App(): React.ReactElement {
       if (!s) {
         if (!cancelled) {
           setRole(null);
+          setMustChangePassword(false);
           setResolving(false);
         }
         return;
       }
       const r = await getUserRole();
+      let mustChange = false;
+      try {
+        mustChange = await fetchMustChangePassword();
+      } catch {
+        mustChange = false;
+      }
       if (!cancelled) {
         setRole((r as UserRole | null) ?? null);
+        setMustChangePassword(mustChange);
         setResolving(false);
       }
     };
@@ -126,6 +142,15 @@ export default function App(): React.ReactElement {
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
+  }
+
+  // An administrator reset this person's password. They must choose their own
+  // before they can reach ANYTHING else — no role routing, no deep link, no
+  // AppShell. This check has no pathname condition, so typing any URL still
+  // lands here; it only ever clears via ForcePasswordChange confirming the
+  // flag is false after a real set_my_password call.
+  if (mustChangePassword) {
+    return <ForcePasswordChange onCleared={() => setMustChangePassword(false)} />;
   }
 
   // Signed in, but the role has no place in this app (e.g. VMS `staff`).

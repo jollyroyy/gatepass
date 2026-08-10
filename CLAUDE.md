@@ -67,6 +67,7 @@ with real anon-key JWTs (13/13 behavioural checks, see below).
 | Migration `034` | ✅ **applied + verified live 2026-08-08** — **admin-created users can finally sign in** (see below): NULL GoTrue token columns backfilled (7 rows) and `admin_create_user` fixed |
 | Migration `033` | ✅ **applied + verified live 2026-08-08** — **blacklist + vehicle format hardened** (see below): strict Indian vehicle-format CHECK, blacklist form strictness, `parseCompanyInfo` packed-keys fix |
 | Migration `035` | ✅ **applied + verified live 2026-08-08** — **HOD override = fresh pass** (see below): override refreshes `expires_at` to end of day, `flag_pass` admits `hod_reviewed`, view carries `flagged_at` / `hod_reviewed_at` |
+| Migration `036` | ✅ **applied + verified live 2026-08-10** — **admin-assisted password reset** (see below): `admin_reset_user_password`, `set_my_password`, `my_profile()` carries `must_change_password`. **Requires VMS `064` first** |
 | `gatepass.gate_passes` | ~10 rows — real user data as of 2026-08-08. **Not a scratch database any more; do not wipe it.** |
 | `public.departments` | ✅ 5 rows: FIN, HR, IT, SA, DEV |
 
@@ -240,6 +241,55 @@ Verified live with real anon-key JWTs: blank-vendor raise → `visitor_company =
 pass detail/slip show `—`; a blacklisted vendor by name and by number is refused; a valid
 pass matches. Probe rows cleaned up; `gate_passes` back to ~18 rows. **No commit of this
 was made before the next push (see git log — `033` ships in the same push as the docs).**
+
+### `036` — the admin resets a password, the user is forced to replace it (2026-08-10)
+
+The other half of removing self-service reset (section below). An admin resets a
+password from **Admin → Users → Edit User**; the person signs in with what the admin gives
+them and is then made to choose their own before reaching any screen.
+
+**The browser cannot do this on its own.** `auth.admin.updateUserById` needs the
+service-role key, which must never reach the bundle. So the write happens in a
+SECURITY DEFINER function using the same bcrypt shape `admin_create_user` has used since
+`021` — `extensions.crypt(pw, extensions.gen_salt('bf'))`. GoTrue accepts a hash written
+this way; that was already proven live by `034`, and re-proven here.
+
+- **`gatepass.admin_reset_user_password(uuid, text)`** — `is_admin()` gated. Sets the
+  password, raises `must_change_password`, and **deletes every session the user has**
+  (`auth.sessions`; `refresh_tokens.session_id` cascades — verified live, `confdeltype`
+  is `'c'`). Without that delete, someone already signed in elsewhere keeps full access,
+  which defeats the point of a reset when the reason for it is a suspected compromise.
+- **It refuses to target an `admin` / `super_admin`.** Otherwise the weakest admin account
+  becomes a takeover route into every stronger one, and "reset" is an undetectable way to
+  seize a super_admin. A locked-out admin is a Supabase-dashboard job, deliberately. This
+  mirrors `admin_create_user`, which likewise will not mint an admin.
+- **`gatepass.set_my_password(text)`** — the user's own choice, scoped to `auth.uid()`.
+  **It clears the flag in the same call that writes the password, and nothing else clears
+  it.** A separate "clear the flag" RPC would let the forced-change screen be skipped from
+  the browser console. It also refuses reusing the current password (`crypt(new, current)
+  = current`), because keeping the password the admin just read out over the phone leaves
+  the account exactly as exposed as it was.
+- **`my_profile()` was drop+recreated** to carry `must_change_password` — its return type
+  changed, which `create or replace` cannot do (the same dance `025` did for `avatar_url`);
+  the execute grant is re-applied in the same transaction. GatePass never reads
+  `public.profiles` directly (the `006` rule), so this function is the only way the flag
+  reaches the client.
+
+**The flag lives in `public.profiles`, added by VMS migration `064` — not by this one.**
+`public` is VMS-owned and GatePass must never alter it. This migration only reads and
+writes the column's *value*, exactly as `admin_create_user` already writes
+`public.profiles.role`. **Apply VMS `064` first**; `036` is a no-op-then-error without it.
+The two apps' functions deliberately MIRROR rather than call each other: each authorizes
+with its own admin check, and each app's callable surface stays in its own schema.
+
+**Verified live 2026-08-10** — `node scripts/verify-036.mjs`, **16/16**, real anon-key
+JWTs throughout (postgres bypasses every guard here, so psql could not have proven any of
+it). Covers: a fresh user is NOT flagged (the regression that would lock out the whole
+org); a non-admin is refused; an admin cannot reset an admin; a short password is refused;
+the old password stops working; the new one signs in; both apps' flag readers agree;
+reusing the temp password is refused; the user's own choice clears the flag; a second
+sign-in is not gated; the temp password dies once replaced. Probe user deleted;
+`profiles` has **0** rows flagged.
 
 ### Password reset is admin-assisted — self-service is GONE (2026-08-10, frontend only)
 
