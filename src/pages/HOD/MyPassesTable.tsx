@@ -6,9 +6,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView } from '../../types';
-import { RETURN_STYLES, OVERDUE_STYLE } from '../../lib/statusStyles';
-import Badge from '../../components/Badge';
-import PassRow from '../../components/PassRow';
+import MyPassCard from './MyPassCard';
 
 interface MyPassesTableProps {
   /** Unfiltered rows — only used to tell "nothing raised yet" apart from
@@ -16,11 +14,6 @@ interface MyPassesTableProps {
   rows: GatePassView[];
   filtered: GatePassView[];
   loading: boolean;
-}
-
-function returnBadge(p: GatePassView): React.ReactElement {
-  const style = p.is_overdue ? OVERDUE_STYLE : RETURN_STYLES[p.return_status];
-  return <Badge style={style} />;
 }
 
 export default function MyPassesTable({
@@ -54,20 +47,16 @@ export default function MyPassesTable({
   return (
     <div className="flex flex-col gap-4">
       {filtered.map((p) => (
-        <PassRow
+        <MyPassCard
           key={p.id}
           pass={p}
-          to={`/pass/${p.id}`}
-          compact
           badge={
-            <span className="inline-flex items-center gap-2">
-              {p.item_count > 0 && (
-                <span className="text-xs font-semibold text-navy-600 bg-surface-100 border border-surface-300 px-2.5 py-0.5 rounded-full tabular whitespace-nowrap">
-                  {p.item_count} item{p.item_count !== 1 ? 's' : ''}
-                </span>
-              )}
-              {p.type === 'RGP' && p.return_status !== 'not_applicable' && returnBadge(p)}
-            </span>
+            p.item_count > 1 ? (
+              <>
+                <span className="w-1 h-1 rounded-full bg-navy-300 shrink-0" />
+                <span className="text-navy-600 shrink-0 tabular-nums">{p.item_count} items</span>
+              </>
+            ) : null
           }
         />
       ))}

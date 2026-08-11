@@ -13,24 +13,11 @@
 // (presentation only, no new queries). See PassDetail / VerifyItemsTable,
 // which already have the item rows loaded, for where that figure IS shown.
 import React from 'react';
-import { isToday } from 'date-fns';
 import type { GatePassView } from '../types';
 import PassField from './PassField';
+import PassTimelineStrip from './PassTimelineStrip';
 import { parseCompanyInfo } from '../lib/companyInfo';
-import { formatDateOnly, formatDateTime, formatTime } from '../lib/formatDate';
-
-/** One moment in the "Raised → Mismatch → Override" timeline. */
-function TimelineItem({ label, at }: { label: string; at: string | null }): React.ReactElement | null {
-  if (!at) return null;
-  const shown = isToday(new Date(at)) ? formatTime(at) : formatDateOnly(at);
-  return (
-    <span className="inline-flex items-center gap-1 text-caption text-navy-500 whitespace-nowrap">
-      <span className="w-1 h-1 rounded-full bg-navy-300" />
-      <span className="uppercase tracking-wider text-navy-500 text-[10px] font-semibold">{label}</span>
-      {shown}
-    </span>
-  );
-}
+import { formatDateOnly, formatDateTime } from '../lib/formatDate';
 
 type Props = {
   pass: GatePassView;
@@ -41,12 +28,21 @@ type Props = {
    *  back at them is noise (client feedback, 2026-08-11). The admin board
    *  oversees every department and keeps it. */
   showRaisedBy?: boolean;
+  /** The trimmed fact set, for My Passes: "like the card format of the
+   *  dashboard but with a little less information" (client, 2026-08-11).
+   *  Drops Visitor, Department, Raised At and Verified By — an HOD reading
+   *  their OWN register already knows the department and who raised it, and
+   *  the raise time is in the timeline directly below. What survives is what
+   *  they actually scan for: vendor, what went out, on which vehicle, and when
+   *  it is due back. */
+  slim?: boolean;
 };
 
 export default function PassRowBody({
   pass: p,
   dense = false,
   showRaisedBy = true,
+  slim = false,
 }: Props): React.ReactElement {
   const company = parseCompanyInfo(p.visitor_company);
   const isRgp = p.type === 'RGP';
@@ -62,29 +58,27 @@ export default function PassRowBody({
         }`}
       >
         <PassField label="Vendor" value={company.name || '—'} emphasize />
-        <PassField label="Visitor" value={p.visitor_name || '—'} />
-        {showRaisedBy && <PassField label="Raised By" value={p.raised_by_name || '—'} emphasize />}
+        {!slim && <PassField label="Visitor" value={p.visitor_name || '—'} />}
+        {!slim && showRaisedBy && (
+          <PassField label="Raised By" value={p.raised_by_name || '—'} emphasize />
+        )}
         <PassField label="Material" value={p.material_summary ?? '—'} />
         <PassField label="Items" value={`${p.item_count} item${p.item_count !== 1 ? 's' : ''}`} />
         <PassField label="Vehicle" value={p.vehicle_number || '—'} />
-        <PassField label="Department" value={p.department_name || '—'} />
-        <PassField label="Raised At" value={formatDateTime(p.created_at)} />
+        {!slim && <PassField label="Department" value={p.department_name || '—'} />}
+        {!slim && <PassField label="Raised At" value={formatDateTime(p.created_at)} />}
         {/* RGP only — an NRGP never comes back, so a blank/"—" field here
             would read as missing data rather than "not applicable". */}
         {isRgp && p.expected_return_date && (
           <PassField label="Expected Return" value={formatDateOnly(p.expected_return_date)} emphasize />
         )}
-        {p.verified_by_name && <PassField label="Verified By" value={p.verified_by_name} />}
+        {!slim && p.verified_by_name && <PassField label="Verified By" value={p.verified_by_name} />}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <TimelineItem label="Raised" at={p.created_at} />
-        <TimelineItem label="Mismatch" at={p.flag_reason ? (p.flagged_at ?? p.verified_at) : null} />
-        <TimelineItem
-          label="Override"
-          at={p.status === 'hod_reviewed' ? (p.hod_reviewed_at ?? p.verified_at) : null}
-        />
-      </div>
+      {/* Raised → Mismatch → Override → Cleared Out → Returned. The card's
+          badge names only the LATEST state now, so this is where a reader
+          finds that the pass was matched on the way out. */}
+      <PassTimelineStrip pass={p} />
 
       {p.flag_reason && (
         <div className="flex items-start gap-2 text-caption text-flagged-600 font-medium">

@@ -6,7 +6,8 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { gp, supabase } from '../../supabaseClient';
 import type { GatePassView, GatePassItemView, Verification, VerifyAction } from '../../types';
 import { PASS_TYPES } from '../../lib/passTypes';
-import { STATUS_STYLES, OVERDUE_STYLE } from '../../lib/statusStyles';
+import { OVERDUE_STYLE } from '../../lib/statusStyles';
+import { passStageStyle } from '../../lib/passStage';
 import { formatDateTime, formatDateOnly } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
 import { parseCompanyInfo } from '../../lib/companyInfo';
@@ -149,7 +150,12 @@ export default function PassDetail(): React.ReactElement {
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-extrabold tracking-tight font-mono text-navy-950">{pass.pass_number}</h1>
             <TypeChip type={pass.type} />
-            <Badge style={STATUS_STYLES[pass.status]} />
+            {/* The SAME single badge every card shows, so a pass that read
+                "Closed" in the list cannot read "Matched" at the top of its
+                own record. `status` freezes at 'matched' after the outward
+                trip — only `return_status` moves — which is why the raw
+                status map was wrong here (client, 2026-08-11). */}
+            <Badge style={passStageStyle(pass)} />
             {pass.is_overdue && <Badge style={OVERDUE_STYLE} />}
           </div>
           <p className="text-sm text-navy-500">{PASS_TYPES[pass.type].label}</p>

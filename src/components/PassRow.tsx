@@ -16,28 +16,14 @@
 //   complaint ("I see the vendor name on top and also in the body").
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { isToday } from 'date-fns';
 import type { GatePassView } from '../types';
 import { TypeChip } from './Badge';
 import PassRowBody from './PassRowBody';
 import PassRowCompact from './PassRowCompact';
-import { formatDateOnly, formatTime } from '../lib/formatDate';
+import { formatDateOnly } from '../lib/formatDate';
 import { parseCompanyInfo } from '../lib/companyInfo';
-import { EXPIRED_STYLE, STATUS_STYLES, isExpiredPending } from '../lib/statusStyles';
-import { rgpStageStyle } from '../lib/rgpLifecycle';
-
-/** One moment in the timeline: "Mismatch 10:02" (time today, date otherwise). */
-function TimelineItem({ label, at }: { label: string; at: string | null }): React.ReactElement | null {
-  if (!at) return null;
-  const shown = isToday(new Date(at)) ? formatTime(at) : formatDateOnly(at);
-  return (
-    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-navy-500 whitespace-nowrap">
-      <span className="w-1 h-1 rounded-full bg-navy-300" />
-      <span className="uppercase tracking-wider text-navy-500 text-[10px] font-semibold">{label}</span>
-      {shown}
-    </span>
-  );
-}
+import { passStageStyle } from '../lib/passStage';
+import PassTimelineStrip from './PassTimelineStrip';
 
 /** One tiny fact: "Vehicle WB01AB1234". `emphasize` bumps the value's weight
  *  only (never colour) for the facts the client asked to read as primary. */
@@ -83,6 +69,12 @@ type Props = {
   dense?: boolean;
   /** Drill variant only: the HOD board omits "Raised By" — they raised it. */
   showRaisedBy?: boolean;
+  /** Drill variant only: a second line under the pass number, ALWAYS visible
+   *  (the body is not). My Passes uses it so a collapsed stack is still a
+   *  register — a column of pass numbers and nothing else cannot be scanned. */
+  subtitle?: React.ReactNode;
+  /** Drill variant only: the trimmed fact set — see PassRowBody. */
+  slim?: boolean;
 };
 
 export default function PassRow({
@@ -97,18 +89,15 @@ export default function PassRow({
   compact = false,
   dense = false,
   showRaisedBy = true,
+  subtitle,
+  slim = false,
 }: Props): React.ReactElement {
   const [open, setOpen] = useState(defaultOpen);
   const company = parseCompanyInfo(p.visitor_company);
-  const badgeStyle = isExpiredPending(p) ? EXPIRED_STYLE : STATUS_STYLES[p.status];
-  // The SECOND pill, RGP only: `status` says whether the gate cleared the pass
-  // OUTWARD and stops there, so a pass still standing outside the mall and one
-  // that came back weeks ago were both just "Matched". This says which.
-  // Null for an NRGP and for anything that has not left the gate yet.
-  const stageStyle = rgpStageStyle(p);
-  const stagePill = stageStyle && (
-    <span className={`status-badge shrink-0 ${stageStyle.bg} ${stageStyle.text}`}>{stageStyle.label}</span>
-  );
+  // ONE pill, naming the LATEST state — never "Matched  Closed" (client,
+  // 2026-08-11). The outward match it supersedes is not lost: it is a moment
+  // in `passTimeline`, rendered by the expanded body below and by PassDetail.
+  const badgeStyle = passStageStyle(p);
   const expandable = compact || (Boolean(detail || variant === 'drill') && !to);
   const isRgp = p.type === 'RGP';
 
@@ -139,20 +128,20 @@ export default function PassRow({
         tabIndex={0}
         aria-expanded={open}
       >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span
-            className={`font-semibold tabular-nums tracking-tight text-navy-900 truncate ${
-              dense ? 'text-base' : 'text-h3'
-            }`}
-          >
-            {p.pass_number}
-          </span>
-          <TypeChip type={p.type} />
+        <div className="flex flex-col gap-1 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span
+              className={`font-semibold tabular-nums tracking-tight text-navy-900 truncate ${
+                dense ? 'text-base' : 'text-h3'
+              }`}
+            >
+              {p.pass_number}
+            </span>
+            <TypeChip type={p.type} />
+          </div>
+          {subtitle}
         </div>
-        <span className="flex items-center gap-2 shrink-0">
-          <span className={`status-badge shrink-0 ${badgeStyle.bg} ${badgeStyle.text}`}>{badgeStyle.label}</span>
-          {stagePill}
-        </span>
+        <span className={`status-badge shrink-0 ${badgeStyle.bg} ${badgeStyle.text}`}>{badgeStyle.label}</span>
       </div>
     );
 
@@ -160,7 +149,7 @@ export default function PassRow({
       <div>
         {/* CardContent */}
         <div className={dense ? 'px-4 pb-4 pt-3' : 'px-5 pb-5 pt-4'} data-testid="pass-card-body">
-          <PassRowBody pass={p} dense={dense} showRaisedBy={showRaisedBy} />
+          <PassRowBody pass={p} dense={dense} showRaisedBy={showRaisedBy} slim={slim} />
         </div>
         {/* CardFooter — a distinct muted band, never the same surface as the
             body, or the card flattens back into an unstructured box. */}
@@ -206,20 +195,15 @@ export default function PassRow({
         <Fact label="Return" value={formatDateOnly(p.expected_return_date)} emphasize />
       )}
 
-      {/* Timeline: the dates the boss asked to see on every card. */}
-      <span className="ms-auto flex items-center gap-3 shrink-0">
-        <TimelineItem label="Raised" at={p.created_at} />
-        <TimelineItem label="Mismatch" at={p.flag_reason ? (p.flagged_at ?? p.verified_at) : null} />
-        <TimelineItem
-          label="Override"
-          at={p.status === 'hod_reviewed' ? (p.hod_reviewed_at ?? p.verified_at) : null}
-        />
+      {/* Timeline: the dates the boss asked to see on every card — and, since
+          the badge names only the latest state, the only place the outward
+          "Cleared Out" match and the "Returned" moment still appear. */}
+      <PassTimelineStrip pass={p} className="ms-auto flex items-center gap-3 shrink-0">
         {badge}
         <span className={`status-badge ${badgeStyle.bg} ${badgeStyle.text}`}>
           {badgeStyle.label}
         </span>
-        {stagePill}
-      </span>
+      </PassTimelineStrip>
 
       {/* Flag reason trails under the row so the accusation is never lost. */}
       {p.flag_reason && (
@@ -269,10 +253,7 @@ export default function PassRow({
           open={open}
           badge={badge}
           statusBadge={
-            <>
-              <span className={`status-badge ${badgeStyle.bg} ${badgeStyle.text}`}>{badgeStyle.label}</span>
-              {stagePill}
-            </>
+            <span className={`status-badge ${badgeStyle.bg} ${badgeStyle.text}`}>{badgeStyle.label}</span>
           }
           detailUrl={to}
           onViewDetail={onOpen}

@@ -62,10 +62,11 @@ describe('HOD drill cards', () => {
     renderList([pass()]);
     const header = screen.getByTestId('pass-card-header');
     expect(header).toHaveTextContent('RGP-OUT-20260811-0001');
-    expect(header).toHaveTextContent('Matched');
-    // The RGP stage pill rides along, so a pass still outside is not read as
-    // finished just because the gate cleared it outward.
+    // ONE pill, naming the latest state. Not "Matched  Out — Not Returned":
+    // the outward match is history the moment the return loop starts, and it
+    // lives in the body's timeline instead (client, 2026-08-11).
     expect(header).toHaveTextContent('Out — Not Returned');
+    expect(header).not.toHaveTextContent('Matched');
   });
 
   it('carries the facts an HOD needs in the body', () => {

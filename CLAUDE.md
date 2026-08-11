@@ -71,6 +71,71 @@ with real anon-key JWTs (13/13 behavioural checks, see below).
 | `gatepass.gate_passes` | ~10 rows — real user data as of 2026-08-08. **Not a scratch database any more; do not wipe it.** |
 | `public.departments` | ✅ **12 rows** (verified live 2026-08-10): FIN, DEV, HT, HR, IT, IS, MR, OPS, SA, OFT, TH, VLG. Real data — do not wipe. |
 
+### One badge per pass — the latest state only (2026-08-11, frontend only)
+
+Client, same day, on the two-pill card the section below introduced: *"Only show
+what is the latest status. Maybe it is matched but it has gone out, so you don't have to
+show the match in the main card section — do show it when people look at more details, in
+that timeline. If the passes are closed, completely returned, just put it Closed. Don't
+show matched returned."* And on the detail page: *"the things which have already been
+returned and closed, when I'm clicking on the card to see more details, on the top it is
+still showing them as matched."*
+
+Two new modules, both presentation-only — no query, no column, no migration:
+
+- **`src/lib/passStage.ts`** — `passStageStyle()` collapses the status badge and the RGP
+  stage pill into ONE. Precedence: **expired-pending → attention → RGP stage → status**.
+  The *attention* tier (`OUTRANKS_RETURN_LOOP`, a `Record<PassStatus, boolean>`) is
+  `flagged` / `held` / `cancelled`, and it is deliberately ABOVE the return loop even
+  though the combination is unreachable today — `flag_pass` admits only pending / held /
+  hod_reviewed, so nothing can flag a pass already cleared out. **This pre-wires the
+  return-leg flag** the client asked for (see "Next" below): when a guard can stop a pass
+  coming back IN, it must read "Mismatched", not "Out — Not Returned", and getting the
+  order right now means that feature changes the database and the gate screen, not every
+  card. `rgpLifecycle.ts` is unchanged and still owns the return-loop labels.
+- **`src/lib/passTimeline.ts`** — `passTimeline()` returns the moments, oldest first:
+  **Raised → Mismatch → Override → Cleared Out → Returned**. This is where the outward
+  match went. Two things it fixes on the way: **Override is keyed off `hod_reviewed_at`,
+  not `status === 'hod_reviewed'`**, so the moment survives the gate matching the fresh
+  pass (the old cards dropped it exactly when a reader most wants it); and **Cleared Out
+  reads `verified_at`**, which is safe because neither `apply_item_returns` nor
+  `mark_returned` touches that column — they write a `verifications` row and move
+  `return_status` instead.
+
+`PassDetail`'s header used `STATUS_STYLES[pass.status]` directly, which is why a closed
+RGP read "Matched" at the top of its own record: **`status` freezes at `matched` after the
+outward trip and only `return_status` moves afterwards.** It now uses `passStageStyle`,
+so a card and the page it opens can never disagree.
+
+**`src/components/PassTimelineStrip.tsx`** extracted: `TimelineItem` had been copied
+byte-for-byte into `PassRow`, `PassRowBody` and `PassRowCompact`, and the timeline had
+just gone from decoration to the only legible record of the two gate events. Three copies
+of that is three chances for one surface to quietly stop rendering a moment. The
+extraction also brought `PassRow` back under the 300-line cap (309 → 292).
+
+**My Passes cards rebuilt** (client: *"make it like the card format of the dashboard but
+with a little less information — premium looking glass morphic design"*).
+`src/pages/HOD/MyPassCard.tsx` is DrillPassCard's sibling on a `.card-glass` surface, with
+three deliberate differences: **collapsed by default** (a dashboard drill answers one KPI
+click; My Passes is a scrollable register, and a stack of open cards was the "too much
+information" complaint); a **header subtitle** of material + value, always visible, so a
+column of pass numbers is still scannable; and `slim`, a new `PassRowBody` prop that drops
+Visitor / Department / Raised By / Raised At / Verified By — an HOD reading their own
+register already knows those, and the raise time is in the timeline directly below.
+`PassRow` gained `subtitle` and `slim` (drill variant only). `MyPassesTable`'s separate
+return badge is **gone** — the single pill covers it — along with its `returnBadge` helper.
+
+**Next, agreed with the client and NOT yet built: the return-leg mismatch.** A guard
+cannot flag a pass coming back in — `flag_pass` refuses a `matched` pass — so a shortfall
+at the return currently shows only as Partly Returned / Overdue. That needs a migration
+plus a control on the guard's Record Returns screen. `passStageStyle`'s precedence and
+`tests/unit/passStage.test.ts` ("lets a flag outrank the return loop") are already written
+for it.
+
+Full gate: **788 tests across 73 files pass** (`npm run check`, 2026-08-11). New specs:
+`passStage`, `passTimeline`, `passDetailHeader`, `myPassCard`; `rgpStageBadge` and
+`hodDrillCard` rewritten to pin the single-pill rule.
+
 ### The RGP return loop is now visible — and two real bugs behind it (2026-08-11, frontend only)
 
 Client: *"once the RGP is cleared for going out it shows as matched and not cleared — it is

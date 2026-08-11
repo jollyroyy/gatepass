@@ -1,13 +1,15 @@
-// The second pill on a pass card: where the RGP return loop stands.
+// The ONE pill on a pass card, and the timeline behind it.
 //
-// Client complaint, 2026-08-11: "once the RGP is cleared for going out it
-// shows as matched and not cleared — it is half matched, half not yet
-// closed." Both an RGP still outside the mall and one that came back and
-// closed are `status: 'matched'`, so the single status badge showed them
-// identically. `rgpStageStyle` (src/lib/rgpLifecycle.ts) derives the missing
-// half from `return_status`; these tests pin that every card surface actually
-// renders it BESIDE the status badge — "Matched" must survive, because the
-// guard still needs to know the gate cleared it.
+// Round one (2026-08-11): "once the RGP is cleared for going out it shows as
+// matched and not cleared." Fixed by adding a second pill from
+// `return_status`, so a card read "Matched  Out — Not Returned".
+//
+// Round two, same day: "Only show what is the latest status… if the passes are
+// closed, completely returned, just put it Closed. Don't show matched
+// returned." So the two pills collapse to one (`passStageStyle`) and the
+// outward match moves into the expanded card's timeline (`passTimeline`),
+// where the client asked for it: "in those details you can show the timeline
+// when it was first matched."
 import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -42,34 +44,38 @@ function renderRow(p: GatePassView, variant: 'row' | 'drill' = 'row') {
   );
 }
 
-describe.each(['row', 'drill'] as const)('RGP stage pill — %s variant', (variant) => {
-  it('shows "Matched" AND "Out — Not Returned" for a pass still outside', () => {
+describe.each(['row', 'drill'] as const)('pass stage pill — %s variant', (variant) => {
+  it('reads "Out — Not Returned" ALONE for a pass still outside', () => {
     renderRow(pass({ status: 'matched', return_status: 'awaiting_return' }), variant);
-    expect(screen.getByText('Matched')).toBeInTheDocument();
     expect(screen.getByText('Out — Not Returned')).toBeInTheDocument();
+    expect(screen.queryByText('Matched')).toBeNull();
   });
 
-  it('shows "Closed" once every line is back', () => {
+  it('reads "Closed" ALONE once every line is back', () => {
     renderRow(pass({ status: 'matched', return_status: 'returned' }), variant);
-    expect(screen.getByText('Matched')).toBeInTheDocument();
     expect(screen.getByText('Closed')).toBeInTheDocument();
+    expect(screen.queryByText('Matched')).toBeNull();
+    expect(screen.queryByText('Returned')).toBeNull();
     expect(screen.queryByText('Out — Not Returned')).toBeNull();
   });
 
-  it('shows "Partly Returned" in between', () => {
+  it('reads "Partly Returned" in between', () => {
     renderRow(pass({ return_status: 'partially_returned' }), variant);
     expect(screen.getByText('Partly Returned')).toBeInTheDocument();
+    expect(screen.queryByText('Matched')).toBeNull();
   });
 
-  it('adds no pill to an NRGP — it never comes back', () => {
+  // An NRGP never comes back, so the outward match IS its final state.
+  it('keeps "Matched" for an NRGP', () => {
     renderRow(pass({ type: 'NRGP', return_status: 'not_applicable' }), variant);
     expect(screen.getByText('Matched')).toBeInTheDocument();
     expect(screen.queryByText('Out — Not Returned')).toBeNull();
     expect(screen.queryByText('Closed')).toBeNull();
   });
 
-  it('adds no pill to an RGP that has not reached the gate', () => {
+  it('reads the status badge before the pass reaches the gate', () => {
     renderRow(pass({ status: 'pending', return_status: 'not_applicable' }), variant);
+    expect(screen.getByText('Pending Gate Review')).toBeInTheDocument();
     expect(screen.queryByText('Out — Not Returned')).toBeNull();
   });
 
@@ -80,5 +86,20 @@ describe.each(['row', 'drill'] as const)('RGP stage pill — %s variant', (varia
     renderRow(pass({ return_status: 'awaiting_return', is_overdue: true }), variant);
     expect(screen.getByText('Out — Not Returned')).toBeInTheDocument();
     expect(screen.queryByText('Overdue')).toBeNull();
+  });
+});
+
+// The badge lost the outward match; the timeline must have gained it, or the
+// fact is simply gone from the UI.
+describe('the expanded card carries the history the badge dropped', () => {
+  const AT = '2026-08-01T07:00:00Z';
+
+  it('shows "Cleared Out" in the drill card body of a returned pass', () => {
+    renderRow(
+      pass({ status: 'matched', verified_at: AT, return_status: 'returned', actual_return_date: AT }),
+      'drill',
+    );
+    expect(screen.getByText('Cleared Out')).toBeInTheDocument();
+    expect(screen.getByText('Returned')).toBeInTheDocument();
   });
 });

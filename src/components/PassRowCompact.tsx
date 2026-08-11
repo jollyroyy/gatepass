@@ -12,25 +12,12 @@
 // keeping each card precisely what its consumer asked for.
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { isToday } from 'date-fns';
 import type { GatePassView } from '../types';
 import { TypeChip } from './Badge';
+import PassTimelineStrip from './PassTimelineStrip';
 import { formatCurrency } from '../lib/formatCurrency';
-import { formatDateOnly, formatTime } from '../lib/formatDate';
+import { formatDateOnly } from '../lib/formatDate';
 import { parseCompanyInfo } from '../lib/companyInfo';
-
-/** One moment in the timeline: "Mismatch 10:02" (time today, date otherwise). */
-function TimelineItem({ label, at }: { label: string; at: string | null }): React.ReactElement | null {
-  if (!at) return null;
-  const shown = isToday(new Date(at)) ? formatTime(at) : formatDateOnly(at);
-  return (
-    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-navy-500 whitespace-nowrap">
-      <span className="w-1 h-1 rounded-full bg-navy-300" />
-      <span className="uppercase tracking-wider text-navy-500 text-[10px] font-semibold">{label}</span>
-      {shown}
-    </span>
-  );
-}
 
 /** One tiny fact: "Item Drill Machine". `emphasize` bumps the value's weight
  *  only (never colour) for the two facts the HOD asked to read as primary. */
@@ -128,15 +115,9 @@ export default function PassRowCompact({
           {isRgp && p.expected_return_date && (
             <Fact label="Return" value={formatDateOnly(p.expected_return_date)} emphasize />
           )}
-          <span className="ms-auto flex items-center gap-3 shrink-0">
-            <TimelineItem label="Raised" at={p.created_at} />
-            <TimelineItem label="Mismatch" at={p.flag_reason ? (p.flagged_at ?? p.verified_at) : null} />
-            <TimelineItem
-              label="Override"
-              at={p.status === 'hod_reviewed' ? (p.hod_reviewed_at ?? p.verified_at) : null}
-            />
+          <PassTimelineStrip pass={p} className="ms-auto flex items-center gap-3 shrink-0">
             {detail}
-          </span>
+          </PassTimelineStrip>
         </span>
       )}
     </>
