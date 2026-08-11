@@ -13,7 +13,7 @@ import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import MaterialItemsCard from '../../src/pages/HOD/MaterialItemsCard';
-import { itemGridColumns } from '../../src/pages/HOD/materialItemGrid';
+import { itemGridColumns, itemGridMinWidth } from '../../src/pages/HOD/materialItemGrid';
 import { EMPTY_ITEM } from '../../src/types';
 
 function renderCard(showReturnDate: boolean, itemCount = 1) {
@@ -39,6 +39,41 @@ describe('materialItemGrid — one column template, shared', () => {
   });
 });
 
+// 2026-08-11: "the background frame is a bit shorter [than the fields]". The
+// row's grey frame is a plain block, so it only ever spans the CARD's width —
+// while the grid's own minimum (the sum of its column tracks + gaps) is wider
+// than that. The fields therefore spilled OUT of the frame. The fix scrolls
+// the header + every row together inside one track whose min-width IS that
+// sum, so the frame is always at least as wide as the fields it contains and
+// the columns stay on one line.
+describe('MaterialItemsCard — the row frame is as wide as the columns it holds', () => {
+  it('the scroll track carries a min-width equal to the grid template total', () => {
+    renderCard(true, 2);
+    const track = document.querySelector('.item-grid-track') as HTMLElement;
+    expect(track).not.toBeNull();
+    expect(track.style.minWidth).toBe(itemGridMinWidth(true));
+  });
+
+  it('the header and every row live inside that one track, so they scroll together', () => {
+    renderCard(true, 3);
+    const track = document.querySelector('.item-grid-track') as HTMLElement;
+    expect(track.querySelectorAll('.item-grid').length).toBe(4); // header + 3 rows
+  });
+
+  it('the NRGP track is narrower than the RGP one (one fewer column)', () => {
+    expect(parseFloat(itemGridMinWidth(false))).toBeLessThan(parseFloat(itemGridMinWidth(true)));
+  });
+
+  it('every row frame fills the full track width, not just the visible card', () => {
+    renderCard(true, 2);
+    const track = document.querySelector('.item-grid-track') as HTMLElement;
+    // Each row frame is a direct child of the track, so it inherits the
+    // track's (min-)width instead of the narrower card width.
+    const frames = track.querySelectorAll(':scope > div > .bg-surface-50, :scope > .bg-surface-50');
+    expect(frames.length).toBeGreaterThan(0);
+  });
+});
+
 describe('MaterialItemsCard — RGP renders a Return Date column, NRGP does not', () => {
   it('shows exactly one "Return Date" column header and one date input for an RGP row', () => {
     renderCard(true, 1);
@@ -59,6 +94,25 @@ describe('MaterialItemsCard — RGP renders a Return Date column, NRGP does not'
     expect(screen.getAllByText('Return Date')).toHaveLength(1);
     expect(screen.getAllByText('Item Name')).toHaveLength(1);
     expect(screen.getAllByText('Description')).toHaveLength(1);
+  });
+});
+
+// 2026-08-11, client's wording: "the unit should be numbers not nos". The
+// stored value stays the lowercase `nos` code — `gate_pass_items.unit` is free
+// text and every existing row already carries it, so only the LABEL changes.
+describe('MaterialItemsCard — the unit dropdown reads "Numbers", not "Nos"', () => {
+  it('offers "Numbers" as the option label', () => {
+    renderCard(false, 1);
+    const select = screen.getByLabelText('Unit') as HTMLSelectElement;
+    const nos = Array.from(select.options).find((o) => o.value === 'nos');
+    expect(nos?.textContent).toBe('Numbers');
+    expect(screen.queryByText('Nos')).not.toBeInTheDocument();
+  });
+
+  it('still submits the lowercase `nos` code as the value', () => {
+    renderCard(false, 1);
+    const select = screen.getByLabelText('Unit') as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => o.value)).toContain('nos');
   });
 });
 

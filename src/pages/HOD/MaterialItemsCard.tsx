@@ -8,7 +8,7 @@
 import React from 'react';
 import type { NewGatePassItem } from '../../types';
 import MaterialItemRow from './MaterialItemRow';
-import { itemGridStyle } from './materialItemGrid';
+import { itemGridMinWidth, itemGridStyle } from './materialItemGrid';
 
 interface MaterialItemsCardProps {
   items: NewGatePassItem[];
@@ -38,36 +38,47 @@ export default function MaterialItemsCard({
         <span className="text-xs font-medium text-navy-500 bg-surface-100 px-2 py-1 rounded-full">{items.length} item{items.length !== 1 ? 's' : ''}</span>
       </div>
 
-      <div className="item-grid hidden md:grid mb-1 px-3" style={itemGridStyle(showReturnDate)}>
-        {HEADER_LABELS.map((label) => (
-          <span key={label} className="text-micro text-navy-500 uppercase">
-            {label}
-          </span>
-        ))}
-        {showReturnDate && <span className="text-micro text-navy-500 uppercase">Return Date</span>}
-        <span aria-hidden="true" />
-      </div>
+      {/* ONE horizontal scroll container for the header AND every row — they
+          must scroll together or the columns would stop lining up the moment
+          the card is narrower than the grid. `.item-grid-track`'s min-width is
+          the grid's own minimum (itemGridMinWidth), which is what makes each
+          row's grey frame at least as wide as the fields inside it; without it
+          the fields overflowed the frame. Below `md` the min-width is dropped
+          (index.css) because the grid collapses to a single stacked column. */}
+      <div className="item-grid-scroll">
+        <div className="item-grid-track" style={{ minWidth: itemGridMinWidth(showReturnDate) }}>
+          <div className="item-grid hidden md:grid mb-1 px-3" style={itemGridStyle(showReturnDate)}>
+            {HEADER_LABELS.map((label) => (
+              <span key={label} className="text-micro text-navy-500 uppercase">
+                {label}
+              </span>
+            ))}
+            {showReturnDate && <span className="text-micro text-navy-500 uppercase">Return Date</span>}
+            <span aria-hidden="true" />
+          </div>
 
-      <div className="flex flex-col gap-2">
-        {items.map((item, idx) => (
-          <MaterialItemRow
-            key={idx}
-            item={item}
-            idx={idx}
-            showReturnDate={showReturnDate}
-            errors={{
-              name: errors[`item_${idx}_name`],
-              description: errors[`item_${idx}_description`],
-              purpose: errors[`item_${idx}_purpose`],
-              expected_return_date: errors[`item_${idx}_expected_return_date`],
-              quantity: errors[`item_${idx}_quantity`],
-            }}
-            onChange={(field, value) => onItemChange(idx, field, value)}
-            onRemove={() => onRemoveItem(idx)}
-            canRemove={items.length > 1}
-            todayStr={todayStr}
-          />
-        ))}
+          <div className="flex flex-col gap-2">
+            {items.map((item, idx) => (
+              <MaterialItemRow
+                key={idx}
+                item={item}
+                idx={idx}
+                showReturnDate={showReturnDate}
+                errors={{
+                  name: errors[`item_${idx}_name`],
+                  description: errors[`item_${idx}_description`],
+                  purpose: errors[`item_${idx}_purpose`],
+                  expected_return_date: errors[`item_${idx}_expected_return_date`],
+                  quantity: errors[`item_${idx}_quantity`],
+                }}
+                onChange={(field, value) => onItemChange(idx, field, value)}
+                onRemove={() => onRemoveItem(idx)}
+                canRemove={items.length > 1}
+                todayStr={todayStr}
+              />
+            ))}
+          </div>
+        </div>
       </div>
       <button type="button" className="btn-secondary mt-3 w-full" onClick={onAddItem}>
         + Add Item

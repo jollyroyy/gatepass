@@ -159,6 +159,23 @@
   .dark .bg-white\/90 {
     background-color: rgb(var(--glass-bg) / 0.88);
   }
+
+  /* …but NOT the printed gate-pass slip. 2026-08-11: "clicking on Print Pass
+     in dark mode, the pass is not visible at all." The slip is deliberately
+     black-on-white so it reads on a cheap mono laser printer, and it correctly
+     uses literal colours rather than the navy/surface tokens — but the blanket
+     `.dark .bg-white` rule above still darkened its paper, leaving black ink on
+     a near-black sheet. The sheet is a FIXED-CONTEXT, always-light surface,
+     exactly like the login card and AuthField, so it opts out entirely: white
+     paper and a light color-scheme in both themes, on screen and on paper.
+     (Higher specificity than the rule above, so ordering is not load-bearing.) */
+  .pass-sheet {
+    color-scheme: light;
+  }
+  .dark .pass-sheet .bg-white,
+  .dark .pass-sheet.bg-white {
+    background-color: #fff;
+  }
 }
 
 /* ============================================================
@@ -677,6 +694,26 @@
     .item-grid {
       grid-template-columns: var(--item-grid-cols);
       align-items: start;
+    }
+  }
+  /* 2026-08-11: "the background frame is a bit shorter [than the fields] …
+     make sure the background frame width actually fits the entire width of the
+     fields". The grid's minimum width (every track's minimum + the gaps — see
+     itemGridMinWidth in materialItemGrid.ts) is wider than the card, so the
+     fields overflowed the row's grey frame and sat on the page background.
+     The header and every row now share ONE scroll container, and the track
+     inside it carries that minimum as an inline `min-width` — so each row
+     frame is at least as wide as the fields it holds, the columns stay on one
+     line, and the section scrolls as a unit when the viewport is narrow.
+     The min-width is ONLY meaningful at `md` and above; below that the grid
+     collapses to a single stacked column, so it is unset to avoid a pointless
+     horizontal scrollbar on a phone. */
+  .item-grid-scroll {
+    @apply overflow-x-auto;
+  }
+  @media (max-width: 767.98px) {
+    .item-grid-track {
+      min-width: 0 !important;
     }
   }
   .item-cell {

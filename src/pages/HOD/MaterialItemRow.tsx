@@ -26,9 +26,10 @@ export const UNITS = ['nos', 'kg', 'box', 'roll', 'litre', 'metre', 'set'] as co
 // these lowercase codes; changing what gets submitted would just create a
 // second casing convention in the same column). This map exists because the
 // client found the raw code ("nos") read as an opaque abbreviation in the
-// dropdown — capitalising the label is a pure display fix.
+// dropdown — spelling it out in the label is a pure display fix. ("the unit
+// should be numbers not nos", 2026-08-11.)
 const UNIT_LABELS: Record<(typeof UNITS)[number], string> = {
-  nos: 'Nos',
+  nos: 'Numbers',
   kg: 'Kg',
   box: 'Box',
   roll: 'Roll',

@@ -262,7 +262,12 @@ export default function RaisePass(): React.ReactElement {
 
       <PassIdentityPanel passNumberPrefix={passNumberPrefix} hodName={hodName} />
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5 max-w-3xl">
+      {/* max-w-6xl, not 3xl: the Material Items grid's own minimum width (see
+          itemGridMinWidth) is wider than a 3xl form, so at 3xl the section
+          scrolled horizontally on every screen. 6xl clears it on a normal
+          laptop; narrower viewports still scroll, with the row frame carrying
+          the full field width either way. */}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5 max-w-6xl">
         <PassDetailsCards
           form={form}
           errors={errors}
