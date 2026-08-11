@@ -151,13 +151,23 @@ describe('GuardDashboard — KPI drills', () => {
   it('renders every gate KPI, including the two that came from Pending Returns', async () => {
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('Pending for Gate Approval')).toBeInTheDocument());
-    // "Successful Gate Passes" — every pass the gate cleared today, any type
-    // or direction. `matched` is the status match_pass sets, so it IS success.
     expect(screen.getByText('Expired')).toBeInTheDocument();
-    expect(screen.getByText('Successful Gate Passes')).toBeInTheDocument();
     expect(screen.getByText('Mismatch at Gate')).toBeInTheDocument();
     expect(screen.getByText('Awaiting Return')).toBeInTheDocument();
     expect(screen.getByText('Overdue')).toBeInTheDocument();
+  });
+
+  // Removed at the client's request, 2026-08-11: "remove successful gate
+  // passes from the security dashboard." A cleared pass is finished work, and
+  // the shift board is for what still needs a guard's attention. The passes
+  // themselves are not lost — Reports still holds every one of them, and a
+  // returnable pass that came back still shows under Returned & Closed.
+  it('no longer offers a Successful Gate Passes drill', async () => {
+    renderAt(<GuardDashboard />);
+    await waitFor(() => expect(screen.getByText('Pending for Gate Approval')).toBeInTheDocument());
+    expect(screen.queryByText('Successful Gate Passes')).not.toBeInTheDocument();
+    // The matched pass behind it is gone from the board with it.
+    expect(screen.queryByText('MTCH-0001')).not.toBeInTheDocument();
   });
 
   it("shows today's movement counters for all three legal categories", async () => {
@@ -228,16 +238,11 @@ describe('GuardDashboard — KPI drills', () => {
     expect(markReturned.mock.calls[0][0]).toBe('mark_returned');
   });
 
-  it('excludes a pass raised days ago from Pending, Matched and Mismatch — and their counts', async () => {
+  it('excludes a pass raised days ago from Pending and Mismatch — and their counts', async () => {
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
     // Pending: only today's three.
     expect(screen.getByRole('button', { name: /Pending for Gate Approval/i })).toHaveTextContent('3');
-    expect(screen.queryByText('AWAIT-0001')).not.toBeInTheDocument();
-    expect(screen.queryByText('OVER-0001')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByText('Successful Gate Passes'));
-    await waitFor(() => expect(screen.getByText('MTCH-0001')).toBeInTheDocument());
     expect(screen.queryByText('AWAIT-0001')).not.toBeInTheDocument();
     expect(screen.queryByText('OVER-0001')).not.toBeInTheDocument();
 
@@ -285,7 +290,7 @@ describe('GateConsole — queue only, with the lookup on the right', () => {
   it('no longer renders the KPI cards', async () => {
     renderAt(<GateConsole />);
     await waitFor(() => expect(screen.getByText('Gate Console')).toBeInTheDocument());
-    expect(screen.queryByText('Successful Gate Passes')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pending for Gate Approval')).not.toBeInTheDocument();
     expect(screen.queryByText('Mismatch at Gate')).not.toBeInTheDocument();
   });
 

@@ -26,6 +26,41 @@
 //   currently `awaiting_return`, full stop, no date filter. They are marked
 //   `allTime: true` so the card visibly says so instead of looking like an
 //   inconsistency nobody noticed.
+//
+// THERE IS DELIBERATELY NO "SUCCESSFUL GATE PASSES" (matched) DRILL — removed
+// at the client's request, 2026-08-11. A cleared pass is finished work, and
+// this board is what still needs a guard's attention; the counter grew every
+// time the gate did its job correctly, so the one number that only ever went
+// up was the one nobody had to act on. Two things make the removal safe rather
+// than a loss of visibility:
+//
+//   * Reports (/all-passes) still holds every matched pass, of any date — that
+//     is where the register lives, and always was.
+//   * A RETURNABLE pass that came back is still on this board under
+//     `closed` ("Returned & Closed"), which is a genuine end state. What is
+//     gone is only the outward-clearance bucket.
+//
+// The NRGP consequence is worth knowing before anyone "restores" this: an NRGP
+// never comes back, so once the gate matches one it now appears in no drill on
+// this board at all. That is intended — it is done — but it means the guard's
+// board no longer shows a same-shift count of everything cleared. If that is
+// ever missed, the fix is a Today/All-time toggle in Reports, not this card.
+//
+// THERE IS ALSO NO "HOD APPROVED" (hod_reviewed) DRILL — removed the same day,
+// same request. This one deserves a closer look before anyone reinstates it,
+// because the drill was originally added to close a real hole: for two months
+// an HOD's override moved a pass flagged→hod_reviewed and EVERY guard surface
+// then refused to act on it — the queue filtered `pending` only and Verify hid
+// the Match button — so a truck the HOD had approved could not be cleared.
+//
+// That hole is now closed at its source, which is why the card is redundant
+// rather than load-bearing: GateConsole's queue selects
+// `.in('status', ['pending','hod_reviewed'])` (035), so an approved pass sits
+// in the queue a guard actually works from, and Verify offers both Match and
+// Flag for it. `tests/unit/hodReviewGateFlow.test.tsx` pins both of those, and
+// now also pins the absence of this drill — so if someone ever narrows the
+// queue back to `pending` alone, that spec fails rather than silently
+// recreating the original bug with no card left to reveal it.
 import type { GatePassView } from '../types';
 import type { Tone } from '../components/KpiCard';
 import { categoryKey } from './passTypes';
@@ -33,7 +68,7 @@ import { isExpiredPending } from './statusStyles';
 
 export type DrillKey =
   | 'rgpOut' | 'rgpIn' | 'nrgpOut'
-  | 'pending' | 'expired' | 'matched' | 'flagged' | 'approved'
+  | 'pending' | 'expired' | 'flagged'
   | 'awaiting' | 'overdue' | 'closed';
 
 /** Which row set a drill filters: the two day-scoped sets, or the
@@ -124,20 +159,6 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     allTime: false,
     match: isExpiredPending,
   },
-  matched: {
-    key: 'matched',
-    label: 'Successful Gate Passes',
-    tone: 'matched',
-    // Every pass the gate cleared today, whatever its type or direction —
-    // RGP Out, RGP In and NRGP Out all count. `matched` IS "successful": it is
-    // the status match_pass sets, and the only way material legitimately moves.
-    heading: 'Cleared through the gate today',
-    empty: 'No gate pass has been cleared today.',
-    returnable: false,
-    source: 'verifiedToday',
-    allTime: false,
-    match: (p) => p.status === 'matched',
-  },
   flagged: {
     key: 'flagged',
     label: 'Mismatch at Gate',
@@ -148,23 +169,6 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     source: 'verifiedToday',
     allTime: false,
     match: (p) => p.status === 'flagged',
-  },
-  // The two months of flag-flow history nearly ended here: the HOD's
-  // approval moved a pass flagged→hod_reviewed, and every guard surface then
-  // refused to act on it (queue filtered 'pending' only, Verify hid Match).
-  // The truck had been approved through but could not be cleared. This drill
-  // is what makes the mopped-up end of that chain visible again: a pass
-  // approved by the HOD is waiting on exactly one action — the gate.
-  approved: {
-    key: 'approved',
-    label: 'HOD Approved',
-    tone: 'accent',
-    heading: 'Approved by the HOD, waiting to clear',
-    empty: 'No HOD-approved passes at the gate right now.',
-    returnable: false,
-    source: 'raisedToday',
-    allTime: false,
-    match: (p) => p.status === 'hod_reviewed',
   },
   awaiting: {
     key: 'awaiting',
@@ -217,7 +221,7 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
  *  status of that work, then what is still open. */
 export const DRILL_ORDER: DrillKey[] = [
   'rgpOut', 'rgpIn', 'nrgpOut',
-  'pending', 'expired', 'matched', 'flagged', 'approved',
+  'pending', 'expired', 'flagged',
   'awaiting', 'overdue', 'closed',
 ];
 

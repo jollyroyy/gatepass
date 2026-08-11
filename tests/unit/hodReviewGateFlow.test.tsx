@@ -141,15 +141,20 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
     });
   });
 
+  // The HOD Approved KPI was removed from the guard's dashboard at the
+  // client's request, 2026-08-11. The chain this whole spec exists to protect
+  // is NOT broken by that, and these two tests are what prove it: an
+  // HOD-approved pass is still in the Gate Console queue (asserted above) and
+  // still fully actionable on Verify (asserted above). The dashboard card was
+  // a second window onto passes the queue already lists.
   describe('Dashboard drill', () => {
-    it('has a drill that matches hod_reviewed passes', async () => {
+    it('no longer carries an HOD Approved drill', async () => {
       const { DRILL_DEFS, DRILL_ORDER } = await import('../../src/lib/guardDrills');
-      expect(DRILL_ORDER).toContain('approved');
-      expect(DRILL_DEFS.approved.match(pass({ status: 'hod_reviewed' }))).toBe(true);
-      expect(DRILL_DEFS.approved.match(pass({ status: 'pending' }))).toBe(false);
+      expect(DRILL_ORDER).not.toContain('approved');
+      expect(DRILL_DEFS).not.toHaveProperty('approved');
     });
 
-    it('renders an HOD Approved KPI on the dashboard', async () => {
+    it('renders no HOD Approved KPI on the dashboard', async () => {
       queueRows = [APPROVED, pass({ id: 'p2', pass_number: 'PEND-0001', status: 'pending' })];
       const GuardDashboard = (await import('../../src/pages/Security/GuardDashboard')).default;
       render(
@@ -158,9 +163,8 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
         </MemoryRouter>
       );
 
-      await waitFor(() => expect(screen.getByText('HOD Approved')).toBeInTheDocument());
-      fireEvent.click(screen.getByText('HOD Approved'));
-      await waitFor(() => expect(screen.getByText('APPROVED-0001')).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText('Pending for Gate Approval')).toBeInTheDocument());
+      expect(screen.queryByText('HOD Approved')).not.toBeInTheDocument();
     });
   });
 });

@@ -71,6 +71,34 @@ with real anon-key JWTs (13/13 behavioural checks, see below).
 | `gatepass.gate_passes` | ~10 rows — real user data as of 2026-08-08. **Not a scratch database any more; do not wipe it.** |
 | `public.departments` | ✅ **12 rows** (verified live 2026-08-10): FIN, DEV, HT, HR, IT, IS, MR, OPS, SA, OFT, TH, VLG. Real data — do not wipe. |
 
+### Guard dashboard trimmed to what still needs a guard (2026-08-11, frontend only)
+
+Two KPI drills removed from `src/lib/guardDrills.ts` at the client's request — the board is
+a shift console, and both counters only ever went up when the gate had already finished
+with the pass. **Neither removal loses a pass**, and the reasons differ:
+
+- **"Successful Gate Passes"** (`matched`, sourced from `verifiedToday`). Reports
+  (`/all-passes`) still holds every matched pass of any date, and a *returnable* pass that
+  came back is still on this board under **Returned & Closed** (`closed`). Consequence
+  worth knowing: an **NRGP never comes back, so once matched it now appears in no drill on
+  this board at all.** That is intended — it is done — but the guard's board no longer
+  shows a same-shift count of everything cleared. If that is ever missed, the fix is a
+  Today/All-time toggle in Reports, not this card.
+- **"HOD Approved"** (`hod_reviewed`). This one is redundant rather than expendable, and
+  the distinction matters: the drill was originally added to close a real hole — for two
+  months an override moved a pass `flagged → hod_reviewed` and every guard surface then
+  refused to act on it (queue filtered `pending` only, Verify hid Match), so a truck the
+  HOD had approved could not be cleared. **That hole is closed at its source**:
+  `GateConsole`'s queue selects `.in('status', ['pending','hod_reviewed'])` (035) and
+  Verify offers both Match and Flag. `tests/unit/hodReviewGateFlow.test.tsx` pins both of
+  those AND now pins the drill's absence — so narrowing the queue back to `pending` alone
+  fails that spec rather than silently recreating the original bug with no card left to
+  reveal it.
+
+`DrillKey`, `DRILL_DEFS` and `DRILL_ORDER` all shrank accordingly; the `verifiedToday`
+query stays (`flagged` and `closed` still read it). Full gate: **789 tests across 73
+files** (`npm run check`, 2026-08-11).
+
 ### One badge per pass — the latest state only (2026-08-11, frontend only)
 
 Client, same day, on the two-pill card the section below introduced: *"Only show
