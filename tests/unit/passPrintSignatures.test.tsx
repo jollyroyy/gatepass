@@ -1,9 +1,9 @@
-// The printed slip is the physical artefact five people sign and stamp before
-// material crosses the gate. It carries all five blocks on EVERY category —
+// The printed slip is the physical artefact six people sign and stamp before
+// material crosses the gate. It carries all six blocks on EVERY category —
 // RGP Out, RGP In and NRGP Out — because the approval chain does not change
 // with the direction the material is travelling.
 //
-// Row 1 (approvals, left→right): Issuing HOD · Security HOD · Finance HOD
+// Row 1 (approvals, left→right): Issuing HOD · Security HOD · COO · Finance HOD
 // Row 2 (at the gate):           Security Verification · Receiver Signature
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -73,16 +73,17 @@ async function renderFor(over: Record<string, unknown>) {
 }
 
 describe('signature block definitions', () => {
-  it('defines exactly five blocks over two rows', () => {
+  it('defines exactly six blocks over two rows', () => {
     const all = SIGNATURE_ROWS.flat();
-    expect(all).toHaveLength(5);
+    expect(all).toHaveLength(6);
     expect(SIGNATURE_ROWS).toHaveLength(2);
   });
 
-  it('puts the three approvals on row 1 in issuing/security/finance order', () => {
+  it('puts the four approvals on row 1 in issuing/security/coo/finance order', () => {
     expect(SIGNATURE_ROWS[0].map((b) => b.label)).toEqual([
       'Issuing HOD',
       'Security HOD',
+      'COO',
       'Finance HOD',
     ]);
   });
@@ -101,7 +102,7 @@ describe('signature block definitions', () => {
   });
 });
 
-describe('PassPrint renders all five blocks for every category', () => {
+describe('PassPrint renders all six signature labels for every category', () => {
   const CATEGORIES: { name: string; over: Record<string, unknown> }[] = [
     { name: 'RGP Out', over: { type: 'RGP', direction: 'out' } },
     { name: 'RGP In', over: { type: 'RGP', direction: 'in' } },
@@ -109,7 +110,7 @@ describe('PassPrint renders all five blocks for every category', () => {
   ];
 
   for (const c of CATEGORIES) {
-    it(`renders all five signature labels for ${c.name}`, async () => {
+    it(`renders all six signature labels for ${c.name}`, async () => {
       await renderFor(c.over);
       for (const b of SIGNATURE_ROWS.flat()) {
         expect(screen.getByText(b.label)).toBeInTheDocument();

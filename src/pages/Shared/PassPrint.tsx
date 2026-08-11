@@ -200,7 +200,7 @@ export default function PassPrint(): React.ReactElement {
             </div>
           )}
 
-          {/* Five signatures over two rows — the approval chain, then the gate.
+          {/* Six signatures over two rows — the approval chain, then the gate.
               Identical on every category; see signatureBlocks.ts for why.
               break-inside-avoid so a page break can never split a signature
               from its label and leave an unlabelled box on the next sheet. */}
@@ -210,8 +210,8 @@ export default function PassPrint(): React.ReactElement {
                 {row.map((block) => (
                   <SignatureBox key={block.label} label={block.label} caption={block.caption} />
                 ))}
-                {/* Row 2 has two blocks; this keeps them the same width as row 1's
-                    three rather than stretching across the full sheet. */}
+                {/* Row 2 has two blocks; this keeps them from stretching across
+                    the full sheet width. */}
                 {row.length === 2 && <div className="flex-1" aria-hidden="true" />}
               </div>
             ))}
