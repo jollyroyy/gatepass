@@ -58,7 +58,16 @@ export default function GuardDashboard(): React.ReactElement {
       const [raised, verified, open] = await Promise.all([
         base().gte('created_at', startIso).lt('created_at', endIso).order('created_at', { ascending: true }),
         base().gte('verified_at', startIso).lt('verified_at', endIso).order('verified_at', { ascending: false }),
-        base().eq('return_status', 'awaiting_return').order('created_at', { ascending: true }),
+        // BOTH open return states. `partially_returned` was missing here, and
+        // the consequence was severe: the moment a guard recorded ONE line of
+        // a multi-line RGP, the pass left this query, vanished from the
+        // Awaiting Return drill — the only place `Record Returns` is reachable
+        // — and its remaining lines could never be recorded through the UI at
+        // all. The database always allowed it (`apply_item_returns` accepts
+        // 'partially_returned'); only the client had shut the door.
+        base()
+          .in('return_status', ['awaiting_return', 'partially_returned'])
+          .order('created_at', { ascending: true }),
       ]);
 
       for (const res of [raised, verified, open]) {

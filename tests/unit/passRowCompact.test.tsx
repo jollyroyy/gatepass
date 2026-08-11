@@ -57,9 +57,20 @@ describe('PassRow compact', () => {
 
     expect(screen.getByText('Ravi')).toBeInTheDocument();
     expect(screen.getByText('WB01AB1234')).toBeInTheDocument();
-    expect(screen.getByText('HOD One')).toBeInTheDocument();
     expect(screen.getByText('ENG')).toBeInTheDocument();
     expect(screen.getByText('Raised')).toBeInTheDocument(); // timeline label
+  });
+
+  // This component is used ONLY by HOD surfaces (MyPassesTable,
+  // FlaggedReviewCard), and the HOD raised every pass on them — their own name
+  // back at them is noise (client feedback, 2026-08-11). Pinned so it cannot
+  // creep back in.
+  it('never shows "Raised By", opened or closed', () => {
+    renderRow();
+    expect(screen.queryByText('Raised By')).toBeNull();
+    fireEvent.click(screen.getByText('RGP-OUT-20260810-0001'));
+    expect(screen.queryByText('Raised By')).toBeNull();
+    expect(screen.queryByText('HOD One')).toBeNull();
   });
 
   it('the expanded card keeps the navigation as a View full pass link', () => {

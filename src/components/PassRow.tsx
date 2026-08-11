@@ -24,6 +24,7 @@ import PassRowCompact from './PassRowCompact';
 import { formatDateOnly, formatTime } from '../lib/formatDate';
 import { parseCompanyInfo } from '../lib/companyInfo';
 import { EXPIRED_STYLE, STATUS_STYLES, isExpiredPending } from '../lib/statusStyles';
+import { rgpStageStyle } from '../lib/rgpLifecycle';
 
 /** One moment in the timeline: "Mismatch 10:02" (time today, date otherwise). */
 function TimelineItem({ label, at }: { label: string; at: string | null }): React.ReactElement | null {
@@ -77,6 +78,11 @@ type Props = {
    *  identity and status; clicking reveals the rest inline (PassRowCompact),
    *  with `to` / `onOpen` surviving as a "View full pass" affordance inside. */
   compact?: boolean;
+  /** Drill variant only: tighter padding and a denser fact grid, for the HOD
+   *  dashboard's compact cards. The guard's drill cards stay roomy. */
+  dense?: boolean;
+  /** Drill variant only: the HOD board omits "Raised By" — they raised it. */
+  showRaisedBy?: boolean;
 };
 
 export default function PassRow({
@@ -89,10 +95,20 @@ export default function PassRow({
   defaultOpen = false,
   variant = 'row',
   compact = false,
+  dense = false,
+  showRaisedBy = true,
 }: Props): React.ReactElement {
   const [open, setOpen] = useState(defaultOpen);
   const company = parseCompanyInfo(p.visitor_company);
   const badgeStyle = isExpiredPending(p) ? EXPIRED_STYLE : STATUS_STYLES[p.status];
+  // The SECOND pill, RGP only: `status` says whether the gate cleared the pass
+  // OUTWARD and stops there, so a pass still standing outside the mall and one
+  // that came back weeks ago were both just "Matched". This says which.
+  // Null for an NRGP and for anything that has not left the gate yet.
+  const stageStyle = rgpStageStyle(p);
+  const stagePill = stageStyle && (
+    <span className={`status-badge shrink-0 ${stageStyle.bg} ${stageStyle.text}`}>{stageStyle.label}</span>
+  );
   const expandable = compact || (Boolean(detail || variant === 'drill') && !to);
   const isRgp = p.type === 'RGP';
 
@@ -108,7 +124,9 @@ export default function PassRow({
     // a screen reader.
     const header = (
       <div
-        className="flex items-center justify-between gap-3 px-5 pt-5 cursor-pointer"
+        className={`flex items-center justify-between gap-3 cursor-pointer ${
+          dense ? 'px-4 pt-3.5' : 'px-5 pt-5'
+        }`}
         data-testid="pass-card-header"
         onClick={() => setOpen(!open)}
         onKeyDown={(e) => {
@@ -122,25 +140,35 @@ export default function PassRow({
         aria-expanded={open}
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="text-h3 font-semibold tabular-nums tracking-tight text-navy-900 truncate">
+          <span
+            className={`font-semibold tabular-nums tracking-tight text-navy-900 truncate ${
+              dense ? 'text-base' : 'text-h3'
+            }`}
+          >
             {p.pass_number}
           </span>
           <TypeChip type={p.type} />
         </div>
-        <span className={`status-badge shrink-0 ${badgeStyle.bg} ${badgeStyle.text}`}>{badgeStyle.label}</span>
+        <span className="flex items-center gap-2 shrink-0">
+          <span className={`status-badge shrink-0 ${badgeStyle.bg} ${badgeStyle.text}`}>{badgeStyle.label}</span>
+          {stagePill}
+        </span>
       </div>
     );
 
     const content = open ? (
       <div>
         {/* CardContent */}
-        <div className="px-5 pb-5 pt-4" data-testid="pass-card-body">
-          <PassRowBody pass={p} />
+        <div className={dense ? 'px-4 pb-4 pt-3' : 'px-5 pb-5 pt-4'} data-testid="pass-card-body">
+          <PassRowBody pass={p} dense={dense} showRaisedBy={showRaisedBy} />
         </div>
         {/* CardFooter — a distinct muted band, never the same surface as the
             body, or the card flattens back into an unstructured box. */}
         {detail && (
-          <div className="bg-surface-100/60 border-t border-surface-200 px-5 py-4" data-testid="pass-card-footer">
+          <div
+            className={`bg-surface-100/60 border-t border-surface-200 ${dense ? 'px-4 py-2.5' : 'px-5 py-4'}`}
+            data-testid="pass-card-footer"
+          >
             {detail}
           </div>
         )}
@@ -190,6 +218,7 @@ export default function PassRow({
         <span className={`status-badge ${badgeStyle.bg} ${badgeStyle.text}`}>
           {badgeStyle.label}
         </span>
+        {stagePill}
       </span>
 
       {/* Flag reason trails under the row so the accusation is never lost. */}
@@ -239,7 +268,12 @@ export default function PassRow({
           pass={p}
           open={open}
           badge={badge}
-          statusBadge={<span className={`status-badge ${badgeStyle.bg} ${badgeStyle.text}`}>{badgeStyle.label}</span>}
+          statusBadge={
+            <>
+              <span className={`status-badge ${badgeStyle.bg} ${badgeStyle.text}`}>{badgeStyle.label}</span>
+              {stagePill}
+            </>
+          }
           detailUrl={to}
           onViewDetail={onOpen}
         />

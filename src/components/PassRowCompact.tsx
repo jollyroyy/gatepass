@@ -122,7 +122,9 @@ export default function PassRowCompact({
           )}
           <Fact label="Vehicle" value={p.vehicle_number || '—'} />
           <Fact label="Dept" value={p.department_code || '—'} />
-          <Fact label="Raised By" value={p.raised_by_name} emphasize />
+          {/* No "Raised By" — this component is used ONLY by HOD surfaces
+              (MyPassesTable, FlaggedReviewCard), and the HOD raised every pass
+              on them. Client feedback, 2026-08-11. */}
           {isRgp && p.expected_return_date && (
             <Fact label="Return" value={formatDateOnly(p.expected_return_date)} emphasize />
           )}

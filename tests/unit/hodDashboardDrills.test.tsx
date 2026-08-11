@@ -123,6 +123,19 @@ describe('HOD Dashboard — KPI drills', () => {
     expect(screen.getAllByText('Mismatched').length).toBeGreaterThan(0);
   });
 
+  // The HOD raised every pass on this board, so their own name back at them is
+  // noise (client feedback, 2026-08-11). Asserted against the PAGE, not
+  // against DrillList's default — the default is `true` for the admin board,
+  // so only this proves the HOD dashboard opts out.
+  it('omits "Raised By" from the cards a drill reveals', async () => {
+    renderAt(<Dashboard />);
+    await waitFor(() => expect(screen.getByText('Total Raised')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Total Raised'));
+    await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
+    expect(screen.queryByText('Raised By')).toBeNull();
+    expect(screen.queryByText('HOD One')).toBeNull();
+  });
+
   it('never renders a Recent Passes section', async () => {
     renderAt(<Dashboard />);
     await waitFor(() => expect(screen.getByText('Total Raised')).toBeInTheDocument());

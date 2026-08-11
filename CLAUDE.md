@@ -71,6 +71,67 @@ with real anon-key JWTs (13/13 behavioural checks, see below).
 | `gatepass.gate_passes` | ~10 rows — real user data as of 2026-08-08. **Not a scratch database any more; do not wipe it.** |
 | `public.departments` | ✅ **12 rows** (verified live 2026-08-10): FIN, DEV, HT, HR, IT, IS, MR, OPS, SA, OFT, TH, VLG. Real data — do not wipe. |
 
+### The RGP return loop is now visible — and two real bugs behind it (2026-08-11, frontend only)
+
+Client: *"once the RGP is cleared for going out it shows as matched and not cleared — it is
+half matched, half not yet closed."* Correct, and **no migration was needed**: an RGP has
+two axes, and only one of them was ever rendered.
+
+`match_pass` (003) sets `status = 'matched'` **and** `return_status = 'awaiting_return'` in
+the same statement — `status` describes only the OUTWARD trip and never changes again;
+`apply_item_returns` / `mark_returned` (013) advance `return_status` to
+`partially_returned` → `returned`. So a pass still standing outside the mall and one that
+closed weeks ago are BOTH `matched`, and every card rendered exactly one badge.
+
+**`src/lib/rgpLifecycle.ts`** is the fix: `rgpStage()` / `rgpStageStyle()` derive the stage
+from **`return_status` alone** — never from `status`, because `return_status` is the axis
+the database actually advances, and it is already pinned to `not_applicable` for NRGPs
+(`gate_passes_return_status_rgp_only`, 001) and for anything not yet cleared, so both
+"no badge" cases fall out of one `Record<ReturnStatus, RgpStage | null>` rather than
+needing a second condition that could drift. `PassRow` renders it as a **second pill beside
+the status badge, in all three variants** (row / drill / compact). "Matched" deliberately
+survives — the guard still needs to know the gate cleared it. Labels: **Out — Not Returned**
+/ Partly Returned / **Closed**. Overdue re-TONES the pill and never renames it (same rule
+the status badge follows — several KPIs are named "Overdue" and exact-text lookups of
+those must stay unambiguous).
+
+**Bug 1 — the HOD's Return Rate was frozen at an all-time figure.** It was the ONE KPI on
+that page whose value came from the `kpis()` RPC (`kpis.returnRate`) instead of the
+period-scoped array every other card uses. `kpis()` takes no date parameter and aggregates
+**all time** (016), so the client raised an RGP today and the card sat at 93%. The page's
+own comment called it a "decorative delta" — it is a card's actual value. Now
+`returnRateOf(scopedRows)` in `src/lib/hodDrills.ts`, and the card is a **drill** whose
+click lists the numerator (mirroring what `AdminDashboard` already did correctly at line
+66). `tests/unit/hodReturnRate.test.tsx` mocks the RPC to return **93** on purpose — if the
+card ever reads 93% again, the RPC has crept back in.
+
+**Bug 2 — a part-returned RGP became unfinishable.** `GuardDashboard`'s open-obligations
+query was `.eq('return_status', 'awaiting_return')`, so the moment a guard recorded ONE
+line of a multi-line RGP the pass left that query, vanished from the Awaiting Return drill
+— **the only place `Record Returns` is reachable** — and its remaining lines could never be
+recorded through the UI. The database always allowed it (`apply_item_returns` accepts
+`partially_returned`); only the client had shut the door. Now `.in('return_status',
+['awaiting_return','partially_returned'])`, and `guardDrills`' `isAwaiting` includes the
+partial state to match `hodDrills`, which always did.
+
+New drills: **`closed`** on both boards. Guard's is sourced from `verifiedToday` (a shift
+board shows what the gate finished today; the all-time archive belongs in Reports); the
+HOD's is the Return Rate card's numerator.
+
+**HOD cards renovated to the gate-console idiom (same session, client request).** The HOD
+dashboard's drill rows were flat single lines; they are now `DrillPassCard` — the same
+shadcn Card `GuardDrillCard` uses (`PassRow variant="drill"`) at **`dense`** spacing.
+`PassRow` / `PassRowBody` gained `dense` and `showRaisedBy`. **"Raised By" is gone from
+every HOD surface** — the HOD raised the pass, so their own name back at them is noise:
+`DrillList` takes `showRaisedBy` (defaults **true** for the admin board, which oversees
+every department; HOD passes `false`), and `PassRowCompact` drops the field outright since
+its only consumers are `MyPassesTable` and `FlaggedReviewCard`, both HOD-only.
+`DrillList`'s `onOpen` is gone — the card's own "Full details →" link replaces it, so
+`AdminDashboard` no longer needs `useNavigate` either.
+
+Full gate: **756 tests across 69 files pass** (`npm run check`, 2026-08-11). New specs:
+`rgpLifecycle`, `rgpStageBadge`, `hodReturnRate`, `hodDrillCard`.
+
 ### `035` — HOD override = fresh pass, and the timeline the boss asked for (2026-08-08)
 
 Business rule (user's call, 2026-08-08): **when the HOD overrides a flag, the pass is a

@@ -32,19 +32,38 @@ function TimelineItem({ label, at }: { label: string; at: string | null }): Reac
   );
 }
 
-export default function PassRowBody({ pass: p }: { pass: GatePassView }): React.ReactElement {
+type Props = {
+  pass: GatePassView;
+  /** Tighter grid + row gaps for the HOD dashboard's compact drill cards.
+   *  The guard's cards stay roomy — they are read one-handed at a barrier. */
+  dense?: boolean;
+  /** The HOD board hides this: the HOD raised the pass, so their own name
+   *  back at them is noise (client feedback, 2026-08-11). The admin board
+   *  oversees every department and keeps it. */
+  showRaisedBy?: boolean;
+};
+
+export default function PassRowBody({
+  pass: p,
+  dense = false,
+  showRaisedBy = true,
+}: Props): React.ReactElement {
   const company = parseCompanyInfo(p.visitor_company);
   const isRgp = p.type === 'RGP';
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={`flex flex-col ${dense ? 'gap-2.5' : 'gap-4'}`}>
       {/* Stacked label/value pairs below md (375px is the guard's phone at the
           barrier — nothing here may force horizontal scroll), a horizontal
           strip of aligned columns from md up. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-x-4 gap-y-4">
+      <div
+        className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 ${
+          dense ? 'lg:grid-cols-6 gap-x-3 gap-y-2.5' : 'lg:grid-cols-5 gap-x-4 gap-y-4'
+        }`}
+      >
         <PassField label="Vendor" value={company.name || '—'} emphasize />
         <PassField label="Visitor" value={p.visitor_name || '—'} />
-        <PassField label="Raised By" value={p.raised_by_name || '—'} emphasize />
+        {showRaisedBy && <PassField label="Raised By" value={p.raised_by_name || '—'} emphasize />}
         <PassField label="Material" value={p.material_summary ?? '—'} />
         <PassField label="Items" value={`${p.item_count} item${p.item_count !== 1 ? 's' : ''}`} />
         <PassField label="Vehicle" value={p.vehicle_number || '—'} />

@@ -14,7 +14,8 @@ import type { Tone } from '../components/KpiCard';
 import { isExpiredPending } from './statusStyles';
 
 export type DrillKey =
-  | 'total' | 'rgpIssued' | 'nrgpIssued' | 'pending' | 'expired' | 'matched' | 'flagged' | 'awaiting' | 'overdue';
+  | 'total' | 'rgpIssued' | 'nrgpIssued' | 'pending' | 'expired' | 'matched' | 'flagged'
+  | 'closed' | 'awaiting' | 'overdue';
 
 export interface DrillDef<K extends string = DrillKey> {
   key: K;
@@ -95,6 +96,19 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     empty: 'No mismatches recorded.',
     match: (p) => p.status === 'flagged',
   },
+  // The other end of the RGP loop, and the NUMERATOR behind the Return Rate
+  // card. An RGP has to make two trips — out, then back — and `status` stops
+  // describing it after the first: a pass still outside the mall and one that
+  // came back last week are both `matched`. This is the only drill that means
+  // "finished".
+  closed: {
+    key: 'closed',
+    label: 'Return Rate',
+    tone: 'matched',
+    heading: 'Closed — returned in full',
+    empty: 'No returnable pass has been fully returned in this period.',
+    match: (p) => p.return_status === 'returned',
+  },
   awaiting: {
     key: 'awaiting',
     label: 'Awaiting Return',
@@ -113,7 +127,26 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
   },
 };
 
-/** Volume first, then gate outcome, then what is still open. */
+/** Volume first, then gate outcome, then the return loop — closed, still
+ *  open, past due. */
 export const DRILL_ORDER: DrillKey[] = [
-  'total', 'rgpIssued', 'nrgpIssued', 'pending', 'expired', 'matched', 'flagged', 'awaiting', 'overdue',
+  'total', 'rgpIssued', 'nrgpIssued', 'pending', 'expired', 'matched', 'flagged',
+  'closed', 'awaiting', 'overdue',
 ];
+
+/** Return rate over an already-scoped row set: fully returned ÷ everything
+ *  that entered a return cycle at all.
+ *
+ *  MUST be computed from the same array the KPI cards and drill lists use —
+ *  never from `kpis()`, which takes no date parameter and aggregates ALL TIME.
+ *  That was the 2026-08-11 bug: the card sat at a lifetime 93% while the rest
+ *  of the board described today, and no amount of raising or returning passes
+ *  moved it. NRGPs are excluded by construction: `return_status` is pinned to
+ *  'not_applicable' for them (`gate_passes_return_status_rgp_only`, 001), so
+ *  they never enter the denominator. */
+export function returnRateOf(rows: GatePassView[]): number {
+  const returnable = rows.filter((p) => p.return_status !== 'not_applicable');
+  if (returnable.length === 0) return 0;
+  const closed = returnable.filter((p) => p.return_status === 'returned').length;
+  return Math.round((closed / returnable.length) * 100);
+}

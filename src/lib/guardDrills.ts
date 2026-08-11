@@ -34,7 +34,7 @@ import { isExpiredPending } from './statusStyles';
 export type DrillKey =
   | 'rgpOut' | 'rgpIn' | 'nrgpOut'
   | 'pending' | 'expired' | 'matched' | 'flagged' | 'approved'
-  | 'awaiting' | 'overdue';
+  | 'awaiting' | 'overdue' | 'closed';
 
 /** Which row set a drill filters: the two day-scoped sets, or the
  *  never-date-filtered set of open (still awaiting_return) passes. */
@@ -56,7 +56,12 @@ export interface DrillDef {
   match: (p: GatePassView) => boolean;
 }
 
-const isAwaiting = (p: GatePassView): boolean => p.return_status === 'awaiting_return';
+/** Still owes material — the pass went out and has not fully come back.
+ *  `partially_returned` counts: one line back out of three is not closure, and
+ *  omitting it once made a part-returned pass unreachable from the only screen
+ *  that can record the rest (see GuardDashboard's openObligations query). */
+const isAwaiting = (p: GatePassView): boolean =>
+  p.return_status === 'awaiting_return' || p.return_status === 'partially_returned';
 
 export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
   rgpOut: {
@@ -186,6 +191,26 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     allTime: true,
     match: (p) => isAwaiting(p) && p.is_overdue,
   },
+  // The far end of the RGP loop. Client complaint, 2026-08-11: a returnable
+  // pass cleared OUTWARD reads as "Matched" and looks finished, when half its
+  // journey has not happened. `matched` therefore cannot mean "done" — this
+  // drill is the only bucket on the guard's board that does.
+  //
+  // Sourced from `verifiedToday`, not `openObligations`: a closed pass is by
+  // definition no longer an open obligation, and this is a shift board — what
+  // the gate finished TODAY. The all-time archive of closed passes belongs in
+  // Reports, not on a board a guard reads standing at a barrier.
+  closed: {
+    key: 'closed',
+    label: 'Returned & Closed',
+    tone: 'matched',
+    heading: 'Came back and closed today',
+    empty: 'Nothing has been closed today.',
+    returnable: false,
+    source: 'verifiedToday',
+    allTime: false,
+    match: (p) => p.return_status === 'returned',
+  },
 };
 
 /** Movement counters first — what physically crossed the gate today — then the
@@ -193,6 +218,6 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
 export const DRILL_ORDER: DrillKey[] = [
   'rgpOut', 'rgpIn', 'nrgpOut',
   'pending', 'expired', 'matched', 'flagged', 'approved',
-  'awaiting', 'overdue',
+  'awaiting', 'overdue', 'closed',
 ];
 

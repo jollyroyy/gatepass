@@ -8,7 +8,7 @@
 // behind it, never a second aggregate that could disagree. Every KPI is a
 // drill (2026-08-08): clicking it reveals those very rows beneath the grid.
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { gp } from '../../supabaseClient';
 import type { GatePassView } from '../../types';
 import KpiCard from '../../components/KpiCard';
@@ -20,7 +20,6 @@ import { ADMIN_DRILLS, ADMIN_DRILL_ORDER, type AdminDrillKey } from '../../lib/a
 import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 
 export default function AdminDashboard(): React.ReactElement {
-  const navigate = useNavigate();
   const [rows, setRows] = useState<GatePassView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +130,6 @@ export default function AdminDashboard(): React.ReactElement {
             def={ADMIN_DRILLS[selected]}
             rows={drillRows[selected]}
             loading={loading}
-            onOpen={(id) => navigate(`/pass/${id}`)}
           />
         </div>
       )}

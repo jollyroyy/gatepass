@@ -62,18 +62,25 @@ const OPEN_OBLIGATIONS: GatePassView[] = [
          created_at: DAYS_AGO }),
 ];
 
-/** Query builder mock: the dashboard now issues three queries —
+/** Query builder mock: the dashboard issues three queries —
  *  .gte('created_at', start).lt('created_at', end),
  *  .gte('verified_at', start).lt('verified_at', end), and
- *  .eq('return_status', 'awaiting_return') with no date filter — and filters
- *  every drill out of those three sets client-side. */
+ *  .in('return_status', ['awaiting_return','partially_returned']) with no date
+ *  filter — and filters every drill out of those three sets client-side.
+ *
+ *  That third query used to be `.eq('return_status', 'awaiting_return')`, which
+ *  dropped a part-returned pass out of the ONLY drill from which Record
+ *  Returns is reachable. `in` therefore has to set the axis now; leaving it in
+ *  the pass-through list silently routed the open-obligations query to
+ *  RAISED_TODAY instead. */
 function builder() {
   let axis: 'created_at' | 'verified_at' | 'return_status' | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const obj: any = {};
-  for (const m of ['select', 'order', 'limit', 'in', 'lte', 'lt']) obj[m] = () => obj;
+  for (const m of ['select', 'order', 'limit', 'lte', 'lt']) obj[m] = () => obj;
   obj.gte = (col: string) => { axis = col as typeof axis; return obj; };
   obj.eq = (col: string) => { if (col === 'return_status') axis = 'return_status'; return obj; };
+  obj.in = (col: string) => { if (col === 'return_status') axis = 'return_status'; return obj; };
   obj.then = (onOk: (v: unknown) => unknown, onErr?: (e: unknown) => unknown) => {
     const data =
       axis === 'verified_at' ? VERIFIED_TODAY :

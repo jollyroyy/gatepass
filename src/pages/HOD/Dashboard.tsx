@@ -14,7 +14,7 @@ import { formatCurrency } from '../../lib/formatCurrency';
 import { type KpiRow, mapKpiRow } from '../../lib/hodKpis';
 import FlaggedReviewCard from './FlaggedReviewCard';
 import DrillList from '../../components/DrillList';
-import { DRILL_DEFS, DRILL_ORDER, type DrillKey } from '../../lib/hodDrills';
+import { DRILL_DEFS, DRILL_ORDER, returnRateOf, type DrillKey } from '../../lib/hodDrills';
 import { periodBounds, type DashboardPeriod } from '../../lib/dashboardPeriod';
 import DashboardPeriodFilter from '../../components/DashboardPeriodFilter';
 import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
@@ -135,6 +135,13 @@ export default function Dashboard(): React.ReactElement {
     drillRows[key] = scopedRows.filter(DRILL_DEFS[key].match);
   }
 
+  // Return rate over the SAME scoped array, so it moves with the period filter
+  // and with every pass raised or returned. `returnableCount` is the
+  // denominator the card's delta spells out, so the percentage is never an
+  // unexplained figure.
+  const returnableCount = scopedRows.filter((p) => p.return_status !== 'not_applicable').length;
+  const returnRate = returnRateOf(scopedRows);
+
   function toggleDrill(key: DrillKey) {
     setSelected((cur) => (cur === key ? null : key));
   }
@@ -234,11 +241,18 @@ export default function Dashboard(): React.ReactElement {
           onClick={() => toggleDrill('flagged')}
           delta={kpis.flaggedRate > 0 ? `${kpis.flaggedRate}% mismatch rate` : undefined}
         />
+        {/* Derived from `scopedRows`, NEVER from `kpis().return_rate` — that
+            RPC has no date parameter and aggregates all time, so the card used
+            to sit at a lifetime figure while every other card described the
+            selected period. Clicking it lists the numerator. */}
         <KpiCard
-          label="Return Rate"
-          value={`${kpis.returnRate}%`}
-          tone="matched"
+          label={DRILL_DEFS.closed.label}
+          value={`${returnRate}%`}
+          tone={DRILL_DEFS.closed.tone}
           loading={loading}
+          active={selected === 'closed'}
+          onClick={() => toggleDrill('closed')}
+          delta={`${drillRows.closed.length} of ${returnableCount} returned`}
         />
         <KpiCard
           label={DRILL_DEFS.awaiting.label}
@@ -270,7 +284,9 @@ export default function Dashboard(): React.ReactElement {
             def={DRILL_DEFS[selected]}
             rows={drillRows[selected]}
             loading={loading}
-            onOpen={(id) => navigate(`/pass/${id}`)}
+            /* The HOD raised every pass on this board — their own name back at
+               them is noise (client feedback, 2026-08-11). */
+            showRaisedBy={false}
           />
         </div>
       )}

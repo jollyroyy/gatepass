@@ -1,10 +1,14 @@
-// The list a clicked dashboard KPI reveals — same rows the card counted,
-// rendered as PassRows (the 2026-08-08 card rule) so it slots under the KPI
-// grid without a page nav. Shared by the HOD and admin dashboards; a drill is
-// a list, not a register.
+// The list a clicked dashboard KPI reveals — the same rows the card counted,
+// so the number and the list can never disagree. Shared by the HOD and admin
+// dashboards; a drill is a list, not a register.
+//
+// Renovated 2026-08-11 (client): these were flat single-line rows, and the
+// client preferred the gate console's card view. Each row is now a
+// DrillPassCard — the same shadcn Card idiom GuardDrillCard uses — at compact
+// density. `onOpen` survives as the card's own click-through.
 import React from 'react';
 import type { GatePassView } from '../types';
-import PassRow from './PassRow';
+import DrillPassCard from './DrillPassCard';
 import type { DrillDef } from '../lib/hodDrills';
 
 const SKELETON_ROWS = 6;
@@ -13,10 +17,17 @@ type Props = {
   def: DrillDef<string>;
   rows: GatePassView[];
   loading: boolean;
-  onOpen: (id: string) => void;
+  /** Defaults to true (the admin board, which oversees every department). The
+   *  HOD dashboard passes false — they raised these passes themselves. */
+  showRaisedBy?: boolean;
 };
 
-export default function DrillList({ def, rows, loading, onOpen }: Props): React.ReactElement {
+export default function DrillList({
+  def,
+  rows,
+  loading,
+  showRaisedBy = true,
+}: Props): React.ReactElement {
   return (
     <div className="mb-8">
       <div className="flex items-baseline gap-3 mb-3">
@@ -35,9 +46,9 @@ export default function DrillList({ def, rows, loading, onOpen }: Props): React.
       ) : rows.length === 0 ? (
         <div className="table-wrap empty-state">{def.empty}</div>
       ) : (
-        <div className="flex flex-col gap-4 w-full">
+        <div className="flex flex-col gap-3 w-full">
           {rows.map((p) => (
-            <PassRow key={p.id} pass={p} onOpen={onOpen} />
+            <DrillPassCard key={p.id} pass={p} showRaisedBy={showRaisedBy} />
           ))}
         </div>
       )}
