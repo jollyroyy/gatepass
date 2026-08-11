@@ -34,6 +34,34 @@ authoritative gate run.
 re-concatenated is a fix that never reaches the database.
 `tests/security/applyAllIntegrity.test.ts` is the backstop that catches the drift.
 
+## Current state — verified 2026-08-11 (afternoon)
+
+**Notification bell verified live, and the printed slip spells out "Numbers" (2026-08-11).**
+Both are frontend-only plus one new probe script; no migration was needed.
+
+- **`scripts/verify-notifications.mjs` — live proof the guard's bell works.** Guard subscribes
+  to `postgres_changes` INSERTs on `gatepass.gate_passes` via the anon key, HOD raises a pass,
+  and the event lands on the guard's client (**3/3, verified 2026-08-11** — `gate_passes` is in
+  the `supabase_realtime` publication, and RLS lets the guard's SELECT policy pass the payload).
+  Probe rows cleaned up. This was written because the guard's red badge never visibly fired in
+  the client's hands while every piece of the chain *looked* configured; the chain is now
+  proven end-to-end (DB publication → realtime delivery → `NotificationProvider` → red badge
+  on `NotificationBell`). `tests/unit/notificationDelivery.test.tsx` pins the client half —
+  it fires the provider's INSERT callback directly and asserts the badge and the "waiting at
+  the gate" message; the older `notifications.test.tsx` never fired a callback at all.
+- **Print slip unit column reads "Numbers", not "nos"** (`PassPrint` item table). The display
+  map moved out of `MaterialItemRow` into `src/lib/units.ts` — `unitLabel()` is now the single
+  source for every surface, so the raise-pass dropdown and the print can never disagree again.
+  `tests/unit/unitLabels.test.ts` + `tests/unit/passPrintUnit.test.tsx` pin it (the latter
+  renders a real `PassPrint` with a `nos` item).
+- **`COO Signature & Stamp` box added to the printed slip** (client, 2026-08-11) — row 1 is now
+  Issuing HOD · Security HOD · COO · Finance HOD; `SIGNATURE_ROWS` in
+  `src/pages/Shared/signatureBlocks.ts`, pinned by `tests/unit/passPrintSignatures.test.tsx`.
+  Applies to every pass printed, including previously raised ones — the signature section is
+  static markup with no per-pass data.
+
+Full gate: **796 tests across 76 files** (`npm run check`, 2026-08-11).
+
 ## Current state — verified 2026-08-08
 
 Frontend typechecks and passes the full suite — verified by a real `npm run check` run on
@@ -1298,6 +1326,10 @@ model. Give it the repo path, remote URL, branch, commit message, and anything t
 NOT be committed, since it starts cold. Read-only inspection (`git status`, `git log`,
 `git remote -v`) may still be run directly when the answer decides what to do next.
 User instruction, 2026-07-27.
+
+**Always push after completing work — do not wait to be asked.** The user's standing
+instruction (2026-08-11): every finished change is committed and pushed to `origin/main`
+before the session moves on. A subagent does the commit+push per the rules above.
 
 Give each subagent full context up front — it starts cold — including exact file paths,
 the pattern to copy, and the decisions already made, so it never re-derives them. In this

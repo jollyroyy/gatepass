@@ -5,6 +5,7 @@ import type { GatePassView, GatePassItemView } from '../../types';
 import { formatDateOnly } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
 import { parseCompanyInfo } from '../../lib/companyInfo';
+import { unitLabel } from '../../lib/units';
 import QrPass from '../../components/QrPass';
 import { QuestLockup } from '../../components/QuestMark';
 
@@ -160,7 +161,7 @@ export default function PassPrint(): React.ReactElement {
                     <td className="border border-black px-2 py-1 text-black">{item.description}</td>
                     <td className="border border-black px-2 py-1 text-black text-[10px]">{item.purpose}</td>
                     <td className="border border-black px-2 py-1 text-black text-right">{item.quantity}</td>
-                    <td className="border border-black px-2 py-1 text-black">{item.unit}</td>
+                    <td className="border border-black px-2 py-1 text-black">{unitLabel(item.unit)}</td>
                     <td className="border border-black px-2 py-1 text-black text-right">{formatCurrency(item.approx_value)}</td>
                     <td className="border border-black px-2 py-1 text-black text-[10px]">{item.expected_return_date ? formatDateOnly(item.expected_return_date) : '—'}</td>
                   </tr>

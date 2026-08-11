@@ -17,26 +17,10 @@
 // column header's text.
 import React from 'react';
 import type { NewGatePassItem } from '../../types';
+import { unitLabel } from '../../lib/units';
 import { itemGridStyle } from './materialItemGrid';
 
 export const UNITS = ['nos', 'kg', 'box', 'roll', 'litre', 'metre', 'set'] as const;
-
-// Display text only — the submitted `value` stays the lowercase code
-// (`gate_pass_items.unit` is free `text`, and existing rows already store
-// these lowercase codes; changing what gets submitted would just create a
-// second casing convention in the same column). This map exists because the
-// client found the raw code ("nos") read as an opaque abbreviation in the
-// dropdown — spelling it out in the label is a pure display fix. ("the unit
-// should be numbers not nos", 2026-08-11.)
-const UNIT_LABELS: Record<(typeof UNITS)[number], string> = {
-  nos: 'Numbers',
-  kg: 'Kg',
-  box: 'Box',
-  roll: 'Roll',
-  litre: 'Litre',
-  metre: 'Metre',
-  set: 'Set',
-};
 
 interface MaterialItemRowErrors {
   name?: string;
@@ -127,7 +111,7 @@ export default function MaterialItemRow({
             onChange={(e) => onChange('unit', e.target.value)}
           >
             {UNITS.map((u) => (
-              <option key={u} value={u}>{UNIT_LABELS[u]}</option>
+              <option key={u} value={u}>{unitLabel(u)}</option>
             ))}
           </select>
         </div>
