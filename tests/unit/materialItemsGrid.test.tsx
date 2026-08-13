@@ -1,6 +1,6 @@
 // The 2026-08-10 layout fix for RaisePass's Material Items section: "the
 // date and item and all those fields are not properly aligned in the same
-// line, currently they are haphazard." The Return Date column only ever
+// line, currently they are haphazard." The Expected Return Date column only ever
 // rendered for RGP and every field used an ad hoc width, so no two rows (or
 // any header) agreed on where a column started.
 //
@@ -32,7 +32,7 @@ function renderCard(showReturnDate: boolean, itemCount = 1) {
 }
 
 describe('materialItemGrid — one column template, shared', () => {
-  it('the RGP template has one more column than the NRGP template (the Return Date slot)', () => {
+  it('the RGP template has one more column than the NRGP template (the Expected Return Date slot)', () => {
     const withReturn = itemGridColumns(true).split(' ');
     const withoutReturn = itemGridColumns(false).split(' ');
     expect(withReturn.length).toBe(withoutReturn.length + 1);
@@ -74,24 +74,24 @@ describe('MaterialItemsCard — the row frame is as wide as the columns it holds
   });
 });
 
-describe('MaterialItemsCard — RGP renders a Return Date column, NRGP does not', () => {
-  it('shows exactly one "Return Date" column header and one date input for an RGP row', () => {
+describe('MaterialItemsCard — RGP renders a Expected Return Date column, NRGP does not', () => {
+  it('shows exactly one "Expected Return Date" column header and one date input for an RGP row', () => {
     renderCard(true, 1);
-    expect(screen.getByText('Return Date')).toBeInTheDocument();
-    expect(screen.getByLabelText('Return Date')).toBeInTheDocument();
+    expect(screen.getByText('Expected Return Date')).toBeInTheDocument();
+    expect(screen.getByLabelText('Expected Return Date')).toBeInTheDocument();
     expect(document.querySelectorAll('input[type="date"]').length).toBe(1);
   });
 
-  it('renders no Return Date column or input at all for an NRGP row', () => {
+  it('renders no Expected Return Date column or input at all for an NRGP row', () => {
     renderCard(false, 1);
-    expect(screen.queryByText('Return Date')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Return Date')).not.toBeInTheDocument();
+    expect(screen.queryByText('Expected Return Date')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Expected Return Date')).not.toBeInTheDocument();
     expect(document.querySelectorAll('input[type="date"]').length).toBe(0);
   });
 
   it('the column header text appears exactly once regardless of item count (never repeated per row)', () => {
     renderCard(true, 3);
-    expect(screen.getAllByText('Return Date')).toHaveLength(1);
+    expect(screen.getAllByText('Expected Return Date')).toHaveLength(1);
     expect(screen.getAllByText('Item Name')).toHaveLength(1);
     expect(screen.getAllByText('Description')).toHaveLength(1);
   });
@@ -126,9 +126,9 @@ describe('MaterialItemsCard — adding items keeps the same column structure', (
     expect(templates.size).toBe(1);
   });
 
-  it('a date input exists for every RGP row, each independently labelled "Return Date"', () => {
+  it('a date input exists for every RGP row, each independently labelled "Expected Return Date"', () => {
     renderCard(true, 3);
-    expect(screen.getAllByLabelText('Return Date')).toHaveLength(3);
+    expect(screen.getAllByLabelText('Expected Return Date')).toHaveLength(3);
   });
 });
 

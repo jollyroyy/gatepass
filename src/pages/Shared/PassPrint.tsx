@@ -11,6 +11,10 @@ import { QuestLockup } from '../../components/QuestMark';
 
 import { SIGNATURE_ROWS, type SignatureBlock } from './signatureBlocks';
 
+/** How many signature boxes fit across the A5 slip — see signatureBlocks.ts.
+ *  Short rows are padded out to this so every box is the same width. */
+const BOXES_PER_ROW = 3;
+
 function SignatureBox({ label, caption }: SignatureBlock): React.ReactElement {
   return (
     <div className="flex-1">
@@ -119,7 +123,7 @@ export default function PassPrint(): React.ReactElement {
               {([
                 ['Visitor Name', pass.visitor_name],
                 ['Contact No', companyInfo.phone],
-                ['Vendor', companyInfo.name],
+                ['Vendor Name', companyInfo.name],
                 ['Vendor Address', companyInfo.address],
                 ['Vehicle No', pass.vehicle_number],
                 ['Department', pass.department_name],
@@ -201,8 +205,8 @@ export default function PassPrint(): React.ReactElement {
             </div>
           )}
 
-          {/* Six signatures over two rows — the approval chain, then the gate.
-              Identical on every category; see signatureBlocks.ts for why.
+          {/* Seven signatures over three rows — the approval chain, then the
+              gate. Identical on every category; see signatureBlocks.ts for why.
               break-inside-avoid so a page break can never split a signature
               from its label and leave an unlabelled box on the next sheet. */}
           <div className="pt-2 print:break-inside-avoid">
@@ -211,9 +215,12 @@ export default function PassPrint(): React.ReactElement {
                 {row.map((block) => (
                   <SignatureBox key={block.label} label={block.label} caption={block.caption} />
                 ))}
-                {/* Row 2 has two blocks; this keeps them from stretching across
-                    the full sheet width. */}
-                {row.length === 2 && <div className="flex-1" aria-hidden="true" />}
+                {/* Pad every short row out to BOXES_PER_ROW with empty flex
+                    slots, so a two-box row keeps the same box width as a full
+                    one instead of stretching across the sheet. */}
+                {Array.from({ length: BOXES_PER_ROW - row.length }, (_, k) => (
+                  <div key={`pad-${k}`} className="flex-1" aria-hidden="true" />
+                ))}
               </div>
             ))}
           </div>

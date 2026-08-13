@@ -1,10 +1,16 @@
-// The printed slip is the physical artefact six people sign and stamp before
-// material crosses the gate. It carries all six blocks on EVERY category —
+// The printed slip is the physical artefact seven people sign and stamp before
+// material crosses the gate. It carries all seven blocks on EVERY category —
 // RGP Out, RGP In and NRGP Out — because the approval chain does not change
 // with the direction the material is travelling.
 //
-// Row 1 (approvals, left→right): Issuing HOD · Security HOD · COO · Finance HOD
-// Row 2 (at the gate):           Security Verification · Receiver Signature
+// Row 1 (approvals):   Issuing HOD · Security HOD · COO
+// Row 2 (approvals):   CEO · Finance HOD
+// Row 3 (at the gate): Security Verification · Receiver Signature
+//
+// Read left→right, top→bottom the approval order is Issuing HOD → Security HOD
+// → COO → CEO → Finance HOD. Three boxes per row is a print constraint, not a
+// grouping: five across an A5 sheet leaves ~18mm per box, too narrow for a
+// rubber stamp.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -73,23 +79,33 @@ async function renderFor(over: Record<string, unknown>) {
 }
 
 describe('signature block definitions', () => {
-  it('defines exactly six blocks over two rows', () => {
+  it('defines exactly seven blocks over three rows', () => {
     const all = SIGNATURE_ROWS.flat();
-    expect(all).toHaveLength(6);
-    expect(SIGNATURE_ROWS).toHaveLength(2);
+    expect(all).toHaveLength(7);
+    expect(SIGNATURE_ROWS).toHaveLength(3);
   });
 
-  it('puts the four approvals on row 1 in issuing/security/coo/finance order', () => {
-    expect(SIGNATURE_ROWS[0].map((b) => b.label)).toEqual([
+  it('never puts more than three boxes on a row (an A5 sheet cannot hold more)', () => {
+    for (const row of SIGNATURE_ROWS) expect(row.length).toBeLessThanOrEqual(3);
+  });
+
+  it('runs the approval chain issuing → security → COO → CEO → finance', () => {
+    expect(SIGNATURE_ROWS.flat().slice(0, 5).map((b) => b.label)).toEqual([
       'Issuing HOD',
       'Security HOD',
       'COO',
+      'CEO',
       'Finance HOD',
     ]);
   });
 
-  it('puts gate verification and the receiver on row 2', () => {
-    expect(SIGNATURE_ROWS[1].map((b) => b.label)).toEqual([
+  it('places the CEO block immediately after the COO block', () => {
+    const labels = SIGNATURE_ROWS.flat().map((b) => b.label);
+    expect(labels.indexOf('CEO')).toBe(labels.indexOf('COO') + 1);
+  });
+
+  it('puts gate verification and the receiver last, on their own row', () => {
+    expect(SIGNATURE_ROWS[SIGNATURE_ROWS.length - 1].map((b) => b.label)).toEqual([
       'Security Verification',
       'Receiver Signature',
     ]);
@@ -102,7 +118,7 @@ describe('signature block definitions', () => {
   });
 });
 
-describe('PassPrint renders all six signature labels for every category', () => {
+describe('PassPrint renders all seven signature labels for every category', () => {
   const CATEGORIES: { name: string; over: Record<string, unknown> }[] = [
     { name: 'RGP Out', over: { type: 'RGP', direction: 'out' } },
     { name: 'RGP In', over: { type: 'RGP', direction: 'in' } },
@@ -110,7 +126,7 @@ describe('PassPrint renders all six signature labels for every category', () => 
   ];
 
   for (const c of CATEGORIES) {
-    it(`renders all six signature labels for ${c.name}`, async () => {
+    it(`renders all seven signature labels for ${c.name}`, async () => {
       await renderFor(c.over);
       for (const b of SIGNATURE_ROWS.flat()) {
         expect(screen.getByText(b.label)).toBeInTheDocument();

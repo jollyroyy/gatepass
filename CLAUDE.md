@@ -34,6 +34,102 @@ authoritative gate run.
 re-concatenated is a fix that never reaches the database.
 `tests/security/applyAllIntegrity.test.ts` is the backstop that catches the drift.
 
+## Current state — verified 2026-08-13
+
+**`039` applied + verified live. Whitelisting a blacklisted vendor now needs a justification
+and the designated CEO's approval.** Full gate: **827 tests across 79 files**
+(`npm run check`, 2026-08-13).
+
+Four client changes landed together; the first three are frontend-only:
+
+- **The RGP item form says "Expected Return Date"**, not "Return Date" (`MaterialItemRow`
+  `aria-label`/`data-label` + `MaterialItemsCard` column header). Label only — the column,
+  the payload key and the validation are untouched.
+- **The printed slip carries a CEO block**, immediately after COO. `SIGNATURE_ROWS` is now
+  **seven blocks over three rows**: Issuing HOD · Security HOD · COO / CEO · Finance HOD /
+  Security Verification · Receiver Signature. Read left→right, top→bottom the approval order
+  is unchanged with CEO inserted after COO. **The row split is a print constraint, not a
+  grouping**: five boxes across A5 leaves ~18mm each, narrower than a rubber stamp.
+  `PassPrint` pads short rows out to `BOXES_PER_ROW = 3` so every box is the same width on
+  every row — keep rows at three or fewer. Applies to every category (RGP out/in, NRGP out),
+  and to previously raised passes, since the block is static markup.
+- **The slip's vendor row reads "Vendor Name"** (`Vendor Address` unchanged).
+- **`039` — the blacklist is vendors-only, and removal is a CEO decision.**
+
+### `039` — an admin can no longer take a vendor off the blacklist (2026-08-13)
+
+`remove_blacklist_entry` (016) let any admin delete a blacklist row with one click, no reason
+recorded, no second pair of eyes. Blacklisting is the one control that stops a vendor at the
+gate, so the ability to quietly undo it is the ability to quietly disable the control.
+**The RPC is DROPPED**, not left beside the new flow — leaving it would make the whole chain
+optional, since the browser could call it directly and the CEO would never see the request.
+
+- **`gatepass.whitelist_requests`** — an admin calls `request_vendor_whitelist(uuid, text)`
+  with a justification. The floor is **10 characters, enforced twice on purpose**: the form
+  refuses it immediately, and `whitelist_requests_justification_substantive` refuses it again
+  so a caller that skips the screen gains nothing. One open request per entry (partial unique
+  index `where status = 'pending'`), so a rejected vendor can be asked about again later.
+  **The entry stays enforced while the request is pending** — verified live.
+- **`blacklist_id` is `on delete set null`, and the row keeps its own snapshot** of
+  `list_type` / `list_value` / `blocked_reason`. Approval DELETES the blacklist entry;
+  `on delete cascade` would erase the audit trail at the exact moment it becomes the only
+  record that the vendor was ever blocked and why they were let back in.
+- **Who the CEO is: a DESIGNATED ACCOUNT, not a role.** `public.user_role` is VMS-owned
+  (guard / hod / admin / super_admin / staff) and this app must never alter `public`, so
+  `gatepass.ceo_approver` holds exactly one row — a boolean PK constrained to true, so "who
+  is the CEO" has one answer and no `limit 1` anywhere decides it. Two guards, both
+  load-bearing: **only a super_admin may set it** (an admin who could nominate would nominate
+  themselves and self-approve), and **the designee must be an admin/super_admin** (the queue
+  lives under `/admin`, which `ROLE_ROUTES` opens to admins only).
+- **`approve_whitelist_request` / `reject_whitelist_request` are `is_ceo()`-gated.** Approval
+  is what deletes the entry — there is no path that removes one without a recorded approval.
+  A rejection **requires a note**, because a refusal with no reason tells the admin nothing
+  about whether to re-submit.
+
+**⚠️ Live blocker for this feature: there is no `super_admin` account in the database.**
+`admin@demo.vms` is `admin`, and it is the only admin. So **nobody can designate the CEO
+through the UI**, and until one is designated **no whitelist request can ever be approved**
+(`CeoApproverCard` says exactly that, in an `.alert-warning`). Two ways out, both the user's
+call: promote an account to `super_admin`, or seed the row once via psql —
+`insert into gatepass.ceo_approver (only_row, user_id, designated_by) select true, u.id, u.id
+from auth.users u where u.email = '<the CEO>';`
+
+**Frontend.** `BlacklistTab`'s type dropdown offers **one option, "Vendor"** — Vehicle and
+Driver are gone from the form (client's call). **The stored `list_type` is still `company`**:
+`blacklist_type_valid` (016), the raise-time trigger (027/033) and every existing row use
+that label, so this is a rename in the UI and not a data change. Pre-existing vehicle/driver
+rows still render honestly through `TYPE_LABELS`. The Remove button is replaced by **Request
+Whitelist** + a mandatory justification; an entry already awaiting a decision reads
+"Awaiting CEO approval" and offers no second request. New files: `BlacklistAddForm.tsx`
+(extracted to keep `BlacklistTab` under the cap), `WhitelistRequestsTab.tsx` +
+`WhitelistRequestCard.tsx` (the CEO's queue — Approve behind an inline "Sure?", Reject behind
+a mandatory note), `CeoApproverCard.tsx` (super_admin-only designation). Both live under a new
+**Whitelist Requests** tab in `AdminPanel`, with the designation card above the queue because
+the setting and its consequence belong on one screen.
+
+**Consequence worth knowing: `src/lib/indianVehicle.ts` now has no caller in `src/`.** It was
+only used to validate a `vehicle` blacklist entry, and that option is gone. Its 29 unit tests
+still pass and it still mirrors a live CHECK constraint on `gate_passes.vehicle_number`, so it
+was kept rather than deleted — but it is a knowing exception to "never leave unused code", and
+the honest fix is either to wire it into `RaisePass`'s vehicle field or to delete it.
+
+**Verified live 2026-08-13** — `node scripts/verify-039.mjs --decisions`, **17/17**, real
+anon-key JWTs throughout (postgres bypasses every guard here, so psql could not have proven
+any of it): `remove_blacklist_entry` is gone (PGRST202); a token justification is refused; a
+guard cannot request; the vendor stays blacklisted while pending; a second pending request is
+refused; a non-CEO admin cannot approve; an admin cannot designate the CEO; the CEO can reject
+(and a rejected vendor stays blacklisted) and approve (and the entry disappears while the
+approved request keeps its snapshot); a decided request cannot be decided twice. The probe's
+temporary CEO row, its 4 blacklist rows and 5 request rows were deleted afterwards —
+`blacklist` is back to its original **3** rows, `whitelist_requests` and `ceo_approver` are
+**0**. Static backstops: 10 new cases in `tests/security/sqlInvariants.test.ts`, including one
+that fails if any later migration re-creates `remove_blacklist_entry`.
+
+**One real bug found and fixed on the way**, in `BlacklistTab` (and mirrored into the two new
+screens): `load()` cleared the error banner on its SUCCESS path, and the mount-time refresh
+resolves in the same microtask queue as a failed action — so an RPC refusal could be wiped
+before it rendered. The banner is now cleared UP FRONT, never on success.
+
 ## Current state — verified 2026-08-11 (afternoon)
 
 **Notification bell verified live, and the printed slip spells out "Numbers" (2026-08-11).**
@@ -96,6 +192,7 @@ with real anon-key JWTs (13/13 behavioural checks, see below).
 | Migration `033` | ✅ **applied + verified live 2026-08-08** — **blacklist + vehicle format hardened** (see below): strict Indian vehicle-format CHECK, blacklist form strictness, `parseCompanyInfo` packed-keys fix |
 | Migration `035` | ✅ **applied + verified live 2026-08-08** — **HOD override = fresh pass** (see below): override refreshes `expires_at` to end of day, `flag_pass` admits `hod_reviewed`, view carries `flagged_at` / `hod_reviewed_at` |
 | Migration `036` | ✅ **applied + verified live 2026-08-10** — **admin-assisted password reset** (see below): `admin_reset_user_password`, `set_my_password`, `my_profile()` carries `must_change_password`. **Requires VMS `064` first** |
+| Migration `039` | ✅ **applied + verified live 2026-08-13** — whitelisting a blacklisted vendor needs a justification and the designated CEO; `remove_blacklist_entry` dropped (see above) |
 | `gatepass.gate_passes` | ~10 rows — real user data as of 2026-08-08. **Not a scratch database any more; do not wipe it.** |
 | `public.departments` | ✅ **12 rows** (verified live 2026-08-10): FIN, DEV, HT, HR, IT, IS, MR, OPS, SA, OFT, TH, VLG. Real data — do not wipe. |
 

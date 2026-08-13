@@ -127,7 +127,7 @@ describe('RaisePass — serial number is gone', () => {
     await waitFor(() => expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument());
     fillRequiredFields();
     const due = futureDate(5);
-    fireEvent.change(screen.getByLabelText('Return Date'), { target: { value: due } });
+    fireEvent.change(screen.getByLabelText('Expected Return Date'), { target: { value: due } });
     fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
 
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('raise_pass', expect.anything()));
@@ -142,7 +142,7 @@ describe('RaisePass — an RGP can actually be submitted', () => {
     await waitFor(() => expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument());
     fillRequiredFields();
     const due = futureDate(5);
-    fireEvent.change(screen.getByLabelText('Return Date'), { target: { value: due } });
+    fireEvent.change(screen.getByLabelText('Expected Return Date'), { target: { value: due } });
 
     fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
 
@@ -174,7 +174,7 @@ describe('RaisePass — an RGP can actually be submitted', () => {
     });
     fireEvent.change(screen.getAllByPlaceholderText('Qty')[1], { target: { value: '1' } });
 
-    const dates = screen.getAllByLabelText('Return Date');
+    const dates = screen.getAllByLabelText('Expected Return Date');
     fireEvent.change(dates[0], { target: { value: futureDate(9) } });
     fireEvent.change(dates[1], { target: { value: futureDate(3) } });
 
@@ -230,7 +230,7 @@ describe('RaisePass — an RGP can actually be submitted', () => {
     fillRequiredFields();
     fireEvent.change(screen.getByPlaceholderText('Vendor name'), { target: { value: 'BSC' } });
     const due = futureDate(5);
-    fireEvent.change(screen.getByLabelText('Return Date'), { target: { value: due } });
+    fireEvent.change(screen.getByLabelText('Expected Return Date'), { target: { value: due } });
 
     fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
 

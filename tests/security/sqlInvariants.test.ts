@@ -703,3 +703,96 @@ describe('038 — pass total_value', () => {
     expect(sql).toMatch(/grant select on gatepass\.v_gate_passes to authenticated/i);
   });
 });
+
+// 039: a blacklisted vendor comes off the list ONLY via a justified request the
+// designated CEO approves. Every test here guards a way the chain could be
+// made optional again without any error appearing — the dangerous failure
+// mode, because the screens would keep working and the control would be gone.
+describe('039 — whitelisting needs a justification and the CEO', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('039'))!.sql;
+  const bare = stripSqlComments(sql);
+
+  it('drops the one-click removal, so no path deletes an entry without approval', () => {
+    expect(bare).toMatch(/drop function if exists gatepass\.remove_blacklist_entry\(uuid\)/i);
+  });
+
+  it('no later migration brings remove_blacklist_entry back', () => {
+    const later = migrations.filter((m) => m.name > '039').map((m) => stripSqlComments(m.sql));
+    for (const s of later) {
+      expect(
+        /create\s+(?:or replace\s+)?function\s+gatepass\.remove_blacklist_entry/i.test(s),
+        'remove_blacklist_entry was re-created — the CEO approval chain is bypassable again'
+      ).toBe(false);
+    }
+  });
+
+  it('the request RPC refuses a blank or token justification', () => {
+    const body = bare.slice(bare.indexOf('function gatepass.request_vendor_whitelist'));
+    expect(body).toMatch(/length\(trim\(coalesce\(p_justification, ''\)\)\) < 10/i);
+    expect(body).toMatch(/raise exception/i);
+  });
+
+  it('the database refuses an unjustified request even if the RPC is bypassed', () => {
+    expect(bare).toMatch(/whitelist_requests_justification_substantive/i);
+  });
+
+  it('only the designated CEO can approve or reject', () => {
+    for (const fn of ['approve_whitelist_request', 'reject_whitelist_request']) {
+      const start = bare.indexOf(`function gatepass.${fn}`);
+      expect(start, `${fn} is not defined`).toBeGreaterThan(-1);
+      const body = bare.slice(start, start + 1600);
+      expect(body, `${fn} must gate on gatepass.is_ceo()`).toMatch(/if not gatepass\.is_ceo\(\)/i);
+    }
+  });
+
+  it('approval — and only approval — deletes the blacklist entry', () => {
+    const start = bare.indexOf('function gatepass.approve_whitelist_request');
+    const body = bare.slice(start, start + 1600);
+    expect(body).toMatch(/delete from gatepass\.blacklist/i);
+    // The request RPC must never delete anything: the entry stays enforced
+    // while the CEO considers it.
+    const reqStart = bare.indexOf('function gatepass.request_vendor_whitelist');
+    const reqBody = bare.slice(reqStart, bare.indexOf('function gatepass.list_whitelist_requests'));
+    expect(reqBody).not.toMatch(/delete from gatepass\.blacklist/i);
+  });
+
+  it('only a super_admin designates the CEO, and only an admin account can be designated', () => {
+    const start = bare.indexOf('function gatepass.set_ceo_approver');
+    const body = bare.slice(start, start + 1600);
+    expect(
+      /gatepass\.app_role\(\)\s*<>\s*'super_admin'/i.test(body),
+      'an admin who can nominate the CEO can nominate themselves and self-approve'
+    ).toBe(true);
+    expect(body).toMatch(/not in \('admin', 'super_admin'\)/i);
+  });
+
+  it('there can only ever be one CEO', () => {
+    expect(bare).toMatch(/only_row\s+boolean primary key/i);
+    expect(bare).toMatch(/ceo_approver_single_row check \(only_row\)/i);
+  });
+
+  it('an approved request survives the deletion of the entry it unblocked', () => {
+    // ON DELETE CASCADE here would erase the audit trail at the exact moment
+    // it becomes the only record that the vendor was ever blocked.
+    expect(bare).toMatch(/blacklist_id\s+uuid references gatepass\.blacklist\(id\) on delete set null/i);
+    expect(bare).toMatch(/list_value\s+text not null/i);
+    expect(bare).toMatch(/blocked_reason\s+text not null/i);
+  });
+
+  it('one open request per entry, but a rejected vendor can be asked about again', () => {
+    expect(bare).toMatch(
+      /create unique index if not exists whitelist_requests_one_pending_per_entry[\s\S]*?where status = 'pending'/i
+    );
+  });
+
+  it('neither new table hands the client a write grant — the RPCs are the only writers', () => {
+    for (const table of ['gatepass.ceo_approver', 'gatepass.whitelist_requests']) {
+      expect(bare).toMatch(new RegExp(`enable row level security`, 'i'));
+      expect(
+        new RegExp(`grant\\s+(?:insert|update|delete|all)[^;]*on\\s+${table.replace('.', '\\.')}`, 'i').test(bare),
+        `${table} must be RPC-only`
+      ).toBe(false);
+    }
+  });
+});

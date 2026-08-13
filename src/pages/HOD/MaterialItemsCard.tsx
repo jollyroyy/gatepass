@@ -53,7 +53,7 @@ export default function MaterialItemsCard({
                 {label}
               </span>
             ))}
-            {showReturnDate && <span className="text-micro text-navy-500 uppercase">Return Date</span>}
+            {showReturnDate && <span className="text-micro text-navy-500 uppercase">Expected Return Date</span>}
             <span aria-hidden="true" />
           </div>
 

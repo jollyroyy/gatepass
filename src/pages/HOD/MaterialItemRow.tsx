@@ -3,7 +3,7 @@
 // One `.item-grid` per row, sharing the exact same column template as the
 // header in MaterialItemsCard.tsx via `itemGridStyle()` — this is what keeps
 // every row's fields lined up into real columns instead of drifting per row.
-// The Return Date column HOLDS ITS PLACE for RGP and is simply omitted (not
+// The Expected Return Date column HOLDS ITS PLACE for RGP and is simply omitted (not
 // rendered blank) for NRGP, so it is never the reason two rows disagree on
 // width; `showReturnDate` is passed straight through to the shared grid
 // template so the row and the header can never disagree about it either.
@@ -12,7 +12,7 @@
 // name via `data-label` (CSS-generated content in `.item-cell::before` —
 // see index.css for why this is not a real `<label>` element). The
 // accessible name for every input comes from `aria-label` regardless of
-// breakpoint, which is also what lets `getByLabelText('Return Date')` find
+// breakpoint, which is also what lets `getByLabelText('Expected Return Date')` find
 // each row's date input without a per-row visible label duplicating the
 // column header's text.
 import React from 'react';
@@ -135,11 +135,11 @@ export default function MaterialItemRow({
         </div>
 
         {showReturnDate && (
-          <div className="item-cell" data-label="Return Date">
+          <div className="item-cell" data-label="Expected Return Date">
             <input
               type="date"
               className="input text-sm w-full"
-              aria-label="Return Date"
+              aria-label="Expected Return Date"
               value={item.expected_return_date}
               onChange={(e) => onChange('expected_return_date', e.target.value)}
               min={todayStr}

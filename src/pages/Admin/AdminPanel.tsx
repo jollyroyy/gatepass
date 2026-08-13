@@ -1,29 +1,46 @@
 // Admin landing page: thin tab shell only. Departments and Users each own
 // their data-fetching and mutations — this file just switches between them.
+//
+// The Whitelist tab is the CEO's queue (039). It carries the CEO-designation
+// card above the queue because the two are one setting and one consequence:
+// with nobody designated, every request in the list below is unapprovable, and
+// splitting them across screens would hide that.
 import React, { useState } from 'react';
 import DepartmentsTab from './DepartmentsTab';
 import UsersTab from './UsersTab';
 import AIAnalyticsTab from './AIAnalyticsTab';
 import BlacklistTab from './BlacklistTab';
+import WhitelistRequestsTab from './WhitelistRequestsTab';
+import CeoApproverCard from './CeoApproverCard';
+import { useMyProfile } from '../../lib/useMyProfile';
 
-type Tab = 'departments' | 'users' | 'analytics' | 'blacklist';
+type Tab = 'departments' | 'users' | 'analytics' | 'blacklist' | 'whitelist';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'departments', label: 'Departments' },
   { key: 'users', label: 'Users' },
   { key: 'analytics', label: 'AI Analytics' },
   { key: 'blacklist', label: 'Blacklist' },
+  { key: 'whitelist', label: 'Whitelist Requests' },
 ];
-
-const TAB_RENDER: Record<Tab, React.ReactElement> = {
-  departments: <DepartmentsTab />,
-  users: <UsersTab />,
-  analytics: <AIAnalyticsTab />,
-  blacklist: <BlacklistTab />,
-};
 
 export default function AdminPanel(): React.ReactElement {
   const [tab, setTab] = useState<Tab>('departments');
+  const { profile } = useMyProfile();
+  const isSuperAdmin = profile?.role === 'super_admin';
+
+  const rendered: Record<Tab, React.ReactElement> = {
+    departments: <DepartmentsTab />,
+    users: <UsersTab />,
+    analytics: <AIAnalyticsTab />,
+    blacklist: <BlacklistTab />,
+    whitelist: (
+      <div className="space-y-6">
+        <CeoApproverCard isSuperAdmin={isSuperAdmin} />
+        <WhitelistRequestsTab />
+      </div>
+    ),
+  };
 
   return (
     <div>
@@ -45,7 +62,7 @@ export default function AdminPanel(): React.ReactElement {
         ))}
       </div>
 
-      {TAB_RENDER[tab]}
+      {rendered[tab]}
     </div>
   );
 }

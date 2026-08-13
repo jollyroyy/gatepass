@@ -389,6 +389,36 @@ export interface BlacklistMatch {
   reason: string;
 }
 
+// ─── Whitelist requests (039) ─────────────────────────────────────────────
+// An admin cannot take a vendor off the blacklist. They REQUEST it, with a
+// mandatory justification, and the designated CEO approves or rejects. The
+// entry stays enforced until approval, and approval is what deletes it.
+export type WhitelistRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface WhitelistRequest {
+  id: string;
+  /** Null once approved — the entry it referred to has been deleted. */
+  blacklist_id: string | null;
+  /** Snapshot taken at request time, so the record survives that deletion. */
+  list_type: BlacklistType;
+  list_value: string;
+  blocked_reason: string;
+  justification: string;
+  requested_by: string;
+  requested_by_name: string | null;
+  requested_at: string;
+  status: WhitelistRequestStatus;
+  decided_by_name: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+}
+
+export interface CeoApprover {
+  user_id: string;
+  full_name: string | null;
+  designated_at: string;
+}
+
 // ─── Bulk create result ───────────────────────────────────────────────────
 export interface BulkCreateResult {
   pass_id: string;
