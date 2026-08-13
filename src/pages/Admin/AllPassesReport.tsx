@@ -15,7 +15,7 @@ export const ALL_PASSES_CSV_COLUMNS: CsvColumn[] = [
   { key: 'pass_number', header: 'Pass No' },
   { key: 'type', header: 'Type' },
   { key: 'department_name', header: 'Department' },
-  { key: 'visitor_name', header: 'Visitor Name' },
+  { key: 'visitor_name', header: "Authorized Person's Name" },
   { key: 'material_summary', header: 'Material' },
   { key: 'item_count', header: 'Items' },
   { key: 'total_quantity', header: 'Total Qty' },
@@ -84,7 +84,7 @@ export default function AllPassesReport({ rows, onRowsChanged }: Props): React.R
                 <th>Pass No</th>
                 <th>Type</th>
                 <th>Department</th>
-                <th>Visitor Name</th>
+                <th>Authorized Person's Name</th>
                 <th>Material</th>
                 <th>Qty</th>
                 <th>Status</th>

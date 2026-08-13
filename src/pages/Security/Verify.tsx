@@ -195,7 +195,7 @@ export default function Verify(): React.ReactElement {
 
       <div className="card p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Field label="Visitor Name" value={pass.visitor_name} />
+          <Field label="Authorized Person's Name" value={pass.visitor_name} />
           <Field label="Contact No" value={companyInfo.phone || '—'} />
           <Field label="Vendor" value={companyInfo.name || '—'} />
           <Field label="Vendor Address" value={companyInfo.address || '—'} />

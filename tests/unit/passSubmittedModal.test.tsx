@@ -44,7 +44,7 @@ describe('PassSubmittedModal — at-a-glance fields', () => {
   it('groups vendor, department and material into labelled blocks', () => {
     renderModal();
     expect(screen.getByText('Vehicle & Department')).toBeInTheDocument();
-    expect(screen.getByText('Vendor & Visitor')).toBeInTheDocument();
+    expect(screen.getByText('Vendor & Authorized Person')).toBeInTheDocument();
     expect(screen.getByText('Material')).toBeInTheDocument();
     expect(screen.getByText('Engineering (ENG)')).toBeInTheDocument();
     expect(screen.getByText('Ravi Kumar')).toBeInTheDocument();

@@ -227,7 +227,7 @@ export default function PassDetail(): React.ReactElement {
       <div className="card p-6">
         <h2 className="card-title mb-4">Pass Details</h2>
         <dl className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <DetailRow label="Visitor Name" value={pass.visitor_name} />
+          <DetailRow label="Authorized Person's Name" value={pass.visitor_name} />
           <DetailRow label="Contact No" value={companyInfo.phone || '—'} />
           <DetailRow label="Vendor" value={companyInfo.name || '—'} emphasize />
           <DetailRow label="Vendor Address" value={companyInfo.address || '—'} />

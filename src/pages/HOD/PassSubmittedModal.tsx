@@ -3,7 +3,7 @@
 // Redesigned 2026-08-10 for scannability: the fields a person needs in under a
 // second — pass number, type, direction, status, vehicle — sit in one glance
 // header at real size/weight; everything else is grouped into small labelled
-// blocks (Vehicle & Department / Vendor & Visitor / Material) instead of one
+// blocks (Vehicle & Department / Vendor & Authorized Person / Material) instead of one
 // flat list. No new data: every value here already lived on `submittedPass` —
 // vehicle number and direction just weren't rendered before.
 import React from 'react';
@@ -87,8 +87,8 @@ export default function PassSubmittedModal({
           <Fact label="Department" value={deptName} />
         </FactBlock>
 
-        <FactBlock title="Vendor &amp; Visitor">
-          <Fact label="Visitor Name" value={submittedPass.visitor_name} />
+        <FactBlock title="Vendor &amp; Authorized Person">
+          <Fact label="Authorized Person's Name" value={submittedPass.visitor_name} />
           <Fact label="Vendor / Company" value={company.name} />
         </FactBlock>
 

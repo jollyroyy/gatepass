@@ -142,7 +142,7 @@ export default function RaisePass(): React.ReactElement {
 
   function validate(): FormErrors {
     const errs: FormErrors = {};
-    if (!form.visitor_name.trim()) errs.visitor_name = 'Visitor name is required.';
+    if (!form.visitor_name.trim()) errs.visitor_name = "Authorized person's name is required.";
 
     if (form.items.length === 0) {
       errs.items = 'At least one material item is required.';

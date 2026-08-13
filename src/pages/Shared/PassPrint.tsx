@@ -98,10 +98,12 @@ export default function PassPrint(): React.ReactElement {
           <div className="flex items-start justify-between gap-4 border-b-2 border-black pb-3 mb-3">
             <div>
               {/* No subtitle: the slip's own <h1> directly below already says
-                  "…Material Gate Pass". Repeating it reads as a template artefact. */}
+                  "…Gate Pass". Repeating it reads as a template artefact. */}
               <QuestLockup tone="light" size="sm" subtitle={null} className="mb-2" />
+              {/* "Material" was dropped from both headings (client, 2026-08-13) —
+                  the item table below is already headed "Material Items". */}
               <h1 className="text-lg font-extrabold tracking-wide text-black uppercase">
-                {isRgp ? 'Returnable Material Gate Pass' : 'Non‑Returnable Material Gate Pass'}
+                {isRgp ? 'Returnable Gate Pass' : 'Non‑Returnable Gate Pass'}
               </h1>
             </div>
             <QrPass value={pass.qr_token} size={110} />
@@ -121,7 +123,7 @@ export default function PassPrint(): React.ReactElement {
           <table className="w-full border-collapse text-sm mb-4">
             <tbody>
               {([
-                ['Visitor Name', pass.visitor_name],
+                ["Authorized Person's Name", pass.visitor_name],
                 ['Contact No', companyInfo.phone],
                 ['Vendor Name', companyInfo.name],
                 ['Vendor Address', companyInfo.address],
@@ -130,7 +132,7 @@ export default function PassPrint(): React.ReactElement {
                 ['Raised By', pass.raised_by_name],
               ] as const).map(([label, value]) => (
                 <tr key={label}>
-                  <td className="border border-black px-3 py-1.5 font-semibold text-black w-[130px] align-top uppercase text-[11px] tracking-wide">{label}</td>
+                  <td className="border border-black px-3 py-1.5 font-semibold text-black w-[150px] align-top uppercase text-[11px] tracking-wide">{label}</td>
                   <td className="border border-black px-3 py-1.5 text-black align-top">{value ?? '—'}</td>
                 </tr>
               ))}

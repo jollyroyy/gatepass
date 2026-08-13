@@ -1,4 +1,5 @@
-// "Pass Details", "Visitor Details" and "Vendor Details" cards for RaisePass.tsx.
+// "Pass Details", "Authorized Person Details" and "Vendor Details" cards for
+// RaisePass.tsx.
 import React from 'react';
 import type { NewGatePass, PassType, VendorProfile } from '../../types';
 import PassTypeSelector from './PassTypeSelector';
@@ -33,12 +34,12 @@ export default function PassDetailsCards({
         </div>
       </div>
 
-      {/* Visitor Details */}
+      {/* Authorized Person Details */}
       <div className="card p-5">
-        <h2 className="card-title mb-4">Visitor Details</h2>
+        <h2 className="card-title mb-4">Authorized Person Details</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="label">Visitor Name</label>
+            <label className="label">Authorized Person's Name</label>
             <input className="input" value={form.visitor_name} onChange={(e) => onUpdate('visitor_name', e.target.value)} placeholder="Person authorized to collect material" />
             {errors.visitor_name && <p className="field-error">{errors.visitor_name}</p>}
           </div>

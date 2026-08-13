@@ -37,10 +37,9 @@ re-concatenated is a fix that never reaches the database.
 ## Current state — verified 2026-08-13
 
 **`039` applied + verified live. Whitelisting a blacklisted vendor now needs a justification
-and the designated CEO's approval.** Full gate: **827 tests across 79 files**
-(`npm run check`, 2026-08-13).
+and the designated CEO's approval.** Full gate: pending re-run (`npm run check`, 2026-08-13).
 
-Four client changes landed together; the first three are frontend-only:
+Five client changes landed together; all but `039` are frontend-only:
 
 - **The RGP item form says "Expected Return Date"**, not "Return Date" (`MaterialItemRow`
   `aria-label`/`data-label` + `MaterialItemsCard` column header). Label only — the column,
@@ -54,7 +53,50 @@ Four client changes landed together; the first three are frontend-only:
   every row — keep rows at three or fewer. Applies to every category (RGP out/in, NRGP out),
   and to previously raised passes, since the block is static markup.
 - **The slip's vendor row reads "Vendor Name"** (`Vendor Address` unchanged).
+- **`visitor_name`'s user-facing label is now "Authorized Person's Name"**, everywhere a
+  human reads it — the form, the success popup, the detail page, the printed slip, the
+  compact card, and the report/CSV column headers. Column, RPC arg, and CSV keys untouched.
+- **The printed slip's `<h1>` no longer says "Material"** — "Returnable Gate Pass" /
+  "Non‑Returnable Gate Pass", since "Material Items" already headed the table below it.
 - **`039` — the blacklist is vendors-only, and removal is a CEO decision.**
+
+### "Authorized Person's Name" replaces "Visitor Name" everywhere, and the slip drops "Material" from its heading (2026-08-13, frontend only)
+
+Client's call, both pieces. No migration — the column stays `visitor_name`, the RPC arg
+stays `p_visitor_name`, and every CSV `key` stays `visitor_name`; only the label a human
+reads changed.
+
+**Every surface got the rename, not just the raise-pass form the client named it on.**
+`tests/unit/visitorNameLabel.test.tsx` existed for exactly this reason: a past session found
+the field reading "Authorized Person" on the detail page/slip/popup while cards and report
+tables still said "Visitor", agreeing with neither each other nor the column, and unified
+all of them to "Visitor Name" with a grep backstop. Relabelling only the form now would have
+reintroduced that same mismatch — so the user was asked and chose every surface. Edited:
+`src/pages/HOD/PassDetailsCards.tsx` (the field label, and "Visitor Details" →
+"Authorized Person Details" — this is the raise-pass form shared by RGP and NRGP alike, one
+edit covers both categories), `src/pages/HOD/PassSubmittedModal.tsx` (the `Fact` label and
+the `FactBlock` title "Vendor & Visitor" → "Vendor & Authorized Person"),
+`src/pages/Shared/PassDetail.tsx`, `src/pages/Security/Verify.tsx` (detail row / field
+label), `src/pages/Shared/PassPrint.tsx` (the slip's detail-table row label — its column
+widened `w-[130px]` → `w-[150px]` so the longer label doesn't wrap on the A5 sheet),
+`src/components/PassRowBody.tsx` (compact card field label "Visitor" → "Authorized Person"),
+`src/pages/Admin/AllPassesReport.tsx`, `src/pages/Admin/ReturnScheduleReport.tsx`,
+`src/pages/HOD/MyPasses.tsx` (the `<th>` and the CSV *header* string — the CSV `key` stays
+`visitor_name`), and `src/pages/HOD/RaisePass.tsx` (the validation message, now "Authorized
+person's name is required.").
+
+**The slip's `<h1>` no longer says "Material"** — it now reads "Returnable Gate Pass" /
+"Non‑Returnable Gate Pass" (the non-breaking hyphen in "Non‑Returnable" is unchanged), derived
+from `pass.type` with no per-pass data, so this applies to every pass printed including ones
+raised before today. It was dropped because "Material Items" already headed the item table
+directly below — the word was printed twice on one sheet.
+
+**Test bookkeeping**: `tests/unit/visitorNameLabel.test.tsx` was deleted and replaced by
+`tests/unit/authorizedPersonLabel.test.tsx` (5 tests), which pins the label on the raise-pass
+form, the success popup, the pass-detail page and the printed slip, plus the slip's new h1,
+and **inverts** the grep backstop — it now fails if `Visitor Name`, `Visitor Details`,
+`label="Visitor"` or `Material Gate Pass` appears anywhere in `src/**`.
+`tests/unit/passSubmittedModal.test.tsx` was updated for the new `FactBlock` title.
 
 ### `039` — an admin can no longer take a vendor off the blacklist (2026-08-13)
 

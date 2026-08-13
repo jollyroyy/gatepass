@@ -30,7 +30,7 @@ type Props = {
   showRaisedBy?: boolean;
   /** The trimmed fact set, for My Passes: "like the card format of the
    *  dashboard but with a little less information" (client, 2026-08-11).
-   *  Drops Visitor, Department, Raised At and Verified By — an HOD reading
+   *  Drops Authorized Person, Department, Raised At and Verified By — an HOD reading
    *  their OWN register already knows the department and who raised it, and
    *  the raise time is in the timeline directly below. What survives is what
    *  they actually scan for: vendor, what went out, on which vehicle, and when
@@ -58,7 +58,7 @@ export default function PassRowBody({
         }`}
       >
         <PassField label="Vendor" value={company.name || '—'} emphasize />
-        {!slim && <PassField label="Visitor" value={p.visitor_name || '—'} />}
+        {!slim && <PassField label="Authorized Person" value={p.visitor_name || '—'} />}
         {!slim && showRaisedBy && (
           <PassField label="Raised By" value={p.raised_by_name || '—'} emphasize />
         )}

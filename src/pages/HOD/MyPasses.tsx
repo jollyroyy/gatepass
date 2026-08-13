@@ -31,7 +31,7 @@ const VALID_STATUSES: PassStatus[] = ['pending', 'matched', 'flagged'];
 const CSV_COLUMNS: CsvColumn[] = [
   { key: 'pass_number', header: 'Pass No' },
   { key: 'type', header: 'Type' },
-  { key: 'visitor_name', header: 'Visitor Name' },
+  { key: 'visitor_name', header: "Authorized Person's Name" },
   { key: 'material_description', header: 'Material' },
   { key: 'quantity', header: 'Quantity' },
   { key: 'unit', header: 'Unit' },
