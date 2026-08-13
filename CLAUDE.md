@@ -37,7 +37,8 @@ re-concatenated is a fix that never reaches the database.
 ## Current state — verified 2026-08-13
 
 **`039` applied + verified live. Whitelisting a blacklisted vendor now needs a justification
-and the designated CEO's approval.** Full gate: pending re-run (`npm run check`, 2026-08-13).
+and the designated CEO's approval.** Full gate: **828 tests across 79 files**
+(`npm run check`, 2026-08-13).
 
 Five client changes landed together; all but `039` are frontend-only:
 
