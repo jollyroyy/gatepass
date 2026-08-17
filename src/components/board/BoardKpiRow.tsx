@@ -37,7 +37,15 @@ export default function BoardKpiRow({
     // 2 across on a phone, 3 on a tablet, all 5 from `xl` — never squeezed into
     // five columns on a laptop, which is where a card this dense starts
     // clipping its own label.
-    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+    // Named as a group: the status donut below carries slices with the same
+    // words on them ("Cleared at Gate", "Pending"), so without this a reader
+    // arriving by keyboard — and any test — has no way to say which "Cleared at
+    // Gate" they mean.
+    <div
+      role="group"
+      aria-label="Headline figures"
+      className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4"
+    >
       {BOARD_KPI_ORDER.map((key: BoardKpiKey) => {
         const kpi = BOARD_KPIS[key];
         const rows = scoped.filter(kpi.match);

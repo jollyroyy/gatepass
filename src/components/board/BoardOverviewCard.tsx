@@ -27,38 +27,56 @@ type Props = {
   loading: boolean;
   activeKey: string | null;
   onSelect: (drill: BoardDrill) => void;
+  /** True when the board's category toggle has narrowed to ONE category. The
+   *  card then drops category mode entirely: a category donut of a single
+   *  category is one ring at 100% naming the button the reader just pressed,
+   *  which tells them nothing they did not already do. Status is the reading
+   *  that still has something to say about a narrowed board. */
+  categoryScoped?: boolean;
 };
 
-export default function BoardOverviewCard({ rows, loading, activeKey, onSelect }: Props): React.ReactElement {
+export default function BoardOverviewCard({
+  rows,
+  loading,
+  activeKey,
+  onSelect,
+  categoryScoped = false,
+}: Props): React.ReactElement {
   const [mode, setMode] = useState<Mode>('category');
-  const slices = mode === 'category' ? categorySlices(rows) : statusSlices(rows);
+  // Forced rather than pushed through `setMode`: the reader's own choice is
+  // remembered and comes back intact when they return the toggle to All.
+  const shown: Mode = categoryScoped ? 'status' : mode;
+  const slices = shown === 'category' ? categorySlices(rows) : statusSlices(rows);
 
   return (
     <BoardCard
       title="Gate Pass Overview"
+      subtitle={categoryScoped ? 'By status — the category is set by the board toggle' : undefined}
       loading={loading}
       // Taller than the bar-list panels': the legend stacks UNDER the ring now,
       // so a donut card is a ring plus a column of rows.
       skeletonHeight="h-72"
       control={
-        <BoardCardSelect
-          label="Gate Pass Overview breakdown"
-          value={mode}
-          onChange={setMode}
-          options={[
-            { value: 'category', label: 'By category' },
-            { value: 'status', label: 'By status' },
-          ]}
-        />
+        categoryScoped ? undefined : (
+          <BoardCardSelect
+            label="Gate Pass Overview breakdown"
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: 'category', label: 'By category' },
+              { value: 'status', label: 'By status' },
+            ]}
+          />
+        )
       }
     >
       <DonutChart
         slices={slices}
-        colors={mode === 'category' ? CATEGORY_COLORS : PASS_STATUS_COLORS}
+        colors={shown === 'category' ? CATEGORY_COLORS : PASS_STATUS_COLORS}
         centerLabel="Total Passes"
-        hideEmpty={mode === 'status'}
-        activeKey={sliceKeyOf(activeKey, mode)}
-        onSelect={(slice) => onSelect(drillOf(slice, mode))}
+        hideEmpty={shown === 'status'}
+        activeKey={sliceKeyOf(activeKey, shown)}
+        onSelect={(slice) => onSelect(drillOf(slice, shown))}
       />
     </BoardCard>
   );

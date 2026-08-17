@@ -23,17 +23,24 @@ type Props<K extends string> = {
   onChange: (period: K) => void;
   /** Which periods to offer. Defaults to the dashboards' five. */
   periods?: readonly PeriodOption<K>[];
+  /** The group's accessible name. Defaults to the period wording, because that
+   *  is what this control was built for; the board dashboards render a SECOND
+   *  instance of it for the RGP/NRGP category toggle (2026-08-17) and two
+   *  groups called "Dashboard period" on one page would leave a screen-reader
+   *  user unable to tell which axis they are changing. */
+  label?: string;
 };
 
 export default function DashboardPeriodFilter<K extends string>({
   value,
   onChange,
   periods = DASHBOARD_PERIODS as unknown as readonly PeriodOption<K>[],
+  label: groupLabel = 'Dashboard period',
 }: Props<K>): React.ReactElement {
   return (
     <div
       role="group"
-      aria-label="Dashboard period"
+      aria-label={groupLabel}
       className="inline-flex flex-wrap gap-1 bg-surface-100 dark:bg-white/5 rounded-xl p-1"
     >
       {periods.map(({ key, label }) => {

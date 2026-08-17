@@ -36,6 +36,11 @@ import {
   type DashboardPeriod,
 } from '../../lib/dashboardPeriod';
 import DashboardPeriodFilter from '../../components/DashboardPeriodFilter';
+import {
+  BOARD_CATEGORY_OPTIONS,
+  filterByCategory,
+  type BoardCategory,
+} from '../../lib/boardCategory';
 import { BOARD_KPIS, drillDefOf, kpiDrill, IS_OPEN_RETURN, type BoardDrill } from '../../lib/boardDrills';
 import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 import BoardKpiRow from '../../components/board/BoardKpiRow';
@@ -53,6 +58,7 @@ export default function AdminDashboard(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [drill, setDrill] = useState<BoardDrill | null>(null);
   const [period, setPeriod] = useState<DashboardPeriod>('today');
+  const [category, setCategory] = useState<BoardCategory>('all');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,6 +88,12 @@ export default function AdminDashboard(): React.ReactElement {
     load();
   }, [load]);
 
+  // THE CATEGORY TOGGLE IS APPLIED FIRST, TO THE RAW ARRAY. Everything below —
+  // the period scope, every KPI, both donuts, the trend line, the panels — reads
+  // `inCategory` and nothing reads `rows`, so a narrowed board cannot leave one
+  // panel quietly showing the whole org. See src/lib/boardCategory.ts.
+  const inCategory = useMemo(() => filterByCategory(rows, category), [rows, category]);
+
   // Scoped once, here, so every number below comes from the same array.
   const { scoped, previous } = useMemo(() => {
     const cur = periodBounds(period);
@@ -91,15 +103,17 @@ export default function AdminDashboard(): React.ReactElement {
       return t >= b.start && t < b.end;
     };
     return {
-      scoped: rows.filter((p) => within(p, cur)),
-      previous: rows.filter((p) => within(p, prev)),
+      scoped: inCategory.filter((p) => within(p, cur)),
+      previous: inCategory.filter((p) => within(p, prev)),
     };
-  }, [rows, period]);
+  }, [inCategory, period]);
 
-  // The one all-time list on the board. See BoardOverdueList for why.
+  // The one all-time list on the board. See BoardOverdueList for why — note
+  // "all time" exempts it from the PERIOD filter only; nothing exempts a panel
+  // from the category the reader chose.
   const overdueAllTime = useMemo(
-    () => rows.filter((p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue),
-    [rows],
+    () => inCategory.filter((p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue),
+    [inCategory],
   );
   const pending = useMemo(() => scoped.filter(BOARD_KPIS.pending.match), [scoped]);
 
@@ -107,6 +121,15 @@ export default function AdminDashboard(): React.ReactElement {
   // not by object identity — every render builds fresh drill objects.
   const select = useCallback((next: BoardDrill) => {
     setDrill((cur) => (cur?.key === next.key ? null : next));
+  }, []);
+
+  // Changing the category closes any open drill. A `BoardDrill` CARRIES its
+  // rows, so one left open would keep listing the passes it captured under the
+  // old category while every figure around it moved — the one way this board
+  // could show a list that disagrees with the card that opened it.
+  const chooseCategory = useCallback((next: BoardCategory) => {
+    setCategory(next);
+    setDrill(null);
   }, []);
 
   const activeKey = drill?.key ?? null;
@@ -119,7 +142,17 @@ export default function AdminDashboard(): React.ReactElement {
           <h1 className="page-title">Dashboard</h1>
           <p className="page-subtitle">Overview of all gate pass activity, org-wide.</p>
         </div>
-        <DashboardPeriodFilter value={period} onChange={setPeriod} />
+        {/* Two independent axes, stacked so they read top-down as "what, then
+            when". Both are the same segmented control — one styling story. */}
+        <div className="flex flex-col items-start sm:items-end gap-2">
+          <DashboardPeriodFilter
+            label="Pass category"
+            value={category}
+            onChange={chooseCategory}
+            periods={BOARD_CATEGORY_OPTIONS}
+          />
+          <DashboardPeriodFilter value={period} onChange={setPeriod} />
+        </div>
       </div>
 
       {error && <div className="alert-error mb-6">{error}</div>}
@@ -131,7 +164,7 @@ export default function AdminDashboard(): React.ReactElement {
       <BoardKpiRow
         scoped={scoped}
         previous={previous}
-        all={rows}
+        all={inCategory}
         loading={loading}
         comparisonLabel={PERIOD_COMPARISON_LABEL[period]}
         activeKey={activeKey}
@@ -154,10 +187,16 @@ export default function AdminDashboard(): React.ReactElement {
           half empty. */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mt-8">
         <div className="xl:col-span-4 min-w-0">
-          <BoardOverviewCard rows={scoped} loading={loading} activeKey={activeKey} onSelect={select} />
+          <BoardOverviewCard
+            rows={scoped}
+            loading={loading}
+            activeKey={activeKey}
+            onSelect={select}
+            categoryScoped={category !== 'all'}
+          />
         </div>
         <div className="xl:col-span-5 min-w-0">
-          <BoardTrendCard rows={rows} loading={loading} activeKey={activeKey} onSelect={select} />
+          <BoardTrendCard rows={inCategory} loading={loading} activeKey={activeKey} onSelect={select} />
         </div>
         <div className="xl:col-span-3 min-w-0">
           <BoardActivityFeed rows={scoped} loading={loading} />

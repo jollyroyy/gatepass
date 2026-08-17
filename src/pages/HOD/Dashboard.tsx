@@ -44,6 +44,11 @@ import {
   type DashboardPeriod,
 } from '../../lib/dashboardPeriod';
 import DashboardPeriodFilter from '../../components/DashboardPeriodFilter';
+import {
+  BOARD_CATEGORY_OPTIONS,
+  filterByCategory,
+  type BoardCategory,
+} from '../../lib/boardCategory';
 import { BOARD_KPIS, drillDefOf, kpiDrill, IS_OPEN_RETURN, type BoardDrill } from '../../lib/boardDrills';
 import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 import BoardKpiRow from '../../components/board/BoardKpiRow';
@@ -66,6 +71,14 @@ export default function Dashboard(): React.ReactElement {
   const deptNames = useMyDepartmentNames();
   const [drill, setDrill] = useState<BoardDrill | null>(null);
   const [period, setPeriod] = useState<DashboardPeriod>('today');
+  const [category, setCategory] = useState<BoardCategory>('all');
+
+  // THE CATEGORY TOGGLE IS APPLIED FIRST, TO THE RAW ARRAY — a THIRD scope on
+  // top of the department (RLS's) and the person (this board's). Everything
+  // below reads `inCategory` and nothing reads `rows`, so a narrowed board
+  // cannot leave one panel quietly showing every category. See
+  // src/lib/boardCategory.ts.
+  const inCategory = useMemo(() => filterByCategory(rows, category), [rows, category]);
 
   // Scoped once, here, so every number below comes from the same array.
   const { scoped, previous } = useMemo(() => {
@@ -76,15 +89,17 @@ export default function Dashboard(): React.ReactElement {
       return t >= b.start && t < b.end;
     };
     return {
-      scoped: rows.filter((p) => within(p, cur)),
-      previous: rows.filter((p) => within(p, prev)),
+      scoped: inCategory.filter((p) => within(p, cur)),
+      previous: inCategory.filter((p) => within(p, prev)),
     };
-  }, [rows, period]);
+  }, [inCategory, period]);
 
-  // The one all-time list on the board. See BoardOverdueList for why.
+  // The one all-time list on the board. See BoardOverdueList for why — note
+  // "all time" exempts it from the PERIOD filter only; nothing exempts a panel
+  // from the category the reader chose.
   const overdueAllTime = useMemo(
-    () => rows.filter((p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue),
-    [rows],
+    () => inCategory.filter((p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue),
+    [inCategory],
   );
   const pending = useMemo(() => scoped.filter(BOARD_KPIS.pending.match), [scoped]);
   const expired = useMemo(() => scoped.filter(isExpiredPending), [scoped]);
@@ -93,6 +108,14 @@ export default function Dashboard(): React.ReactElement {
   // not by object identity — every render builds fresh drill objects.
   const select = useCallback((next: BoardDrill) => {
     setDrill((cur) => (cur?.key === next.key ? null : next));
+  }, []);
+
+  // Changing the category closes any open drill. A `BoardDrill` CARRIES its
+  // rows, so one left open would keep listing the passes it captured under the
+  // old category while every figure around it moved.
+  const chooseCategory = useCallback((next: BoardCategory) => {
+    setCategory(next);
+    setDrill(null);
   }, []);
 
   const activeKey = drill?.key ?? null;
@@ -107,7 +130,17 @@ export default function Dashboard(): React.ReactElement {
             {deptNames.length > 0 ? `${deptNames.join(' · ')} — passes you raised` : 'Passes you raised'}
           </p>
         </div>
-        <DashboardPeriodFilter value={period} onChange={setPeriod} />
+        {/* Two independent axes, stacked so they read top-down as "what, then
+            when". Both are the same segmented control — one styling story. */}
+        <div className="flex flex-col items-start sm:items-end gap-2">
+          <DashboardPeriodFilter
+            label="Pass category"
+            value={category}
+            onChange={chooseCategory}
+            periods={BOARD_CATEGORY_OPTIONS}
+          />
+          <DashboardPeriodFilter value={period} onChange={setPeriod} />
+        </div>
       </div>
 
       {error && <div className="alert-error mb-6">{error}</div>}
@@ -135,7 +168,7 @@ export default function Dashboard(): React.ReactElement {
       <BoardKpiRow
         scoped={scoped}
         previous={previous}
-        all={rows}
+        all={inCategory}
         loading={loading}
         comparisonLabel={PERIOD_COMPARISON_LABEL[period]}
         activeKey={activeKey}
@@ -156,10 +189,16 @@ export default function Dashboard(): React.ReactElement {
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mt-8">
         <div className="xl:col-span-4 min-w-0">
-          <BoardOverviewCard rows={scoped} loading={loading} activeKey={activeKey} onSelect={select} />
+          <BoardOverviewCard
+            rows={scoped}
+            loading={loading}
+            activeKey={activeKey}
+            onSelect={select}
+            categoryScoped={category !== 'all'}
+          />
         </div>
         <div className="xl:col-span-5 min-w-0">
-          <BoardTrendCard rows={rows} loading={loading} activeKey={activeKey} onSelect={select} />
+          <BoardTrendCard rows={inCategory} loading={loading} activeKey={activeKey} onSelect={select} />
         </div>
         <div className="xl:col-span-3 min-w-0">
           <BoardActivityFeed rows={scoped} loading={loading} viewAllTo={REGISTER} />
@@ -199,7 +238,11 @@ export default function Dashboard(): React.ReactElement {
       {/* Fed by the UNSCOPED flagged fetch, never `scoped` — a mismatch raised
           yesterday still needs this HOD's decision today, and the Today toggle
           must not hide an open action item. Below the charts because it is a
-          task list, not a measurement. */}
+          task list, not a measurement.
+          THE CATEGORY TOGGLE IS DELIBERATELY NOT APPLIED HERE EITHER, for the
+          same reason and it is the one exception on the board: every other
+          panel measures traffic, this one is the HOD's queue. A mismatched
+          NRGP still needs deciding while the reader is looking at RGP Out. */}
       {!loading && (
         <div className="mt-8">
           <FlaggedReviewCard rows={flagged} onOpen={(id) => navigate(`/pass/${id}`)} />

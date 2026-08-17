@@ -69,7 +69,8 @@ describe('MyPassCard', () => {
     renderCard();
     expect(screen.queryByTestId('pass-card-body')).toBeNull();
     expect(screen.getByText(/Drill Machine, Ladder/)).toBeInTheDocument();
-    expect(screen.getByText(/₹25K/)).toBeInTheDocument();
+    // Exact rupees, never "₹25K" — see tests/unit/formatCurrency.test.ts.
+    expect(screen.getByText(/₹25,000/)).toBeInTheDocument();
   });
 
   it('opens the detail on click', () => {

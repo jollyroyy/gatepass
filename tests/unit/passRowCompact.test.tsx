@@ -40,7 +40,8 @@ describe('PassRow compact', () => {
     renderRow();
     expect(screen.getByText('RGP-OUT-20260810-0001')).toBeInTheDocument();
     expect(screen.getByText('Drill Machine')).toBeInTheDocument(); // Item
-    expect(screen.getByText('₹25K')).toBeInTheDocument();           // Value
+    // Exact rupees, never "₹25K" — see tests/unit/formatCurrency.test.ts.
+    expect(screen.getByText('₹25,000')).toBeInTheDocument();        // Value
     expect(screen.getByText('Repair of AC units')).toBeInTheDocument(); // Reason
     expect(screen.getByText('Qty short')).toBeInTheDocument();      // flag reason trail
     expect(screen.getByText('Mismatched')).toBeInTheDocument();     // status pill

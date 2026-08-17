@@ -36,6 +36,78 @@ re-concatenated is a fix that never reaches the database.
 
 ## Current state — 2026-08-17 (latest)
 
+**Two client changes, both frontend-only — no migration, no new dependency.**
+Full gate: **897 tests across 83 files** (`npm run check`, 2026-08-17).
+
+### Rupee values are EXACT now — no more "₹3.1K" / "₹1.1L"
+
+Client: *"when you are putting the value in the NRGP and RGP gate pass for any HOD, you
+should not mention 3k, 4k — it should be the exact number, like 3100, 200, 110."* Correct,
+and it was worse than cosmetic: `formatCurrency` rounded to one decimal, so **₹3,149 and
+₹3,050 both printed "₹3.1K"** — a guard comparing the slip against the screen had nothing
+to compare, and the value is the figure a gate pass is *about*.
+
+`src/lib/formatCurrency.ts` is now one line: `'₹' + Math.round(n).toLocaleString('en-IN')`.
+Indian grouping stays (₹1,10,000) — it separates digits without losing any (user's call
+when asked). Four surfaces follow automatically, since this is the app's single formatter:
+`PassRowCompact`, `PassDetailItems` (per-line and the total), `MyPassCard`, and the HOD
+board's overdue value. `PassPrint` has its own local `formatCurrency` and already printed
+exact — untouched. Pinned by `tests/unit/formatCurrency.test.ts` (4), including a loop that
+fails on any `K` or `L` in the output; `passRowCompact` / `myPassCard` updated from `₹25K`.
+
+### Both board dashboards have an RGP/NRGP toggle beside the period filter
+
+Client: *"can I do one thing for each and every admin — toggle between RGP Out and NRGP
+Out? When I'm selecting RGP Out it would show how many are there in total, how many are
+pending at the gate, how many are overdue… keep the same filter on the top right corner,
+today / last one week / last one month — I just put the toggle and keep all the KPI buttons
+and all the pie charts accordingly."*
+
+`/admin-dashboard` and `/dashboard` now carry **All · RGP Out · RGP In · NRGP Out** above
+the period filter (both are the same `DashboardPeriodFilter` segmented control, which
+gained a `label` prop so the two `role="group"`s have different accessible names). The
+options come off `PASS_CATEGORY_LIST`, so this toggle and the gate console's filter can
+never offer different categories — and there is no NRGP In, for the same reason no such
+pass exists.
+
+**IT IS APPLIED ONCE, TO THE RAW `rows` ARRAY, BEFORE THE PERIOD SCOPE** —
+`src/lib/boardCategory.ts`'s `filterByCategory`, into a memo called `inCategory`, and
+**nothing on either page reads `rows` any more**. That is what keeps the board's invariant
+intact: every figure is still `rows.length` of the very array its click opens, because
+there is still only one array. Filtering per-panel would give each panel its own chance to
+forget, and the two panels deliberately exempt from the PERIOD filter — the all-time
+Overdue list and the trend line — would be the two that forgot. "All time" means the period
+filter, not the category one.
+
+Three consequences worth not re-deriving:
+
+- **The overview donut drops "By category" once a category is picked** (`categoryScoped`
+  prop). A category donut of one category is a 100% ring naming the button the reader just
+  pressed. It falls back to status mode and the mode select disappears; the reader's own
+  mode choice is remembered and returns intact when they go back to All.
+- **Changing the category closes any open drill.** A `BoardDrill` CARRIES its rows, so one
+  left open would keep listing passes captured under the old category while every figure
+  around it moved — the one way this board could show a list disagreeing with the card that
+  opened it.
+- **The HOD's `FlaggedReviewCard` is the ONE panel the toggle does not touch**, exactly as
+  the period filter does not. It is a task list, not a measurement: a mismatched NRGP still
+  needs deciding while the reader is looking at RGP Out.
+
+`BoardKpiRow`'s grid gained `role="group" aria-label="Headline figures"` — once the board
+is narrowed the status donut carries slices labelled with the same words ("Cleared at
+Gate", "Pending"), so without it neither a keyboard reader nor a test can say which one
+they mean. Pinned by `tests/unit/boardCategoryToggle.test.tsx` (20 — every case runs
+against BOTH boards via `describe.each`), all watched failing first.
+
+**Not yet seen in a real browser.** Verified by the test suite and a production build only.
+
+**Test-suite flakiness, pre-existing and NOT caused by this change:** under a loaded
+`npm run check` run, `hodDashboardBoard` / `myPasses` / `authorizedPersonLabel` /
+`hodReviewGateFlow` / `adminDashboardKpis` intermittently blow their 5s `waitFor` timeout.
+Confirmed by stashing this work and reproducing the same failures on a clean tree. They
+pass every time when run in a small batch. If it becomes annoying, raise `testTimeout` in
+`vite.config.ts` rather than chasing individual specs.
+
 ### The notification popup was unreadable — badly in dark, in three places in light
 
 `NotificationBell` was the only content surface in `src/` carrying an opaque **`bg-white`**
