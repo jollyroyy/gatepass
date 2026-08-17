@@ -1,9 +1,17 @@
-// HOD's own pass list: period (top-right, same premium control as the
-// dashboards), status tabs, type/department filters, text search, and CSV
-// export. Status and "awaiting return" filters live in the URL so the
-// Dashboard KPI cards can deep-link straight into a filtered view. The PERIOD
-// filter is deliberately local state, not a URL param — it is a viewing
-// preference, not a destination.
+// HOD's own pass list. The three SCOPE controls all sit together in the page
+// header, top right — period presets, a single-day calendar, and the RGP/NRGP
+// toggle — with status tabs, "awaiting return" and text search below. Status
+// and "awaiting return" live in the URL so the Dashboard KPI cards can
+// deep-link straight into a filtered view. The period, date and type filters
+// are deliberately local state, not URL params — they are viewing preferences,
+// not destinations.
+//
+// The calendar and the period presets are ONE choice, not two: a picked date
+// wins and narrows the stack to that single local day, and clicking any period
+// clears it. Two independent windows silently intersecting would let an HOD
+// pick a date inside "Today" and see nothing, with no control showing why. The
+// CSV export needs no wiring for either — it writes `filtered`, the rows the
+// stack is showing.
 import React, { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { gp } from '../../supabaseClient';
@@ -17,6 +25,7 @@ import {
   myPassesPeriodBounds,
   type MyPassesPeriod,
 } from '../../lib/myPassesPeriod';
+import { localDateString, localDayBounds } from '../../lib/reportsDateRange';
 import PeriodFilter from '../../components/PeriodFilter';
 import MyPassesTable from './MyPassesTable';
 
@@ -28,6 +37,17 @@ const STATUS_TABS: { key: PassStatus | 'all'; label: string }[] = [
 ];
 
 const VALID_STATUSES: PassStatus[] = ['pending', 'matched', 'flagged'];
+
+type TypeFilter = PassType | 'all';
+
+// Local (IST) date, not UTC — toISOString() would name yesterday before 05:30
+// IST and put today out of the calendar's reach.
+const TODAY = localDateString(new Date());
+
+const TYPE_SEGMENTS: { key: TypeFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  ...PASS_TYPE_LIST.map((t) => ({ key: t as TypeFilter, label: PASS_TYPES[t].code })),
+];
 
 // `material_description` / `quantity` / `unit` used to be here. Migration 013
 // moved the material lines out of `gate_passes` into `gate_pass_items`, and
@@ -51,8 +71,10 @@ export default function MyPasses(): React.ReactElement {
   const [rows, setRows] = useState<GatePassView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [typeFilter, setTypeFilter] = useState<PassType | 'all'>('all');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [search, setSearch] = useState('');
+  // Empty means "no single day picked" — the period presets are in charge.
+  const [date, setDate] = useState('');
   // Default Last 30 Days: My Passes is the HISTORY page — the dashboard links
   // here for "older passes", so a Today default would show a nearly empty
   // stack. Today and the other windows are one click away.
@@ -99,7 +121,15 @@ export default function MyPasses(): React.ReactElement {
     load();
   }, [load]);
 
-  const { start, end } = myPassesPeriodBounds(period);
+  // A picked date replaces the window with that one local day. `localDayBounds`
+  // is the same local-midnight arithmetic the Reports register uses, so a day
+  // means the same thing on both pages.
+  const { start, end } = date ? localDayBounds(date, date) : myPassesPeriodBounds(period);
+
+  function pickPeriod(next: MyPassesPeriod) {
+    setDate('');
+    setPeriod(next);
+  }
 
   const filtered = rows.filter((p) => {
     const t = new Date(p.created_at).getTime();
@@ -129,8 +159,29 @@ export default function MyPasses(): React.ReactElement {
           <h1 className="page-title">My Passes</h1>
           <p className="page-subtitle">All gate passes raised for your departments.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <PeriodFilter value={period} onChange={setPeriod} periods={MY_PASSES_PERIODS} label="My Passes period" />
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <PeriodFilter value={period} onChange={pickPeriod} periods={MY_PASSES_PERIODS} label="My Passes period" />
+          <input
+            type="date"
+            aria-label="Date"
+            value={date}
+            max={TODAY}
+            onChange={(e) => setDate(e.target.value)}
+            className="input w-auto text-sm"
+          />
+          <div className="tab-group" role="group" aria-label="Pass type">
+            {TYPE_SEGMENTS.map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={key === typeFilter}
+                onClick={() => setTypeFilter(key)}
+                className={key === typeFilter ? 'tab-active text-xs px-4 py-1.5' : 'tab-inactive text-xs px-4 py-1.5'}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <button type="button" className="btn-secondary" onClick={handleExport}>
             Export CSV
           </button>
@@ -152,19 +203,6 @@ export default function MyPasses(): React.ReactElement {
         </div>
 
         <div className="flex flex-wrap gap-3 items-center">
-          <select
-            className="input w-auto"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as PassType | 'all')}
-          >
-            <option value="all">All Types</option>
-            {PASS_TYPE_LIST.map((t) => (
-              <option key={t} value={t}>
-                {PASS_TYPES[t].code} — {PASS_TYPES[t].label}
-              </option>
-            ))}
-            </select>
-
           <button
             type="button"
             onClick={toggleAwaitingReturn}

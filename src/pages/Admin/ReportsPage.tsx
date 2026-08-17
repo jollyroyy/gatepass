@@ -117,8 +117,16 @@ export default function ReportsPage(): React.ReactElement {
 
   return (
     <div className="space-y-6 report-sheet">
-      <div className="page-header">
+      <div className="page-header flex flex-wrap items-center justify-between gap-4">
         <h1 className="page-title">Reports</h1>
+        <ReportsFilterBar
+          typeFilter={typeFilter}
+          onTypeChange={setTypeFilter}
+          deptFilter={deptFilter}
+          onDeptChange={setDeptFilter}
+          deptOptions={deptOptions}
+          onClear={clearFilters}
+        />
       </div>
 
       {error && <div className="alert-error">{error}</div>}
@@ -130,15 +138,6 @@ export default function ReportsPage(): React.ReactElement {
         preset={preset}
         onPresetChange={setPreset}
         onPrint={() => window.print()}
-      />
-
-      <ReportsFilterBar
-        typeFilter={typeFilter}
-        onTypeChange={setTypeFilter}
-        deptFilter={deptFilter}
-        onDeptChange={setDeptFilter}
-        deptOptions={deptOptions}
-        onClear={clearFilters}
       />
 
       <div className="print-only">

@@ -3,7 +3,7 @@
 // 30 Days, and actually scoping the stack.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { GatePassView } from '../../src/types';
 
@@ -109,5 +109,115 @@ describe('MyPasses period filter', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Yearly' }));
     await waitFor(() => expect(screen.getByText('OLD-0001')).toBeInTheDocument());
     expect(screen.getByText('TODAY-0001')).toBeInTheDocument();
+  });
+});
+
+// The RGP/NRGP choice was a dropdown down in the filter row, hiding two of its
+// three states behind a click. It is the same segmented toggle the Reports page
+// got, in the same place: the page header, top right.
+describe('MyPasses pass-type toggle', () => {
+  beforeEach(() => {
+    rows = [
+      TODAY,
+      pass({ id: 'p3', pass_number: 'NRGP-0001', type: 'NRGP', material_summary: 'Scrap' }),
+    ];
+    vi.clearAllMocks();
+  });
+
+  async function renderPage() {
+    const MyPasses = (await import('../../src/pages/HOD/MyPasses')).default;
+    return render(
+      <MemoryRouter>
+        <MyPasses />
+      </MemoryRouter>
+    );
+  }
+
+  it('sits in the page header and offers All / RGP / NRGP', async () => {
+    const { container } = await renderPage();
+    await waitFor(() => expect(screen.getByText('TODAY-0001')).toBeInTheDocument());
+
+    const group = screen.getByRole('group', { name: 'Pass type' });
+    expect(container.querySelector('.page-header')).toContainElement(group);
+    for (const label of ['All', 'RGP', 'NRGP']) {
+      expect(within(group).getByRole('button', { name: label })).toBeInTheDocument();
+    }
+    expect(within(group).getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('narrows the stack to one type', async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText('NRGP-0001')).toBeInTheDocument());
+
+    const group = screen.getByRole('group', { name: 'Pass type' });
+    fireEvent.click(within(group).getByRole('button', { name: 'RGP' }));
+
+    await waitFor(() => expect(screen.queryByText('NRGP-0001')).not.toBeInTheDocument());
+    expect(screen.getByText('TODAY-0001')).toBeInTheDocument();
+  });
+
+  it('drops the old All Types dropdown', async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText('TODAY-0001')).toBeInTheDocument());
+    expect(screen.queryByRole('option', { name: /All Types/ })).not.toBeInTheDocument();
+  });
+});
+
+// A calendar, so the HOD can pull one specific day rather than only the rolling
+// windows — and the CSV export follows it, because the export writes the rows
+// the stack is showing.
+describe('MyPasses date picker', () => {
+  const OLD_DATE = (() => {
+    const d = new Date(NOW - 60 * DAY_MS);
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+
+  beforeEach(() => {
+    rows = [TODAY, SIXTY_DAYS_OLD];
+    vi.clearAllMocks();
+  });
+
+  async function renderPage() {
+    const MyPasses = (await import('../../src/pages/HOD/MyPasses')).default;
+    return render(
+      <MemoryRouter>
+        <MyPasses />
+      </MemoryRouter>
+    );
+  }
+
+  it('renders a date input in the page header, empty by default', async () => {
+    const { container } = await renderPage();
+    await waitFor(() => expect(screen.getByText('TODAY-0001')).toBeInTheDocument());
+
+    const input = screen.getByLabelText('Date') as HTMLInputElement;
+    expect(input).toHaveAttribute('type', 'date');
+    expect(container.querySelector('.page-header')).toContainElement(input);
+    expect(input.value).toBe('');
+  });
+
+  it('a picked date shows that day alone, overriding the period window', async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText('TODAY-0001')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: OLD_DATE } });
+
+    await waitFor(() => expect(screen.getByText('OLD-0001')).toBeInTheDocument());
+    expect(screen.queryByText('TODAY-0001')).not.toBeInTheDocument();
+  });
+
+  it('clicking a period clears the picked date', async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText('TODAY-0001')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: OLD_DATE } });
+    await waitFor(() => expect(screen.getByText('OLD-0001')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Today' }));
+
+    await waitFor(() => expect(screen.getByText('TODAY-0001')).toBeInTheDocument());
+    expect(screen.queryByText('OLD-0001')).not.toBeInTheDocument();
+    expect((screen.getByLabelText('Date') as HTMLInputElement).value).toBe('');
   });
 });

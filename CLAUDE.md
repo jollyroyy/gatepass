@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-18
 
-Full gate: **1059 tests across 98 files** (`npm run check`), `npm run build` clean.
+Full gate: **1067 tests across 98 files** (`npm run check`), `npm run build` clean.
 Migrations **`001`–`041` are all applied to the live DB**; `039`, `040`, `041` were each
 verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 
@@ -50,7 +50,24 @@ verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 
-**Latest change (2026-08-18, third pass): both boards now OPEN on "Today's Summary", and the
+**Latest change (2026-08-18, fourth pass): scope controls moved into the page header, top
+right, on Reports and My Passes; My Passes gained a calendar.** Frontend only — no migration.
+
+- **Reports**: `ReportsFilterBar` is no longer a card — it renders inline in the `.page-header`
+  row beside the title. The "Pass Type" caption and the `<label for="report-dept">` are gone
+  (the toggle names its own states; the select carries `aria-label="Department"`), as is the
+  active-scope caption — the printed sheet already states the scope via `rangeLabel`, which is
+  unchanged. Pinned by two new cases in `reportsFilters.test.tsx`.
+- **My Passes**: the RGP/NRGP `<select>` ("All Types") is replaced by the same `tab-group`
+  segmented toggle, in the header beside the period presets and Export CSV.
+- **My Passes has a date input** (`aria-label="Date"`, `max` = local today). A picked date and
+  the period presets are ONE choice, not two intersecting windows: a date wins and narrows to
+  that single local day; clicking any period clears it (`pickPeriod`). Bounds come from
+  `localDayBounds` in `reportsDateRange.ts`, so a day means the same thing here and on the
+  register. The CSV export needed no wiring — it already writes `filtered`.
+  Six new cases in `tests/unit/myPasses.test.tsx`.
+
+**Previous change (2026-08-18, third pass): both boards now OPEN on "Today's Summary", and the
 admin board's strapline is gone.** Frontend only — no migration, no RPC.
 
 - **`SUMMARY_SECTION` is back, above both category rows, on the admin AND the HOD board** —
@@ -82,7 +99,7 @@ admin board's strapline is gone.** Frontend only — no migration, no RPC.
   its matcher is `rgpAwaiting`. Old keys `rgpOut`/`nrgpOut`/`nrgpPending` were renamed, so any
   stale reference is a type error.
 
-**Previous change (2026-08-18): the gate can search by the mobile number of the person who
+**Earlier change (2026-08-18): the gate can search by the mobile number of the person who
 took the material.** Frontend only — no migration, no new RPC.
 `src/lib/phoneSearch.ts` + `src/pages/Security/PhoneSearchResults.tsx`; `GateLookup` routes
 the query and `GateConsole` renders the results full width above the queue.

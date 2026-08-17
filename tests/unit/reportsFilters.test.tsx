@@ -152,6 +152,33 @@ describe('Reports — department and pass-type filters', () => {
     }
   });
 
+  // Both scope controls sit in the page header, top right, beside the title —
+  // not in a card of their own below it. The row of the page a reader's eye
+  // already lands on is where a switch belongs; a full-width card for two
+  // controls was a band of empty space.
+  it('puts the pass-type toggle and the department select in the page header', async () => {
+    const { container } = renderReports();
+    await waitFor(() => expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument());
+
+    const header = container.querySelector('.page-header');
+    expect(header).not.toBeNull();
+    expect(header).toContainElement(screen.getByRole('button', { name: 'RGP' }));
+    expect(header).toContainElement(screen.getByRole('button', { name: 'NRGP' }));
+    expect(header).toContainElement(screen.getByLabelText('Department'));
+  });
+
+  // The toggle names its own states; a "Pass Type" caption beside them is a
+  // word that tells the reader nothing the buttons don't.
+  it('drops the standalone filter card and its captions', async () => {
+    const { container } = renderReports();
+    await waitFor(() => expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument());
+
+    expect(screen.queryByText('Pass Type')).not.toBeInTheDocument();
+    const group = screen.getByRole('group', { name: 'Pass type' });
+    expect(group.closest('.card')).toBeNull();
+    expect(container.querySelector('label[for="report-dept"]')).toBeNull();
+  });
+
   it('no longer renders the old type/department dropdowns inside the register', async () => {
     renderReports();
     await waitFor(() => expect(screen.getByLabelText('Department')).toBeInTheDocument());
