@@ -50,7 +50,25 @@ verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 
-**Latest change (2026-08-18): the gate can search by the mobile number of the person who
+**Latest change (2026-08-18, second pass): the admin dashboard was cut down and the two
+category rows made to mirror each other.** Frontend only — no migration, no RPC.
+
+- **No tile says "Today" any more.** `kpiLabel` is gone from `src/lib/boardWindows.ts`; a tile
+  renders its own `label`. The word is on the board header chip once — `BoardHeader` now reads
+  **"Today · Monday, 18 Aug 2026"**. The scopes (`period`/`returned`/`current`) are unchanged.
+  The one label still containing the word is **RGP Due Today**, whose subject is a return date,
+  not a window — `boardKpiSections.test.ts` exempts exactly that key and bans the rest.
+- **RGP Overview is seven tiles and leads with NRGP's three**: `rgpRaised`, `rgpAwaiting`,
+  `rgpCleared`, then `rgpReturned`, `rgpOutside`, `rgpDueToday`, `rgpOverdue`. NRGP is
+  `nrgpRaised`, `nrgpAwaiting`, `nrgpCleared` in the same order. `rgpRequests` is **gone** —
+  its matcher is `rgpAwaiting`. Old keys `rgpOut`/`nrgpOut`/`nrgpPending` were renamed, so any
+  stale reference is a type error.
+- **The admin board omits the Quick Summary row and the outstanding ranking.** Both are props
+  on the shared `GateBoard`, not a fork: `showSummary={false}`, and `outstandingMode` is
+  **optional** — omitting it drops the panel. The HOD board still has both, so `SUMMARY_SECTION`
+  and `BoardOutstanding` are live code. Return Watch widens to 8/12 when the ranking is absent.
+
+**Previous change (2026-08-18): the gate can search by the mobile number of the person who
 took the material.** Frontend only — no migration, no new RPC.
 `src/lib/phoneSearch.ts` + `src/pages/Security/PhoneSearchResults.tsx`; `GateLookup` routes
 the query and `GateConsole` renders the results full width above the queue.

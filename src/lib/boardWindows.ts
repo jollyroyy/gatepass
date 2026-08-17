@@ -13,15 +13,12 @@ import type { GatePassView } from '../types';
 import { BOARD_KPIS, type BoardKpi, type BoardKpiKey } from './boardKpis';
 import type { BoardDrill } from './boardDrills';
 
-/** The words on the card. A day-scoped card says "Today" out loud even though
- *  the page heading does: the two scopes sit side by side in one grid, and
- *  without the word there is nothing on a tile to say whether "RGP Out 3" means
- *  three today or three ever. A `current` card names its own scope already —
- *  "RGP Currently Outside Today" would claim a window it does not have. */
-export function kpiLabel(kpi: BoardKpi): string {
-  if (kpi.scope === 'current') return kpi.label;
-  return `${kpi.label} Today`;
-}
+// A TILE'S LABEL IS NOW ITS OWN `label`, FULL STOP. `kpiLabel` used to append
+// "Today" to every day-scoped card; the word appeared fourteen times on one
+// screen and the client had it removed (2026-08-18). It says "Today" once now,
+// in the board header beside the date. The scopes below are unchanged — a
+// `current` card is still not day-scoped — so a reader who needs the difference
+// gets it from the card's `note`, not from a repeated word.
 
 /** The three arrays a board hands its cards. Built ONCE per render, in one place,
  *  from one fetch — every figure on the page is `rows.length` of one of these

@@ -6,10 +6,15 @@
 // a label, and one still offering five would promise a scope the page below no
 // longer has.
 //
-// THE DATE IS PRINTED IN FULL ("Monday, 17 Aug 2026"), as the client's reference
-// board does, and with the selector gone it is now the ONLY thing on the page
-// that says which day the figures belong to: a board left open overnight on a
-// wall screen would otherwise present yesterday's numbers under today's heading.
+// THE DATE IS PRINTED IN FULL ("Today · Monday, 17 Aug 2026"), and with the
+// selector gone it is now the ONLY thing on the page that says which day the
+// figures belong to: a board left open overnight on a wall screen would
+// otherwise present yesterday's numbers under today's heading.
+//
+// THE WORD "TODAY" LIVES HERE AND NOWHERE ELSE (client, 2026-08-18). It used to
+// be appended to every day-scoped tile — fourteen times on one screen — and was
+// removed from all of them; this chip is what carries it now, which is why it
+// leads with the word rather than the date. Do not put it back on a tile.
 import React from 'react';
 
 const TODAY_FORMAT = new Intl.DateTimeFormat('en-IN', {
@@ -46,7 +51,8 @@ export default function BoardHeader({
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-caption text-navy-600 border border-surface-200 rounded-xl px-3 py-2 whitespace-nowrap">
-          {TODAY_FORMAT.format(new Date())}
+          <span className="font-semibold text-navy-800">Today</span>
+          {` · ${TODAY_FORMAT.format(new Date())}`}
         </span>
         {onRefresh && (
           <button

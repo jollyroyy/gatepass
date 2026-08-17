@@ -1,12 +1,20 @@
-// THE CATALOGUE of the board's headline figures: RGP Overview (6), NRGP Overview
-// (3) and Quick Summary (5) — the client's reference board, box for box, on this
-// system's own data. What each card is CALLED, what it means, and which passes it
-// matches; the plumbing that applies it to an array lives in boardWindows.ts.
+// THE CATALOGUE of the board's headline figures: RGP Overview (7), NRGP Overview
+// (3) and Quick Summary (5). What each card is CALLED, what it means, and which
+// passes it matches; the plumbing that applies it to an array lives in
+// boardWindows.ts.
 //
-// THE TILE ROWS ARE DAY-SCOPED WHERE THEY SAY "TODAY" AND NOWHERE ELSE. There is
-// no period selector: `period` and `returned` both mean today and the label says
-// so, while `current` means a running obligation and is deliberately NOT
-// day-scoped — a pass that went overdue last week is overdue on today's board.
+// NO CARD SAYS "TODAY" ANY MORE (client, 2026-08-18). The word is on the board
+// ONCE, in the header chip beside the date, because it was on fourteen tiles and
+// read as noise. The scopes themselves are unchanged and still mixed on purpose:
+// `period` and `returned` mean today, while `current` means a running obligation
+// and is deliberately NOT day-scoped — a pass that went overdue last week is
+// overdue on today's board.
+//
+// THE TWO CATEGORY ROWS NOW MIRROR EACH OTHER: Raised / Awaiting Clearance /
+// Cleared, in that order, for RGP and for NRGP alike. A reader comparing the two
+// halves of the traffic reads the same three words in the same three places. RGP
+// then carries its return leg — Returned, Currently Outside, Due Today, Overdue —
+// which NRGP has nothing to put in.
 //
 // NO CARD CARRIES A DELTA. The "↑ 8 vs yesterday" line is gone from every tile
 // (client, same day). It is not merely hidden: `BoardWindows` no longer carries
@@ -43,16 +51,17 @@ import { IS_OPEN_RETURN } from './boardDrills';
 
 export type BoardKpiKey =
   // RGP Overview
-  | 'rgpRequests'
-  | 'rgpOut'
+  | 'rgpRaised'
+  | 'rgpAwaiting'
+  | 'rgpCleared'
   | 'rgpReturned'
   | 'rgpOutside'
   | 'rgpDueToday'
   | 'rgpOverdue'
   // NRGP Overview
-  | 'nrgpOut'
+  | 'nrgpRaised'
+  | 'nrgpAwaiting'
   | 'nrgpCleared'
-  | 'nrgpPending'
   // Quick Summary
   | 'totalRaised'
   | 'totalCleared'
@@ -98,25 +107,35 @@ const isNrgpOut = (p: GatePassView): boolean => categoryKey(p.type, p.direction)
  *  card it measures about 2:1, the same defect the notification panel had.
  *  Pinned by tests/unit/boardKpiSections.test.ts. */
 export const BOARD_KPIS: Record<BoardKpiKey, BoardKpi> = {
-  rgpRequests: {
-    key: 'rgpRequests',
-    label: 'RGP Requests',
+  rgpRaised: {
+    key: 'rgpRaised',
+    label: 'RGP Raised',
+    tone: 'accent',
+    note: 'Passes issued',
+    scope: 'period',
+    heading: 'RGP passes raised',
+    empty: 'No RGP pass was raised in this period.',
+    match: isRgpOut,
+  },
+  rgpAwaiting: {
+    key: 'rgpAwaiting',
+    label: 'RGP Awaiting Clearance',
     tone: 'pending',
-    note: 'Awaiting gate clearance',
+    note: 'Waiting at the gate',
     scope: 'current',
     heading: 'RGP passes waiting at the gate',
     empty: 'No RGP pass is waiting at the gate.',
     match: (p) => isRgp(p) && isWaiting(p),
   },
-  rgpOut: {
-    key: 'rgpOut',
-    label: 'RGP Out',
-    tone: 'accent',
-    note: 'Passes issued',
+  rgpCleared: {
+    key: 'rgpCleared',
+    label: 'RGP Cleared',
+    tone: 'matched',
+    note: 'Cleared at gate',
     scope: 'period',
-    heading: 'RGP Out passes issued',
-    empty: 'No RGP Out pass was issued in this period.',
-    match: isRgpOut,
+    heading: 'RGP passes cleared at the gate',
+    empty: 'No RGP pass was cleared in this period.',
+    match: (p) => isRgpOut(p) && p.status === 'matched',
   },
   rgpReturned: {
     key: 'rgpReturned',
@@ -161,15 +180,25 @@ export const BOARD_KPIS: Record<BoardKpiKey, BoardKpi> = {
     match: (p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue,
   },
 
-  nrgpOut: {
-    key: 'nrgpOut',
-    label: 'NRGP Out',
+  nrgpRaised: {
+    key: 'nrgpRaised',
+    label: 'NRGP Raised',
     tone: 'accent',
     note: 'Passes issued',
     scope: 'period',
-    heading: 'NRGP Out passes issued',
-    empty: 'No NRGP pass was issued in this period.',
+    heading: 'NRGP passes raised',
+    empty: 'No NRGP pass was raised in this period.',
     match: isNrgpOut,
+  },
+  nrgpAwaiting: {
+    key: 'nrgpAwaiting',
+    label: 'NRGP Awaiting Clearance',
+    tone: 'pending',
+    note: 'Waiting at the gate',
+    scope: 'current',
+    heading: 'NRGP passes waiting at the gate',
+    empty: 'No NRGP pass is waiting at the gate.',
+    match: (p) => isNrgpOut(p) && isWaiting(p),
   },
   nrgpCleared: {
     key: 'nrgpCleared',
@@ -181,22 +210,16 @@ export const BOARD_KPIS: Record<BoardKpiKey, BoardKpi> = {
     empty: 'No NRGP pass was cleared in this period.',
     match: (p) => isNrgpOut(p) && p.status === 'matched',
   },
-  nrgpPending: {
-    key: 'nrgpPending',
-    label: 'NRGP Awaiting Clearance',
-    tone: 'pending',
-    note: 'Waiting at the gate',
-    scope: 'current',
-    heading: 'NRGP passes waiting at the gate',
-    empty: 'No NRGP pass is waiting at the gate.',
-    match: (p) => isNrgpOut(p) && isWaiting(p),
-  },
 
-  // Quick Summary deliberately RESTATES figures from the two sections above —
-  // so does the reference board (its Pending Approvals equals its RGP Requests).
+  // Quick Summary deliberately RESTATES figures from the two sections above
+  // (Pending Approvals is RGP Awaiting Clearance plus NRGP Awaiting Clearance).
   // It is the one row that answers "how did the whole site do", across both
   // categories, and a reader who scrolled past the sections should not have to
   // add two cards together to get it.
+  //
+  // THE ADMIN BOARD NO LONGER SHOWS THIS ROW (client, 2026-08-18) — with the two
+  // category rows now mirrored and complete it was five restatements. The HOD
+  // board keeps it; see `showSummary` in GateBoard.tsx.
   totalRaised: {
     key: 'totalRaised',
     label: 'Total Gate Passes',
@@ -249,17 +272,18 @@ export const BOARD_KPIS: Record<BoardKpiKey, BoardKpi> = {
   },
 };
 
-// SIX AND THREE, matching the client's reference board box for box (2026-08-17,
-// second pass: "the exact layout of those individual boxes should remain the
-// same"). The two "Mismatched at Gate" tiles added earlier that day are GONE
-// from the tile rows — a mismatch is not lost with them: it reaches the raising
-// HOD on the notification bell, opens a decision screen, and both boards carry
-// an attention banner above the sections that counts stopped and expired passes.
+// SEVEN AND THREE, and the first three of each row are the same three facts in
+// the same order — Raised, Awaiting Clearance, Cleared. RGP's remaining four are
+// its return leg, which NRGP does not have. The two "Mismatched at Gate" tiles
+// once here are still GONE, and a mismatch is not lost with them: it reaches the
+// raising HOD on the notification bell, opens a decision screen, and both boards
+// carry an attention banner above the sections counting stopped and expired
+// passes.
 export const RGP_SECTION: BoardKpiKey[] = [
-  'rgpRequests', 'rgpOut', 'rgpReturned', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
+  'rgpRaised', 'rgpAwaiting', 'rgpCleared', 'rgpReturned', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
 ];
 
-export const NRGP_SECTION: BoardKpiKey[] = ['nrgpOut', 'nrgpCleared', 'nrgpPending'];
+export const NRGP_SECTION: BoardKpiKey[] = ['nrgpRaised', 'nrgpAwaiting', 'nrgpCleared'];
 
 export const SUMMARY_SECTION: BoardKpiKey[] = [
   'totalRaised', 'totalCleared', 'pendingApprovals', 'overdueReturns', 'materialOutside',

@@ -19,7 +19,7 @@ import { resolve } from 'node:path';
 import BoardKpiTile from '../../src/components/board/BoardKpiTile';
 import { BOARD_KPIS } from '../../src/lib/boardKpis';
 
-function renderTile(key: 'rgpOut' | 'materialOutside' | 'rgpOverdue', value = 8) {
+function renderTile(key: 'rgpRaised' | 'materialOutside' | 'rgpOverdue', value = 8) {
   render(
     <BoardKpiTile
       kpi={BOARD_KPIS[key]}
@@ -35,7 +35,7 @@ function renderTile(key: 'rgpOut' | 'materialOutside' | 'rgpOverdue', value = 8)
 
 describe('a KPI tile', () => {
   it('prints no comparison against any previous window', () => {
-    const tile = renderTile('rgpOut');
+    const tile = renderTile('rgpRaised');
     expect(tile.textContent).toContain('8');
     expect(tile.textContent).not.toMatch(/vs (yesterday|previous)/i);
     expect(tile.textContent).not.toMatch(/[↑↓]/);
@@ -62,8 +62,8 @@ describe('a KPI tile', () => {
   it('shows a dash instead of a figure while loading, never a spinner', () => {
     render(
       <BoardKpiTile
-        kpi={BOARD_KPIS.rgpOut}
-        label="RGP Out Today"
+        kpi={BOARD_KPIS.rgpRaised}
+        label="RGP Raised"
         value={8}
         loading
         active={false}

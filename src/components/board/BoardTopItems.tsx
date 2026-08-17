@@ -28,7 +28,7 @@ const TOP = 5;
 
 type Props = {
   /** TODAY'S passes only — the caller day-scopes, exactly as it does for the
-   *  tiles, so this panel cannot disagree with "Total Gate Passes Today". */
+   *  tiles, so this panel cannot disagree with the day-scoped figures. */
   rows: GatePassView[];
   /** Line rows for those passes. `topMaterials` ignores any item whose parent is
    *  not in `rows`, so a stale fetch can never add a slice the click cannot show. */

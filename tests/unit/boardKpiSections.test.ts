@@ -3,11 +3,14 @@
 //
 // WHAT THIS FILE EXISTS TO PIN is the thing a reference-driven rebuild gets
 // wrong most easily: a card whose LABEL says one thing and whose SCOPE counts
-// another. "RGP Out Today" must be scoped to the period; "RGP Currently
-// Outside" must NOT be — an open obligation raised last week is still outside
-// today, and scoping it to Today would print 0 on a board with material off
-// site. So every card declares a scope, and these tests assert the scope each
-// card's own words promise.
+// another. "RGP Raised" must be scoped to the period; "RGP Currently Outside"
+// must NOT be — an open obligation raised last week is still outside today, and
+// scoping it to Today would print 0 on a board with material off site. So every
+// card declares a scope, and these tests assert the scope each card's own words
+// promise.
+//
+// NO LABEL SAYS "TODAY" (client, 2026-08-18). The word is on the board header
+// chip once, and a test below pins that no tile grew it back.
 import { describe, it, expect } from 'vitest';
 import type { GatePassView } from '../../src/types';
 import {
@@ -17,7 +20,7 @@ import {
   SUMMARY_SECTION,
   type BoardKpiKey,
 } from '../../src/lib/boardKpis';
-import { kpiLabel, rowsFor, kpiDrill, type BoardWindows } from '../../src/lib/boardWindows';
+import { rowsFor, kpiDrill, type BoardWindows } from '../../src/lib/boardWindows';
 
 function pass(over: Partial<GatePassView>): GatePassView {
   return {
@@ -31,13 +34,18 @@ function pass(over: Partial<GatePassView>): GatePassView {
 }
 
 describe('the board KPI sections', () => {
-  it('RGP Overview carries the six reference figures, in the reference order', () => {
-    // Box for box against the client's reference board (2026-08-17): six RGP,
-    // three NRGP, five summary. A seventh tile here is a layout that no longer
-    // matches the thing it was drawn from.
+  it('RGP Overview leads with the same three figures as NRGP, in the same order', () => {
+    // Client, 2026-08-18: "RGP raised, RGP awaiting clearance, RGP cleared" —
+    // the NRGP row's three facts, mirrored, so a reader comparing the two halves
+    // of the traffic reads the same words in the same places. The return leg
+    // follows, and only RGP has one.
     expect(RGP_SECTION).toEqual([
-      'rgpRequests', 'rgpOut', 'rgpReturned', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
+      'rgpRaised', 'rgpAwaiting', 'rgpCleared',
+      'rgpReturned', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
     ]);
+    expect(NRGP_SECTION).toEqual(['nrgpRaised', 'nrgpAwaiting', 'nrgpCleared']);
+    expect(RGP_SECTION.slice(0, 3).map((k) => BOARD_KPIS[k].label.replace('RGP ', '')))
+      .toEqual(NRGP_SECTION.map((k) => BOARD_KPIS[k].label.replace('NRGP ', '')));
   });
 
   it('a pass that expired at the gate is NOT counted as waiting there', () => {
@@ -47,14 +55,14 @@ describe('the board KPI sections', () => {
     // dead paperwork was still alive.
     const live = pass({ id: 'live', status: 'pending', is_expired: false });
     const dead = pass({ id: 'dead', status: 'pending', is_expired: true });
-    for (const key of ['rgpRequests', 'pendingApprovals'] as BoardKpiKey[]) {
+    for (const key of ['rgpAwaiting', 'pendingApprovals'] as BoardKpiKey[]) {
       expect(BOARD_KPIS[key].match(live)).toBe(true);
       expect(BOARD_KPIS[key].match(dead)).toBe(false);
     }
     const nrgpLive = pass({ id: 'n1', type: 'NRGP', status: 'pending', is_expired: false });
     const nrgpDead = pass({ id: 'n2', type: 'NRGP', status: 'pending', is_expired: true });
-    expect(BOARD_KPIS.nrgpPending.match(nrgpLive)).toBe(true);
-    expect(BOARD_KPIS.nrgpPending.match(nrgpDead)).toBe(false);
+    expect(BOARD_KPIS.nrgpAwaiting.match(nrgpLive)).toBe(true);
+    expect(BOARD_KPIS.nrgpAwaiting.match(nrgpDead)).toBe(false);
   });
 
   it('no tile row carries a mismatch card any more', () => {
@@ -103,8 +111,9 @@ describe('the board KPI sections', () => {
 
 describe('a card\'s scope matches the words on it', () => {
   it('an "Out"/"Returned"/"Cleared" card is period-scoped; a "Currently"/"Due"/"Overdue" one is not', () => {
-    expect(BOARD_KPIS.rgpOut.scope).toBe('period');
-    expect(BOARD_KPIS.nrgpOut.scope).toBe('period');
+    expect(BOARD_KPIS.rgpRaised.scope).toBe('period');
+    expect(BOARD_KPIS.rgpCleared.scope).toBe('period');
+    expect(BOARD_KPIS.nrgpRaised.scope).toBe('period');
     expect(BOARD_KPIS.nrgpCleared.scope).toBe('period');
     expect(BOARD_KPIS.totalRaised.scope).toBe('period');
     expect(BOARD_KPIS.totalCleared.scope).toBe('period');
@@ -114,19 +123,23 @@ describe('a card\'s scope matches the words on it', () => {
     // return of a pass raised last month, which is most of them.
     expect(BOARD_KPIS.rgpReturned.scope).toBe('returned');
 
-    for (const key of ['rgpRequests', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
-      'pendingApprovals', 'overdueReturns', 'materialOutside', 'nrgpPending'] as BoardKpiKey[]) {
+    for (const key of ['rgpAwaiting', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
+      'pendingApprovals', 'overdueReturns', 'materialOutside', 'nrgpAwaiting'] as BoardKpiKey[]) {
       expect(BOARD_KPIS[key].scope).toBe('current');
     }
   });
 
-  it('"Today" is appended only to a day-scoped label', () => {
-    expect(kpiLabel(BOARD_KPIS.rgpOut)).toBe('RGP Out Today');
-    expect(kpiLabel(BOARD_KPIS.rgpReturned)).toBe('RGP Returned Today');
-    // A current-state card names its own scope already, and "RGP Currently
-    // Outside Today" would claim a window it does not have.
-    expect(kpiLabel(BOARD_KPIS.rgpOutside)).toBe('RGP Currently Outside');
-    expect(kpiLabel(BOARD_KPIS.rgpOverdue)).toBe('RGP Overdue');
+  it('NO card label carries the word "Today" — the header chip does', () => {
+    // Client, 2026-08-18. `kpiLabel` used to append it to every day-scoped tile,
+    // which put the word on the screen fourteen times. It is gone from the
+    // labels AND from the plumbing, so a tile cannot grow it back by accident.
+    // One card is exempt, and it is not a window: "RGP Due Today" is about a
+    // RETURN DATE falling today, which is why its scope is `current`.
+    for (const key of Object.keys(BOARD_KPIS) as BoardKpiKey[]) {
+      if (key === 'rgpDueToday') continue;
+      expect(BOARD_KPIS[key].label).not.toMatch(/today/i);
+    }
+    expect(BOARD_KPIS.rgpDueToday.scope).toBe('current');
   });
 });
 
@@ -172,7 +185,7 @@ describe('which array a card counts', () => {
     const nrgp = pass({ id: 'n', type: 'NRGP', direction: 'out', status: 'matched' });
     const w: BoardWindows = { raised: [rgp, nrgp], returned: [], all: [rgp, nrgp] };
     expect(rowsFor(BOARD_KPIS.nrgpCleared, w).map((p) => p.id)).toEqual(['n']);
-    expect(rowsFor(BOARD_KPIS.rgpOut, w).map((p) => p.id)).toEqual(['r']);
+    expect(rowsFor(BOARD_KPIS.rgpRaised, w).map((p) => p.id)).toEqual(['r']);
   });
 
   it('a drill carries the rows the card counted, under the card\'s own key', () => {

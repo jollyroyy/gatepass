@@ -1,10 +1,12 @@
 // THE GATE PASS MANAGEMENT BOARD, as the admin sees it (`/admin-dashboard`).
 //
-// It is the client's reference layout box for box (2026-08-17): six RGP tiles,
-// three NRGP tiles, the Daily Movement Trend, the RGP Status Breakdown ring, the
-// Return Watch, the outstanding ranking, Top Items Today, and five Quick Summary
-// tiles — with NO "vs yesterday" anywhere and NO gate activity timeline, both of
-// which the client removed by name.
+// SEVEN RGP tiles, three NRGP tiles, the Daily Movement Trend, the RGP Status
+// Breakdown ring, the Return Watch and Top Items Today — with NO "vs yesterday"
+// anywhere, NO gate activity timeline, NO Quick Summary row and NO outstanding
+// ranking. Every one of those absences is the client removing something by name,
+// so each is asserted rather than merely not looked for. The HOD board still
+// carries the Quick Summary and the ranking; tests/unit/hodDashboardBoard.test.tsx
+// is what pins that.
 //
 // WHAT THIS FILE IS ACTUALLY FOR. Every figure on the board is clickable, and the
 // risk that grows with that is not "a panel looks wrong": it is a panel whose
@@ -13,7 +15,7 @@
 // click it, and check the list underneath holds exactly that many passes, and
 // exactly those.
 //
-// THE SECOND THING IT PINS IS THE SCOPE SPLIT. "RGP Out Today" counts what was
+// THE SECOND THING IT PINS IS THE SCOPE SPLIT. "RGP Raised" counts what was
 // raised today; "RGP Currently Outside", "RGP Overdue" and the attention strip
 // must count regardless of day, because an obligation does not stop being open
 // because the calendar rolled past it. The fixture below therefore contains
@@ -147,8 +149,8 @@ function renderBoard() {
   );
 }
 
-/** The tile in `section` whose words begin with `label`. Scoped to the section:
- *  "Overdue Returns" also names a Quick Summary tile. */
+/** The tile in `section` whose words begin with `label`. Scoped to the section
+ *  because the two category rows now carry the same three words as each other. */
 function tile(section: string, label: string): HTMLElement {
   const group = screen.getByRole('group', { name: `${section} figures` });
   const found = within(group)
@@ -170,17 +172,19 @@ function drill(): HTMLElement {
 }
 
 async function loaded(): Promise<void> {
-  await waitFor(() => expectFigure('RGP Overview', 'RGP Requests', 1));
+  await waitFor(() => expectFigure('RGP Overview', 'RGP Raised', 2));
 }
 
 describe('the board renders the reference sections', () => {
-  it('has RGP Overview, NRGP Overview and Quick Summary — and no category toggle', async () => {
+  it('has RGP Overview and NRGP Overview, no Quick Summary, and no category toggle', async () => {
     renderBoard();
     await loaded();
 
     expect(screen.getByRole('group', { name: 'RGP Overview figures' })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'NRGP Overview figures' })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Quick Summary figures' })).toBeInTheDocument();
+    // Client, 2026-08-18: the summary row restated five figures the two rows
+    // above it already carry. Gone from the ADMIN board only — `showSummary`.
+    expect(screen.queryByRole('group', { name: 'Quick Summary figures' })).not.toBeInTheDocument();
 
     // The toggle the sections replaced. Its whole job was to let a reader see the
     // other category; two sections do that without a button press.
@@ -193,8 +197,7 @@ describe('the board renders the reference sections', () => {
     await loaded();
 
     for (const panel of [
-      'Daily Movement Trend', 'RGP Status Breakdown', 'RGP Return Watch',
-      'Department Wise Outstanding RGP', 'Top Items Today',
+      'Daily Movement Trend', 'RGP Status Breakdown', 'RGP Return Watch', 'Top Items Today',
     ]) {
       expect(screen.getByText(panel), `${panel} is missing`).toBeInTheDocument();
     }
@@ -202,6 +205,12 @@ describe('the board renders the reference sections', () => {
     // Removed by name: "just remove today's gate activity timeline and put top
     // items by their frequency as a pie chart" (client, 2026-08-17).
     expect(screen.queryByText(/Gate Activity/i)).not.toBeInTheDocument();
+    // Removed by name too (client, 2026-08-18): "remove Passes with material
+    // still out — top 5". The admin simply does not pass `outstandingMode`, so
+    // the panel is not rendered rather than rendered empty. Return Watch still
+    // breaks the same obligations down by how late they are.
+    expect(screen.queryByText('Department Wise Outstanding RGP')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Passes with material still out/i)).not.toBeInTheDocument();
   });
 
   it('prints no "vs yesterday" delta on any tile', async () => {
@@ -209,7 +218,7 @@ describe('the board renders the reference sections', () => {
     // previous window, so there is nothing on this board to compute one from.
     renderBoard();
     await loaded();
-    for (const section of ['RGP Overview', 'NRGP Overview', 'Quick Summary']) {
+    for (const section of ['RGP Overview', 'NRGP Overview']) {
       const group = screen.getByRole('group', { name: `${section} figures` });
       expect(group.textContent).not.toMatch(/vs (yesterday|previous)/i);
       expect(group.textContent).not.toMatch(/[↑↓]/);
@@ -233,22 +242,17 @@ describe('the headline figures', () => {
     renderBoard();
     await loaded();
 
-    expectFigure('RGP Overview', 'RGP Requests', 1); // p1 — p9 expired, so it is NOT waiting
-    expectFigure('RGP Overview', 'RGP Out Today', 2); // p1 p2 raised today
-    expectFigure('RGP Overview', 'RGP Returned Today', 1); // p4 came back today
+    expectFigure('RGP Overview', 'RGP Raised', 2); // p1 p2 raised today
+    expectFigure('RGP Overview', 'RGP Awaiting Clearance', 1); // p1 — p9 expired, NOT waiting
+    expectFigure('RGP Overview', 'RGP Cleared', 1); // p2 — p3 p4 were raised five days ago
+    expectFigure('RGP Overview', 'RGP Returned', 1); // p4 came back today
     expectFigure('RGP Overview', 'RGP Currently Outside', 2); // p2 p3
     expectFigure('RGP Overview', 'RGP Due Today', 1); // p2
     expectFigure('RGP Overview', 'RGP Overdue', 1); // p3
 
-    expectFigure('NRGP Overview', 'NRGP Out Today', 3); // p5 p6 p8
-    expectFigure('NRGP Overview', 'NRGP Cleared Today', 1); // p5
+    expectFigure('NRGP Overview', 'NRGP Raised', 3); // p5 p6 p8
     expectFigure('NRGP Overview', 'NRGP Awaiting Clearance', 1); // p6
-
-    expectFigure('Quick Summary', 'Total Gate Passes Today', 5); // p1 p2 p5 p6 p8
-    expectFigure('Quick Summary', 'Total Cleared Today', 2); // p2 p5
-    expectFigure('Quick Summary', 'Pending Approvals', 2); // p1 p6 — never p9
-    expectFigure('Quick Summary', 'Overdue Returns', 1); // p3
-    expectFigure('Quick Summary', 'Material Currently Outside', 2); // p2 p3
+    expectFigure('NRGP Overview', 'NRGP Cleared', 1); // p5
   });
 
   it('never counts an expired pass as waiting at the gate', async () => {
@@ -259,9 +263,11 @@ describe('the headline figures', () => {
     renderBoard();
     await loaded();
 
-    fireEvent.click(tile('Quick Summary', 'Pending Approvals'));
+    fireEvent.click(tile('RGP Overview', 'RGP Awaiting Clearance'));
     expect(within(drill()).queryByText('Ila')).not.toBeInTheDocument();
     expect(within(drill()).getByText('Alice')).toBeInTheDocument();
+
+    fireEvent.click(tile('NRGP Overview', 'NRGP Awaiting Clearance'));
     expect(within(drill()).getByText('Fay')).toBeInTheDocument();
   });
 
@@ -275,7 +281,7 @@ describe('the headline figures', () => {
     fireEvent.click(tile('RGP Overview', 'RGP Overdue'));
     expect(within(drill()).getByText('Carol')).toBeInTheDocument();
 
-    fireEvent.click(tile('RGP Overview', 'RGP Out Today'));
+    fireEvent.click(tile('RGP Overview', 'RGP Raised'));
     expect(within(drill()).queryByText('Carol')).not.toBeInTheDocument();
     expect(within(drill()).getByText('Alice')).toBeInTheDocument();
     expect(within(drill()).getByText('Bob')).toBeInTheDocument();
@@ -301,7 +307,7 @@ describe('the headline figures', () => {
   it('a return is dated by when the material came back, not by when the pass was raised', async () => {
     renderBoard();
     await loaded();
-    fireEvent.click(tile('RGP Overview', 'RGP Returned Today'));
+    fireEvent.click(tile('RGP Overview', 'RGP Returned'));
     // p4 was raised five days ago. A board that scoped returns on `created_at`
     // would print 0 here and lose every return of an older pass — which is most
     // of them.

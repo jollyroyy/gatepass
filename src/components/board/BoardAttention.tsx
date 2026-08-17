@@ -1,11 +1,9 @@
 // The attention strip above the tile rows: passes that are stopped, and passes
 // that are dead.
 //
-// WHY IT IS A BANNER AND NOT TWO MORE TILES. The client's reference board is six
-// RGP boxes, three NRGP boxes and five summary boxes, and that layout is the
-// brief ("the exact layout of those individual boxes should remain the same").
-// But two facts still have to reach the reader, and neither is a measurement of
-// the day's traffic:
+// WHY IT IS A BANNER AND NOT TWO MORE TILES. The tile rows are a settled set the
+// client has revised box by box, and neither of these is a measurement of the
+// day's traffic. But both facts still have to reach the reader:
 //
 //   MISMATCHED — security stopped it. It is waiting on ONE person's decision.
 //   EXPIRED    — it never reached the gate before its own expiry, so `match_pass`

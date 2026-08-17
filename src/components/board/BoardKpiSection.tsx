@@ -13,7 +13,7 @@
 // a second array. Do not "optimise" this into aggregate queries.
 import React from 'react';
 import { BOARD_KPIS, type BoardKpiKey } from '../../lib/boardKpis';
-import { kpiLabel, rowsFor, kpiDrill, type BoardWindows } from '../../lib/boardWindows';
+import { rowsFor, kpiDrill, type BoardWindows } from '../../lib/boardWindows';
 import type { BoardDrill } from '../../lib/boardDrills';
 import BoardKpiTile from './BoardKpiTile';
 
@@ -79,7 +79,7 @@ export default function BoardKpiSection({
             <BoardKpiTile
               key={key}
               kpi={kpi}
-              label={kpiLabel(kpi)}
+              label={kpi.label}
               value={rows.length}
               loading={loading}
               active={activeKey === drill.key}

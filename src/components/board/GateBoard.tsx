@@ -22,12 +22,18 @@
 // TWO KINDS OF SCOPE LIVE ON THIS PAGE, and mixing them up is the mistake this
 // layout is arranged to prevent:
 //
-//   TODAY — the "issued" / "cleared" / "returned" tiles and the Quick Summary's
-//           volume tiles. They say "Today" on themselves.
+//   TODAY — the "raised" / "cleared" / "returned" tiles and the Quick Summary's
+//           volume tiles. The word "Today" is on the HEADER CHIP, once, and on no
+//           tile (client, 2026-08-18); each tile's `note` says what it is.
 //   RUNNING — everything about open obligations: outside, due, overdue, the
 //           status ring, the return watch, the outstanding ranking and the
 //           attention strip. They are NOT day-scoped, because an obligation does
 //           not stop being open because the calendar rolled over.
+//
+// THE ADMIN BOARD IS THE SHORTER OF THE TWO (client, 2026-08-18): it omits the
+// Quick Summary row and the outstanding ranking. Both are OPTIONAL PROPS rather
+// than a second component — `showSummary`, and `outstandingMode` which the admin
+// simply does not pass — so the two boards still share one layout.
 //
 // THE INVARIANT, UNCHANGED THROUGH EVERY REBUILD: every clickable figure on this
 // page — tile, ring segment, bar, tab, day on the trend line, attention count —
@@ -65,8 +71,11 @@ type Props = {
   error: string | null;
   /** The register this reader is allowed to open — `/all-passes` is admin-only. */
   registerTo: string;
-  /** Rank outstanding material by department (admin) or by material (one HOD). */
-  outstandingMode: OutstandingMode;
+  /** Rank outstanding material by department or by material. OMITTED drops the
+   *  panel entirely — the admin board does not carry it. */
+  outstandingMode?: OutstandingMode;
+  /** The Quick Summary row. Off on the admin board. */
+  showSummary?: boolean;
   /** Off on a single-department board, where the column is one repeated word. */
   showDepartment?: boolean;
   /** Whose name a drill row shows. False on the HOD board — the reader raised
@@ -81,7 +90,8 @@ type Props = {
 
 export default function GateBoard({
   title, subtitle, rows, items, loading, error, registerTo, outstandingMode,
-  showDepartment = true, showRaisedBy = true, onRefresh, banner, footer,
+  showSummary = true, showDepartment = true, showRaisedBy = true,
+  onRefresh, banner, footer,
 }: Props): React.ReactElement {
   const [drill, setDrill] = useState<BoardDrill | null>(null);
 
@@ -168,10 +178,12 @@ export default function GateBoard({
       </div>
 
       {/* Return Watch gets 6 of 12 on purpose: it has eight columns, and any
-          narrower the table scrolls sideways on every laptop. The two rings
-          beside it are 150px each plus a legend, which is what 3 columns holds. */}
+          narrower the table scrolls sideways on every laptop. The rings beside it
+          are 150px each plus a legend, which is what 3 columns holds. With the
+          outstanding ranking dropped it widens to 8 and the ring takes 4 rather
+          than leaving a third of the row blank. */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mt-4">
-        <div className="xl:col-span-6 min-w-0">
+        <div className={`min-w-0 ${outstandingMode ? 'xl:col-span-6' : 'xl:col-span-8'}`}>
           <BoardReturnWatch
             rows={rows}
             loading={loading}
@@ -180,17 +192,19 @@ export default function GateBoard({
             showDepartment={showDepartment}
           />
         </div>
-        <div className="xl:col-span-3 min-w-0">
-          <BoardOutstanding
-            rows={outstanding}
-            items={items}
-            mode={outstandingMode}
-            loading={loading}
-            activeKey={activeKey}
-            onSelect={select}
-          />
-        </div>
-        <div className="xl:col-span-3 min-w-0">
+        {outstandingMode && (
+          <div className="xl:col-span-3 min-w-0">
+            <BoardOutstanding
+              rows={outstanding}
+              items={items}
+              mode={outstandingMode}
+              loading={loading}
+              activeKey={activeKey}
+              onSelect={select}
+            />
+          </div>
+        )}
+        <div className={`min-w-0 ${outstandingMode ? 'xl:col-span-3' : 'xl:col-span-4'}`}>
           <BoardTopItems
             rows={windows.raised}
             items={items}
@@ -201,17 +215,19 @@ export default function GateBoard({
         </div>
       </div>
 
-      <div className="mt-4">
-        <BoardKpiSection
-          title="Quick Summary"
-          hint="Both categories together"
-          keys={SUMMARY_SECTION}
-          windows={windows}
-          loading={loading}
-          activeKey={activeKey}
-          onSelect={select}
-        />
-      </div>
+      {showSummary && (
+        <div className="mt-4">
+          <BoardKpiSection
+            title="Quick Summary"
+            hint="Both categories together"
+            keys={SUMMARY_SECTION}
+            windows={windows}
+            loading={loading}
+            activeKey={activeKey}
+            onSelect={select}
+          />
+        </div>
+      )}
 
       {footer}
 

@@ -5,7 +5,7 @@
 // DOM, and by anything that wants the numbers without dragging React in.
 //
 // TWO LOOKUPS, BOTH `Record`s, NEVER STRING CHAINS. `GLYPH_OF` maps every KPI to
-// one of a small set of drawings, so a fourteenth card without an icon is a TYPE
+// one of a small set of drawings, so a new card without an icon is a TYPE
 // ERROR rather than a blank square nobody notices until it is on the client's
 // screen. Several cards share a glyph on purpose: "Pending Approvals" and "NRGP
 // Awaiting Clearance" are the same clock because they are the same kind of fact,
@@ -86,15 +86,16 @@ const GLYPHS = {
 type GlyphName = keyof typeof GLYPHS;
 
 const GLYPH_OF: Record<BoardKpiKey, GlyphName> = {
-  rgpRequests: 'doc',
-  rgpOut: 'truck',
+  rgpRaised: 'truck',
+  rgpAwaiting: 'clock',
+  rgpCleared: 'check',
   rgpReturned: 'returned',
   rgpOutside: 'box',
   rgpDueToday: 'calendar',
   rgpOverdue: 'alert',
-  nrgpOut: 'truck',
+  nrgpRaised: 'truck',
+  nrgpAwaiting: 'clock',
   nrgpCleared: 'check',
-  nrgpPending: 'clock',
   totalRaised: 'doc',
   totalCleared: 'check',
   pendingApprovals: 'clock',

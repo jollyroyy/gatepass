@@ -157,7 +157,7 @@ function drill(): HTMLElement {
 }
 
 async function loaded(): Promise<void> {
-  await waitFor(() => expectFigure('Quick Summary', 'Total Gate Passes Today', 3));
+  await waitFor(() => expectFigure('Quick Summary', 'Total Gate Passes', 3));
 }
 
 describe('the HOD board is scoped to this HOD', () => {
@@ -167,7 +167,7 @@ describe('the HOD board is scoped to this HOD', () => {
 
     // The colleague's pending pass would push Pending Approvals to 2.
     expectFigure('Quick Summary', 'Pending Approvals', 1);
-    expectFigure('RGP Overview', 'RGP Requests', 1);
+    expectFigure('RGP Overview', 'RGP Awaiting Clearance', 1);
     expect(screen.queryByText('RGP-OUT-20260817-0099')).not.toBeInTheDocument();
   });
 
@@ -192,10 +192,10 @@ describe('the HOD board\'s figures', () => {
     renderBoard();
     await loaded();
 
-    expectFigure('RGP Overview', 'RGP Out Today', 3); // t1 t2 t3
+    expectFigure('RGP Overview', 'RGP Raised', 3); // t1 t2 t3
     expectFigure('RGP Overview', 'RGP Currently Outside', 2); // t2 o1
     expectFigure('RGP Overview', 'RGP Overdue', 1); // o1
-    expectFigure('Quick Summary', 'Total Cleared Today', 1); // t2
+    expectFigure('Quick Summary', 'Total Cleared', 1); // t2
     expectFigure('Quick Summary', 'Overdue Returns', 1);
   });
 
@@ -203,7 +203,7 @@ describe('the HOD board\'s figures', () => {
     renderBoard();
     await loaded();
 
-    fireEvent.click(tile('RGP Overview', 'RGP Out Today'));
+    fireEvent.click(tile('RGP Overview', 'RGP Raised'));
     expect(within(drill()).queryByText('Gus')).not.toBeInTheDocument();
 
     fireEvent.click(tile('RGP Overview', 'RGP Overdue'));
