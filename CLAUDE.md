@@ -34,6 +34,49 @@ authoritative gate run.
 re-concatenated is a fix that never reaches the database.
 `tests/security/applyAllIntegrity.test.ts` is the backstop that catches the drift.
 
+## Current state — 2026-08-17 (later)
+
+**Two client changes, both frontend-only — no migration, no new dependency.**
+Full gate: **875 tests across 82 files** (`npm run check`, 2026-08-17).
+
+### Donut legends sit UNDER the ring now, not beside it
+
+`DonutChart` was `flex-col sm:flex-row`, so on anything wider than a phone the legend sat
+to the right of the ring. Both donuts live in a one-third-width card (`xl:grid-cols-3`), so
+the legend got whatever remained of ~380px after a 150px ring plus a gap — labels truncated
+and the client could not tell which colour meant what. It is now `flex-col` at **every**
+width, with the `<ul>` at full card width. `tests/unit/donutLegend.test.tsx` (3) pins the
+absence of any `flex-row` variant and the ring-before-legend DOM order. The two donut cards'
+`skeletonHeight` went `h-44` → `h-72` so the loading placeholder still matches the real
+height. `SIZE` stays 150 — the ring no longer has to leave room for text, but three panels
+on one row should carry the same visual weight.
+
+### The guard returns items by TICK BOX, and can untick before saving
+
+Client's call. `ItemReturnList`'s per-line **"Mark Returned" button is gone**, replaced by a
+checkbox per line plus one **Record** submit, a **Tick all still out / Clear all** toggle,
+and a per-line state word: **Pending** → **Marked returned** (ticked, unsaved) → **✓
+Returned** (in the database). Three words, deliberately: collapsing the middle one into
+"Returned" would show a line as closed before anything was written.
+
+Why it matters at a barrier: the old button committed on the press, and **there is no undo
+in the database** — `apply_item_returns` only ever ADDS to `returned_qty` (a `qty <= 0` is
+skipped outright) and `returned_at` is written through `coalesce`, so it can never be moved
+once set. A tick is a decision the guard can take back; a press was not.
+
+**A line already recorded shows a checked, DISABLED box.** Un-ticking it would have to
+decrement a quantity and clear a stamp that no RPC touches, and a control that always failed
+is worse than no control. **If the client wants a real undo, that is a migration** — a new
+`reverse_item_return`-style RPC, security-gated, that decrements and nulls `returned_at`,
+plus a rule for what it does to a parent already rolled up to `returned`.
+
+Ticked lines go in **one** `apply_item_returns` call, not one per line, so a two-line return
+is one row in `verifications` rather than two that read as separate visits. `picked` is
+cleared on every re-read, so after a successful Record the boxes are driven by the
+database's answer and not by local state. `GuardDrillCard` gained one line of help text
+above the list; Return All is untouched. `tests/unit/itemReturnList.test.tsx` rewritten (14),
+`pendingReturnsTab.test.tsx` updated to tick-then-record.
+
 ## Current state — 2026-08-17
 
 **The admin dashboard was rebuilt to the client's reference layout. Frontend only —

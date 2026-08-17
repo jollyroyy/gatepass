@@ -37,7 +37,9 @@ export default function AdminOverviewCard({ rows, loading, activeKey, onSelect }
     <AdminCard
       title="Gate Pass Overview"
       loading={loading}
-      skeletonHeight="h-44"
+      // Taller than the bar-list panels': the legend stacks UNDER the ring now,
+      // so a donut card is a ring plus a column of rows.
+      skeletonHeight="h-72"
       control={
         <AdminCardSelect
           label="Gate Pass Overview breakdown"

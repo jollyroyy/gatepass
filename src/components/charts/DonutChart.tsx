@@ -10,10 +10,10 @@ import type { Slice } from '../../lib/adminAnalytics';
 import { ringSegments, percentOf } from '../../lib/chartGeometry';
 import { NEUTRAL_SERIES } from './chartPalette';
 
-// Sized for a one-third-width card on a laptop, which is the narrowest place
-// this donut has to sit beside its own legend. 176px looked better in isolation
-// and left the legend ~200px, which is not enough for "Awaiting Return  2
-// (33.33%)" without truncating the label.
+// The legend now sits UNDER the ring rather than beside it, so the ring no
+// longer has to leave room for text — but 150px stays: it is what keeps three
+// donuts on one row the same visual weight, and a larger ring pushes the legend
+// below the fold of a one-third-width card.
 const SIZE = 150;
 const RADIUS = 58;
 const STROKE = 22;
@@ -48,7 +48,11 @@ export default function DonutChart({
   const legend = hideEmpty ? slices.filter((s) => s.value > 0) : slices;
 
   return (
-    <div className="flex flex-col sm:flex-row items-center gap-6">
+    // Ring on top, legend UNDER it, at every width. Beside-the-ring left the
+    // legend whatever remained of a one-third-width card after 150px of donut,
+    // which truncated the longer labels — the legend is the only thing that
+    // says what a colour means, so it gets the card's full width instead.
+    <div className="flex flex-col items-center gap-5">
       <div className="relative shrink-0" style={{ width: SIZE, height: SIZE }}>
         <svg
           width={SIZE}
@@ -89,7 +93,7 @@ export default function DonutChart({
         </div>
       </div>
 
-      <ul className="flex-1 w-full min-w-0 flex flex-col gap-1">
+      <ul className="w-full min-w-0 flex flex-col gap-1">
         {legend.map((slice) => {
           const share = percentOf(slice.value, total);
           const row = (

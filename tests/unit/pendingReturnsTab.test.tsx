@@ -49,7 +49,7 @@ const CLOSED: GatePassView[] = [
 let API_ROWS: GatePassView[] = [...OPEN, ...CLOSED];
 
 // A returnable pass's lines, as v_gate_pass_items reports them. One line,
-// still fully out — the guard taps "Mark Returned" on it.
+// still partly out — the guard ticks it, then presses Record.
 const ITEM_ROWS = [
   { id: 'li1', gate_pass_id: 'pr1', line_no: 1, name: 'Ladder', unit: 'nos',
     quantity: 3, returned_qty: 1, returned_at: null, outstanding_qty: 2 },
@@ -162,7 +162,12 @@ describe('PendingReturns page', () => {
     await waitFor(() => expect(screen.getByText('AWAIT-0001')).toBeInTheDocument());
     fireEvent.click(screen.getAllByText('Record Returns')[1]); // PART-0001's card
     await waitFor(() => expect(screen.getByText('Return items individually')).toBeInTheDocument());
-    fireEvent.click(screen.getByText('Mark Returned'));
+    // Tick the line, THEN record — nothing reaches the database on the tick
+    // alone, which is the point of the tick box (see itemReturnList.test.tsx).
+    const box = await screen.findByTestId('tick-item-li1');
+    fireEvent.click(box);
+    expect(applyItemReturns).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('record-returns'));
     await waitFor(() => expect(applyItemReturns).toHaveBeenCalled());
   });
 

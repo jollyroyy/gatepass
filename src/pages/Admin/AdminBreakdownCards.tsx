@@ -62,7 +62,7 @@ export default function AdminBreakdownCards({ rows, items, loading, activeKey, o
         title="Returnable Status"
         subtitle="RGP passes only — an NRGP never enters a return cycle"
         loading={loading}
-        skeletonHeight="h-44"
+        skeletonHeight="h-72"
       >
         <DonutChart
           slices={returnable}

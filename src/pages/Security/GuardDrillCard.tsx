@@ -74,6 +74,10 @@ export default function GuardDrillCard({
           <p className="text-[10px] font-semibold uppercase tracking-wider text-navy-500">
             Return items individually
           </p>
+          <p className="text-xs text-navy-500 -mt-1">
+            Tick what has come back, untick to change your mind, then Record. Nothing is
+            saved until you press Record — and once a line is recorded it cannot be undone.
+          </p>
           <ItemReturnList passId={pass.id} onReturned={onItemReturned ?? (() => {})} />
 
           <label className="label pt-1 border-t border-surface-200/60" htmlFor={`remarks-${pass.id}`}>
