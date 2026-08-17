@@ -36,8 +36,83 @@ re-concatenated is a fix that never reaches the database.
 
 ## Current state — 2026-08-17 (latest)
 
+**Three client changes, all frontend-only — no migration, no new dependency.**
+Full gate: **923 tests across 86 files** (`npm run check`, 2026-08-17). `npm run build`
+clean.
+
+### The KPI sparklines are gone, and `src/components/charts/Sparkline.tsx` with them
+
+Client: *"make sure you don't put the small graphs inside the KPI numbers — those are not
+looking good."* Deleted rather than restyled, because the chart could not be made to mean
+anything at that size: it was normalised against **its own peak**, so two sparklines on the
+same row were not comparable to each other, and it took horizontal room from the one thing
+on the card anybody reads. Trend over time still exists exactly once, as the **Passes
+Trend** line, which has an axis and a window the reader chose.
+
+The prop chain went with it rather than being left plumbed for nothing: `BoardKpiCard`'s
+`trend`, `BoardKpiRow`'s **`all`** prop (its only consumer), `boardAnalytics.countsPerDay`
+(its only caller) and `chartPalette.TONE_SERIES_COLOR` are all deleted; both dashboards
+stopped passing `all={inCategory}`. Pinned by `tests/unit/boardKpiCard.test.tsx` (3): the
+card renders exactly one `svg` (the tone icon, which is an icon and not a chart) and none
+of it beside the figure, plus a walk of every file in `src/` that fails on the string
+`Sparkline` or `countsPerDay` reappearing.
+
+### No chart draws in the brand gold any more
+
+Client: *"keep the colour of the doughnut pie charts different from the gold colour, because
+gold is the theme."* Correct — gold is the sidebar's active link, the primary button and the
+wordmark, so a slice drawn in it reads as part of the frame rather than as a category.
+
+`SERIES_COLORS` is now **blue `#2563EB` · violet `#7C3AED` · teal `#0D9488`** (+ the warm
+stone `#7C766C` fallback); `brand`/`accent` as series names are gone. Categories: RGP Out
+blue, RGP In violet, NRGP Out teal. `RANK_COLORS` swaps gold→blue and stone→teal, and
+`TrendChart`'s two lines are blue (RGP) and teal (NRGP, still dashed). The **status** hues
+are untouched on purpose — Returned/Awaiting/Overdue are real statuses and must stay the
+same colour as the badges beside them (see the file's own header comment). `#740e0c` maroon
+for `expired` stays too: it is Quest's maroon, not its gold.
+
+Pinned by `tests/unit/chartPalette.test.ts` (8), which fails if `#C6A15B` **or** either gold
+on questmall.in's own stylesheet (`#d0ad68` / `#d09918`) reappears in any exported chart
+colour map.
+
+### The CSV exports say what the screen says — three real defects
+
+Client: *"when you are exporting the CSV, both for admin or HOD, make sure no gibberish …
+don't show any ASCII format or anything other than the normal numbers."* Three separate
+causes, all now fixed and all pinned by `tests/unit/csvExport.test.ts` (16):
+
+1. **Every cell went through a formula guard that prefixed a literal TAB** to anything
+   starting `= + - @`. So an ordinary negative number arrived in Excel with a control
+   character welded to it. The guard now **skips plain numbers** (`/^-?\d+(\.\d+)?$/`) and
+   still mangles a real `=SUM(...)`, because a mangled cell beats an executed one.
+2. **Enum keys and ISO timestamps were exported raw** — `hod_reviewed`, `not_applicable`,
+   `nos`, `2026-08-17T09:47:23.481+00:00`. New **`src/lib/csvCells.ts`** formats them
+   through the *same* label maps the badges use (`statusStyles` / `passTypes` / `units` /
+   `formatDate`), so a status renamed for the screen is renamed in the export in one edit.
+   Two rules it follows: "nothing here" is an **empty cell, never the em-dash** the screen
+   shows (a dash is a value in a spreadsheet column and breaks sorting and SUM), and it
+   never re-derives a fact — `csvStatus` reuses `isExpiredPending`, so an expired pass
+   exports as "Expired" and not "Pending Gate Review".
+3. **The HOD's export listed three columns migration 013 deleted** —
+   `material_description` / `quantity` / `unit` have not been on `gate_passes` since the
+   material lines moved to `gate_pass_items`, so every row exported them **blank**. Replaced
+   by `material_summary` / `item_count` / `total_quantity`, which is what the page's own
+   table renders. A test asserts no column list names a dead key.
+
+`CsvColumn` is now generic (`CsvColumn<T>`) with an optional `format: (row: T) => string`,
+and `downloadCsv<T>` takes the typed rows — the four call sites dropped their
+`as unknown as Record<string, unknown>[]` casts. `toCsv` is split out and exported so a test
+can read what a download would contain without touching the DOM. `type` exports as the
+**category** ("RGP Out" / "RGP In" / "NRGP Out"), not the bare type: direction is half of
+what a pass is, and a Type column reading "RGP" for both legs cannot be filtered on.
+
+**Not yet seen in a real browser** — verified by the suite and a production build only. The
+`hodDashboardBoard` / `myPasses` / `adminDashboardKpis` 5s-`waitFor` flakiness under a
+loaded `npm run check` is unchanged and still pre-existing (documented below).
+
+## Current state — 2026-08-17 (earlier)
+
 **Two client changes, both frontend-only — no migration, no new dependency.**
-Full gate: **897 tests across 83 files** (`npm run check`, 2026-08-17).
 
 ### Rupee values are EXACT now — no more "₹3.1K" / "₹1.1L"
 

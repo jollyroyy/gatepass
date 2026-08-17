@@ -11,6 +11,7 @@ import type { GatePassView, PassStatus, PassType } from '../../types';
 import { PASS_TYPE_LIST, PASS_TYPES } from '../../lib/passTypes';
 import { safeErrorMessage } from '../../lib/errors';
 import { downloadCsv, type CsvColumn } from '../../lib/exportUtils';
+import { csvCategory, csvDateTime, csvReturnStatus, csvStatus, csvText } from '../../lib/csvCells';
 import {
   MY_PASSES_PERIODS,
   myPassesPeriodBounds,
@@ -28,16 +29,21 @@ const STATUS_TABS: { key: PassStatus | 'all'; label: string }[] = [
 
 const VALID_STATUSES: PassStatus[] = ['pending', 'matched', 'flagged'];
 
-const CSV_COLUMNS: CsvColumn[] = [
+// `material_description` / `quantity` / `unit` used to be here. Migration 013
+// moved the material lines out of `gate_passes` into `gate_pass_items`, and
+// nobody updated this list — so the HOD's export carried three headers with a
+// blank cell under every one of them. They are replaced by the summary columns
+// the view actually has, which is what this page's own table renders.
+export const MY_PASSES_CSV_COLUMNS: CsvColumn<GatePassView>[] = [
   { key: 'pass_number', header: 'Pass No' },
-  { key: 'type', header: 'Type' },
+  { key: 'type', header: 'Type', format: csvCategory },
   { key: 'visitor_name', header: "Authorized Person's Name" },
-  { key: 'material_description', header: 'Material' },
-  { key: 'quantity', header: 'Quantity' },
-  { key: 'unit', header: 'Unit' },
-  { key: 'status', header: 'Status' },
-  { key: 'return_status', header: 'Return Status' },
-  { key: 'created_at', header: 'Raised At' },
+  { key: 'material_summary', header: 'Material', format: (p) => csvText(p.material_summary) },
+  { key: 'item_count', header: 'Items' },
+  { key: 'total_quantity', header: 'Total Qty' },
+  { key: 'status', header: 'Status', format: csvStatus },
+  { key: 'return_status', header: 'Return Status', format: csvReturnStatus },
+  { key: 'created_at', header: 'Raised At', format: (p) => csvDateTime(p.created_at) },
 ];
 
 export default function MyPasses(): React.ReactElement {
@@ -113,7 +119,7 @@ export default function MyPasses(): React.ReactElement {
   });
 
   function handleExport() {
-    downloadCsv('my-passes.csv', filtered as unknown as Record<string, unknown>[], CSV_COLUMNS);
+    downloadCsv('my-passes.csv', filtered, MY_PASSES_CSV_COLUMNS);
   }
 
   return (

@@ -168,7 +168,6 @@ export default function Dashboard(): React.ReactElement {
       <BoardKpiRow
         scoped={scoped}
         previous={previous}
-        all={inCategory}
         loading={loading}
         comparisonLabel={PERIOD_COMPARISON_LABEL[period]}
         activeKey={activeKey}

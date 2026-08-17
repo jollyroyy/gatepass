@@ -11,7 +11,6 @@ import {
   departmentSlices,
   topMaterials,
   trendBuckets,
-  countsPerDay,
   deltaPercent,
 } from '../../src/lib/boardAnalytics';
 
@@ -202,13 +201,6 @@ describe('trendBuckets — the Passes Trend line', () => {
     const buckets = trendBuckets(rows, 7, NOW);
     const counted = buckets.reduce((s, b) => s + b.total, 0);
     expect(counted).toBe(4);
-  });
-});
-
-describe('countsPerDay — the KPI sparklines', () => {
-  it('is one number per day, oldest first', () => {
-    const rows = [pass({ created_at: daysAgo(0) }), pass({ created_at: daysAgo(0) }), pass({ created_at: daysAgo(1) })];
-    expect(countsPerDay(rows, 4, NOW)).toEqual([0, 0, 1, 2]);
   });
 });
 

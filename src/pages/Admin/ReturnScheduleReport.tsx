@@ -10,18 +10,21 @@ import Badge, { TypeChip } from '../../components/Badge';
 import { EXPIRED_STYLE, RETURN_STYLES, STATUS_STYLES, isExpiredPending } from '../../lib/statusStyles';
 import { formatDateOnly } from '../../lib/formatDate';
 import { downloadCsv, type CsvColumn } from '../../lib/exportUtils';
+import { csvCategory, csvDate, csvReturnStatus, csvStatus, csvText } from '../../lib/csvCells';
 
-export const RETURN_SCHEDULE_CSV_COLUMNS: CsvColumn[] = [
+export const RETURN_SCHEDULE_CSV_COLUMNS: CsvColumn<GatePassView>[] = [
   { key: 'pass_number', header: 'Pass No' },
-  { key: 'type', header: 'Type' },
-  { key: 'department_name', header: 'Department' },
+  { key: 'type', header: 'Type', format: csvCategory },
+  { key: 'department_name', header: 'Department', format: (p) => csvText(p.department_name) },
   { key: 'visitor_name', header: "Authorized Person's Name" },
-  { key: 'material_summary', header: 'Material' },
+  { key: 'material_summary', header: 'Material', format: (p) => csvText(p.material_summary) },
   { key: 'item_count', header: 'Items' },
-  { key: 'expected_return_date', header: 'Expected Return' },
-  { key: 'actual_return_date', header: 'Actual Return' },
-  { key: 'return_status', header: 'Return Status' },
-  { key: 'status', header: 'Status' },
+  { key: 'expected_return_date', header: 'Expected Return', format: (p) => csvDate(p.expected_return_date) },
+  // Blank until the material is actually back — an empty cell is the honest
+  // record of "not returned yet", and it sorts to one end of the column.
+  { key: 'actual_return_date', header: 'Actual Return', format: (p) => csvDate(p.actual_return_date) },
+  { key: 'return_status', header: 'Return Status', format: csvReturnStatus },
+  { key: 'status', header: 'Status', format: csvStatus },
 ];
 
 type Props = {
@@ -54,7 +57,7 @@ export default function ReturnScheduleReport({ rows, onRowsChanged }: Props): Re
   }, [filtered.length, onRowsChanged]);
 
   function handleExport() {
-    downloadCsv('rgp-return-schedule.csv', filtered as unknown as Record<string, unknown>[], RETURN_SCHEDULE_CSV_COLUMNS);
+    downloadCsv('rgp-return-schedule.csv', filtered, RETURN_SCHEDULE_CSV_COLUMNS);
   }
 
   return (

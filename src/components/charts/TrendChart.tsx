@@ -38,8 +38,8 @@ export default function TrendChart({ buckets, activeKey, onSelect }: Props): Rea
   return (
     <div>
       <div className="flex items-center gap-5 mb-3">
-        <Legend color={SERIES_COLORS.brand} label="RGP" />
-        <Legend color={SERIES_COLORS.slate} label="NRGP" />
+        <Legend color={SERIES_COLORS.blue} label="RGP" />
+        <Legend color={SERIES_COLORS.teal} label="NRGP" />
       </div>
 
       <div className="overflow-x-auto">
@@ -62,9 +62,9 @@ export default function TrendChart({ buckets, activeKey, onSelect }: Props): Rea
               return <line key={t} x1={0} x2={W} y1={y} y2={y} className="stroke-surface-200" strokeWidth={1} />;
             })}
 
-            <path d={areaFrom(rgpPts, H)} fill={SERIES_COLORS.brand} opacity={0.12} />
-            <path d={pathFrom(rgpPts)} fill="none" stroke={SERIES_COLORS.brand} strokeWidth={2.5} strokeLinejoin="round" />
-            <path d={pathFrom(nrgpPts)} fill="none" stroke={SERIES_COLORS.slate} strokeWidth={2.5} strokeLinejoin="round" strokeDasharray="5 4" />
+            <path d={areaFrom(rgpPts, H)} fill={SERIES_COLORS.blue} opacity={0.12} />
+            <path d={pathFrom(rgpPts)} fill="none" stroke={SERIES_COLORS.blue} strokeWidth={2.5} strokeLinejoin="round" />
+            <path d={pathFrom(nrgpPts)} fill="none" stroke={SERIES_COLORS.teal} strokeWidth={2.5} strokeLinejoin="round" strokeDasharray="5 4" />
 
             {buckets.map((bucket, i) => {
               const p = rgpPts[i];
@@ -84,8 +84,8 @@ export default function TrendChart({ buckets, activeKey, onSelect }: Props): Rea
                       {bucket.total}
                     </text>
                   )}
-                  <circle cx={q?.x ?? p.x} cy={q?.y ?? p.y} r={selected ? 5 : 3.5} fill={SERIES_COLORS.slate} />
-                  <circle cx={p.x} cy={p.y} r={selected ? 5 : 3.5} fill={SERIES_COLORS.brand} />
+                  <circle cx={q?.x ?? p.x} cy={q?.y ?? p.y} r={selected ? 5 : 3.5} fill={SERIES_COLORS.teal} />
+                  <circle cx={p.x} cy={p.y} r={selected ? 5 : 3.5} fill={SERIES_COLORS.blue} />
                   {onSelect && (
                     // A full-height hit strip, not the 3.5px dot — nobody hits a
                     // 3.5px dot, least of all on a tablet at a gate office.

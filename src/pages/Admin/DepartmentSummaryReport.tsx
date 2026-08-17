@@ -4,9 +4,10 @@
 import React, { useEffect, useMemo } from 'react';
 import type { GatePassView } from '../../types';
 import { downloadCsv, type CsvColumn } from '../../lib/exportUtils';
-import DeptBreakdownTable, { computeDeptBreakdown } from './DeptBreakdownTable';
+import DeptBreakdownTable, { computeDeptBreakdown, type DeptBreakdown } from './DeptBreakdownTable';
 
-const CSV_COLUMNS: CsvColumn[] = [
+// Four plain counts and a name — nothing here needs a `format`.
+const CSV_COLUMNS: CsvColumn<DeptBreakdown>[] = [
   { key: 'name', header: 'Department' },
   { key: 'pending', header: 'Pending for Gate Approval' },
   { key: 'matched', header: 'Matched' },
@@ -26,7 +27,7 @@ export default function DepartmentSummaryReport({ rows, onRowsChanged }: Props):
   }, [breakdown.length, onRowsChanged]);
 
   function handleExport() {
-    downloadCsv('department-summary.csv', breakdown as unknown as Record<string, unknown>[], CSV_COLUMNS);
+    downloadCsv('department-summary.csv', breakdown, CSV_COLUMNS);
   }
 
   return (

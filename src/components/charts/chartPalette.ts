@@ -24,14 +24,23 @@
 // THIS IS THE ONLY MODULE IN src/ ALLOWED TO CONTAIN LITERAL HEX, and
 // tests/unit/themeAudit.test.ts enforces that — it exempts this file by name
 // and fails on hex anywhere else. Add a colour here, never at a call site.
-import type { Tone } from '../KpiCard';
-
-/** Series identities for the category donut and the trend lines. Gold first —
- *  RGP Out is the bulk of the traffic and the brand hue carries it. */
+/** Series identities for the category donut and the trend lines.
+ *
+ *  NONE OF THESE IS THE BRAND GOLD, and that is a rule rather than a taste
+ *  (client, 2026-08-17). Gold is the theme: the sidebar's active link, the
+ *  primary button, the wordmark. A slice drawn in it reads as part of the
+ *  frame rather than as a category, and on a board where every other chart
+ *  hue means something specific, the one that means "our brand" is noise.
+ *  `tests/unit/chartPalette.test.ts` fails if it comes back.
+ *
+ *  The three are picked to stay apart for the common colour-vision
+ *  deficiencies too: blue → violet → teal separates by hue AND by lightness,
+ *  so the ring is still readable when the legend is not. */
 export const SERIES_COLORS = {
-  brand: '#C6A15B', // brass gold  — RGP Out
-  accent: '#4859BE', // royal blue — RGP In
-  slate: '#7C766C', // warm stone — NRGP Out
+  blue: '#2563EB', // royal blue  — RGP Out, the bulk of the traffic
+  violet: '#7C3AED', // violet    — RGP In
+  teal: '#0D9488', // deep teal   — NRGP Out
+  slate: '#7C766C', // warm stone — the fallback, and anything unranked
 } as const;
 
 /** Status hues, matching tailwind.config.ts exactly. Used by the return-loop
@@ -44,9 +53,9 @@ export const STATUS_COLORS = {
 } as const;
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  'RGP-out': SERIES_COLORS.brand,
-  'RGP-in': SERIES_COLORS.accent,
-  'NRGP-out': SERIES_COLORS.slate,
+  'RGP-out': SERIES_COLORS.blue,
+  'RGP-in': SERIES_COLORS.violet,
+  'NRGP-out': SERIES_COLORS.teal,
 };
 
 /** The status ring. These ARE statuses, so they take the real status hues —
@@ -61,7 +70,7 @@ export const PASS_STATUS_COLORS: Record<string, string> = {
   expired: '#740e0c',
   matched: STATUS_COLORS.matched,
   flagged: STATUS_COLORS.flagged,
-  hod_reviewed: SERIES_COLORS.accent,
+  hod_reviewed: SERIES_COLORS.blue,
   held: SERIES_COLORS.slate,
   cancelled: '#A8A399',
 };
@@ -76,35 +85,17 @@ export const RETURNABLE_COLORS: Record<string, string> = {
  *  adjacent ranks must not be adjacent hues, or a reader comparing bar 2 and
  *  bar 3 has to check the labels. */
 export const RANK_COLORS: string[] = [
-  SERIES_COLORS.brand,
-  SERIES_COLORS.accent,
+  SERIES_COLORS.blue,
+  SERIES_COLORS.violet,
   STATUS_COLORS.matched,
   STATUS_COLORS.overdue,
-  SERIES_COLORS.slate,
+  SERIES_COLORS.teal,
   STATUS_COLORS.flagged,
 ];
 
 export function rankColor(index: number): string {
   return RANK_COLORS[index % RANK_COLORS.length];
 }
-
-/** Stroke for a KPI card's sparkline, keyed by the card's own tone so the line
- *  and the number above it are the same colour. A `Record<Tone, …>`, not a
- *  lookup with a fallback: a new tone must break the build here rather than
- *  render a grey line nobody notices.
- *
- *  Lives in this file for the same reason everything else here does — literal
- *  hex must not appear in a `.tsx` file (tests/unit/themeAudit.test.ts), and a
- *  chart series colour must not invert with the theme. */
-export const TONE_SERIES_COLOR: Record<Tone, string> = {
-  neutral: SERIES_COLORS.slate,
-  brand: SERIES_COLORS.brand,
-  accent: SERIES_COLORS.accent,
-  pending: STATUS_COLORS.pending,
-  matched: STATUS_COLORS.matched,
-  flagged: STATUS_COLORS.flagged,
-  overdue: STATUS_COLORS.overdue,
-};
 
 /** What a chart falls back to when a slice key has no colour of its own. */
 export const NEUTRAL_SERIES = SERIES_COLORS.slate;

@@ -213,11 +213,6 @@ export function trendBuckets(rows: GatePassView[], days: number, now: number = D
   return buckets;
 }
 
-/** Just the daily totals — what a KPI card's sparkline draws. */
-export function countsPerDay(rows: GatePassView[], days: number, now: number = Date.now()): number[] {
-  return trendBuckets(rows, days, now).map((b) => b.total);
-}
-
 // ─── Period delta ────────────────────────────────────────────────────────────
 /** Signed percentage change against the previous window of the same length.
  *

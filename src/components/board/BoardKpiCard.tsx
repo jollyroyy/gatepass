@@ -1,24 +1,28 @@
 // One headline KPI on the admin board: icon, label, number, a "vs previous"
-// delta, a note that says what to DO about it, and a 7-day sparkline.
+// delta, and a note that says what to DO about it.
 //
 // This is a richer card than the shared `KpiCard`, and it is deliberately NOT a
 // widening of that one — `KpiCard` is on the guard and HOD boards too, and
-// growing it to carry an icon slot, a delta and a chart would push five extra
-// optional props onto three screens that want none of them.
+// growing it to carry an icon slot and a delta would push extra optional props
+// onto three screens that want none of them.
+//
+// THERE IS NO CHART ON THIS CARD (client, 2026-08-17: "don't put the small
+// graphs inside the KPI numbers"). The 7-day sparkline that used to sit beside
+// the figure was deleted rather than restyled: it normalised against its own
+// peak, so two of them on one row were not comparable to each other, and it
+// took width from the only thing on the card anybody reads. Trend over time
+// lives once, on the Passes Trend line, which has an axis and a window the
+// reader chose. Do not put it back.
 //
 // OVERFLOW IS THE THING THIS FILE IS MOST CAREFUL ABOUT — the client asked
-// specifically that no number or label spill. Three defences, all of which have
+// specifically that no number or label spill. Two defences, both of which have
 // to hold at 5-across on a laptop:
-//   * the number and the sparkline share a row that can shrink, and the
-//     sparkline is the half that gives way (`min-w-0` + `hidden xl:block`);
 //   * the label and the note both `truncate`, with the full text on `title`;
 //   * `tabular` figures, so a ticking number never reflows its own width.
 import React from 'react';
 import type { BoardKpi } from '../../lib/boardDrills';
 import BoardKpiIcon from './BoardKpiIcon';
-import Sparkline from '../charts/Sparkline';
 import { TONE_TEXT } from '../KpiCard';
-import { TONE_SERIES_COLOR } from '../charts/chartPalette';
 
 type Props = {
   kpi: BoardKpi;
@@ -28,14 +32,13 @@ type Props = {
   delta: number | null;
   /** What the delta compares against, in words — "vs yesterday". */
   deltaLabel: string;
-  trend: number[];
   loading: boolean;
   active: boolean;
   onClick: () => void;
 };
 
 export default function BoardKpiCard({
-  kpi, value, delta, deltaLabel, trend, loading, active, onClick,
+  kpi, value, delta, deltaLabel, loading, active, onClick,
 }: Props): React.ReactElement {
   return (
     <button
@@ -53,19 +56,11 @@ export default function BoardKpiCard({
         </span>
       </div>
 
-      <div className="flex items-end justify-between gap-2 min-w-0">
-        {/* A KPI that flashes a spinner on every silent refresh is worse than
-            one that shows a placeholder, so `loading` renders a dash. */}
-        <span className={`text-kpi tabular leading-none shrink-0 ${TONE_TEXT[kpi.tone]}`}>
+      {/* A KPI that flashes a spinner on every silent refresh is worse than one
+          that shows a placeholder, so `loading` renders a dash. */}
+      <div className="min-w-0">
+        <span className={`text-kpi tabular leading-none ${TONE_TEXT[kpi.tone]}`}>
           {loading ? '—' : value}
-        </span>
-        {/* The sparkline gives way, never the number: it is shape, not a figure.
-            `shrink-0` above plus `min-w-0` here means a four-digit count at
-            5-across squeezes the chart rather than overflowing the card, and
-            below `xl` (where the cards are narrowest per column) it is hidden
-            outright. */}
-        <span className="hidden xl:block flex-1 min-w-0 max-w-[96px]">
-          <Sparkline values={trend} color={TONE_SERIES_COLOR[kpi.tone]} />
         </span>
       </div>
 

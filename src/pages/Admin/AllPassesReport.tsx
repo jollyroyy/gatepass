@@ -10,18 +10,21 @@ import Badge, { TypeChip } from '../../components/Badge';
 import { EXPIRED_STYLE, STATUS_STYLES, isExpiredPending } from '../../lib/statusStyles';
 import { formatDateTime } from '../../lib/formatDate';
 import { downloadCsv, type CsvColumn } from '../../lib/exportUtils';
+import { csvCategory, csvDateTime, csvStatus, csvText } from '../../lib/csvCells';
 
-export const ALL_PASSES_CSV_COLUMNS: CsvColumn[] = [
+// The export is this table, in a file. Every column whose stored value is not
+// what the row above renders carries a `format` — see `csvCells.ts`.
+export const ALL_PASSES_CSV_COLUMNS: CsvColumn<GatePassView>[] = [
   { key: 'pass_number', header: 'Pass No' },
-  { key: 'type', header: 'Type' },
-  { key: 'department_name', header: 'Department' },
+  { key: 'type', header: 'Type', format: csvCategory },
+  { key: 'department_name', header: 'Department', format: (p) => csvText(p.department_name) },
   { key: 'visitor_name', header: "Authorized Person's Name" },
-  { key: 'material_summary', header: 'Material' },
+  { key: 'material_summary', header: 'Material', format: (p) => csvText(p.material_summary) },
   { key: 'item_count', header: 'Items' },
   { key: 'total_quantity', header: 'Total Qty' },
-  { key: 'status', header: 'Status' },
-  { key: 'raised_by_name', header: 'Raised By' },
-  { key: 'created_at', header: 'Raised At' },
+  { key: 'status', header: 'Status', format: csvStatus },
+  { key: 'raised_by_name', header: 'Raised By', format: (p) => csvText(p.raised_by_name) },
+  { key: 'created_at', header: 'Raised At', format: (p) => csvDateTime(p.created_at) },
 ];
 
 type Props = {
@@ -56,7 +59,7 @@ export default function AllPassesReport({ rows, onRowsChanged }: Props): React.R
   }, [filtered.length, onRowsChanged]);
 
   function handleExport() {
-    downloadCsv('all-passes.csv', filtered as unknown as Record<string, unknown>[], ALL_PASSES_CSV_COLUMNS);
+    downloadCsv('all-passes.csv', filtered, ALL_PASSES_CSV_COLUMNS);
   }
 
   return (
