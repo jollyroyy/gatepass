@@ -53,7 +53,9 @@ export default function AdminDashboard(): React.ReactElement {
   return (
     <GateBoard
       title="Gate Pass Management Dashboard"
-      subtitle="Real-time overview of all material gate pass activity."
+      // NO SUBTITLE (client, 2026-08-18). "Real-time overview of all material
+      // gate pass activity" described the page; Today's Summary at the top of
+      // the board states it instead, in five figures.
       rows={rows}
       items={items}
       loading={loading}

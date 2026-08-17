@@ -217,17 +217,17 @@ describe('the HOD board\'s figures', () => {
 });
 
 describe('what differs from the admin board', () => {
-  it('carries neither the outstanding ranking nor the Quick Summary', async () => {
-    // Both went from BOTH boards (client, 2026-08-18) and were DELETED rather
-    // than flagged off — `BoardOutstanding`, `BarList` and the five summary KPIs
-    // are gone from the tree. Asserted here as well as on the admin board because
-    // the HOD board is where they survived a round longer.
+  it('carries no outstanding ranking, but does carry Today\'s Summary', async () => {
+    // The ranking went from BOTH boards (client, 2026-08-18) and was DELETED
+    // rather than flagged off — `BoardOutstanding` and `BarList` are gone from
+    // the tree. The roll-up row is on BOTH boards, scoped here to this HOD's own
+    // passes by the same rows every other figure reads.
     renderBoard();
     await loaded();
 
     expect(screen.queryByText('Material Wise Outstanding RGP')).not.toBeInTheDocument();
     expect(screen.queryByText('Department Wise Outstanding RGP')).not.toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: 'Quick Summary figures' })).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: "Today's Summary figures" })).toBeInTheDocument();
   });
 
   it('links only to routes an HOD may open', async () => {

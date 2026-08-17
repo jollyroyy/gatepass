@@ -1,5 +1,5 @@
-// One titled band of KPI tiles — "RGP Overview", "NRGP Overview", "Quick
-// Summary".
+// One titled band of KPI tiles — "Today's Summary", "RGP Overview", "NRGP
+// Overview".
 //
 // The section is what makes the reference board readable: the same tile means a
 // different thing under a different heading, and grouping by category is what

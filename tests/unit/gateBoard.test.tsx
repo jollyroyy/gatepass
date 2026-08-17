@@ -1,8 +1,8 @@
 // THE GATE PASS MANAGEMENT BOARD, as the admin sees it (`/admin-dashboard`).
 //
-// SEVEN RGP tiles, three NRGP tiles, the Daily Movement Trend, the RGP Status
-// Breakdown ring, the Return Watch and Top Items Today — with NO "vs yesterday"
-// anywhere, NO gate activity timeline, NO Quick Summary row and NO outstanding
+// FIVE summary tiles, seven RGP tiles, three NRGP tiles, the Daily Movement
+// Trend, the RGP Status Breakdown ring, the Return Watch and Top Items Today —
+// with NO "vs yesterday" anywhere, NO gate activity timeline and NO outstanding
 // ranking. Every one of those absences is the client removing something by name,
 // so each is asserted rather than merely not looked for. The HOD board is the
 // same layout with the same removals; tests/unit/hodDashboardBoard.test.tsx
@@ -176,20 +176,46 @@ async function loaded(): Promise<void> {
 }
 
 describe('the board renders the reference sections', () => {
-  it('has RGP Overview and NRGP Overview, no Quick Summary, and no category toggle', async () => {
+  it('leads with Today\'s Summary, then RGP and NRGP Overview, and no category toggle', async () => {
     renderBoard();
     await loaded();
 
-    expect(screen.getByRole('group', { name: 'RGP Overview figures' })).toBeInTheDocument();
+    const summary = screen.getByRole('group', { name: "Today's Summary figures" });
+    const rgp = screen.getByRole('group', { name: 'RGP Overview figures' });
     expect(screen.getByRole('group', { name: 'NRGP Overview figures' })).toBeInTheDocument();
-    // Client, 2026-08-18: the summary row restated five figures the two rows
-    // above it already carry. Gone from BOTH boards, and its five KPIs deleted.
-    expect(screen.queryByRole('group', { name: 'Quick Summary figures' })).not.toBeInTheDocument();
+    // Client, 2026-08-18: the roll-up row reads FIRST. A reader wanting the
+    // site-wide picture should not have to scroll past the breakdown to get it.
+    expect(summary.compareDocumentPosition(rgp) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     // The toggle the sections replaced. Its whole job was to let a reader see the
     // other category; two sections do that without a button press.
     expect(screen.queryByRole('group', { name: 'Pass category' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Gate Pass Management Dashboard' })).toBeInTheDocument();
+    // The strapline under it is GONE (client, 2026-08-18): the summary row says
+    // what the board holds, and a sentence describing the page describes nothing
+    // the reader cannot already see.
+    expect(screen.queryByText(/Real-time overview/i)).not.toBeInTheDocument();
+    expect(document.querySelector('.page-subtitle')).toBeNull();
+  });
+
+  it('the summary row sums BOTH categories, and each figure opens the rows it counted', async () => {
+    renderBoard();
+    await loaded();
+
+    // 5 raised today (p1 p2 p5 p6 p8) — RGP and NRGP alike. 2 cleared (p2 p5).
+    expectFigure("Today's Summary", 'Total Passes', 5);
+    expectFigure("Today's Summary", 'Cleared', 2);
+    // Waiting NOW, not raised today: p1 and p6. p9 expired, so nothing the guard
+    // does can clear it and it is not a queue.
+    expectFigure("Today's Summary", 'Pending Approvals', 2);
+    expectFigure("Today's Summary", 'Overdue Returns', 1);
+    expectFigure("Today's Summary", 'Material Outside', 2);
+
+    fireEvent.click(tile("Today's Summary", 'Pending Approvals'));
+    expect(within(drill()).getByText('Alice')).toBeInTheDocument();
+    expect(within(drill()).getByText('Fay')).toBeInTheDocument();
+    expect(within(drill()).queryByText('Ila')).not.toBeInTheDocument();
+    expect(within(drill()).getByText('2 passes')).toBeInTheDocument();
   });
 
   it('carries every panel of the reference board, and neither of the two the client removed', async () => {

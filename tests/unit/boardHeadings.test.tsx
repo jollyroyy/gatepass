@@ -71,7 +71,7 @@ function blockOf(heading: HTMLElement): HTMLElement {
   return block as HTMLElement;
 }
 
-const SECTIONS = ['RGP Overview', 'NRGP Overview'];
+const SECTIONS = ["Today's Summary", 'RGP Overview', 'NRGP Overview'];
 const PANELS = [
   'Daily Movement Trend',
   'RGP Status Breakdown',

@@ -58,7 +58,10 @@ export default function BoardKpiTile({
         {loading ? '—' : value}
       </span>
 
-      <span className="text-caption text-navy-500 leading-tight">{kpi.note}</span>
+      {/* A card with nothing to add renders NO line, not an empty one: the
+          summary row is deliberately note-less, and a blank span would still
+          cost it a line of height and leave the row uneven. */}
+      {kpi.note && <span className="text-caption text-navy-500 leading-tight">{kpi.note}</span>}
     </button>
   );
 }

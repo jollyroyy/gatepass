@@ -661,7 +661,7 @@
      here, rather than being retyped on each of the eight panels.
 
      WHY THIS EXISTS. The KPI band headings — "RGP Overview", "NRGP Overview",
-     "Quick Summary" — used to be `text-micro text-navy-500 uppercase`: 11px,
+     "Today's Summary" — used to be `text-micro text-navy-500 uppercase`: 11px,
      grey, and LIGHTER than the tile labels directly beneath them. That inverts
      the ladder the type scale is built to enforce, and on a board this dense the
      reader loses where one section ends and the next begins.

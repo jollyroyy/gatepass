@@ -75,6 +75,24 @@ describe('a KPI tile', () => {
     expect(screen.getByRole('button').textContent).not.toContain('8');
   });
 
+  it('drops the meaning line entirely when a card carries no note', () => {
+    // The summary row is deliberately note-less (client, 2026-08-18: "minimal
+    // yet aesthetic"). An empty `<span>` in its place would still cost the tile
+    // a line of height and leave the row uneven against the two below it.
+    render(
+      <BoardKpiTile
+        kpi={BOARD_KPIS.totalRaised}
+        label={BOARD_KPIS.totalRaised.label}
+        value={5}
+        loading={false}
+        active={false}
+        onClick={vi.fn()}
+      />,
+    );
+    expect(BOARD_KPIS.totalRaised.note).toBeUndefined();
+    expect(screen.getByRole('button').querySelector('.text-caption')).toBeNull();
+  });
+
   it('lets a long label wrap instead of truncating it', () => {
     const tile = renderTile('rgpOutside');
     const label = tile.querySelector('span.break-words');

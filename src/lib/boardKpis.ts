@@ -1,13 +1,18 @@
-// THE CATALOGUE of the board's headline figures: RGP Overview (7) and NRGP
-// Overview (3). What each card is CALLED, what it means, and which passes it
-// matches; the plumbing that applies it to an array lives in boardWindows.ts.
+// THE CATALOGUE of the board's headline figures: Today's Summary (5), RGP
+// Overview (7) and NRGP Overview (3). What each card is CALLED, what it means,
+// and which passes it matches; the plumbing that applies it to an array lives in
+// boardWindows.ts.
 //
-// THERE IS NO QUICK SUMMARY ROW. Its five tiles — Total Gate Passes, Total
-// Cleared, Pending Approvals, Overdue Returns, Material Currently Outside — were
-// removed from BOTH boards by the client (2026-08-18) and deleted rather than
-// hidden, because every one of them restated a tile in the two rows below: an
-// admin who wants the site-wide waiting queue adds RGP Awaiting Clearance to NRGP
-// Awaiting Clearance, and both drill.
+// TODAY'S SUMMARY IS THE ROLL-UP, AND IT LEADS THE BOARD (client, 2026-08-18).
+// It restates the two rows below it on purpose — that is what a summary is — and
+// answers across BOTH categories, so a reader after the site-wide waiting queue
+// does not have to add RGP Awaiting Clearance to NRGP Awaiting Clearance.
+//
+// ITS FIVE CARDS CARRY NO `note`, and that is the client's instruction in the
+// same breath ("minimal yet aesthetic", "don't put too much cluttered text").
+// The whole row is five short words and five numbers; the rows below it explain
+// themselves. `note` is therefore OPTIONAL on a card, not an empty string — a
+// tile with nothing to say renders no line at all rather than an empty one.
 //
 // NO CARD SAYS "TODAY" ANY MORE (client, 2026-08-18). The word is on the board
 // ONCE, in the header chip beside the date, because it was on fourteen tiles and
@@ -56,6 +61,12 @@ import { categoryKey } from './passTypes';
 import { IS_OPEN_RETURN } from './boardDrills';
 
 export type BoardKpiKey =
+  // Today's Summary — both categories together
+  | 'totalRaised'
+  | 'totalCleared'
+  | 'pendingApprovals'
+  | 'overdueReturns'
+  | 'materialOutside'
   // RGP Overview
   | 'rgpRaised'
   | 'rgpAwaiting'
@@ -77,8 +88,9 @@ export interface BoardKpi {
   label: string;
   tone: Tone;
   /** The line under the number. Its job is to say what the figure IS or what to
-   *  DO about it, which a bare count never does. */
-  note: string;
+   *  DO about it, which a bare count never does. OMITTED on the summary row,
+   *  where five labels and five numbers are the whole point. */
+  note?: string;
   scope: KpiScope;
   /** Heading above the list the card's click opens. */
   heading: string;
@@ -107,6 +119,55 @@ const isNrgpOut = (p: GatePassView): boolean => categoryKey(p.type, p.direction)
  *  card it measures about 2:1, the same defect the notification panel had.
  *  Pinned by tests/unit/boardKpiSections.test.ts. */
 export const BOARD_KPIS: Record<BoardKpiKey, BoardKpi> = {
+  // The roll-up row. Two volume figures for the day, then the three standing
+  // obligations — and the last three are `current` on purpose: an approval still
+  // waiting and material still out do not reset at midnight.
+  totalRaised: {
+    key: 'totalRaised',
+    label: 'Total Passes',
+    tone: 'neutral',
+    scope: 'period',
+    heading: 'All passes raised',
+    empty: 'No pass was raised in this period.',
+    match: () => true,
+  },
+  totalCleared: {
+    key: 'totalCleared',
+    label: 'Cleared',
+    tone: 'matched',
+    scope: 'period',
+    heading: 'Cleared through the gate',
+    empty: 'Nothing was cleared in this period.',
+    match: (p) => p.status === 'matched',
+  },
+  pendingApprovals: {
+    key: 'pendingApprovals',
+    label: 'Pending Approvals',
+    tone: 'pending',
+    scope: 'current',
+    heading: 'Waiting on the guard',
+    empty: 'Queue clear — nothing is waiting.',
+    match: isWaiting,
+  },
+  overdueReturns: {
+    key: 'overdueReturns',
+    label: 'Overdue Returns',
+    tone: 'overdue',
+    scope: 'current',
+    heading: 'Past their return date',
+    empty: 'Nothing is overdue.',
+    match: (p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue,
+  },
+  materialOutside: {
+    key: 'materialOutside',
+    label: 'Material Outside',
+    tone: 'accent',
+    scope: 'current',
+    heading: 'Material out and not yet returned',
+    empty: 'Nothing is still out.',
+    match: (p) => IS_OPEN_RETURN[p.return_status],
+  },
+
   rgpRaised: {
     key: 'rgpRaised',
     label: 'RGP Raised',
@@ -224,3 +285,10 @@ export const RGP_SECTION: BoardKpiKey[] = [
 ];
 
 export const NRGP_SECTION: BoardKpiKey[] = ['nrgpRaised', 'nrgpAwaiting', 'nrgpCleared'];
+
+// FIVE, and they sum ACROSS the two rows below — volume first, then the two
+// things somebody has to act on. Nothing here is category-filtered; that is the
+// only reason the row earns its place above a breakdown that is.
+export const SUMMARY_SECTION: BoardKpiKey[] = [
+  'totalRaised', 'totalCleared', 'pendingApprovals', 'overdueReturns', 'materialOutside',
+];

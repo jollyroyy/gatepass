@@ -1,9 +1,11 @@
-// The two KPI sections of the board: RGP Overview and NRGP Overview.
+// The three KPI sections of the board: Today's Summary, RGP Overview and NRGP
+// Overview.
 //
-// THERE IS NO THIRD SECTION. The Quick Summary row was removed from both boards
-// by the client (2026-08-18) and its five KPIs deleted, so a test below asserts
-// the record holds nothing but the two rows — a re-added roll-up with no section
-// to live in would otherwise sit in the catalogue unnoticed.
+// TODAY'S SUMMARY IS THE ROLL-UP ROW, and it leads the board (client,
+// 2026-08-18): five figures across BOTH categories, so a reader who wants the
+// site-wide picture does not have to add an RGP tile to an NRGP one. It restates
+// the rows below it ON PURPOSE — that is what a summary is — and every one of its
+// tiles drills to the same rows the tiles it sums do.
 //
 // WHAT THIS FILE EXISTS TO PIN is the thing a reference-driven rebuild gets
 // wrong most easily: a card whose LABEL says one thing and whose SCOPE counts
@@ -21,6 +23,7 @@ import {
   BOARD_KPIS,
   RGP_SECTION,
   NRGP_SECTION,
+  SUMMARY_SECTION,
   type BoardKpiKey,
 } from '../../src/lib/boardKpis';
 import { rowsFor, kpiDrill, type BoardWindows } from '../../src/lib/boardWindows';
@@ -88,28 +91,44 @@ describe('the board KPI sections', () => {
     }
   });
 
-  it('carries no site-wide roll-up card at all', () => {
-    // Client, 2026-08-18: the Quick Summary row went from BOTH boards. Every one
-    // of its five tiles restated a figure in the two rows above it, and each was
-    // DELETED rather than left in the catalogue unreferenced — an unused KPI is
-    // one section array away from reappearing.
-    for (const key of ['totalRaised', 'totalCleared', 'pendingApprovals',
-      'overdueReturns', 'materialOutside']) {
-      expect(Object.keys(BOARD_KPIS)).not.toContain(key);
+  it('the summary row is the five site-wide roll-ups, both categories together', () => {
+    // Client, 2026-08-18: the roll-up row is back, above both category rows.
+    // Order is volume first, then the two things somebody has to act on.
+    expect(SUMMARY_SECTION).toEqual([
+      'totalRaised', 'totalCleared', 'pendingApprovals', 'overdueReturns', 'materialOutside',
+    ]);
+    // NOT category-filtered — that is the whole point of the row. Every matcher
+    // must admit an NRGP as readily as an RGP.
+    const nrgp = pass({ id: 'n', type: 'NRGP', direction: 'out', status: 'pending' });
+    expect(BOARD_KPIS.totalRaised.match(nrgp)).toBe(true);
+    expect(BOARD_KPIS.pendingApprovals.match(nrgp)).toBe(true);
+  });
+
+  it('a roll-up counts what its own words say, not what the row above it says', () => {
+    // The two figures that are NOT day-scoped: an approval still waiting and a
+    // return already late are open obligations, and a Today-scoped version of
+    // either would print 0 on a board with a real backlog.
+    expect(BOARD_KPIS.totalRaised.scope).toBe('period');
+    expect(BOARD_KPIS.totalCleared.scope).toBe('period');
+    for (const key of ['pendingApprovals', 'overdueReturns', 'materialOutside'] as BoardKpiKey[]) {
+      expect(BOARD_KPIS[key].scope).toBe('current');
     }
+    // Pending Approvals is RGP Awaiting Clearance plus NRGP Awaiting Clearance,
+    // and it must inherit the same expiry rule — a void pass is not a queue.
+    expect(BOARD_KPIS.pendingApprovals.match(pass({ status: 'pending', is_expired: true }))).toBe(false);
   });
 
   it('no headline card takes the brand gold tone', () => {
     // Gold is this system's primary FILL (sidebar active link, primary button,
     // wordmark) and reads at ~2:1 as ink on a card — the same defect the
     // notification panel had.
-    for (const key of [...RGP_SECTION, ...NRGP_SECTION]) {
+    for (const key of [...SUMMARY_SECTION, ...RGP_SECTION, ...NRGP_SECTION]) {
       expect(BOARD_KPIS[key].tone).not.toBe('brand');
     }
   });
 
   it('every key in the record belongs to exactly one section', () => {
-    const all = [...RGP_SECTION, ...NRGP_SECTION];
+    const all = [...SUMMARY_SECTION, ...RGP_SECTION, ...NRGP_SECTION];
     expect(new Set(all).size).toBe(all.length);
     expect(new Set(all)).toEqual(new Set(Object.keys(BOARD_KPIS) as BoardKpiKey[]));
   });

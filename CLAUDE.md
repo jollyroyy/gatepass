@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-18
 
-Full gate: **1053 tests across 98 files** (`npm run check`), `npm run build` clean.
+Full gate: **1059 tests across 98 files** (`npm run check`), `npm run build` clean.
 Migrations **`001`–`041` are all applied to the live DB**; `039`, `040`, `041` were each
 verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 
@@ -50,9 +50,27 @@ verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 
-**Latest change (2026-08-18, second pass): the admin dashboard was cut down and the two
-category rows made to mirror each other.** Frontend only — no migration, no RPC.
+**Latest change (2026-08-18, third pass): both boards now OPEN on "Today's Summary", and the
+admin board's strapline is gone.** Frontend only — no migration, no RPC.
 
+- **`SUMMARY_SECTION` is back, above both category rows, on the admin AND the HOD board** —
+  `totalRaised` (Total Passes), `totalCleared` (Cleared), `pendingApprovals`, `overdueReturns`,
+  `materialOutside` (Material Outside). Both categories together, which is the only reason the
+  row sits above a breakdown that is category-split. Scopes: the first two are `period`, the
+  last three `current` — an approval still waiting does not reset at midnight.
+- **The row is deliberately the barest on the page** (client: "minimal yet aesthetic", "don't
+  put too much cluttered text"): no `hint` beside the heading and **no `note` under any tile**.
+  `BoardKpi.note` is therefore **optional**, and `BoardKpiTile` renders no line at all when it
+  is absent rather than an empty span that would still cost the row a line of height.
+  Pinned by `boardKpiTile.test.ts`.
+- **The admin board has no subtitle.** "Real-time overview of all material gate pass activity."
+  is deleted; `GateBoard`/`BoardHeader` take `subtitle?` and render the `<p>` only when given
+  one. The HOD board still passes one — there it names the department, which is a fact about
+  the figures, not a description of the page. `gateBoard.test.tsx` asserts no `.page-subtitle`
+  exists on the admin board.
+- **The outstanding ranking is still gone** and still deleted, not flagged off:
+  `BoardOutstanding.tsx`, `charts/BarList.tsx` and `boardAnalytics.departmentSlices` do not
+  exist, `GateBoard` has no `outstandingMode`, Return Watch is 8/12 and Top Items 4/12.
 - **No tile says "Today" any more.** `kpiLabel` is gone from `src/lib/boardWindows.ts`; a tile
   renders its own `label`. The word is on the board header chip once — `BoardHeader` now reads
   **"Today · Monday, 18 Aug 2026"**. The scopes (`period`/`returned`/`current`) are unchanged.
@@ -63,14 +81,6 @@ category rows made to mirror each other.** Frontend only — no migration, no RP
   `nrgpRaised`, `nrgpAwaiting`, `nrgpCleared` in the same order. `rgpRequests` is **gone** —
   its matcher is `rgpAwaiting`. Old keys `rgpOut`/`nrgpOut`/`nrgpPending` were renamed, so any
   stale reference is a type error.
-- **The Quick Summary row and the outstanding ranking are gone from BOTH boards** — deleted,
-  not flagged off. `src/components/board/BoardOutstanding.tsx`, `src/components/charts/BarList.tsx`,
-  `boardAnalytics.departmentSlices` and the five summary KPIs (`totalRaised`, `totalCleared`,
-  `pendingApprovals`, `overdueReturns`, `materialOutside`) with `SUMMARY_SECTION` no longer
-  exist, so neither panel can come back by flipping a prop. `GateBoard` lost `outstandingMode`
-  and `showSummary`; Return Watch is now 8/12 and Top Items 4/12. Nothing is lost that has no
-  other home: every summary tile restated one of the two category rows, and Return Watch breaks
-  the same open obligations down by how late they are.
 
 **Previous change (2026-08-18): the gate can search by the mobile number of the person who
 took the material.** Frontend only — no migration, no new RPC.

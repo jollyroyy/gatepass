@@ -26,7 +26,10 @@ const TODAY_FORMAT = new Intl.DateTimeFormat('en-IN', {
 
 type Props = {
   title: string;
-  subtitle: string;
+  /** Optional, and OMITTED on the admin board (client, 2026-08-18) — the
+   *  strapline there described the page rather than the figures. Rendered only
+   *  when there is something to say, never as an empty line holding space. */
+  subtitle?: string;
   onRefresh?: () => void;
   refreshing?: boolean;
 };
@@ -45,7 +48,7 @@ export default function BoardHeader({
         <span className="board-accent" aria-hidden="true" />
         <div className="min-w-0">
           <h1 className="page-title">{title}</h1>
-          <p className="page-subtitle">{subtitle}</p>
+          {subtitle && <p className="page-subtitle">{subtitle}</p>}
         </div>
       </div>
 

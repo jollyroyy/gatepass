@@ -30,15 +30,22 @@
 //           day-scoped, because an obligation does not stop being open because
 //           the calendar rolled over.
 //
-// TWO PANELS WERE REMOVED FROM BOTH BOARDS ON 2026-08-18, by the client, by name:
-// the QUICK SUMMARY row ("Total Gate Passes / Total Cleared / Pending Approvals /
-// Overdue Returns / Material Currently Outside") and the OUTSTANDING RANKING
-// ("Passes with material still out — top 5"). Deleted, not hidden behind a flag:
-// `BoardOutstanding`, `BarList`, `departmentSlices` and the five summary KPIs are
-// gone from the tree, so neither can come back by flipping a prop. Nothing is
-// lost that has no other home — every summary figure restated a tile in the two
-// category rows, and Return Watch breaks the same open obligations down by how
-// late they are.
+// THE BOARD OPENS ON TODAY'S SUMMARY (client, 2026-08-18): five roll-up figures
+// across both categories, above the two rows that break them down. It is on BOTH
+// boards, and it is deliberately the barest row on the page — no notes under the
+// numbers, no hint beside the heading — because it is read at a glance and the
+// detail is one section further down.
+//
+// THE ADMIN BOARD HAS NO STRAPLINE. "Real-time overview of all material gate pass
+// activity" was removed in the same instruction: a sentence describing the page
+// describes nothing the summary row does not already show. `subtitle` is
+// therefore optional, and the HOD board still passes one because there it names
+// the department the figures belong to, which is a fact and not a description.
+//
+// THE OUTSTANDING RANKING ("Passes with material still out — top 5") is gone from
+// both boards and DELETED, not flagged off: `BoardOutstanding`, `BarList` and
+// `departmentSlices` are out of the tree, so it cannot come back by flipping a
+// prop. Return Watch breaks the same open obligations down by how late they are.
 //
 // THE INVARIANT, UNCHANGED THROUGH EVERY REBUILD: every clickable figure on this
 // page — tile, ring segment, bar, tab, day on the trend line, attention count —
@@ -51,7 +58,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView, GatePassItemView } from '../../types';
 import DrillList from '../DrillList';
-import { RGP_SECTION, NRGP_SECTION } from '../../lib/boardKpis';
+import { RGP_SECTION, NRGP_SECTION, SUMMARY_SECTION } from '../../lib/boardKpis';
 import type { BoardWindows } from '../../lib/boardWindows';
 import { drillDefOf, type BoardDrill } from '../../lib/boardDrills';
 import { dayStart, DAY_MS } from '../../lib/localDay';
@@ -66,7 +73,9 @@ import BoardTopItems from './BoardTopItems';
 
 type Props = {
   title: string;
-  subtitle: string;
+  /** A FACT about whose figures these are, or nothing. The admin board passes
+   *  nothing — a sentence describing the page is not a fact. */
+  subtitle?: string;
   /** Every pass the reader may see. Day-scoping happens here, once. */
   rows: GatePassView[];
   /** Line rows for those passes — what the Top Items ring is built from. */
@@ -131,6 +140,16 @@ export default function GateBoard({
       {banner}
 
       <div className="flex flex-col gap-4">
+        {/* No hint beside this heading, and no note under any of its five tiles:
+            the row is a glance, and the two rows below it are the explanation. */}
+        <BoardKpiSection
+          title="Today's Summary"
+          keys={SUMMARY_SECTION}
+          windows={windows}
+          loading={loading}
+          activeKey={activeKey}
+          onSelect={select}
+        />
         <BoardKpiSection
           title="RGP Overview"
           hint="Returnable material"
