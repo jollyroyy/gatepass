@@ -16,8 +16,11 @@ type Props = {
   active?: boolean;
 };
 
-/** Direct lookup — never derive the value colour from string matching on tone. */
-const TONE_TEXT: Record<Tone, string> = {
+/** Direct lookup — never derive the value colour from string matching on tone.
+ *  Exported so the admin board's richer `AdminKpiCard` renders its number in
+ *  exactly the same colour as the guard's and HOD's plain cards, rather than
+ *  keeping a second copy that drifts. */
+export const TONE_TEXT: Record<Tone, string> = {
   neutral: 'text-navy-900',
   pending: 'text-pending-600',
   matched: 'text-matched-600',

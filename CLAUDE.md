@@ -34,6 +34,81 @@ authoritative gate run.
 re-concatenated is a fix that never reaches the database.
 `tests/security/applyAllIntegrity.test.ts` is the backstop that catches the drift.
 
+## Current state — 2026-08-17
+
+**The admin dashboard was rebuilt to the client's reference layout. Frontend only —
+no migration, no new dependency, and every number still comes from the same two reads.**
+Full gate: **866 tests across 81 files** (`npm run check`, 2026-08-17).
+
+The client supplied a reference screenshot ("GatePass Pro") and asked for the same board
+with our own figures, everything drillable, and no overflow. `/admin-dashboard` now has:
+
+- **Five KPI cards** — Passes Raised · Cleared at Gate · Pending Approvals · Materials
+  Outside · Overdue Returns (`ADMIN_KPIS` in `src/lib/adminDrills.ts`). Each carries an
+  icon, a "vs previous window" delta and a 7-day sparkline.
+- **Gate Pass Overview** — a donut with a mode select: **By category** (RGP Out / RGP In /
+  NRGP Out) or **By status** (Pending / Expired / Cleared / Mismatched / HOD Approved / …).
+- **Passes Trend** — RGP vs NRGP raised per day, with its own 7/14/30-day window.
+- **Recent Activity**, **Pending Approvals** (table), **Top Materials**, **Returnable
+  Status** (donut), **Department Activity**, **Overdue Returns**.
+
+**THE INVARIANT NOW COVERS THE CHARTS, not just the KPI cards.** Every clickable figure —
+card, donut slice, bar, or day on the trend line — resolves to an `AdminDrill` that
+**carries the rows it counted**, and the shared `DrillList` renders exactly that array.
+Aggregates in `src/lib/adminAnalytics.ts` return `Slice { key, label, value, rows }`; a
+`value` that disagreed with its own `rows` would be a type-level lie rather than a
+plausible-looking chart. **Never re-derive a chart's rows from a predicate at the call
+site, and never add a `count: 'exact'` query to this board.**
+
+New files:
+- `src/lib/chartGeometry.ts` (+ 18 tests) — donut ring segments, line/area paths, nice
+  axis maxima. **There is deliberately no charting dependency**: `vercel.json`'s CSP
+  applies only in production (a live footgun documented below), the neutral ramp inverts
+  under `.dark` so a library would need a parallel theme, and this is sixty lines of
+  arithmetic. Donuts are dashed `<circle>`s, not `<path>` arcs — an arc whose start and
+  end coincide (a single 100% slice, the normal state of a quiet day) collapses to nothing.
+- `src/lib/adminAnalytics.ts` (+ 17 tests) — `categorySlices` / `statusSlices` /
+  `returnableSlices` / `departmentSlices` / `topMaterials` / `trendBuckets` /
+  `countsPerDay` / `deltaPercent`.
+- `src/components/charts/` — `DonutChart`, `TrendChart`, `BarList`, `Sparkline`,
+  `chartPalette.ts`.
+- `src/pages/Admin/` — `AdminKpiRow`, `AdminKpiCard`, `AdminKpiIcon`, `AdminCard`,
+  `AdminOverviewCard`, `AdminTrendCard`, `AdminActivityFeed`, `AdminPendingTable`,
+  `AdminBreakdownCards`, `AdminOverdueList`.
+
+Decisions worth not re-litigating:
+
+- **`src/components/charts/chartPalette.ts` is the ONLY module in `src/` allowed literal
+  hex**, and `tests/unit/themeAudit.test.ts` now enforces that — it was widened to scan
+  `.ts` as well as `.tsx` and exempts that one file by name. A chart series colour must
+  not invert with the theme (a category that changes hue is not an identity), but a colour
+  laundered through a constants file is exactly as un-invertible as an inline one, so the
+  exemption is one file, not one extension.
+- **"Gate Wise Activity" became "Department Activity".** This system has no gate entity.
+  `verifications.gate_name` is free text the guard types *at verification time*, so it is
+  null on everything still pending and spelled however it was typed — ranking on it would
+  chart typos and silently omit the whole pending queue. `department_id` is NOT NULL on
+  every pass and is what RLS partitions on.
+- **The pending table has no approve/reject controls**, unlike the reference. An admin
+  cannot verify a pass: state transitions are RPC-only, no client holds UPDATE, and
+  `match_pass` refuses anyone who is not security. A tick there would be a button that
+  always fails. Pinned by a test.
+- **The trend chart takes UNSCOPED rows and has its own window.** The board defaults to
+  Today, and a trend over one day is a dot. The card says which window it is showing.
+- **Overdue Returns (the panel) is all-time; the Overdue Returns KPI card is scoped.**
+  They have separate drill keys on purpose — same heading, genuinely different lists.
+- **`returnableSlices` puts an overdue pass in Overdue only, never also in Awaiting.**
+  The two obvious predicates overlap and would make the ring sum to more passes than exist.
+- **Return Rate is gone as a KPI card**; the Returnable Status donut shows the same ratio
+  as three real, drillable buckets instead of one percentage.
+- `KpiCard`'s `TONE_TEXT` is now exported and reused by `AdminKpiCard`, so the admin
+  board's numbers cannot drift from the guard's and HOD's.
+- **`Mismatched` has no headline card** — it lives in the donut's status mode. Pinned by a
+  test, so removing that mode without a replacement fails the gate.
+
+Not yet done: **this board has not been seen in a real browser.** Everything below the
+sign-in wall was verified by the test suite only.
+
 ## Current state — verified 2026-08-13
 
 **`039` applied + verified live. Whitelisting a blacklisted vendor now needs a justification

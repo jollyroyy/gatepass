@@ -47,12 +47,21 @@ const HEX_EXEMPT_TSX = [
   // so it must use literal colours rather than the inverting navy-9xx ramp
   // (see the in-file comment — this was a real bug found in this sweep).
   'src/pages/HOD/PassIdentityPanel.tsx',
+  // The admin dashboard's chart palette, and the ONLY .ts file allowed hex.
+  // A chart series colour must NOT invert with the theme — a category that
+  // changes hue between light and dark is not an identity — so these are
+  // deliberately literal. Confining them to one module is what keeps the rest
+  // of the rule absolute: every chart component imports from here, and a hex
+  // literal at any call site still fails this spec.
+  'src/components/charts/chartPalette.ts',
 ];
 
 describe('theme audit — no stray hardcoded hex on an in-app (theme-following) surface', () => {
-  const files = listFiles(SRC, ['.tsx']);
+  // Both extensions: the rule is about colour, and a colour laundered through a
+  // `.ts` constants file is exactly as un-invertible as one written inline.
+  const files = listFiles(SRC, ['.tsx', '.ts']);
 
-  it('every hex colour in src/**/*.tsx lives in an exempt always-light screen', () => {
+  it('every hex colour in src/** lives in an exempt always-light screen or the chart palette', () => {
     const offenders: string[] = [];
     for (const file of files) {
       const rel = relative(join(__dirname, '../..'), file).split('\\').join('/');

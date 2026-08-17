@@ -39,3 +39,25 @@ export function periodBounds(period: DashboardPeriod): { start: number; end: num
   const start = endOfToday.getTime() - (days - 1) * 24 * 60 * 60 * 1000;
   return { start, end };
 }
+
+/** The window of the SAME LENGTH immediately before `periodBounds(period)` —
+ *  what a KPI card's "vs previous" delta is measured against.
+ *
+ *  It ends exactly where the current window starts, so the two are adjacent and
+ *  never overlap: a pass counted in the comparison can never also be counted in
+ *  the figure being compared. For `today` this is simply yesterday, which is why
+ *  the cards can honestly say "vs yesterday" there. */
+export function previousPeriodBounds(period: DashboardPeriod): { start: number; end: number } {
+  const { start, end } = periodBounds(period);
+  const span = end - start;
+  return { start: start - span, end: start };
+}
+
+/** What the delta on a KPI card compares against, in words. */
+export const PERIOD_COMPARISON_LABEL: Record<DashboardPeriod, string> = {
+  today: 'vs yesterday',
+  weekly: 'vs previous 7 days',
+  biweekly: 'vs previous 14 days',
+  monthly: 'vs previous 30 days',
+  yearly: 'vs previous year',
+};
