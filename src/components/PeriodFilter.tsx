@@ -1,41 +1,40 @@
-// Premium segmented period selector, shared by the admin and HOD dashboards
-// (Today / Weekly / Biweekly / Monthly / Yearly) AND the HOD's My Passes page
-// (Today / Last 7 Days / Last 30 Days / Last 6 Months / Weekly / Monthly /
-// Yearly — via the `periods` prop, MY_PASSES_PERIODS from myPassesPeriod.ts).
-// One control, one styling story, one accessibility story; the consumer picks
-// which list of periods it offers.
+// Premium segmented period selector.
+//
+// It was `DashboardPeriodFilter`, and both dashboards were its reason for
+// existing. They are today-only now (client, 2026-08-17) and carry no selector
+// at all, so its ONE remaining consumer is the HOD's My Passes page (Today /
+// Last 7 Days / Last 30 Days / Last 6 Months / Weekly / Monthly / Yearly, from
+// MY_PASSES_PERIODS in myPassesPeriod.ts). It was renamed rather than left
+// pointing at a screen that no longer exists — and there is no default list any
+// more, because the dashboards' five went with them: the consumer names its own
+// periods or there are none to render.
 //
 // Follows the `tab-group` segmented-control idiom used by ReportsToolbar.tsx
 // and ReportsFilterBar.tsx, but the active segment uses brand gold with
 // charcoal text (`bg-brand-600 text-shell-ink`, the same pair `.btn-primary`
 // and `.sidebar-link-active` use) rather than the neutral white/navy
-// `.tab-active` those Reports controls use — this is the one dashboard-level
-// control the user asked to read as "premium", and gold is this app's one
-// brand accent. White text on that gold fails AA (~2.4:1); charcoal passes
-// (~9.1:1) — never swap that pairing.
+// `.tab-active` those Reports controls use — this is the one page-level control
+// the user asked to read as "premium", and gold is this app's one brand accent.
+// White text on that gold fails AA (~2.4:1); charcoal passes (~9.1:1) — never
+// swap that pairing.
 import React from 'react';
-import { DASHBOARD_PERIODS } from '../lib/dashboardPeriod';
 
 export type PeriodOption<K extends string> = { key: K; label: string };
 
 type Props<K extends string> = {
   value: K;
   onChange: (period: K) => void;
-  /** Which periods to offer. Defaults to the dashboards' five. */
-  periods?: readonly PeriodOption<K>[];
-  /** The group's accessible name. Defaults to the period wording, because that
-   *  is what this control was built for; the board dashboards render a SECOND
-   *  instance of it for the RGP/NRGP category toggle (2026-08-17) and two
-   *  groups called "Dashboard period" on one page would leave a screen-reader
-   *  user unable to tell which axis they are changing. */
+  /** Which periods to offer. Required — see the note above. */
+  periods: readonly PeriodOption<K>[];
+  /** The group's accessible name. */
   label?: string;
 };
 
-export default function DashboardPeriodFilter<K extends string>({
+export default function PeriodFilter<K extends string>({
   value,
   onChange,
-  periods = DASHBOARD_PERIODS as unknown as readonly PeriodOption<K>[],
-  label: groupLabel = 'Dashboard period',
+  periods,
+  label: groupLabel = 'Period',
 }: Props<K>): React.ReactElement {
   return (
     <div

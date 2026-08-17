@@ -1,5 +1,11 @@
-// One figure on the board: a tinted glyph, the words, the number, what it means,
-// and — where the figure has a previous window to compare against — how it moved.
+// One figure on the board: a tinted glyph, the words, the number, and what it
+// means.
+//
+// THERE IS NO DELTA LINE. "↑ 8 vs yesterday" was removed from every tile at the
+// client's instruction (2026-08-17), and removed rather than hidden: the tile
+// takes no `previous` prop and `BoardWindows` no longer carries a previous
+// window, so nothing on this board can compute one. Pinned by
+// tests/unit/boardKpiTile.test.tsx.
 //
 // NOTHING ON THIS TILE IS TRUNCATED, and that is the client's explicit
 // instruction ("make sure all the boxes are properly fitted, all the texts are
@@ -12,11 +18,6 @@
 //   * `tabular` figures, so a number that ticks never reflows its own width.
 //   * `min-w-0` at every level, so a long word can shrink its column rather than
 //     forcing the grid — and hence the page — to scroll sideways.
-//
-// THE DELTA IS AN ABSOLUTE CHANGE, NOT A PERCENTAGE ("↑ 4 vs yesterday"). A
-// percentage on a small count is noise a reader cannot act on: 1 → 3 is "+200%",
-// which sounds like a crisis and means two more passes. It also has no honest
-// form when the previous window was empty, which on a Today board is most days.
 import React from 'react';
 import type { BoardKpi } from '../../lib/boardKpis';
 import BoardKpiIcon from './BoardKpiIcon';
@@ -27,21 +28,14 @@ type Props = {
   /** Already carries its period word where one is true — see `kpiLabel`. */
   label: string;
   value: number;
-  /** The same figure in the previous window, or null when the card is a running
-   *  state with no previous window to compare against. */
-  previous: number | null;
-  /** "vs yesterday" — what the comparison is against, in words. */
-  comparisonLabel: string;
   loading: boolean;
   active: boolean;
   onClick: () => void;
 };
 
 export default function BoardKpiTile({
-  kpi, label, value, previous, comparisonLabel, loading, active, onClick,
+  kpi, label, value, loading, active, onClick,
 }: Props): React.ReactElement {
-  const delta = previous === null ? null : value - previous;
-
   return (
     <button
       type="button"
@@ -65,22 +59,6 @@ export default function BoardKpiTile({
       </span>
 
       <span className="text-caption text-navy-500 leading-tight">{kpi.note}</span>
-
-      <span className="text-caption text-navy-500 leading-tight tabular">
-        {loading || delta === null ? (
-          // A running total has no "yesterday" — the board never took that
-          // snapshot. The reference prints a dash here; so do we, rather than
-          // fabricating a comparison.
-          <span aria-hidden="true">—</span>
-        ) : (
-          <>
-            <span className={`font-bold ${delta === 0 ? '' : delta > 0 ? 'text-matched-700' : 'text-flagged-700'}`}>
-              {delta > 0 ? '↑' : delta < 0 ? '↓' : '—'} {Math.abs(delta)}
-            </span>{' '}
-            {comparisonLabel}
-          </>
-        )}
-      </span>
     </button>
   );
 }

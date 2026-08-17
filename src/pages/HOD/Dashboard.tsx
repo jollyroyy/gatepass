@@ -16,11 +16,10 @@
 //                on purpose: filtering client-side would download a colleague's
 //                passes in order to hide them.
 //
-// THREE DIFFERENCES FROM THE ADMIN BOARD, all of them consequences of "one person,
-// one department":
-//   * the outstanding ranking is by MATERIAL, not by department — a department
-//     ranking here could only draw one bar at 100% naming the reader's own;
-//   * the Department column is off, where it would be one repeated word;
+// TWO DIFFERENCES FROM THE ADMIN BOARD, both consequences of "one person, one
+// department":
+//   * a drill row does not print the raiser's name — the reader raised every
+//     pass on this board, so their own name back at them is noise;
 //   * links go to `/my-passes`, since `ROLE_ROUTES` closes `/all-passes` to an HOD.
 import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -35,7 +34,7 @@ const REGISTER = '/my-passes';
 
 export default function Dashboard(): React.ReactElement {
   const navigate = useNavigate();
-  const { rows, items, flagged, loading, error, reload } = useHodBoardData();
+  const { rows, flagged, loading, error, reload } = useHodBoardData();
   const deptNames = useMyDepartmentNames();
 
   // All-time, not period-scoped: an expired pass is dead paperwork whenever it
@@ -44,17 +43,14 @@ export default function Dashboard(): React.ReactElement {
 
   return (
     <GateBoard
-      title="Gate Pass Management Dashboard"
+      title="Today's Gate Pass Summary"
       subtitle={
         deptNames.length > 0 ? `${deptNames.join(' · ')} — passes you raised` : 'Passes you raised'
       }
       rows={rows}
-      items={items}
       loading={loading}
       error={error}
       registerTo={REGISTER}
-      outstandingMode="material"
-      showDepartment={false}
       showRaisedBy={false}
       onRefresh={() => void reload()}
       banner={

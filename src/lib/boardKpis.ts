@@ -1,25 +1,33 @@
-// The board's headline figures: RGP Overview (6), NRGP Overview (3) and Quick
-// Summary (5) — the client's reference board, on this system's own data.
+// THE CATALOGUE of the board's headline figures: RGP Overview (7), NRGP Overview
+// (4) and Quick Summary (5) — the client's reference board, on this system's own
+// data. What each card is CALLED, what it means, and which passes it matches;
+// the plumbing that applies it to an array lives in boardWindows.ts.
+//
+// THE BOARD IS TODAY-ONLY (client, 2026-08-17: "in the dashboard of the admin
+// you only show today's Gate Pass Summary"). There is no period selector any
+// more, so `period` and `returned` scopes both mean "today" and the label says
+// so; `current` still means a running obligation, which is deliberately NOT
+// day-scoped — a pass that went overdue last week is overdue on today's board.
+//
+// NO CARD CARRIES A DELTA. The "↑ 8 vs yesterday" line is gone from every tile
+// (client, same day). It is not merely hidden: `BoardWindows` no longer carries
+// a previous window at all, so nothing on this board can compute one.
 //
 // EVERY CARD DECLARES A SCOPE, and that is the whole reason this file exists as
 // data rather than as three hand-written rows of JSX. The reference board mixes
 // two completely different kinds of number under one visual style, and getting
 // them the wrong way round produces a card that is confidently wrong:
 //
-//   'period'   — a count of passes RAISED inside the selected window. Comparable
-//                against the previous window, so it carries a delta.
-//   'returned' — a count of RETURNS RECEIVED inside the window, dated by
-//                `actual_return_date`. Scoping this on `created_at` would drop
-//                today's return of a pass raised last month, which is most of
-//                them.
-//   'current'  — a running state: what is outside, due, overdue or waiting RIGHT
-//                NOW. Deliberately NOT period-scoped — an obligation raised last
-//                week is still open today, and a Today-scoped "Overdue" card
-//                would print 0 while material sat off site. It carries no delta
-//                either: "vs yesterday" on a running total compares two
-//                snapshots this board never took.
+//   'period'   — passes RAISED today.
+//   'returned' — RETURNS RECEIVED today, dated by `actual_return_date`. Scoping
+//                this on `created_at` would drop today's return of a pass raised
+//                last month, which is most of them.
+//   'current'  — a running state: what is outside, due, overdue, stopped or
+//                waiting RIGHT NOW. Deliberately NOT day-scoped — an obligation
+//                raised last week is still open today, and a Today-scoped
+//                "Overdue" card would print 0 while material sat off site.
 //
-// The three matchers that could quietly widen are pinned by
+// The matchers that could quietly widen are pinned by
 // tests/unit/boardKpiSections.test.ts, which asserts the scope each card's own
 // words promise.
 //
@@ -32,20 +40,21 @@
 import type { GatePassView } from '../types';
 import type { Tone } from '../components/KpiCard';
 import { categoryKey } from './passTypes';
-import type { DashboardPeriod } from './dashboardPeriod';
-import { IS_OPEN_RETURN, type BoardDrill } from './boardDrills';
+import { IS_OPEN_RETURN } from './boardDrills';
 
 export type BoardKpiKey =
   // RGP Overview
   | 'rgpRequests'
   | 'rgpOut'
   | 'rgpReturned'
+  | 'rgpMismatch'
   | 'rgpOutside'
   | 'rgpDueToday'
   | 'rgpOverdue'
   // NRGP Overview
   | 'nrgpOut'
   | 'nrgpCleared'
+  | 'nrgpMismatch'
   | 'nrgpPending'
   // Quick Summary
   | 'totalRaised'
@@ -110,6 +119,21 @@ export const BOARD_KPIS: Record<BoardKpiKey, BoardKpi> = {
     empty: 'No return was recorded in this period.',
     match: (p) => p.return_status === 'returned',
   },
+  // MISMATCH AT THE GATE GETS ITS OWN CARD IN BOTH SECTIONS (client,
+  // 2026-08-17). Scope is `current`, not `today`: a mismatch is an open decision
+  // for the raising HOD — reject the pass or raise it again — and it does not
+  // stop needing that decision because the calendar rolled over. A today-scoped
+  // mismatch card would read 0 while material sat stopped at the barrier.
+  rgpMismatch: {
+    key: 'rgpMismatch',
+    label: 'RGP Mismatched at Gate',
+    tone: 'flagged',
+    note: 'HOD review required',
+    scope: 'current',
+    heading: 'RGP passes mismatched at the gate',
+    empty: 'No RGP pass was mismatched at the gate.',
+    match: (p) => isRgp(p) && p.status === 'flagged',
+  },
   rgpOutside: {
     key: 'rgpOutside',
     label: 'RGP Currently Outside',
@@ -162,6 +186,16 @@ export const BOARD_KPIS: Record<BoardKpiKey, BoardKpi> = {
     heading: 'NRGP passes cleared at the gate',
     empty: 'No NRGP pass was cleared in this period.',
     match: (p) => isNrgpOut(p) && p.status === 'matched',
+  },
+  nrgpMismatch: {
+    key: 'nrgpMismatch',
+    label: 'NRGP Mismatched at Gate',
+    tone: 'flagged',
+    note: 'HOD review required',
+    scope: 'current',
+    heading: 'NRGP passes mismatched at the gate',
+    empty: 'No NRGP pass was mismatched at the gate.',
+    match: (p) => isNrgpOut(p) && p.status === 'flagged',
   },
   nrgpPending: {
     key: 'nrgpPending',
@@ -232,65 +266,11 @@ export const BOARD_KPIS: Record<BoardKpiKey, BoardKpi> = {
 };
 
 export const RGP_SECTION: BoardKpiKey[] = [
-  'rgpRequests', 'rgpOut', 'rgpReturned', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
+  'rgpRequests', 'rgpOut', 'rgpReturned', 'rgpMismatch', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
 ];
 
-export const NRGP_SECTION: BoardKpiKey[] = ['nrgpOut', 'nrgpCleared', 'nrgpPending'];
+export const NRGP_SECTION: BoardKpiKey[] = ['nrgpOut', 'nrgpCleared', 'nrgpMismatch', 'nrgpPending'];
 
 export const SUMMARY_SECTION: BoardKpiKey[] = [
   'totalRaised', 'totalCleared', 'pendingApprovals', 'overdueReturns', 'materialOutside',
 ];
-
-/** The period word a period-scoped label ends with. A `Record`, so a period
- *  added to `DASHBOARD_PERIODS` without a word here is a type error rather than
- *  a card labelled `undefined`. */
-const PERIOD_WORD: Record<DashboardPeriod, string> = {
-  today: 'Today',
-  weekly: 'This Week',
-  biweekly: 'Last 14 Days',
-  monthly: 'This Month',
-  yearly: 'This Year',
-};
-
-/** The words on the card. A current-state card names its own scope already —
- *  "RGP Currently Outside Today" would claim a window it does not have. */
-export function kpiLabel(kpi: BoardKpi, period: DashboardPeriod): string {
-  if (kpi.scope === 'current') return kpi.label;
-  return `${kpi.label} ${PERIOD_WORD[period]}`;
-}
-
-/** The five arrays a board hands its cards. Built ONCE per render, in one place,
- *  from one fetch — every figure on the page is `rows.length` of one of these
- *  filtered by one predicate, which is what keeps a card and the list its click
- *  opens the same array. */
-export interface BoardWindows {
-  /** Raised inside the selected period. */
-  raised: GatePassView[];
-  /** Raised inside the equal-length window immediately before it. */
-  raisedPrev: GatePassView[];
-  /** Returned inside the selected period (`actual_return_date`). */
-  returned: GatePassView[];
-  returnedPrev: GatePassView[];
-  /** Everything the reader may see, unscoped by time. */
-  all: GatePassView[];
-}
-
-export function rowsFor(kpi: BoardKpi, w: BoardWindows): GatePassView[] {
-  const source = kpi.scope === 'period' ? w.raised : kpi.scope === 'returned' ? w.returned : w.all;
-  return source.filter(kpi.match);
-}
-
-/** The comparison rows, or null when the card has nothing to compare against. */
-export function previousRowsFor(kpi: BoardKpi, w: BoardWindows): GatePassView[] | null {
-  if (kpi.scope === 'current') return null;
-  const source = kpi.scope === 'period' ? w.raisedPrev : w.returnedPrev;
-  return source.filter(kpi.match);
-}
-
-/** What a card's click resolves to. It CARRIES the rows rather than a predicate:
- *  a predicate has to be re-applied against some array, and "some array" is
- *  where a count and its list drift apart. */
-export function kpiDrill(key: BoardKpiKey, rows: GatePassView[]): BoardDrill {
-  const def = BOARD_KPIS[key];
-  return { key: `kpi-${key}`, heading: def.heading, empty: def.empty, rows };
-}

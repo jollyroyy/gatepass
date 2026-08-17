@@ -219,19 +219,17 @@ describe('the HOD board\'s figures', () => {
 });
 
 describe('what differs from the admin board', () => {
-  it('ranks outstanding material by MATERIAL, not by department', async () => {
+  it('draws its own gate activity, not the whole org\'s', async () => {
+    // The outstanding-material ranking this case used to assert went with the
+    // board's cut back to today only (2026-08-17), and the department/material
+    // split it pinned went with it: there is no ranked panel on either board
+    // now. What survives — and matters more — is that the HOD board is fed the
+    // reader's OWN rows, so every panel on it is narrowed by construction.
     renderBoard();
     await loaded();
 
-    expect(screen.getByText('Material Wise Outstanding RGP')).toBeInTheDocument();
-    expect(screen.queryByText('Department Wise Outstanding RGP')).not.toBeInTheDocument();
-
-    const bars = screen.getByText('Material Wise Outstanding RGP').closest('section') as HTMLElement;
-    // Only lines whose parent pass is in scope: the colleague's Scaffold Tower
-    // must not appear even though RLS hands the item row over.
-    expect(within(bars).queryByText(/Scaffold Tower/)).not.toBeInTheDocument();
-    fireEvent.click(within(bars).getByRole('button', { name: /^Hydraulic Pump: 1 pass/ }));
-    expect(within(drill()).getByText('Gus')).toBeInTheDocument();
+    const ring = screen.getByText("Today's Gate Activity").closest('section') as HTMLElement;
+    expect(within(ring).queryByText(/Scaffold Tower/)).not.toBeInTheDocument();
   });
 
   it('links only to routes an HOD may open', async () => {

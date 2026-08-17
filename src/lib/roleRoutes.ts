@@ -12,7 +12,11 @@ export const ROLE_ROUTES: Record<UserRole, string[]> = {
   // everything still out, all-time, with per-line and Return All actions.
   guard: ['/guard-dashboard', '/returns', '/console', '/verify', '/pass', '/profile'],
   // Department heads raise passes for their own departments
-  hod: ['/dashboard', '/raise', '/my-passes', '/pass', '/profile'],
+  // `/mismatch/:id` is where a mismatch notification lands — the review screen
+  // that offers "reject permanently" or "raise it again". HOD-only: the two
+  // decisions on it are the raising HOD's, and `hod_review_flagged_pass` refuses
+  // anyone else regardless of what this list says.
+  hod: ['/dashboard', '/raise', '/my-passes', '/mismatch', '/pass', '/profile'],
   // Admin manages departments, users, and sees everything
   admin: ['/admin-dashboard', '/admin', '/all-passes', '/pass', '/profile'],
   super_admin: ['/admin-dashboard', '/admin', '/all-passes', '/pass', '/profile'],

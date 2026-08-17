@@ -5,23 +5,23 @@
 // dashboard renders too, so the two cannot drift apart in layout the way they did
 // before.
 //
-// Two reads, both on mount:
-//   v_gate_passes      — every figure, chart and list on the board.
-//   v_gate_pass_items  — the outstanding-material ranking only. An admin passes
-//                        `is_security()`, so `gate_pass_items_select` (013) shows
-//                        them every line org-wide, the same scope they already
-//                        have on the passes themselves.
+// ONE read, on mount: `v_gate_passes`. Every figure, ring and list on the board
+// comes out of that single array.
+//
+// The board used to also read `v_gate_pass_items`, for the outstanding-material
+// ranking. That panel went when the board was cut back to today only
+// (2026-08-17), and the query went with it rather than being left fetching rows
+// nothing renders.
 //
 // No aggregate query, deliberately. See the invariant in GateBoard.tsx.
 import React, { useCallback, useEffect, useState } from 'react';
 import { gp } from '../../supabaseClient';
-import type { GatePassView, GatePassItemView } from '../../types';
+import type { GatePassView } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
 import GateBoard from '../../components/board/GateBoard';
 
 export default function AdminDashboard(): React.ReactElement {
   const [rows, setRows] = useState<GatePassView[]>([]);
-  const [items, setItems] = useState<GatePassItemView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,16 +32,9 @@ export default function AdminDashboard(): React.ReactElement {
     // before it ever rendered (the 2026-08-13 BlacklistTab bug).
     setError(null);
     try {
-      const [passRes, itemRes] = await Promise.all([
-        gp().from('v_gate_passes').select('*'),
-        gp().from('v_gate_pass_items').select('*'),
-      ]);
+      const passRes = await gp().from('v_gate_passes').select('*');
       if (passRes.error) throw passRes.error;
       setRows((passRes.data as GatePassView[] | null) ?? []);
-      // The material ranking is the only consumer, and a board that refuses to
-      // render because ONE panel's query failed is worse than a board with one
-      // empty panel. Items failing is therefore not fatal.
-      setItems(itemRes.error ? [] : ((itemRes.data as GatePassItemView[] | null) ?? []));
     } catch (err) {
       setError(safeErrorMessage(err));
     } finally {
@@ -55,14 +48,12 @@ export default function AdminDashboard(): React.ReactElement {
 
   return (
     <GateBoard
-      title="Gate Pass Management Dashboard"
-      subtitle="Live overview of all material gate pass activity, org-wide."
+      title="Today's Gate Pass Summary"
+      subtitle="Material gate pass activity across the site today."
       rows={rows}
-      items={items}
       loading={loading}
       error={error}
       registerTo="/all-passes"
-      outstandingMode="department"
       onRefresh={() => void load()}
     />
   );

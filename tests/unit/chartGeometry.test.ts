@@ -1,19 +1,14 @@
 // The dashboard's charts are hand-drawn SVG — no charting dependency. That is a
 // deliberate call (see src/lib/chartGeometry.ts), and it means the geometry has
 // to be pinned by tests instead of trusted to a library: a donut whose segments
-// do not add up to the whole ring, or a line whose points do not span the plot,
-// is a chart that LIES about the database rather than one that looks wrong.
+// do not add up to the whole ring is a chart that LIES about the database rather
+// than one that looks wrong.
+//
+// The line/area/axis cases went with the trend chart when the board was cut back
+// to today only (2026-08-17) — one ring is the whole of this dashboard's
+// geometry now.
 import { describe, it, expect } from 'vitest';
-import {
-  ringSegments,
-  circumferenceOf,
-  linePoints,
-  pathFrom,
-  areaFrom,
-  niceMax,
-  axisTicks,
-  percentOf,
-} from '../../src/lib/chartGeometry';
+import { ringSegments, circumferenceOf, percentOf } from '../../src/lib/chartGeometry';
 
 describe('ringSegments — the donut', () => {
   const R = 100;
@@ -64,70 +59,5 @@ describe('percentOf', () => {
 
   it('is 0 rather than NaN when nothing has happened yet', () => {
     expect(percentOf(0, 0)).toBe(0);
-  });
-});
-
-describe('linePoints — the trend chart', () => {
-  it('spans the full plot width, first point at x=0 and last at x=w', () => {
-    const pts = linePoints([1, 5, 3], 10, 200, 100);
-    expect(pts[0].x).toBe(0);
-    expect(pts[2].x).toBe(200);
-    expect(pts[1].x).toBe(100);
-  });
-
-  it('puts the maximum at the top of the plot and zero on the baseline', () => {
-    const pts = linePoints([0, 10], 10, 200, 100);
-    expect(pts[0].y).toBe(100); // zero → baseline
-    expect(pts[1].y).toBe(0); //  max  → top
-  });
-
-  it('centres a single point instead of dividing by zero', () => {
-    const pts = linePoints([4], 10, 200, 100);
-    expect(pts).toHaveLength(1);
-    expect(pts[0].x).toBe(100);
-  });
-
-  it('flattens to the baseline when the scale max is zero — never NaN', () => {
-    const pts = linePoints([0, 0, 0], 0, 200, 100);
-    expect(pts.every((p) => p.y === 100)).toBe(true);
-  });
-});
-
-describe('pathFrom / areaFrom', () => {
-  it('draws a polyline through every point', () => {
-    expect(pathFrom([{ x: 0, y: 10 }, { x: 5, y: 0 }])).toBe('M 0 10 L 5 0');
-  });
-
-  it('is an empty string for no points, so the <path> renders nothing', () => {
-    expect(pathFrom([])).toBe('');
-    expect(areaFrom([], 100)).toBe('');
-  });
-
-  it('closes the area down to the baseline on both ends', () => {
-    expect(areaFrom([{ x: 0, y: 10 }, { x: 5, y: 0 }], 100)).toBe('M 0 100 L 0 10 L 5 0 L 5 100 Z');
-  });
-});
-
-describe('niceMax / axisTicks', () => {
-  it('rounds the top of the axis up to a readable number', () => {
-    expect(niceMax(38)).toBe(40);
-    expect(niceMax(3)).toBe(4);
-    expect(niceMax(112)).toBe(120);
-  });
-
-  it('never returns zero, so an all-empty chart still has a drawable axis', () => {
-    expect(niceMax(0)).toBeGreaterThan(0);
-  });
-
-  it('keeps every gridline a whole number of passes', () => {
-    for (const peak of [0, 1, 3, 7, 38, 112, 999]) {
-      const max = niceMax(peak, 4);
-      expect(max).toBeGreaterThanOrEqual(peak);
-      expect(Number.isInteger(max / 4), `${peak} → ${max} does not divide into 4 gridlines`).toBe(true);
-    }
-  });
-
-  it('gives evenly spaced ticks from 0 to the max, highest first for top-down rendering', () => {
-    expect(axisTicks(80, 4)).toEqual([80, 60, 40, 20, 0]);
   });
 });

@@ -17,7 +17,7 @@ import {
   myPassesPeriodBounds,
   type MyPassesPeriod,
 } from '../../lib/myPassesPeriod';
-import DashboardPeriodFilter from '../../components/DashboardPeriodFilter';
+import PeriodFilter from '../../components/PeriodFilter';
 import MyPassesTable from './MyPassesTable';
 
 const STATUS_TABS: { key: PassStatus | 'all'; label: string }[] = [
@@ -130,7 +130,7 @@ export default function MyPasses(): React.ReactElement {
           <p className="page-subtitle">All gate passes raised for your departments.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <DashboardPeriodFilter value={period} onChange={setPeriod} periods={MY_PASSES_PERIODS} />
+          <PeriodFilter value={period} onChange={setPeriod} periods={MY_PASSES_PERIODS} label="My Passes period" />
           <button type="button" className="btn-secondary" onClick={handleExport}>
             Export CSV
           </button>

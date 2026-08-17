@@ -22,11 +22,28 @@ export default function NotificationBell(): React.ReactElement {
 
   useEscapeKey(() => setOpen(false), open);
 
+  // A MISMATCH GOES TO ITS REVIEW SCREEN, not to the pass detail. The client's
+  // requirement is that clicking the notice shows why the pass was stopped, who
+  // stopped it, and offers the two decisions — reject it outright, or raise it
+  // again — and `/pass/:id` is a record, not a decision. Every other kind of
+  // notice is purely informational and still opens the record.
+  //
+  // The row is NOT dismissed on click: a mismatch is dismissed by being decided
+  // (the review screen calls `dismissPass`), and clearing it on a glance would
+  // let an HOD lose the only pointer to a pending decision by mis-tapping.
   const handleNotifClick = useCallback(
-    (passId: string | null, notifId: string) => {
-      dismiss(notifId);
+    (passId: string | null, notifId: string, type: string) => {
       setOpen(false);
-      if (passId) navigate(`/pass/${passId}`);
+      if (!passId) {
+        dismiss(notifId);
+        return;
+      }
+      if (type === 'flagged') {
+        navigate(`/mismatch/${passId}`);
+        return;
+      }
+      dismiss(notifId);
+      navigate(`/pass/${passId}`);
     },
     [dismiss, navigate],
   );
@@ -88,7 +105,7 @@ export default function NotificationBell(): React.ReactElement {
                 <button
                   key={n.id}
                   type="button"
-                  onClick={() => handleNotifClick(n.passId, n.id)}
+                  onClick={() => handleNotifClick(n.passId, n.id, n.type)}
                   className="w-full text-left px-4 py-3 hover:bg-surface-100 border-b border-surface-200 last:border-b-0 transition-colors"
                 >
                   <div className="flex items-start gap-3">

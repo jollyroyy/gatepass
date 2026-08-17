@@ -52,46 +52,22 @@ export const STATUS_COLORS = {
   overdue: '#f97316',
 } as const;
 
-/** The RGP Status Breakdown ring and the Return Watch tabs — the four buckets of
- *  `src/lib/returnWatch.ts`.
+/** Today's Gate Activity ring — the four kinds of movement in
+ *  `src/lib/gateActivity.ts`.
  *
- *  These ARE statuses, so they take the real status hues rather than series
- *  colours: an overdue arc in some arbitrary violet, while every overdue badge on
- *  the same screen is orange, is exactly the confusion the design system's rule
- *  exists to prevent. `dueLater` is deliberately the calm accent blue — a
- *  return that is a fortnight away is information, not a warning, and drawing it
- *  in a warm hue would make a healthy board look like a busy one. */
-export const RETURN_WATCH_COLORS: Record<string, string> = {
-  overdue: STATUS_COLORS.flagged,
-  dueToday: STATUS_COLORS.overdue,
-  dueIn7: STATUS_COLORS.pending,
-  dueLater: SERIES_COLORS.blue,
+ *  A MOVEMENT IS NOT A STATUS, so these take series identities rather than the
+ *  status hues: an outbound trip is not "pending" and a return is not "good".
+ *  The one exception is `returned`, which takes the matched green on purpose —
+ *  a closed return IS the settled state, every badge for it on the same screen
+ *  is that green, and a return drawn in some fourth hue would be the only place
+ *  in the app where it is not. Out and In are the two ends of the same RGP trip
+ *  and stay in the same blue/violet pair the category charts used. */
+export const ACTIVITY_COLORS: Record<string, string> = {
+  out: SERIES_COLORS.blue,
+  in: SERIES_COLORS.violet,
+  returned: STATUS_COLORS.matched,
+  cleared: SERIES_COLORS.teal,
 };
-
-/** The three lines of the Daily Movement Trend. Movements are not statuses — a
- *  return is not "good" and an outbound trip is not "pending" — so these take
- *  series identities, and none of them is the brand gold. */
-export const MOVEMENT_COLORS: Record<string, string> = {
-  rgpOut: SERIES_COLORS.blue,
-  rgpReturn: STATUS_COLORS.matched,
-  nrgpOut: SERIES_COLORS.violet,
-};
-
-/** The ranked bar lists (departments, top materials) cycle this. Order matters:
- *  adjacent ranks must not be adjacent hues, or a reader comparing bar 2 and
- *  bar 3 has to check the labels. */
-export const RANK_COLORS: string[] = [
-  SERIES_COLORS.blue,
-  SERIES_COLORS.violet,
-  STATUS_COLORS.matched,
-  STATUS_COLORS.overdue,
-  SERIES_COLORS.teal,
-  STATUS_COLORS.flagged,
-];
-
-export function rankColor(index: number): string {
-  return RANK_COLORS[index % RANK_COLORS.length];
-}
 
 /** What a chart falls back to when a slice key has no colour of its own. */
 export const NEUTRAL_SERIES = SERIES_COLORS.slate;

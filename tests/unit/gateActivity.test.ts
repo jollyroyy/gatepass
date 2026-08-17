@@ -1,15 +1,17 @@
 // "Today's Gate Activity" — the events the gate actually recorded today, and
-// the daily movement series the trend line plots.
+// the ring that draws them.
 //
 // A MOVEMENT IS A GATE EVENT, NOT A RAISED PASS. `created_at` says when an HOD
 // typed the paperwork; `verified_at` says when the material crossed the barrier
 // and `actual_return_date` says when it came back. A "Daily Movement Trend"
 // plotted on `created_at` would show traffic on a day nothing moved, which is
 // the one thing a gate board must not do.
+//
+// The daily-movement-trend cases went with the trend chart when the board was
+// cut back to today only (2026-08-17); the slice cases below took their place.
 import { describe, it, expect } from 'vitest';
 import type { GatePassView } from '../../src/types';
-import { gateActivityEvents } from '../../src/lib/gateActivity';
-import { movementBuckets, MOVEMENT_SERIES } from '../../src/lib/boardAnalytics';
+import { gateActivityEvents, gateActivitySlices, ACTIVITY_LABEL } from '../../src/lib/gateActivity';
 
 const NOW = new Date(2026, 7, 17, 14, 0, 0).getTime(); // 17 Aug 2026, 14:00 local
 
@@ -78,45 +80,46 @@ describe('today\'s gate activity', () => {
   });
 });
 
-describe('the daily movement trend', () => {
-  it('plots the three reference series', () => {
-    expect(MOVEMENT_SERIES.map((s) => s.label)).toEqual(['RGP Out', 'RGP Return', 'NRGP Out']);
+describe("today's gate activity, as the ring draws it", () => {
+  it('offers all four kinds in a fixed order, even the empty ones', () => {
+    // Fixed, not sorted by size: a ring whose colours move between renders
+    // cannot be read at a glance, which is the only way a wall board is read.
+    // And a listed zero is a fact — "nothing came back today" is worth saying.
+    const slices = gateActivitySlices([pass({ id: 'a', verified_at: at(0, 10) })], NOW);
+    expect(slices.map((s) => s.key)).toEqual(['out', 'in', 'returned', 'cleared']);
+    expect(slices.map((s) => s.label)).toEqual(Object.values(ACTIVITY_LABEL));
+    expect(slices.map((s) => s.value)).toEqual([1, 0, 0, 0]);
   });
 
-  it('buckets by LOCAL day, oldest first, ending today', () => {
-    const buckets = movementBuckets([], 7, NOW);
-    expect(buckets).toHaveLength(7);
-    expect(buckets[6].start).toBe(new Date(2026, 7, 17).getTime());
-    expect(buckets[0].start).toBe(new Date(2026, 7, 11).getTime());
+  it('CARRIES the passes it counted, so the legend and its drill are one array', () => {
+    const slices = gateActivitySlices(
+      [
+        pass({ id: 'a', verified_at: at(0, 10) }),
+        pass({ id: 'b', type: 'NRGP', verified_at: at(0, 11) }),
+      ],
+      NOW,
+    );
+    for (const slice of slices) expect(slice.rows).toHaveLength(slice.value);
+    expect(slices.find((s) => s.key === 'out')!.rows.map((p) => p.id)).toEqual(['a']);
+    expect(slices.find((s) => s.key === 'cleared')!.rows.map((p) => p.id)).toEqual(['b']);
   });
 
-  it('counts a clearance under its own series and a return under the return series', () => {
-    const buckets = movementBuckets([
-      pass({ id: 'a', verified_at: at(1, 10) }),
-      pass({ id: 'b', type: 'NRGP', verified_at: at(1, 11) }),
-      pass({ id: 'c', verified_at: at(4, 9), return_status: 'returned', actual_return_date: at(1, 16) }),
-    ], 7, NOW);
-
-    const yesterday = buckets[5];
-    expect(yesterday.counts).toEqual({ rgpOut: 1, rgpReturn: 1, nrgpOut: 1 });
-    expect(yesterday.total).toBe(3);
-    // Three movements, three passes — the row list is what the day's click opens.
-    expect(yesterday.rows.map((p) => p.id).sort()).toEqual(['a', 'b', 'c']);
+  it('counts a pass that moved twice today in BOTH of its slices', () => {
+    // Two visits to the barrier. Collapsing them would hide the return, which is
+    // half of what a returnable board exists to show.
+    const slices = gateActivitySlices(
+      [pass({ id: 'a', verified_at: at(0, 9), return_status: 'returned', actual_return_date: at(0, 15) })],
+      NOW,
+    );
+    expect(slices.find((s) => s.key === 'out')!.value).toBe(1);
+    expect(slices.find((s) => s.key === 'returned')!.value).toBe(1);
   });
 
-  it('lists a pass once in a day even when it moved twice that day', () => {
-    const buckets = movementBuckets([
-      pass({ id: 'a', verified_at: at(0, 9), return_status: 'returned', actual_return_date: at(0, 17) }),
-    ], 7, NOW);
-    const today = buckets[6];
-    expect(today.counts.rgpOut).toBe(1);
-    expect(today.counts.rgpReturn).toBe(1);
-    expect(today.total).toBe(2);
-    expect(today.rows.map((p) => p.id)).toEqual(['a']);
-  });
-
-  it('ignores movements outside the window', () => {
-    const buckets = movementBuckets([pass({ id: 'old', verified_at: at(30, 10) })], 7, NOW);
-    expect(buckets.every((b) => b.total === 0)).toBe(true);
+  it('counts nothing on a day the gate did not act', () => {
+    const slices = gateActivitySlices(
+      [pass({ id: 'old', verified_at: at(3, 11) }), pass({ id: 'f', status: 'flagged', verified_at: at(0, 12) })],
+      NOW,
+    );
+    expect(slices.every((s) => s.value === 0)).toBe(true);
   });
 });

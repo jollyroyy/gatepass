@@ -1,5 +1,5 @@
 // Verifies each My Passes period's [start, end) bounds. Mirrors
-// dashboardPeriod.test.ts but for the SEVEN My Passes periods, including the
+// the dashboards' old period test but for the SEVEN My Passes periods, including the
 // calendar-aligned ones: weekly starts on the Monday of the current week,
 // monthly on the 1st of the month, yearly on Jan 1 — all ending at the same
 // local-midnight-tomorrow bound the dashboards use.

@@ -13,6 +13,7 @@
 // the material did not go anywhere: a mismatch is a decision for the raising
 // HOD, and it belongs on their review queue, not in a log of what left site.
 import type { GatePassView } from '../types';
+import type { Slice } from './boardAnalytics';
 import { categoryKey } from './passTypes';
 import { dayStart } from './localDay';
 
@@ -83,4 +84,42 @@ export function gateActivityEvents(rows: GatePassView[], now: number = Date.now(
   // ISO-8601 UTC strings sort lexicographically in chronological order, so this
   // needs no Date allocation per comparison.
   return events.sort((a, b) => b.at.localeCompare(a.at));
+}
+
+/** What each kind is called in the pie's legend. A `Record`, so a new kind
+ *  without a name is a type error rather than a nameless slice. */
+export const ACTIVITY_LABEL: Record<GateActivityKind, string> = {
+  out: 'RGP Out',
+  in: 'RGP In',
+  returned: 'RGP Returned',
+  cleared: 'NRGP Cleared',
+};
+
+/** The order the slices are drawn and listed in. Fixed, not sorted by size: a
+ *  ring whose colours move between renders cannot be read at a glance, which is
+ *  the only way a wall board is ever read. */
+const SLICE_ORDER: GateActivityKind[] = ['out', 'in', 'returned', 'cleared'];
+
+/** Today's gate activity as pie slices, each CARRYING the passes behind it.
+ *
+ *  This panel replaced the activity TIMELINE (client, 2026-08-17), and the
+ *  swap changes what a click means, so the rows travel with the slice: the list
+ *  a slice opens is the very array its number was taken from, which is the
+ *  board's one invariant. A pass that both left and came back today appears in
+ *  two slices — that is two visits to the barrier, and collapsing them would
+ *  hide the return.
+ *
+ *  Every bucket is listed even at zero: the four kinds are a fixed taxonomy, and
+ *  "RGP Returned: 0" on a day nothing came back is a fact worth stating. */
+export function gateActivitySlices(rows: GatePassView[], now: number = Date.now()): Slice[] {
+  const events = gateActivityEvents(rows, now);
+  const byId = new Map(rows.map((p) => [p.id, p]));
+
+  return SLICE_ORDER.map((kind) => {
+    const passes = events
+      .filter((e) => e.kind === kind)
+      .map((e) => byId.get(e.passId))
+      .filter((p): p is GatePassView => p !== undefined);
+    return { key: kind, label: ACTIVITY_LABEL[kind], value: passes.length, rows: passes };
+  });
 }

@@ -76,6 +76,12 @@ describe('every permitted route is reachable without typing a URL', () => {
     '/print',           // opened from a pass
     '/profile',         // the sidebar profile block, not a nav link
     '/reset-password',  // arrives from an email link
+    // Opened from the notification bell, which is the whole point of it: the
+    // HOD is told a specific pass was mismatched and taken to the decision for
+    // that pass. A sidebar link would have nothing to point at — there is no
+    // "mismatches" list here, and the dashboard's Mismatched at Gate tiles
+    // already drill into the same passes.
+    '/mismatch',
   ]);
 
   const linked = new Set(ALL_LINKS.map((l) => l.to));

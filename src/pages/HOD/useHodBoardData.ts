@@ -17,14 +17,13 @@
 // are always the same array.
 import { useCallback, useEffect, useState } from 'react';
 import { supabase, gp, pub } from '../../supabaseClient';
-import type { GatePassView, GatePassItemView } from '../../types';
+import type { GatePassView } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
 
 const FLAGGED_LIMIT = 5;
 
 export type HodBoardData = {
   rows: GatePassView[];
-  items: GatePassItemView[];
   /** UNSCOPED by period on purpose — a mismatch raised yesterday still needs a
    *  decision today, and the board's Today default must not hide it. */
   flagged: GatePassView[];
@@ -40,7 +39,6 @@ export function useHodBoardData(): HodBoardData {
   const [userId, setUserId] = useState<string | null>(null);
   const [noUser, setNoUser] = useState(false);
   const [rows, setRows] = useState<GatePassView[]>([]);
-  const [items, setItems] = useState<GatePassItemView[]>([]);
   const [flagged, setFlagged] = useState<GatePassView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,9 +72,8 @@ export function useHodBoardData(): HodBoardData {
       // banner before it ever rendered (the 2026-08-13 BlacklistTab bug).
       setError(null);
       try {
-        const [passRes, itemRes, flaggedRes] = await Promise.all([
+        const [passRes, flaggedRes] = await Promise.all([
           gp().from('v_gate_passes').select('*').eq('raised_by', userId).order('created_at', { ascending: false }),
-          gp().from('v_gate_pass_items').select('*'),
           gp()
             .from('v_gate_passes')
             .select('*')
@@ -87,12 +84,9 @@ export function useHodBoardData(): HodBoardData {
         ]);
         if (passRes.error) throw passRes.error;
         setRows((passRes.data as GatePassView[] | null) ?? []);
-        // Top Materials is the only consumer, and a board that refuses to render
-        // because ONE panel's query failed is worse than a board with one empty
-        // panel — so items failing is not fatal. `topMaterials` keeps only lines
-        // whose parent pass is in `rows`, so the department-wide scope RLS gives
-        // this table narrows to this HOD's own passes anyway.
-        setItems(itemRes.error ? [] : ((itemRes.data as GatePassItemView[] | null) ?? []));
+        // A board that refuses to render because ONE panel's query failed is
+        // worse than a board with one empty panel, so a failed flagged read is
+        // not fatal.
         setFlagged(flaggedRes.error ? [] : ((flaggedRes.data as GatePassView[] | null) ?? []));
       } catch (err) {
         setError(safeErrorMessage(err));
@@ -139,7 +133,7 @@ export function useHodBoardData(): HodBoardData {
     };
   }, [load]);
 
-  return { rows, items, flagged, loading, error, reload: () => load() };
+  return { rows, flagged, loading, error, reload: () => load() };
 }
 
 /** The HOD's own departments, by name — the page subtitle and nothing else.

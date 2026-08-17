@@ -46,7 +46,146 @@ authoritative gate run.
 re-concatenated is a fix that never reaches the database.
 `tests/security/applyAllIntegrity.test.ts` is the backstop that catches the drift.
 
-## Current state — 2026-08-17 (latest): `040` applied + verified live
+## Current state — 2026-08-17 (LATEST): today-only board + the mismatch loop
+
+**Frontend only — no migration, no new dependency, no new RPC.** Full gate:
+**948 tests across 92 files** (`npm run check`, 2026-08-17). `npm run build` clean.
+**Not yet seen signed-in in a real browser** — the suite and a production build only.
+
+⚠ Everything below this section about the board's panels, the period filter and the KPI
+deltas is **SUPERSEDED**. Those sections are kept for the reasons recorded in them.
+
+### Both dashboards are "Today's Gate Pass Summary", and that is all they are
+
+Client: *"in the dashboard of the admin you only show today's Gate Pass Summary. Remove all
+the other things. On top it should only mention Today's Gate Pass Summary."* Asked whether
+the HOD board should follow — **yes, both** (user's call).
+
+`GateBoard.tsx` is now the three KPI sections, the drill list a tile opens, and one ring.
+**DELETED** (components and their libs, not hidden behind a flag): `BoardMovementTrend`,
+`BoardStatusBreakdown`, `BoardReturnWatch`, `BoardOutstanding`, `BoardActivityTimeline`,
+`charts/TrendChart`, `charts/BarList`, `lib/returnWatch.ts`, `lib/dashboardPeriod.ts`, and
+`departmentSlices` / `topMaterials` / `movementBuckets` / `MOVEMENT_SERIES` out of
+`boardAnalytics.ts` (which keeps only `Slice`), plus the line/area/axis half of
+`chartGeometry.ts` and `RETURN_WATCH_COLORS` / `MOVEMENT_COLORS` / `RANK_COLORS` /
+`rankColor` out of `chartPalette.ts`.
+
+**THE CUT IS SAFE BECAUSE OF THE SCOPE SPLIT, and that is the thing not to undo.** A
+`current`-scoped tile is NOT day-scoped: Outside, Due Today, Overdue, Pending and both
+Mismatch tiles still count a pass raised last month. Only `period` / `returned` tiles mean
+"today", and their labels say "Today" out loud for exactly that reason. A change that
+day-scoped the running tiles would print 0 while material sat off site.
+
+Consequences worth not re-deriving:
+
+- **`v_gate_pass_items` is no longer read by either dashboard.** It fed the outstanding
+  ranking only; the query went with the panel, so `AdminDashboard` does ONE read and
+  `useHodBoardData` no longer returns `items`.
+- **`DashboardPeriodFilter` was RENAMED to `src/components/PeriodFilter.tsx`**, its default
+  period list dropped (it is a required prop now), and its one remaining consumer is My
+  Passes. The dashboards carry no period control at all.
+- **`todayBounds()` in `hodKpis.ts` now delegates to `dayStart` in `localDay.ts`** — its old
+  delegate, `periodBounds('today')`, went with `dashboardPeriod.ts`.
+- `src/lib/boardKpis.ts` was split: it is the CATALOGUE, and **`src/lib/boardWindows.ts`** is
+  the plumbing (`BoardWindows` / `rowsFor` / `kpiLabel` / `kpiDrill`). That was to get back
+  under the 300-line cap, and it also lets a test read the numbers without the labels.
+
+### No KPI card carries a delta any more
+
+Client: *"remove the 8 vs yesterday, 9 vs yesterday from all the KPI cards under admin."*
+**Removed, not hidden**: `BoardKpiTile` takes no `previous` / `comparisonLabel`,
+`previousRowsFor` is gone, and `BoardWindows` no longer has `raisedPrev` / `returnedPrev` —
+so nothing on the board can compute one. `tests/unit/boardKpiTile.test.tsx` (4) greps the
+four sources and fails if any of those names comes back.
+
+### "Today's Gate Activity" is a pie now, and unlike the timeline it DRILLS
+
+Client's call, confirmed: the activity timeline becomes a chart. `BoardActivityPie` draws
+`gateActivitySlices(rows)` (new, in `gateActivity.ts`) through the existing `DonutChart`.
+Four fixed buckets in a fixed order — RGP Out · RGP In · RGP Returned · NRGP Cleared —
+listed even at zero, because they are a closed taxonomy and "nothing came back today" is a
+fact worth stating. `ACTIVITY_COLORS` is new in `chartPalette.ts`; `returned` deliberately
+takes the matched green (a closed return IS the settled state, and every badge for it on
+the same screen is that green), the rest take series identities.
+
+**It is a drill, which the timeline was not** — each slice carries the passes it counted, so
+the legend figure and the list its click opens are one array. A pass that went out and came
+back today is in BOTH slices: two visits to the barrier. A flagged pass is in none — the
+material did not go anywhere.
+
+### Mismatch at the gate has its own card, per category
+
+`rgpMismatch` / `nrgpMismatch`, tone `flagged`, scope `current`, matching `status = 'flagged'`
+within their category. Two cards rather than one because a stopped RGP still owes a return
+and a stopped NRGP does not, so "which kind is stopped" is the first thing an admin needs.
+RGP Overview is 7 tiles now (4-across, two rows — 7-across is seven slivers), NRGP is 4.
+New `flag` glyph in `BoardKpiIcon`, deliberately NOT the `alert` triangle overdue uses: the
+two sit two tiles apart in the same red-toned row.
+
+### The mismatch loop: the HOD is told, and given exactly two decisions
+
+Client: *"just notify the respective HOD that their gate passes were mismatched at the gate
+… this should appear as a notification in the HOD's notification bell … once he clicks on
+that notification it should show the details about that particular gate pass, why it was
+rejected or mismatched, who did it, and there will be two options — completely reject, or
+raise it again."*
+
+**1. The bell now has TWO sources, and the second one is the point.**
+`NotificationProvider` had realtime alone, so a mismatch raised while the HOD was signed out
+was announced to nobody and never appeared again — an empty bell precisely when it had the
+most to say, and invisible to a signed-in tester. It now ALSO **derives** notices on mount
+from `v_gate_passes` where `raised_by = auth.uid()` and `status = 'flagged'` (both filters
+server-side). **No new table and no migration: a flagged pass IS the outstanding
+notification**, and it stops being one the moment the HOD decides. A realtime UPDATE that
+moves a pass OUT of `flagged` drops its notice too.
+
+**Dismissal is persisted** in `localStorage` (`src/lib/notificationDismissals.ts`), because
+with the derivation above an in-memory dismissal comes straight back on the next load and
+the bell becomes un-clearable. It is a display preference of one browser, not a fact about
+the pass — which is why it is not a column. Every storage call is wrapped: Safari in private
+mode throws on write.
+
+**2. `/mismatch/:id` — `src/pages/HOD/MismatchReview.tsx`** (HOD-only in `ROLE_ROUTES`).
+A flagged notice opens THIS, not `/pass/:id` — the detail page is a record, the client asked
+for a decision. It states the reason, **who flagged it** (`verified_by_name`) and when
+(`flagged_at`), then offers **Reject Permanently** (inline confirm → the existing
+`hod_review_flagged_pass(reject)`, which voids the pass and writes a `verifications` row) and
+**Raise It Again**. **There is deliberately no Approve Override here** — it still exists on
+the pass detail page, but it is a different decision, and three buttons under a heading that
+promises two is how a screen gets misread at speed. A pass that is no longer flagged gets an
+explanation instead of buttons the RPC would refuse. The notice is NOT dismissed on click: a
+mismatch is cleared by being DECIDED, so a mis-tap cannot lose the pointer to it.
+
+**3. "Raise It Again" pre-fills the raise form — and the ORDER OF OPERATIONS is the
+load-bearing part.** `useReraisePass.ts` reads `location.state.copyFrom` (router state, not a
+query param: a `?copyFrom=` would survive a bookmark and silently re-arm a supersede) and
+re-reads the pass and its lines from the database. It copies type, authorized person, the
+unpacked `{n,a,v}` vendor blob, vehicle and every material line. **Department is not copied**
+(the form resolves it from the HOD's own assignment; copying it would let a pass raised
+before a transfer re-raise into a department this person no longer heads), and **a return
+date already in the past is BLANKED** — `validateRaiseForm` refuses one, so a faithful copy
+would hand back a form that cannot be submitted and an error under a field nobody touched.
+
+**The old pass is voided only AFTER `raise_pass` returns**, via
+`voidSupersededPass(id, newNumber)` → `hod_review_flagged_pass(reject)` with the reason
+`Superseded by <new number>`. Voiding on the button press would destroy the record of what
+the gate stopped for anyone who then closed the tab, and leave the gate with nothing if the
+replacement were never submitted. **A failed supersede is a WARNING, never a submit error**:
+the new pass exists either way, and reporting failure would invite a third one.
+
+`RaisePass.tsx` went over the 300-line cap once it took this on, so `validate` /
+`earliestReturnDate` / `packVendor` / `todayStr` moved to **`src/lib/raisePassForm.ts`**
+(292 lines now).
+
+**New tests, all watched failing first** (the two most important by real mutation — disabling
+the mount-time derivation fails 5 of 6, routing a flagged notice to `/pass/:id` fails 1):
+`mismatchNotice` (6), `mismatchReview` (7), `reraisePass` (7), `boardKpiTile` (4).
+Rewritten or trimmed: `gateBoard`, `hodDashboardBoard`, `boardKpiSections`, `gateActivity`,
+`chartPalette`, `chartGeometry`, `navLinksResolve` (`/mismatch` is exempt from the
+"reachable without typing a URL" audit — the bell is how it is reached, by design).
+Deleted with their subjects: the `boardAnalytics`, `returnWatch` and `dashboardPeriod` specs.
+
+## Current state — 2026-08-17 (earlier): `040` applied + verified live
 
 **"Inactive" is a STATUS now, not a role.** Migration `040` applied to the live DB and
 **verified behaviourally with real anon-key JWTs — `node scripts/verify-040.mjs`, 23/23**

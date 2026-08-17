@@ -1,21 +1,25 @@
 // THE GATE PASS MANAGEMENT BOARD, rebuilt 2026-08-17 to the client's reference
 // layout, as the admin sees it (`/admin-dashboard`).
 //
-// WHAT THIS FILE IS ACTUALLY FOR. The board has fourteen figures across three
-// sections, a three-series trend, a four-bucket ring, a four-tab register, a
-// ranked bar list and a gate log — and every one of them is clickable. The risk
-// that grows with that is not "a panel looks wrong": it is a panel whose LABEL and
-// whose DRILL disagree, which no amount of looking at the screen reveals. So the
-// recurring assertion below is: read the figure the panel prints, click it, and
-// check the list underneath holds exactly that many passes, and exactly those.
+// CUT BACK TO TODAY ONLY on 2026-08-17 at the client's instruction: no period
+// selector, no trend, no status ring, no return watch, no outstanding ranking —
+// sixteen figures across three sections, the list a tile opens, and one ring of
+// today's gate activity.
 //
-// THE SECOND THING IT PINS IS THE SCOPE SPLIT, which is the one way this rebuild
-// could be confidently wrong. "RGP Out Today" must move when the period changes;
-// "RGP Currently Outside", "RGP Overdue" and the whole Return Watch must NOT,
-// because an obligation does not stop being open because the calendar rolled past
-// the window it started in. The fixture below therefore contains passes RAISED
-// FIVE DAYS AGO that are still out — and those rows are what separates a
-// period-scoped figure from a current-state one in every assertion here.
+// WHAT THIS FILE IS ACTUALLY FOR. Every figure on the board is clickable, and the
+// risk that grows with that is not "a panel looks wrong": it is a panel whose
+// LABEL and whose DRILL disagree, which no amount of looking at the screen
+// reveals. So the recurring assertion below is: read the figure the panel prints,
+// click it, and check the list underneath holds exactly that many passes, and
+// exactly those.
+//
+// THE SECOND THING IT PINS IS THE SCOPE SPLIT, which is what makes a today-only
+// board safe. "RGP Out Today" counts what was raised today; "RGP Currently
+// Outside", "RGP Overdue" and both mismatch tiles must count regardless of day,
+// because an obligation does not stop being open because the calendar rolled
+// past it. The fixture below therefore contains passes RAISED FIVE DAYS AGO that
+// are still out — those rows are what separates a day-scoped figure from a
+// current-state one in every assertion here.
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
@@ -91,20 +95,26 @@ const ROWS: GatePassView[] = [
     id: 'p6', visitor_name: 'Fay', pass_number: 'NRGP-OUT-20260817-0002', type: 'NRGP',
     created_at: TODAY, status: 'pending',
   }),
-];
-
-const ITEMS = [
-  { id: 'i1', gate_pass_id: 'p2', name: 'Ladder', quantity: 2 },
-  { id: 'i2', gate_pass_id: 'p3', name: 'Hydraulic Pump', quantity: 1 },
-];
-
-vi.mock('../../src/supabaseClient', () => ({
-  gp: () => ({
-    from: (table: string) =>
-      table === 'v_gate_pass_items'
-        ? { select: () => thenable({ data: ITEMS, error: null }) }
-        : { select: () => thenable({ data: ROWS, error: null }) },
+  // RGP stopped at the gate FIVE DAYS AGO and still undecided. It is in no
+  // day-scoped figure at all, and it is exactly the pass the mismatch card
+  // exists to surface.
+  pass({
+    id: 'p7', visitor_name: 'Gita', created_at: FIVE_DAYS_AGO, status: 'flagged',
+    verified_at: FIVE_DAYS_AGO, flagged_at: FIVE_DAYS_AGO,
+    flag_reason: 'Two ladders, three on the slip', verified_by_name: 'Guard One',
   }),
+  // NRGP stopped at the gate today.
+  pass({
+    id: 'p8', visitor_name: 'Hari', pass_number: 'NRGP-OUT-20260817-0003', type: 'NRGP',
+    created_at: TODAY, status: 'flagged', verified_at: TODAY_0900, flagged_at: TODAY_0900,
+  }),
+];
+
+// ONE read now. The board's second query (`v_gate_pass_items`, for the
+// outstanding-material ranking) went with that panel — a mock that still served
+// it would hide the fact that nothing asks for it any more.
+vi.mock('../../src/supabaseClient', () => ({
+  gp: () => ({ from: () => ({ select: () => thenable({ data: ROWS, error: null }) }) }),
 }));
 
 import AdminDashboard from '../../src/pages/Admin/AdminDashboard';
@@ -118,8 +128,7 @@ function renderBoard() {
 }
 
 /** The tile in `section` whose words begin with `label`. Scoped to the section:
- *  "Overdue Returns" also names a Quick Summary tile, and the Return Watch tabs
- *  reuse the same vocabulary. */
+ *  "Overdue Returns" also names a Quick Summary tile. */
 function tile(section: string, label: string): HTMLElement {
   const group = screen.getByRole('group', { name: `${section} figures` });
   const found = within(group)
@@ -156,7 +165,25 @@ describe('the board renders the reference sections', () => {
     // The toggle the sections replaced. Its whole job was to let a reader see the
     // other category; two sections do that without a button press.
     expect(screen.queryByRole('group', { name: 'Pass category' })).not.toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Dashboard period' })).toBeInTheDocument();
+
+    // AND NO PERIOD SELECTOR. The board is today-only, and the control was
+    // removed rather than defaulted — one still offering five windows would
+    // promise a scope the page below no longer has.
+    expect(screen.queryByRole('group', { name: 'Dashboard period' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Weekly' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: "Today's Gate Pass Summary" })).toBeInTheDocument();
+  });
+
+  it('prints no "vs yesterday" delta on any tile', async () => {
+    // Client, 2026-08-17. Removed rather than hidden: `BoardWindows` carries no
+    // previous window, so there is nothing on this board to compute one from.
+    renderBoard();
+    await loaded();
+    for (const section of ['RGP Overview', 'NRGP Overview', 'Quick Summary']) {
+      const group = screen.getByRole('group', { name: `${section} figures` });
+      expect(group.textContent).not.toMatch(/vs (yesterday|previous)/i);
+      expect(group.textContent).not.toMatch(/[\u2191\u2193]/);
+    }
   });
 
   it('offers no approve or reject control anywhere', async () => {
@@ -179,15 +206,17 @@ describe('the headline figures', () => {
     expectFigure('RGP Overview', 'RGP Requests', 1); // p1, right now
     expectFigure('RGP Overview', 'RGP Out Today', 2); // p1 p2 raised today
     expectFigure('RGP Overview', 'RGP Returned Today', 1); // p4 came back today
+    expectFigure('RGP Overview', 'RGP Mismatched at Gate', 1); // p7, five days ago
     expectFigure('RGP Overview', 'RGP Currently Outside', 2); // p2 p3
     expectFigure('RGP Overview', 'RGP Due Today', 1); // p2
     expectFigure('RGP Overview', 'RGP Overdue', 1); // p3
 
-    expectFigure('NRGP Overview', 'NRGP Out Today', 2); // p5 p6
+    expectFigure('NRGP Overview', 'NRGP Out Today', 3); // p5 p6 p8
     expectFigure('NRGP Overview', 'NRGP Cleared Today', 1); // p5
+    expectFigure('NRGP Overview', 'NRGP Mismatched at Gate', 1); // p8
     expectFigure('NRGP Overview', 'NRGP Awaiting Clearance', 1); // p6
 
-    expectFigure('Quick Summary', 'Total Gate Passes Today', 4); // p1 p2 p5 p6
+    expectFigure('Quick Summary', 'Total Gate Passes Today', 5); // p1 p2 p5 p6 p8
     expectFigure('Quick Summary', 'Total Cleared Today', 2); // p2 p5
     expectFigure('Quick Summary', 'Pending Approvals', 2); // p1 p6
     expectFigure('Quick Summary', 'Overdue Returns', 1); // p3
@@ -238,95 +267,50 @@ describe('the headline figures', () => {
     expect(within(drill()).getByText('1 pass')).toBeInTheDocument();
   });
 
-  it('the period control re-labels the period figures and closes an open drill', async () => {
+  it('each mismatch tile opens ONLY its own category', async () => {
+    // Two cards rather than one, because a stopped RGP and a stopped NRGP have
+    // different consequences: the RGP still owes a return, the NRGP does not.
+    // A shared card would not tell an admin which kind of material is stopped.
     renderBoard();
     await loaded();
 
-    fireEvent.click(tile('RGP Overview', 'RGP Out Today'));
-    expect(drill()).toBeInTheDocument();
+    fireEvent.click(tile('RGP Overview', 'RGP Mismatched at Gate'));
+    expect(within(drill()).getByText('Gita')).toBeInTheDocument();
+    expect(within(drill()).queryByText('Hari')).not.toBeInTheDocument();
 
-    fireEvent.click(within(screen.getByRole('group', { name: 'Dashboard period' })).getByRole('button', { name: 'Weekly' }));
-
-    // A drill CARRIES its rows, so one left open would keep listing passes
-    // captured under the old window while every figure around it moved.
-    expect(screen.queryByRole('region', { name: 'Selected passes' })).not.toBeInTheDocument();
-    expectFigure('RGP Overview', 'RGP Out This Week', 4); // p1 p2 p3 p4
-    // The current-state figures do not move — they never were scoped.
-    expectFigure('RGP Overview', 'RGP Overdue', 1);
+    fireEvent.click(tile('NRGP Overview', 'NRGP Mismatched at Gate'));
+    expect(within(drill()).getByText('Hari')).toBeInTheDocument();
+    expect(within(drill()).queryByText('Gita')).not.toBeInTheDocument();
   });
 });
 
-describe('RGP Return Watch', () => {
-  it('offers all four buckets with their counts, even the empty ones', async () => {
+describe("today's gate activity, as a ring", () => {
+  it('draws every movement of today and never a raised pass', async () => {
     renderBoard();
     await loaded();
 
-    expect(screen.getByRole('button', { name: /^Overdue \(1\)/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Due Today \(1\)/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Due in Next 7 Days \(0\)/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Due After 7 Days \(0\)/ })).toBeInTheDocument();
+    // p2 out, p4 returned, p5 cleared. p1/p6/p8 never crossed the barrier, and a
+    // flag is not a movement — the material did not go anywhere.
+    expect(screen.getByRole('img', { name: 'Movements Today: 3' })).toBeInTheDocument();
+    const ring = screen.getByText("Today's Gate Activity").closest('section') as HTMLElement;
+    expect(within(ring).getByText('RGP Out')).toBeInTheDocument();
+    expect(within(ring).getByText('RGP Returned')).toBeInTheDocument();
+    expect(within(ring).getByText('NRGP Cleared')).toBeInTheDocument();
+    // A fixed taxonomy, so the empty bucket is still named rather than dropped.
+    expect(within(ring).getByText('RGP In')).toBeInTheDocument();
   });
 
-  it('lists the selected bucket and drills into the whole of it', async () => {
+  it('a slice opens exactly the passes it counted', async () => {
+    // The ring is a DRILL, which the timeline it replaced was not: its legend
+    // number and the list its click opens must be the same array.
     renderBoard();
     await loaded();
 
-    const watch = screen.getByRole('button', { name: /^Overdue \(1\)/ }).closest('section') as HTMLElement;
-    expect(within(watch).getByText('RGP-OUT-20260817-0001')).toBeInTheDocument();
-
-    fireEvent.click(within(watch).getByRole('button', { name: /^View all overdue/ }));
-    expect(within(drill()).getByText('Carol')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^RGP Returned: 1 pass/ }));
+    expect(within(drill()).getByText('Dan')).toBeInTheDocument();
     expect(within(drill()).getByText('1 pass')).toBeInTheDocument();
 
-    // Switching tab re-lists without touching the open drill's rows.
-    fireEvent.click(within(watch).getByRole('button', { name: /^Due Today \(1\)/ }));
-    fireEvent.click(within(watch).getByRole('button', { name: /^View all due today/ }));
-    expect(within(drill()).getByText('Bob')).toBeInTheDocument();
-  });
-});
-
-describe('the panels below', () => {
-  it('the status ring totals the material still out, and each segment drills', async () => {
-    renderBoard();
-    await loaded();
-
-    // Two passes are out: one overdue, one due today. The ring's centre is the
-    // whole, and its legend is the split.
-    expect(screen.getByRole('img', { name: 'Total Outside: 2' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /^Overdue: 1 pass/ }));
-    expect(within(drill()).getByText('Carol')).toBeInTheDocument();
-  });
-
-  it('today\'s gate activity logs the three movements, and never a raised pass', async () => {
-    renderBoard();
-    await loaded();
-
-    const log = screen.getByText("Today's Gate Activity").closest('section') as HTMLElement;
-    expect(within(log).getByText('RGP Returned')).toBeInTheDocument();
-    expect(within(log).getByText('RGP Out')).toBeInTheDocument();
-    expect(within(log).getByText('NRGP Cleared')).toBeInTheDocument();
-    // p1 and p6 are waiting at the gate — nothing moved, so nothing is logged.
-    expect(within(log).queryByText(/NRGP-OUT-20260817-0002/)).not.toBeInTheDocument();
-  });
-
-  it('ranks outstanding material by department, and drills into the department it names', async () => {
-    renderBoard();
-    await loaded();
-
-    const bars = screen.getByText('Department Wise Outstanding RGP').closest('section') as HTMLElement;
-    fireEvent.click(within(bars).getByRole('button', { name: /^Engineering: 1 pass/ }));
-    expect(within(drill()).getByText('Carol')).toBeInTheDocument();
-    expect(within(drill()).getByText('1 pass')).toBeInTheDocument();
-  });
-
-  it('the movement trend drills into the day it plotted', async () => {
-    renderBoard();
-    await loaded();
-
-    const days = screen.getAllByRole('button', { name: /movements?$/ });
-    const today = days[days.length - 1];
-    fireEvent.click(today);
-    // p2 out, p4 returned, p5 cleared — three movements, three passes.
-    expect(within(drill()).getByText('3 passes')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^NRGP Cleared: 1 pass/ }));
+    expect(within(drill()).getByText('Eve')).toBeInTheDocument();
   });
 });

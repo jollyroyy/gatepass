@@ -12,13 +12,18 @@
 // `bulk_create_passes` was — but per "never leave unused schema in place" it
 // wants a migration that drops it, and until then it stays EXECUTE-able over
 // PostgREST by every authenticated user.
-import { periodBounds } from './dashboardPeriod';
+import { dayStart, DAY_MS } from './localDay';
 
 /** Start of "today" and "tomorrow" in the browser's local timezone, computed
  *  once as real Date boundaries — never by comparing formatted date strings,
- *  which breaks across month/year rollovers and locale formats. Delegates to
- *  `periodBounds('today')` in dashboardPeriod.ts so there is exactly one
- *  implementation of "start of today", not two that could drift apart. */
+ *  which breaks across month/year rollovers and locale formats.
+ *
+ *  Delegates to `dayStart` in localDay.ts so there is exactly one implementation
+ *  of "start of today" in the app, not two that could drift apart. It used to
+ *  delegate to `periodBounds('today')`; that module went with the board's period
+ *  selector when the dashboards became today-only (2026-08-17), and `dayStart`
+ *  is what it was computing anyway. */
 export function todayBounds(): { start: number; end: number } {
-  return periodBounds('today');
+  const start = dayStart(Date.now());
+  return { start, end: start + DAY_MS };
 }

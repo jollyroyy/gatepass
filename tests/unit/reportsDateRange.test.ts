@@ -1,6 +1,6 @@
 // The Reports page used to bound "Today" with UTC midnights
 // (`T00:00:00Z..T23:59:59Z`), while every dashboard KPI bounds today with
-// LOCAL midnight (dashboardPeriod.ts). In a UTC+5:30 timezone that made a
+// LOCAL midnight (`todayBounds`). In a UTC+5:30 timezone that made a
 // "Today" report span 05:30 IST yesterday → 05:29 IST today — the report and
 // the dashboard disagreed for 5.5 hours a day. These tests pin the local-day
 // convention so the mismatch cannot silently return.

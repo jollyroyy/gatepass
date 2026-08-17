@@ -12,17 +12,9 @@
 // is no `count: 'exact'` query on this board and no predicate re-applied against
 // a second array. Do not "optimise" this into aggregate queries.
 import React from 'react';
-import {
-  BOARD_KPIS,
-  kpiLabel,
-  rowsFor,
-  previousRowsFor,
-  kpiDrill,
-  type BoardKpiKey,
-  type BoardWindows,
-} from '../../lib/boardKpis';
+import { BOARD_KPIS, type BoardKpiKey } from '../../lib/boardKpis';
+import { kpiLabel, rowsFor, kpiDrill, type BoardWindows } from '../../lib/boardWindows';
 import type { BoardDrill } from '../../lib/boardDrills';
-import type { DashboardPeriod } from '../../lib/dashboardPeriod';
 import BoardKpiTile from './BoardKpiTile';
 
 type Props = {
@@ -32,8 +24,6 @@ type Props = {
   hint?: string;
   keys: BoardKpiKey[];
   windows: BoardWindows;
-  period: DashboardPeriod;
-  comparisonLabel: string;
   loading: boolean;
   activeKey: string | null;
   onSelect: (drill: BoardDrill) => void;
@@ -42,15 +32,22 @@ type Props = {
 /** Tailwind cannot see a class built by interpolation, so the widths are a lookup
  *  rather than `xl:grid-cols-${n}`. Two across on a phone in every case: one
  *  column would push the summary row three screens long, and three would clip
- *  the number. */
+ *  the number.
+ *
+ *  Nothing goes wider than 5 across even when a section has 7 tiles: past that
+ *  a tile is narrower than the words on it, and this board's own rule is that
+ *  no label is ever truncated. Seven at four across is 4 + 3, which reads as one
+ *  block; seven at seven across is seven slivers. */
 const COLUMNS: Record<number, string> = {
   3: 'sm:grid-cols-3',
+  4: 'sm:grid-cols-2 xl:grid-cols-4',
   5: 'sm:grid-cols-3 xl:grid-cols-5',
   6: 'sm:grid-cols-3 xl:grid-cols-6',
+  7: 'sm:grid-cols-3 xl:grid-cols-4',
 };
 
 export default function BoardKpiSection({
-  title, hint, keys, windows, period, comparisonLabel, loading, activeKey, onSelect,
+  title, hint, keys, windows, loading, activeKey, onSelect,
 }: Props): React.ReactElement {
   return (
     <section aria-label={title} className="border border-surface-200 rounded-2xl p-4">
@@ -70,16 +67,13 @@ export default function BoardKpiSection({
         {keys.map((key) => {
           const kpi = BOARD_KPIS[key];
           const rows = rowsFor(kpi, windows);
-          const previous = previousRowsFor(kpi, windows);
           const drill = kpiDrill(key, rows);
           return (
             <BoardKpiTile
               key={key}
               kpi={kpi}
-              label={kpiLabel(kpi, period)}
+              label={kpiLabel(kpi)}
               value={rows.length}
-              previous={previous === null ? null : previous.length}
-              comparisonLabel={comparisonLabel}
               loading={loading}
               active={activeKey === drill.key}
               onClick={() => onSelect(drill)}

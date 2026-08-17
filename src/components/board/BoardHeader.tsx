@@ -1,13 +1,16 @@
-// The board's top bar: what this board is, what day it is, the period it is
-// showing, and a way to re-read the database.
+// The board's top bar: what this board is, what day it is, and a way to re-read
+// the database.
+//
+// THERE IS NO PERIOD SELECTOR. The board is today-only (client, 2026-08-17), and
+// the control was removed rather than defaulted — a filter offering one option is
+// a label, and one still offering five would promise a scope the page below no
+// longer has.
 //
 // THE DATE IS PRINTED IN FULL ("Monday, 17 Aug 2026"), as the client's reference
-// board does, and it is not decoration: every figure below is scoped to a window
-// that ends today, so a board left open overnight on a wall screen would otherwise
-// present yesterday's numbers with nothing on the page to say so.
+// board does, and with the selector gone it is now the ONLY thing on the page
+// that says which day the figures belong to: a board left open overnight on a
+// wall screen would otherwise present yesterday's numbers under today's heading.
 import React from 'react';
-import DashboardPeriodFilter from '../DashboardPeriodFilter';
-import type { DashboardPeriod } from '../../lib/dashboardPeriod';
 
 const TODAY_FORMAT = new Intl.DateTimeFormat('en-IN', {
   weekday: 'long',
@@ -19,14 +22,12 @@ const TODAY_FORMAT = new Intl.DateTimeFormat('en-IN', {
 type Props = {
   title: string;
   subtitle: string;
-  period: DashboardPeriod;
-  onPeriodChange: (period: DashboardPeriod) => void;
   onRefresh?: () => void;
   refreshing?: boolean;
 };
 
 export default function BoardHeader({
-  title, subtitle, period, onPeriodChange, onRefresh, refreshing,
+  title, subtitle, onRefresh, refreshing,
 }: Props): React.ReactElement {
   return (
     <div className="page-header flex flex-wrap items-end justify-between gap-4">
@@ -39,7 +40,6 @@ export default function BoardHeader({
         <span className="text-caption text-navy-600 border border-surface-200 rounded-xl px-3 py-2 whitespace-nowrap">
           {TODAY_FORMAT.format(new Date())}
         </span>
-        <DashboardPeriodFilter value={period} onChange={onPeriodChange} />
         {onRefresh && (
           <button
             type="button"

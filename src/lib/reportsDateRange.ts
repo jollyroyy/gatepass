@@ -27,7 +27,7 @@ export function localDateString(d: Date): string {
 }
 
 /** Local-midnight bounds `[start, end)` for an inclusive `from`..`to` day range.
- *  The dashboards (dashboardPeriod.ts) define "today" as local midnight to
+ *  The dashboards (`todayBounds` in hodKpis.ts) define "today" as local midnight to
  *  local midnight; reports must use the SAME day or a "Today" report and the
  *  "Today" KPI disagree for five and a half hours a day (report UTC bounds
  *  00:00Z..23:59Z span 05:30 IST today → 05:29 IST tomorrow). */

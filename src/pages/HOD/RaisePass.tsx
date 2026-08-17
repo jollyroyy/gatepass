@@ -1,12 +1,26 @@
 // Pass-creation form. Type is chosen first (biggest control on the page) via
 // PassTypeSelector; everything else follows in reading order.
+//
+// IT IS ALSO THE "RAISE IT AGAIN" SCREEN. A mismatch review sends the HOD here
+// with `state.copyFrom`, and `useReraisePass` fills the form from the flagged
+// pass so they correct it rather than retype it. The superseded pass is voided
+// AFTER the replacement is in the database — see that module's header for why
+// the order matters.
 import React, { useEffect, useState } from 'react';
 import { gp, pub, supabase } from '../../supabaseClient';
 import type { GatePassView, NewGatePass, NewGatePassItem, PassType, VendorProfile } from '../../types';
 import { EMPTY_ITEM } from '../../types';
 import { requiresReturnDate } from '../../lib/passTypes';
+import {
+  validateRaiseForm,
+  earliestReturnDate,
+  packVendor,
+  todayStr,
+  type FormErrors,
+} from '../../lib/raisePassForm';
 import { fetchMyProfile } from '../../lib/profiles';
 import { safeErrorMessage } from '../../lib/errors';
+import { useReraisePass, voidSupersededPass } from './useReraisePass';
 import PassIdentityPanel from './PassIdentityPanel';
 import PassSubmittedModal from './PassSubmittedModal';
 import PassDetailsCards from './PassDetailsCards';
@@ -16,12 +30,6 @@ interface DeptOption {
   id: string;
   name: string;
   code: string;
-}
-
-type FormErrors = Record<string, string | undefined>;
-
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 export default function RaisePass(): React.ReactElement {
@@ -47,7 +55,17 @@ export default function RaisePass(): React.ReactElement {
   const [submittedPass, setSubmittedPass] = useState<GatePassView | null>(null);
   const [vendors, setVendors] = useState<VendorProfile[]>([]);
   const [saveVendor, setSaveVendor] = useState(false);
+  const [supersedeWarning, setSupersedeWarning] = useState<string | null>(null);
   const deptName = depts.length > 0 ? `${depts[0].name} (${depts[0].code})` : '';
+  const { sourceId, source, prefill } = useReraisePass(todayStr());
+
+  // Merged, never assigned wholesale: the department effect above may already
+  // have chosen a department by the time the pre-fill arrives, and replacing the
+  // whole form would drop it.
+  useEffect(() => {
+    if (!prefill) return;
+    setForm((f) => ({ ...f, ...prefill }));
+  }, [prefill]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
@@ -140,75 +158,9 @@ export default function RaisePass(): React.ReactElement {
     });
   }
 
-  function validate(): FormErrors {
-    const errs: FormErrors = {};
-    if (!form.visitor_name.trim()) errs.visitor_name = "Authorized person's name is required.";
-
-    if (form.items.length === 0) {
-      errs.items = 'At least one material item is required.';
-    } else {
-      form.items.forEach((item, idx) => {
-        if (!item.name.trim()) {
-          errs[`item_${idx}_name`] = 'Item name is required.';
-        }
-        if (!item.description.trim()) {
-          errs[`item_${idx}_description`] = 'Description is required.';
-        }
-        if (!item.purpose.trim()) {
-          errs[`item_${idx}_purpose`] = 'Purpose is required.';
-        }
-        const qty = Number(item.quantity);
-        if (!item.quantity || Number.isNaN(qty) || qty <= 0) {
-          errs[`item_${idx}_quantity`] = 'Enter a quantity greater than 0.';
-        }
-      });
-    }
-
-    if (depts.length === 0) errs.department_id = 'You are not assigned to any department.';
-
-    // The pass-level return date was replaced by per-item dates in migration 019.
-    // Every RGP line must carry one, because the pass-level column that drives
-    // is_overdue is derived from them (earliestReturnDate below).
-    if (requiresReturnDate(form.type)) {
-      form.items.forEach((item, idx) => {
-        if (!item.expected_return_date) {
-          errs[`item_${idx}_expected_return_date`] =
-            'Return date is required for a Returnable Gate Pass.';
-        } else if (item.expected_return_date < todayStr()) {
-          errs[`item_${idx}_expected_return_date`] = 'Return date cannot be in the past.';
-        }
-      });
-    }
-    return errs;
-  }
-
-  /** The pass is due when its FIRST line is due. `gatepass.v_gate_passes`
-   *  computes is_overdue and due_state off the pass-level column, so it must be
-   *  populated even though the authoritative dates now live per item. */
-  function earliestReturnDate(): string | null {
-    if (!requiresReturnDate(form.type)) return null;
-    const dates = form.items.map((i) => i.expected_return_date).filter(Boolean);
-    return dates.length > 0 ? dates.slice().sort()[0] : null;
-  }
-
-  /** The `{"n","a","v"}` blob for `visitor_company`, or null when the HOD filled
-   *  in none of the three optional vendor fields. Writing `{"n":"","a":"","v":""}`
-   *  put a JSON blob in the column for a pass that has no vendor at all — the
-   *  old `JSON.stringify({...}) || null` could never be null, since stringify
-   *  always returns a non-empty string. `gatepass.company_name_of()` and
-   *  `parseCompanyInfo()` both cope with the blob now, but a null column is the
-   *  honest record of "no vendor given". */
-  function packVendor(): string | null {
-    const n = form.visitor_company.trim();
-    const a = form.company_address.trim();
-    const v = form.visitor_phone.trim();
-    if (!n && !a && !v) return null;
-    return JSON.stringify({ n, a, v });
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const errs = validate();
+    const errs = validateRaiseForm(form, depts.length > 0, todayStr());
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
@@ -222,9 +174,9 @@ export default function RaisePass(): React.ReactElement {
         p_direction: 'out',
         p_department_id: departmentId,
         p_visitor_name: form.visitor_name.trim(),
-        p_visitor_company: packVendor(),
+        p_visitor_company: packVendor(form),
         p_vehicle_number: form.vehicle_number.trim() || null,
-        p_expected_return_date: earliestReturnDate(),
+        p_expected_return_date: earliestReturnDate(form),
         p_items: form.items.map((item) => ({
           name: item.name.trim(),
           description: item.description.trim(),
@@ -236,7 +188,20 @@ export default function RaisePass(): React.ReactElement {
         })),
       });
       if (error) throw error;
-      setSubmittedPass(data as unknown as GatePassView);
+      const created = data as unknown as GatePassView;
+      setSubmittedPass(created);
+      // The replacement exists now, so the pass it replaces can be closed. A
+      // failure here is reported as a WARNING and never as a submit error: the
+      // new pass is raised either way, and telling the HOD "that failed" would
+      // invite them to raise a third.
+      if (sourceId) {
+        const voidErr = await voidSupersededPass(sourceId, created.pass_number);
+        setSupersedeWarning(
+          voidErr
+            ? `The new pass was raised, but ${source?.pass_number ?? 'the mismatched pass'} could not be closed: ${voidErr}. Reject it from your dashboard.`
+            : null,
+        );
+      }
       if (saveVendor && form.visitor_company.trim()) {
         gp().rpc('save_vendor_profile', {
           p_company_name: form.visitor_company.trim(),
@@ -256,9 +221,24 @@ export default function RaisePass(): React.ReactElement {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Raise Gate Pass</h1>
+        <h1 className="page-title">{sourceId ? 'Raise Gate Pass Again' : 'Raise Gate Pass'}</h1>
         <p className="page-subtitle">Create a new material gate pass for security to verify.</p>
       </div>
+
+      {/* The mismatch reason is repeated here on purpose. The HOD read it one
+          screen ago, but this form is where they act on it, and a correction made
+          from memory is how the same pass gets flagged twice. */}
+      {sourceId && (
+        <div className="bg-flagged-500/10 border-l-4 border-flagged-500 rounded-r-lg px-4 py-3 mb-6">
+          <p className="text-sm font-semibold text-flagged-700">
+            Correcting {source?.pass_number ?? 'a mismatched gate pass'}
+            {source?.flag_reason ? ` — ${source.flag_reason}` : ''}
+          </p>
+          <p className="text-caption text-navy-600 mt-1">
+            Check every line before submitting. The mismatched pass is voided once this one is raised.
+          </p>
+        </div>
+      )}
 
       <PassIdentityPanel passNumberPrefix={passNumberPrefix} hodName={hodName} />
 
@@ -296,6 +276,8 @@ export default function RaisePass(): React.ReactElement {
           </button>
         </div>
       </form>
+
+      {supersedeWarning && <div className="alert-warning mt-4">{supersedeWarning}</div>}
 
       {submittedPass && (
         <PassSubmittedModal

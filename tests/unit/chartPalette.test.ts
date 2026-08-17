@@ -9,13 +9,12 @@
 // from) reappears in any colour a chart actually draws with.
 import { describe, it, expect } from 'vitest';
 import {
-  RETURN_WATCH_COLORS,
-  MOVEMENT_COLORS,
-  RANK_COLORS,
+  ACTIVITY_COLORS,
   SERIES_COLORS,
+  STATUS_COLORS,
   NEUTRAL_SERIES,
-  rankColor,
 } from '../../src/components/charts/chartPalette';
+import { ACTIVITY_LABEL } from '../../src/lib/gateActivity';
 
 /** Brass gold and the two source golds. Lowercase — every comparison below
  *  normalises, so a `#c6a15b` written in the other casing cannot slip past. */
@@ -30,29 +29,25 @@ function assertNoGold(where: string, colors: string[]): void {
 describe('no chart draws in the theme gold', () => {
   it.each([
     ['SERIES_COLORS', Object.values(SERIES_COLORS)],
-    ['RETURN_WATCH_COLORS', Object.values(RETURN_WATCH_COLORS)],
-    ['MOVEMENT_COLORS', Object.values(MOVEMENT_COLORS)],
-    ['RANK_COLORS', RANK_COLORS],
+    ['STATUS_COLORS', Object.values(STATUS_COLORS)],
+    ['ACTIVITY_COLORS', Object.values(ACTIVITY_COLORS)],
     ['NEUTRAL_SERIES', [NEUTRAL_SERIES]],
   ])('%s', (name, colors) => assertNoGold(name, colors as string[]));
 
-  it('gives the four return-watch buckets four distinct, non-gold hues', () => {
-    // The ring and the tabs are the only place a reader learns which colour means
-    // "overdue" — two buckets sharing a hue makes the legend a guess.
-    const vals = Object.values(RETURN_WATCH_COLORS);
+  it('gives the four activity kinds four distinct, non-gold hues', () => {
+    // The ring's legend is the only place a reader learns which colour means
+    // "returned" — two kinds sharing a hue makes the legend a guess.
+    const vals = Object.values(ACTIVITY_COLORS);
     expect(new Set(vals).size).toBe(vals.length);
-    assertNoGold('RETURN_WATCH_COLORS', vals);
+    assertNoGold('ACTIVITY_COLORS', vals);
   });
 
-  it('gives the three movement series three distinct, non-gold hues', () => {
-    const vals = Object.values(MOVEMENT_COLORS);
-    expect(new Set(vals).size).toBe(vals.length);
-    assertNoGold('MOVEMENT_COLORS', vals);
-  });
-
-  it('never repeats a hue on adjacent ranks', () => {
-    for (let i = 1; i < RANK_COLORS.length; i += 1) {
-      expect(rankColor(i)).not.toBe(rankColor(i - 1));
+  it('colours every activity kind the ring can draw', () => {
+    // `ACTIVITY_LABEL` is a `Record<GateActivityKind, string>`, so this walks
+    // the real enum: a fifth kind of movement added without a colour would fall
+    // back to the neutral stone and be indistinguishable from an unranked slice.
+    for (const kind of Object.keys(ACTIVITY_LABEL)) {
+      expect(ACTIVITY_COLORS[kind], `no colour for the "${kind}" movement`).toBeDefined();
     }
   });
 });

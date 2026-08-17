@@ -15,13 +15,9 @@ import {
   RGP_SECTION,
   NRGP_SECTION,
   SUMMARY_SECTION,
-  kpiLabel,
-  rowsFor,
-  previousRowsFor,
-  kpiDrill,
   type BoardKpiKey,
-  type BoardWindows,
 } from '../../src/lib/boardKpis';
+import { kpiLabel, rowsFor, kpiDrill, type BoardWindows } from '../../src/lib/boardWindows';
 
 function pass(over: Partial<GatePassView>): GatePassView {
   return {
@@ -35,19 +31,36 @@ function pass(over: Partial<GatePassView>): GatePassView {
 }
 
 describe('the board KPI sections', () => {
-  it('RGP Overview carries the six reference figures, in the reference order', () => {
+  it('RGP Overview carries the seven reference figures, in the reference order', () => {
     expect(RGP_SECTION).toEqual([
-      'rgpRequests', 'rgpOut', 'rgpReturned', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
+      'rgpRequests', 'rgpOut', 'rgpReturned', 'rgpMismatch', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
     ]);
   });
 
-  it('NRGP Overview carries three figures and NONE of them is a return figure', () => {
+  it('BOTH categories carry a mismatch card of their own', () => {
+    // The client asked for a separate mismatch-at-gate card for RGP and for
+    // NRGP (2026-08-17). One shared card would not tell an admin which kind of
+    // material is stopped, and the two have completely different consequences:
+    // a stopped RGP still owes a return, a stopped NRGP does not.
+    expect(RGP_SECTION).toContain('rgpMismatch');
+    expect(NRGP_SECTION).toContain('nrgpMismatch');
+    expect(BOARD_KPIS.rgpMismatch.match({ ...pass({ type: 'RGP', status: 'flagged' }) })).toBe(true);
+    expect(BOARD_KPIS.rgpMismatch.match({ ...pass({ type: 'NRGP', status: 'flagged' }) })).toBe(false);
+    expect(BOARD_KPIS.nrgpMismatch.match({ ...pass({ type: 'NRGP', status: 'flagged' }) })).toBe(true);
+    expect(BOARD_KPIS.nrgpMismatch.match({ ...pass({ type: 'RGP', status: 'flagged' }) })).toBe(false);
+    // A mismatch is an open decision, not an event of the day it happened: a
+    // day-scoped card would read 0 while material sat stopped at the barrier.
+    expect(BOARD_KPIS.rgpMismatch.scope).toBe('current');
+    expect(BOARD_KPIS.nrgpMismatch.scope).toBe('current');
+  });
+
+  it('NRGP Overview carries four figures and NONE of them is a return figure', () => {
     // `gate_passes_return_status_rgp_only` (001) pins an NRGP to
     // `not_applicable`, so a "currently outside" / "overdue" NRGP cannot exist
     // in this database. A permanent zero under a heading that cannot move is a
     // wrong reading, not reassurance — the reference's third NRGP card
     // ("Currently Outside") is therefore the one substitution on this board.
-    expect(NRGP_SECTION).toHaveLength(3);
+    expect(NRGP_SECTION).toHaveLength(4);
     for (const key of NRGP_SECTION) {
       expect(BOARD_KPIS[key].scope).not.toBe('returned');
       expect(BOARD_KPIS[key].key).not.toMatch(/outside|overdue|returned/i);
@@ -90,19 +103,20 @@ describe('a card\'s scope matches the words on it', () => {
     expect(BOARD_KPIS.rgpReturned.scope).toBe('returned');
 
     for (const key of ['rgpRequests', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
+      'rgpMismatch', 'nrgpMismatch',
       'pendingApprovals', 'overdueReturns', 'materialOutside', 'nrgpPending'] as BoardKpiKey[]) {
       expect(BOARD_KPIS[key].scope).toBe('current');
     }
   });
 
-  it('the period word is appended only to a period-scoped label', () => {
-    expect(kpiLabel(BOARD_KPIS.rgpOut, 'today')).toBe('RGP Out Today');
-    expect(kpiLabel(BOARD_KPIS.rgpReturned, 'today')).toBe('RGP Returned Today');
-    expect(kpiLabel(BOARD_KPIS.rgpOut, 'weekly')).toBe('RGP Out This Week');
+  it('"Today" is appended only to a day-scoped label', () => {
+    expect(kpiLabel(BOARD_KPIS.rgpOut)).toBe('RGP Out Today');
+    expect(kpiLabel(BOARD_KPIS.rgpReturned)).toBe('RGP Returned Today');
     // A current-state card names its own scope already, and "RGP Currently
     // Outside Today" would claim a window it does not have.
-    expect(kpiLabel(BOARD_KPIS.rgpOutside, 'weekly')).toBe('RGP Currently Outside');
-    expect(kpiLabel(BOARD_KPIS.rgpOverdue, 'monthly')).toBe('RGP Overdue');
+    expect(kpiLabel(BOARD_KPIS.rgpOutside)).toBe('RGP Currently Outside');
+    expect(kpiLabel(BOARD_KPIS.rgpOverdue)).toBe('RGP Overdue');
+    expect(kpiLabel(BOARD_KPIS.rgpMismatch)).toBe('RGP Mismatched at Gate');
   });
 });
 
@@ -120,9 +134,7 @@ describe('which array a card counts', () => {
 
   const windows: BoardWindows = {
     raised: [raisedToday],
-    raisedPrev: [],
     returned: [returnedToday],
-    returnedPrev: [],
     all: [raisedToday, oldButStillOut, returnedToday],
   };
 
@@ -138,17 +150,17 @@ describe('which array a card counts', () => {
     expect(rowsFor(BOARD_KPIS.rgpReturned, windows).map((p) => p.id)).toEqual(['c']);
   });
 
-  it('a current-state card has NO previous window to compare against', () => {
-    // "vs yesterday" on a running total is a comparison of two snapshots the
-    // board never took. The reference shows a dash there; so do we.
-    expect(previousRowsFor(BOARD_KPIS.rgpOverdue, windows)).toBeNull();
-    expect(previousRowsFor(BOARD_KPIS.totalRaised, windows)).toEqual([]);
+  it('carries no previous window at all — the delta line is gone', () => {
+    // Client, 2026-08-17: "remove the 8 vs yesterday, 9 vs yesterday from all
+    // the KPI cards". Removed rather than hidden: `BoardWindows` has no
+    // previous array, so nothing on this board can compute a delta to show.
+    expect(Object.keys(windows).sort()).toEqual(['all', 'raised', 'returned']);
   });
 
   it('an NRGP card never counts an RGP, and vice versa', () => {
     const rgp = pass({ id: 'r', type: 'RGP', direction: 'out', status: 'matched' });
     const nrgp = pass({ id: 'n', type: 'NRGP', direction: 'out', status: 'matched' });
-    const w: BoardWindows = { raised: [rgp, nrgp], raisedPrev: [], returned: [], returnedPrev: [], all: [rgp, nrgp] };
+    const w: BoardWindows = { raised: [rgp, nrgp], returned: [], all: [rgp, nrgp] };
     expect(rowsFor(BOARD_KPIS.nrgpCleared, w).map((p) => p.id)).toEqual(['n']);
     expect(rowsFor(BOARD_KPIS.rgpOut, w).map((p) => p.id)).toEqual(['r']);
   });
