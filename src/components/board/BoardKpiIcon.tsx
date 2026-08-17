@@ -21,6 +21,29 @@ const GLYPHS: Record<BoardKpiKey, React.ReactElement> = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 13.5h4l1.5 2h4l1.5-2h4" />
     </svg>
   ),
+  // Box + arrow leaving, with the return curve above it — returnable, outbound.
+  rgpOut: (
+    <svg {...SVG}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5v8.25a.75.75 0 00.75.75h9a.75.75 0 00.75-.75V10.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 7.5h4.5m0 0l-2.25-2.25M21.75 7.5l-2.25 2.25" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5h10.5" />
+    </svg>
+  ),
+  // The same box, arrow pointing in.
+  rgpIn: (
+    <svg {...SVG}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 10.5v8.25a.75.75 0 00.75.75h9a.75.75 0 00.75-.75V10.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5h-4.5m0 0L4.5 5.25M2.25 7.5L4.5 9.75" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 10.5h10.5" />
+    </svg>
+  ),
+  // Arrow out through an open door — leaving, nothing to come back for.
+  nrgpOut: (
+    <svg {...SVG}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 4.5H6a.75.75 0 00-.75.75v13.5a.75.75 0 00.75.75h8.25" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 12h9m0 0l-3-3m3 3l-3 3" />
+    </svg>
+  ),
   // Tick in a circle — verified at the barrier.
   cleared: (
     <svg {...SVG}>

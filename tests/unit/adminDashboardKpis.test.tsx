@@ -123,9 +123,20 @@ function renderAdmin() {
   );
 }
 
-/** The KPI card button whose accessible name starts with this label. */
+/** The KPI card button whose accessible name starts with this label. Scoped to
+ *  the headline row: the status donut labels its slices with the same words. */
 function kpi(label: string): HTMLElement {
-  return screen.getByRole('button', { name: new RegExp(`^${label}`) });
+  return within(screen.getByRole('group', { name: 'Headline figures' })).getByRole('button', {
+    name: new RegExp(`^${label}`),
+  });
+}
+
+/** The headline row is chosen by the category toggle, so a test that wants the
+ *  return cards has to say which category it is talking about. */
+function pickCategory(label: string) {
+  fireEvent.click(
+    within(screen.getByRole('group', { name: 'Pass category' })).getByRole('button', { name: label }),
+  );
 }
 
 /** The panel a drill click opens. Scoped lookups matter here: the ranked bar
@@ -153,30 +164,40 @@ describe('AdminDashboard — period scope', () => {
   it('excludes the five-day-old pass from every scoped KPI, and includes it under Yearly', async () => {
     renderAdmin();
     await loaded();
-    expect(kpi('Materials Outside')).toHaveTextContent('2');
+    // Pending Return and Overdue Returns live on a returnable board — the
+    // unnarrowed row carries the category counters instead.
+    pickCategory('RGP Out');
+    await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('5'));
+    expect(kpi('Pending Return')).toHaveTextContent('2');
     expect(kpi('Overdue Returns')).toHaveTextContent('1');
 
     fireEvent.click(screen.getByRole('button', { name: 'Yearly' }));
-    await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('7'));
-    expect(kpi('Materials Outside')).toHaveTextContent('3');
+    await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('6'));
+    expect(kpi('Pending Return')).toHaveTextContent('3');
     expect(kpi('Overdue Returns')).toHaveTextContent('2');
   });
 });
 
-describe('AdminDashboard — the five headline KPIs', () => {
+describe('AdminDashboard — the headline KPIs', () => {
   it('matches the seeded Today fixture exactly', async () => {
     renderAdmin();
     await loaded();
-    expect(kpi('Cleared at Gate')).toHaveTextContent('4');
+    expect(kpi('RGP Out Raised')).toHaveTextContent('5');
+    expect(kpi('RGP In Raised')).toHaveTextContent('0');
+    expect(kpi('NRGP Out Raised')).toHaveTextContent('1');
     expect(kpi('Pending Approvals')).toHaveTextContent('1');
-    expect(kpi('Materials Outside')).toHaveTextContent('2');
     expect(kpi('Overdue Returns')).toHaveTextContent('1');
+
+    pickCategory('RGP Out');
+    await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('5'));
+    expect(kpi('Cleared at Gate')).toHaveTextContent('3');
+    expect(kpi('Pending Return')).toHaveTextContent('2');
   });
 
   it('renders each as an unpressed toggle until it is clicked', async () => {
     renderAdmin();
     await loaded();
-    for (const label of ['Passes Raised', 'Cleared at Gate', 'Pending Approvals', 'Materials Outside', 'Overdue Returns']) {
+    for (const label of ['Passes Raised', 'RGP Out Raised', 'RGP In Raised', 'NRGP Out Raised', 'Pending Approvals', 'Overdue Returns']) {
       expect(kpi(label)).toHaveAttribute('aria-pressed', 'false');
     }
   });
@@ -184,9 +205,11 @@ describe('AdminDashboard — the five headline KPIs', () => {
   it('opens exactly the rows it counted, and only those', async () => {
     renderAdmin();
     await loaded();
-    fireEvent.click(kpi('Materials Outside'));
+    pickCategory('RGP Out');
+    await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('5'));
+    fireEvent.click(kpi('Pending Return'));
 
-    expect(within(drill()).getByText('Still out')).toBeInTheDocument();
+    expect(within(drill()).getByText('Still out — not yet returned')).toBeInTheDocument();
     expect(within(drill()).getByText('2 passes')).toBeInTheDocument();
     expect(within(drill()).getByText('Bob')).toBeInTheDocument();
     expect(within(drill()).getByText('Carol')).toBeInTheDocument();

@@ -140,22 +140,19 @@ describe('Reports — department and pass-type filters', () => {
     expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
   });
 
-  it('keeps the filter applied when switching report portals', async () => {
+  // The three report portals (All Passes / Return Schedule / Department
+  // Summary) were removed 2026-08-17 on the client's call. A tab bar is not
+  // "empty" here — it is gone, and this fails if one creeps back.
+  it('offers no report-portal tabs — Reports is one register', async () => {
     renderReports();
     await waitFor(() => expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument());
 
-    fireEvent.change(screen.getByLabelText('Department'), { target: { value: 'd2' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Department Summary' }));
-
-    // Scoped to table cells: "Engineering" legitimately survives as an <option>
-    // in the department select, which must keep listing every department.
-    await waitFor(() =>
-      expect(screen.queryByRole('cell', { name: 'Engineering' })).not.toBeInTheDocument(),
-    );
-    expect(screen.getByRole('cell', { name: 'Housekeeping' })).toBeInTheDocument();
+    for (const gone of ['All Passes', 'Return Schedule', 'Department Summary']) {
+      expect(screen.queryByRole('button', { name: gone })).not.toBeInTheDocument();
+    }
   });
 
-  it('no longer renders the old type/department dropdowns inside the All Passes register', async () => {
+  it('no longer renders the old type/department dropdowns inside the register', async () => {
     renderReports();
     await waitFor(() => expect(screen.getByLabelText('Department')).toBeInTheDocument());
     // The lifted bar owns these; the register keeps only search + Export CSV.

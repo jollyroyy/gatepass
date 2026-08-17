@@ -172,7 +172,17 @@ function renderBoard() {
 
 /** The KPI card button whose accessible name starts with this label. */
 function kpi(label: string): HTMLElement {
-  return screen.getByRole('button', { name: new RegExp(`^${label}`) });
+  return within(screen.getByRole('group', { name: 'Headline figures' })).getByRole('button', {
+    name: new RegExp(`^${label}`),
+  });
+}
+
+/** The headline row is chosen by the category toggle, so a test that wants the
+ *  return cards has to say which category it is talking about. */
+function pickCategory(label: string) {
+  fireEvent.click(
+    within(screen.getByRole('group', { name: 'Pass category' })).getByRole('button', { name: label }),
+  );
 }
 
 /** The panel a drill click opens. Scoped lookups matter: the ranked bar lists
@@ -223,24 +233,31 @@ describe('HOD board — scoped to this HOD, not the whole department', () => {
   });
 });
 
-describe('HOD board — the five headline KPIs', () => {
+describe('HOD board — the headline KPIs', () => {
   it('matches the seeded Today fixture exactly', async () => {
     renderBoard();
     await loaded();
-    expect(kpi('Cleared at Gate')).toHaveTextContent('4');
+    expect(kpi('RGP Out Raised')).toHaveTextContent('5');
+    expect(kpi('NRGP Out Raised')).toHaveTextContent('1');
     expect(kpi('Pending Approvals')).toHaveTextContent('1');
-    expect(kpi('Materials Outside')).toHaveTextContent('2');
     expect(kpi('Overdue Returns')).toHaveTextContent('1');
+
+    pickCategory('RGP Out');
+    await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('5'));
+    expect(kpi('Cleared at Gate')).toHaveTextContent('3');
+    expect(kpi('Pending Return')).toHaveTextContent('2');
   });
 
   it('opens exactly the rows it counted, and toggles shut on a second click', async () => {
     renderBoard();
     await loaded();
-    const outside = kpi('Materials Outside');
+    pickCategory('RGP Out');
+    await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('5'));
+    const outside = kpi('Pending Return');
 
     fireEvent.click(outside);
     expect(outside).toHaveAttribute('aria-pressed', 'true');
-    expect(within(drill()).getByText('Still out')).toBeInTheDocument();
+    expect(within(drill()).getByText('Still out — not yet returned')).toBeInTheDocument();
     expect(within(drill()).getByText('2 passes')).toBeInTheDocument();
     expect(within(drill()).getByText('Bob')).toBeInTheDocument();
     expect(within(drill()).getByText('Carol')).toBeInTheDocument();
@@ -256,9 +273,10 @@ describe('HOD board — the five headline KPIs', () => {
   it('re-scopes every KPI when the period changes', async () => {
     renderBoard();
     await loaded();
+    pickCategory('RGP Out');
     fireEvent.click(screen.getByRole('button', { name: 'Yearly' }));
-    await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('7'));
-    expect(kpi('Materials Outside')).toHaveTextContent('3');
+    await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('6'));
+    expect(kpi('Pending Return')).toHaveTextContent('3');
     expect(kpi('Overdue Returns')).toHaveTextContent('2');
   });
 });

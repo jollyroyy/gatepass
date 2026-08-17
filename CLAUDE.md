@@ -2,6 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Response style — STRICT, no deviation
+
+**When work is finished, reply with the goal only.** One or two lines saying what the change
+achieves. No summary of steps taken, no file-by-file account, no list of what was edited, no
+narration of reasoning, no test-run transcript. The detail belongs in this file's **Current
+state** section, not in the reply.
+
+This applies to every subsequent response in every session (user's standing instruction,
+2026-08-17). Still say it plainly if something failed, was skipped, or is unverified — a
+faithful outcome is not "detail". Answers to direct questions are not affected; this governs
+the report at the end of a piece of work.
+
 # GatePass — Material Gate Pass System
 
 React 18 + TypeScript + Vite + Tailwind, on Supabase (auth, Postgres, realtime, RLS).
@@ -35,6 +47,83 @@ re-concatenated is a fix that never reaches the database.
 `tests/security/applyAllIntegrity.test.ts` is the backstop that catches the drift.
 
 ## Current state — 2026-08-17 (latest)
+
+**Three client changes, all frontend-only — no migration, no new dependency.**
+Full gate: **938 tests across 87 files** (`npm run check`, 2026-08-17). `npm run build`
+clean. **Not yet seen signed-in in a real browser** — the login card renders, but the
+board itself is verified by the suite and a production build only.
+
+### The headline KPI row is CHOSEN BY THE CATEGORY TOGGLE now
+
+Client: *"make sure you dynamically change those KPI buttons depending on what we have
+selected… for NRGP you have mentioned return information but NRGP does not have any return
+information… remove all the unnecessary KPIs which are not relevant to that particular
+selected item… when we are selecting All it should mention how many total NRGP has been
+raised, and RGP In and Out."*
+
+`BOARD_KPI_ORDER` (a constant) became **`boardKpiOrder(category)`** in
+`src/lib/boardDrills.ts`, a `Record<BoardCategory, BoardKpiKey[]>` lookup — a category
+added to `PASS_CATEGORY_LIST` without a row is a type error, not a board that silently
+keeps showing the last selection's cards. Three new KPI keys exist: **`rgpOut` / `rgpIn` /
+`nrgpOut`**, each matching through `categoryKey(type, direction)` — the same lookup
+`filterByCategory` uses, so a counter and the board it sits on cannot disagree about what
+an inbound pass is.
+
+| Category | Cards |
+|---|---|
+| All | Passes Raised · RGP Out Raised · RGP In Raised · NRGP Out Raised · Pending Approvals · Overdue Returns |
+| RGP Out / RGP In | Passes Raised · Pending Approvals · Cleared at Gate · Pending Return · Overdue Returns |
+| NRGP Out | Passes Raised · Pending Approvals · Cleared at Gate |
+
+Two rules decide every row, and both are pinned by `tests/unit/boardKpiSets.test.ts` (11):
+
+1. **No return card on an NRGP board.** `gate_passes_return_status_rgp_only` (001) pins an
+   NRGP to `not_applicable`, so Pending Return and Overdue Returns can only ever read zero
+   there. A permanent "0 Overdue" on a category that CANNOT go overdue is not reassurance,
+   it is a wrong reading — the cards are removed, not zeroed.
+2. **No category counter on a narrowed board.** "RGP Out Raised" on an RGP Out board is
+   "Passes Raised" under a second name; two cards that can never disagree are one card and
+   a decoration.
+
+**`categoryHasReturns(category)` extends the same rule below the cards**: on NRGP Out the
+**Overdue Returns panel and the Returnable Status donut are not rendered at all** (the
+pending queue takes the full 12 columns; `AdminBreakdownCards` drops to 2 across,
+`HodBreakdownCards` to 1) via a new `showReturnable` prop on both breakdown rows. A test
+asserts `boardKpiOrder` and `categoryHasReturns` agree, so the cards and the panels can
+never disagree about whether a category has a return leg.
+
+`BoardKpiRow` gained a **`category`** prop and picks its grid width from a lookup
+(`XL_COLUMNS`) — Tailwind cannot see `xl:grid-cols-${n}`. Six cards go 3-across on two
+rows, never 6-across, which is where a card this dense clips its own label.
+
+### "Materials Outside" was invisible, in both senses — it is "Pending Return" now
+
+Client: *"material outside is not visible, so it should not be Material Outside — it should
+be pending RGP or something like that."* Both halves were real. The words did not say what
+the number counted, and the card's tone was **`brand`** — the brass gold that is this
+system's primary *fill* (sidebar active link, primary button, wordmark) and reads at about
+2:1 as ink on a card, the same defect the notification panel had. It is now
+`tone: 'accent'` with the note "Out and not yet returned", and the drill heading reads
+"Still out — not yet returned". A test fails if any headline KPI takes the `brand` tone
+again, or if the string `Materials Outside` returns.
+
+### Reports is ONE register — the three portals are gone
+
+Client's call, confirmed: keep Reports, drop **Return Schedule** and **Department
+Summary**. `src/pages/Admin/ReturnScheduleReport.tsx`, `DepartmentSummaryReport.tsx` and
+`DeptBreakdownTable.tsx` (whose only consumer was the Department Summary) are **deleted**,
+along with the tab bar — a switcher with one option is a label. `RETURN_SCHEDULE_CSV_COLUMNS`
+went with it, so `tests/unit/csvExport.test.ts` now covers two column sets, not three.
+
+Neither removal loses a fact the admin cannot reach: expected vs actual return dates are
+columns of the register itself, and the whole return loop is the dashboard's Returnable
+Status ring and Overdue Returns panel, both drillable; per-department counts are the
+dashboard's Department Activity bar list, also drillable, where this page only ever printed
+a static table. The printed sheet's title is now the constant `REPORT_TITLE`
+("Gate Pass Register"). `tests/unit/reportsFilters.test.tsx` fails if any of the three
+portal buttons reappears.
+
+## Current state — 2026-08-17 (KPI sparklines / chart palette / CSV)
 
 **Three client changes, all frontend-only — no migration, no new dependency.**
 Full gate: **923 tests across 86 files** (`npm run check`, 2026-08-17). `npm run build`

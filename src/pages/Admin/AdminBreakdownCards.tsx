@@ -31,15 +31,22 @@ type Props = {
   loading: boolean;
   activeKey: string | null;
   onSelect: (drill: BoardDrill) => void;
+  /** False when the board is narrowed to NRGP Out. The return ring is then
+   *  three permanent zeros — an NRGP is pinned to `not_applicable` by
+   *  `gate_passes_return_status_rgp_only` (001) and never enters a return
+   *  cycle — so the panel is removed rather than shown empty. */
+  showReturnable?: boolean;
 };
 
-export default function AdminBreakdownCards({ rows, items, loading, activeKey, onSelect }: Props): React.ReactElement {
+export default function AdminBreakdownCards({
+  rows, items, loading, activeKey, onSelect, showReturnable = true,
+}: Props): React.ReactElement {
   const materials = topMaterials(items, rows, TOP_MATERIALS);
   const returnable = returnableSlices(rows);
   const departments = departmentSlices(rows);
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-4">
+    <div className={`grid grid-cols-1 gap-4 mt-4 ${showReturnable ? 'xl:grid-cols-3' : 'xl:grid-cols-2'}`}>
       <BoardCard
         title="Top Materials"
         subtitle="By movement — how many passes carried it, not how many units"
@@ -58,20 +65,22 @@ export default function AdminBreakdownCards({ rows, items, loading, activeKey, o
         />
       </BoardCard>
 
-      <BoardCard
-        title="Returnable Status"
-        subtitle="RGP passes only — an NRGP never enters a return cycle"
-        loading={loading}
-        skeletonHeight="h-72"
-      >
-        <DonutChart
-          slices={returnable}
-          colors={RETURNABLE_COLORS}
-          centerLabel="Returnable"
-          activeKey={keyWithin(activeKey, 'returnable')}
-          onSelect={(s) => onSelect(drillOf('returnable', s, returnableHeading(s)))}
-        />
-      </BoardCard>
+      {showReturnable && (
+        <BoardCard
+          title="Returnable Status"
+          subtitle="RGP passes only — an NRGP never enters a return cycle"
+          loading={loading}
+          skeletonHeight="h-72"
+        >
+          <DonutChart
+            slices={returnable}
+            colors={RETURNABLE_COLORS}
+            centerLabel="Returnable"
+            activeKey={keyWithin(activeKey, 'returnable')}
+            onSelect={(s) => onSelect(drillOf('returnable', s, returnableHeading(s)))}
+          />
+        </BoardCard>
+      )}
 
       <BoardCard title="Department Activity" subtitle="Passes raised, busiest first" loading={loading}>
         <BarList

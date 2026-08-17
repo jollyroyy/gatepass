@@ -19,7 +19,6 @@ import { describe, it, expect } from 'vitest';
 import { toCsv, type CsvColumn } from '../../src/lib/exportUtils';
 import { csvCategory, csvDate, csvDateTime, csvReturnStatus, csvStatus, csvUnit } from '../../src/lib/csvCells';
 import { ALL_PASSES_CSV_COLUMNS } from '../../src/pages/Admin/AllPassesReport';
-import { RETURN_SCHEDULE_CSV_COLUMNS } from '../../src/pages/Admin/ReturnScheduleReport';
 import { MY_PASSES_CSV_COLUMNS } from '../../src/pages/HOD/MyPasses';
 
 describe('escaping — nothing a human did not type', () => {
@@ -91,7 +90,6 @@ describe('cell formatters — the label, not the stored key', () => {
 describe('the exported columns', () => {
   const COLUMN_SETS: [string, CsvColumn<never>[]][] = [
     ['All Passes', ALL_PASSES_CSV_COLUMNS as unknown as CsvColumn<never>[]],
-    ['Return Schedule', RETURN_SCHEDULE_CSV_COLUMNS as unknown as CsvColumn<never>[]],
     ['My Passes', MY_PASSES_CSV_COLUMNS as unknown as CsvColumn<never>[]],
   ];
 

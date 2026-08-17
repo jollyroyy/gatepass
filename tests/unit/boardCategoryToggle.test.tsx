@@ -151,10 +151,12 @@ import HodDashboard from '../../src/pages/HOD/Dashboard';
  *  overview donut falls back to status mode, whose slices are labelled with the
  *  same words ("Cleared at Gate", "Pending"). An unscoped lookup would find the
  *  slice and pass for the wrong reason — or, as here, find both and throw. */
+function headline() {
+  return within(screen.getByRole('group', { name: 'Headline figures' }));
+}
+
 function kpi(label: string): HTMLElement {
-  return within(screen.getByRole('group', { name: 'Headline figures' })).getByRole('button', {
-    name: new RegExp(`^${label}`),
-  });
+  return headline().getByRole('button', { name: new RegExp(`^${label}`) });
 }
 
 function drill(): HTMLElement {
@@ -204,20 +206,60 @@ describe.each(['admin', 'hod'] as const)('%s board — the category toggle', (wh
     await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('3'));
     expect(kpi('Pending Approvals')).toHaveTextContent('1');
     expect(kpi('Cleared at Gate')).toHaveTextContent('2');
-    expect(kpi('Materials Outside')).toHaveTextContent('2');
+    expect(kpi('Pending Return')).toHaveTextContent('2');
     expect(kpi('Overdue Returns')).toHaveTextContent('1');
+    // The three category counters answer "what is the mix", which a board
+    // showing one category no longer has. They would each equal Passes Raised
+    // or zero on every render.
+    for (const gone of ['RGP Out Raised', 'RGP In Raised', 'NRGP Out Raised']) {
+      expect(headline().queryByRole('button', { name: new RegExp(`^${gone}`) })).toBeNull();
+    }
   });
 
-  it('narrows every headline KPI to NRGP Out', async () => {
+  it('narrows every headline KPI to NRGP Out, and drops the return cards entirely', async () => {
     await renderBoard(which);
     pick('NRGP Out');
     await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('2'));
     expect(kpi('Pending Approvals')).toHaveTextContent('1');
     expect(kpi('Cleared at Gate')).toHaveTextContent('1');
-    // An NRGP never comes back — `gate_passes_return_status_rgp_only` pins it to
-    // not_applicable — so both return figures must be zero, not inherited.
-    expect(kpi('Materials Outside')).toHaveTextContent('0');
-    expect(kpi('Overdue Returns')).toHaveTextContent('0');
+    // An NRGP never comes back — `gate_passes_return_status_rgp_only` (001)
+    // pins it to not_applicable — so these two cards can only ever read zero.
+    // A permanent "0 Overdue" on a category that CANNOT go overdue is not
+    // reassurance, it is a wrong reading; the cards are removed, not zeroed.
+    expect(headline().queryByRole('button', { name: /^Pending Return/ })).toBeNull();
+    expect(headline().queryByRole('button', { name: /^Overdue Returns/ })).toBeNull();
+  });
+
+  it('shows the per-category counters only while the board is showing every category', async () => {
+    await renderBoard(which);
+    // Client: "when we are selecting All it should mention how many total NRGP
+    // has been raised, and RGP In and Out."
+    expect(kpi('RGP Out Raised')).toHaveTextContent('3');
+    expect(kpi('RGP In Raised')).toHaveTextContent('1');
+    expect(kpi('NRGP Out Raised')).toHaveTextContent('2');
+    // …and Passes Raised is still their sum, off the same array.
+    expect(kpi('Passes Raised')).toHaveTextContent('6');
+  });
+
+  it('drills a category counter into exactly the passes it counted', async () => {
+    await renderBoard(which);
+    fireEvent.click(kpi('NRGP Out Raised'));
+    expect(within(drill()).getByText('NRGP Out passes raised')).toBeInTheDocument();
+    expect(within(drill()).getByText('2 passes')).toBeInTheDocument();
+    expect(within(drill()).getByText('Eve')).toBeInTheDocument();
+    expect(within(drill()).getByText('Fay')).toBeInTheDocument();
+    expect(within(drill()).queryByText('Alice')).not.toBeInTheDocument();
+  });
+
+  it('hides the Overdue Returns panel and the Returnable Status ring on an NRGP board', async () => {
+    await renderBoard(which);
+    expect(screen.getByRole('heading', { name: 'Overdue Returns' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Returnable Status' })).toBeInTheDocument();
+
+    pick('NRGP Out');
+    await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('2'));
+    expect(screen.queryByRole('heading', { name: 'Overdue Returns' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Returnable Status' })).not.toBeInTheDocument();
   });
 
   it('narrows to RGP In, the category that only Bulk Create can produce', async () => {
@@ -269,8 +311,10 @@ describe.each(['admin', 'hod'] as const)('%s board — the category toggle', (wh
     fireEvent.click(screen.getByRole('button', { name: 'View All' }));
     expect(within(drill()).getByText('2 passes')).toBeInTheDocument();
 
-    pick('NRGP Out');
-    await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('2'));
+    // RGP In holds no overdue pass at all, and unlike NRGP Out it still HAS a
+    // return leg — so the panel must still be here, and must now be empty.
+    pick('RGP In');
+    await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('1'));
     fireEvent.click(screen.getByRole('button', { name: 'View All' }));
     expect(within(drill()).getByText('Nothing is overdue.')).toBeInTheDocument();
   });

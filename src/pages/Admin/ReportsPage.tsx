@@ -1,10 +1,18 @@
-// Reports — admin-only reporting centre with three "portals" (report views)
-// sharing one date-range toolbar: All Passes (register), Return Schedule (RGP
-// expected vs actual returns) and Department Summary (per-dept counts). All
-// three derive from ONE loaded view set, filtered client-side by range —
-// same single-load pattern the old AllPasses used for its filters. The KPI
-// board moved to /admin-dashboard (024-era split: dashboard is the snapshot,
-// this is the period report).
+// Reports — the admin's pass register, over a date range.
+//
+// ONE REPORT, NOT THREE. The Return Schedule and Department Summary portals
+// were removed 2026-08-17 on the client's call, and the tab bar with them (a
+// switcher with one option is a label). Neither loses a fact the admin cannot
+// reach: expected vs actual return dates are columns of the register itself and
+// the whole return loop is now the dashboard's Returnable Status ring and
+// Overdue Returns panel, both drillable; per-department counts are the
+// dashboard's Department Activity bar list, also drillable, where this page
+// only ever printed a static table. `DeptBreakdownTable` was deleted with them
+// — the Department Summary was its only consumer.
+//
+// Rows are loaded ONCE and filtered client-side by range, the single-load
+// pattern the old AllPasses used. The KPI board is /admin-dashboard (024-era
+// split: the dashboard is the snapshot, this is the period report).
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { gp } from '../../supabaseClient';
 import type { GatePassView } from '../../types';
@@ -14,16 +22,9 @@ import ReportsToolbar from './ReportsToolbar';
 import ReportsFilterBar, { type TypeFilter } from './ReportsFilterBar';
 import ReportsPrintHeader from '../../components/ReportsPrintHeader';
 import AllPassesReport from './AllPassesReport';
-import ReturnScheduleReport from './ReturnScheduleReport';
-import DepartmentSummaryReport from './DepartmentSummaryReport';
 
-type ReportView = 'all' | 'rgp' | 'dept';
-
-const VIEWS: { key: ReportView; label: string }[] = [
-  { key: 'all', label: 'All Passes' },
-  { key: 'rgp', label: 'Return Schedule' },
-  { key: 'dept', label: 'Department Summary' },
-];
+/** What the printed sheet and its footer call this report. */
+const REPORT_TITLE = 'Gate Pass Register';
 
 const SKELETON_ROWS = 8;
 // Local (IST) date, not UTC — toISOString() would name yesterday before 05:30 IST.
@@ -35,10 +36,9 @@ export default function ReportsPage(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [date, setDate] = useState(TODAY);
   const [preset, setPreset] = useState<RangePreset>('today');
-  const [view, setView] = useState<ReportView>('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [deptFilter, setDeptFilter] = useState<string>('all');
-  // The active view reports how many rows it is actually showing (filters
+  // The register reports how many rows it is actually showing (its own search
   // applied), so the print header's count is the count that prints.
   const [displayCount, setDisplayCount] = useState(0);
 
@@ -89,8 +89,8 @@ export default function ReportsPage(): React.ReactElement {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [rows]);
 
-  // Scope filters are applied here, before any view sees a row, so the choice
-  // holds across all three portals and prints identically from each.
+  // Scope filters are applied here, before the register sees a row, so the
+  // choice holds on screen and on the printed sheet alike.
   const scoped = useMemo(
     () =>
       ranged.filter((p) => {
@@ -106,7 +106,6 @@ export default function ReportsPage(): React.ReactElement {
     setDeptFilter('all');
   }
 
-  const viewLabel = VIEWS.find((v) => v.key === view)?.label ?? 'Report';
   const dateLabel = preset === 'today' ? range.to : `${range.from} to ${range.to}`;
   // A printed report filtered to one department must SAY so on the paper —
   // otherwise it reads as the whole org and undercounts by an unknowable amount.
@@ -142,21 +141,8 @@ export default function ReportsPage(): React.ReactElement {
         onClear={clearFilters}
       />
 
-      <div className="tab-group w-fit no-print">
-        {VIEWS.map((v) => (
-          <button
-            key={v.key}
-            type="button"
-            className={view === v.key ? 'tab-active' : 'tab-inactive'}
-            onClick={() => setView(v.key)}
-          >
-            {v.label}
-          </button>
-        ))}
-      </div>
-
       <div className="print-only">
-        <ReportsPrintHeader title={viewLabel} rangeLabel={rangeLabel} entryCount={displayCount} />
+        <ReportsPrintHeader title={REPORT_TITLE} rangeLabel={rangeLabel} entryCount={displayCount} />
       </div>
 
       {loading ? (
@@ -165,16 +151,12 @@ export default function ReportsPage(): React.ReactElement {
             <div key={i} className="skeleton h-10 w-full" />
           ))}
         </div>
-      ) : view === 'all' ? (
-        <AllPassesReport rows={scoped} onRowsChanged={setDisplayCount} />
-      ) : view === 'rgp' ? (
-        <ReturnScheduleReport rows={scoped} onRowsChanged={setDisplayCount} />
       ) : (
-        <DepartmentSummaryReport rows={scoped} onRowsChanged={setDisplayCount} />
+        <AllPassesReport rows={scoped} onRowsChanged={setDisplayCount} />
       )}
 
       <div className="print-only report-print-footer">
-        <p className="report-print-meta">End of report · {displayCount} {displayCount === 1 ? 'pass' : 'passes'} · {viewLabel} · {rangeLabel}</p>
+        <p className="report-print-meta">End of report · {displayCount} {displayCount === 1 ? 'pass' : 'passes'} · {REPORT_TITLE} · {rangeLabel}</p>
       </div>
     </div>
   );

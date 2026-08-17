@@ -41,7 +41,14 @@ import {
   filterByCategory,
   type BoardCategory,
 } from '../../lib/boardCategory';
-import { BOARD_KPIS, drillDefOf, kpiDrill, IS_OPEN_RETURN, type BoardDrill } from '../../lib/boardDrills';
+import {
+  BOARD_KPIS,
+  categoryHasReturns,
+  drillDefOf,
+  kpiDrill,
+  IS_OPEN_RETURN,
+  type BoardDrill,
+} from '../../lib/boardDrills';
 import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 import BoardKpiRow from '../../components/board/BoardKpiRow';
 import BoardOverviewCard from '../../components/board/BoardOverviewCard';
@@ -132,6 +139,9 @@ export default function AdminDashboard(): React.ReactElement {
     setDrill(null);
   }, []);
 
+  // Whether the selected category can hold an open return obligation at all.
+  const showReturns = categoryHasReturns(category);
+
   const activeKey = drill?.key ?? null;
   const resultsRef = useScrollIntoViewOnChange<HTMLDivElement>(activeKey);
 
@@ -168,6 +178,7 @@ export default function AdminDashboard(): React.ReactElement {
         comparisonLabel={PERIOD_COMPARISON_LABEL[period]}
         activeKey={activeKey}
         onSelect={select}
+        category={category}
       />
 
       {/* The drill panel sits directly under the KPIs rather than at the foot of
@@ -202,8 +213,12 @@ export default function AdminDashboard(): React.ReactElement {
         </div>
       </div>
 
+      {/* NRGP HAS NO RETURN LEG, so on an NRGP board the Overdue Returns panel
+          is not "empty" — it is meaningless, and the pending queue takes the
+          full width instead of sitting beside a permanent "Nothing is overdue".
+          Same rule that removes the two return KPI cards; see boardDrills. */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mt-4">
-        <div className="xl:col-span-8 min-w-0">
+        <div className={`min-w-0 ${showReturns ? 'xl:col-span-8' : 'xl:col-span-12'}`}>
           <BoardPendingTable
             rows={pending}
             loading={loading}
@@ -211,14 +226,16 @@ export default function AdminDashboard(): React.ReactElement {
             onDrill={() => select(kpiDrill('pending', pending))}
           />
         </div>
-        <div className="xl:col-span-4 min-w-0">
-        <BoardOverdueList
-          rows={overdueAllTime}
-          loading={loading}
-          active={activeKey === OVERDUE_ALL_TIME.key}
-          onDrill={() => select({ ...OVERDUE_ALL_TIME, rows: overdueAllTime })}
-        />
-        </div>
+        {showReturns && (
+          <div className="xl:col-span-4 min-w-0">
+            <BoardOverdueList
+              rows={overdueAllTime}
+              loading={loading}
+              active={activeKey === OVERDUE_ALL_TIME.key}
+              onDrill={() => select({ ...OVERDUE_ALL_TIME, rows: overdueAllTime })}
+            />
+          </div>
+        )}
       </div>
 
       <AdminBreakdownCards
@@ -227,6 +244,7 @@ export default function AdminDashboard(): React.ReactElement {
         loading={loading}
         activeKey={activeKey}
         onSelect={select}
+        showReturnable={showReturns}
       />
     </div>
   );
