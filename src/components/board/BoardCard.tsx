@@ -20,7 +20,7 @@ type Props = {
   children: React.ReactNode;
 };
 
-export default function AdminCard({
+export default function BoardCard({
   title,
   control,
   subtitle,
@@ -47,7 +47,7 @@ export default function AdminCard({
  *  popup: `.dark select` in index.css already forces an opaque, dark-schemed
  *  option list, and a hand-rolled dropdown here would be a fourth menu
  *  implementation to keep in sync with the theme. */
-export function AdminCardSelect<T extends string>({
+export function BoardCardSelect<T extends string>({
   label,
   value,
   options,

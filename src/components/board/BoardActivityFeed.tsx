@@ -18,7 +18,16 @@ import { parseCompanyInfo } from '../../lib/companyInfo';
 
 const SHOWN = 6;
 
-export default function AdminActivityFeed({ rows, loading }: { rows: GatePassView[]; loading: boolean }): React.ReactElement {
+type Props = {
+  rows: GatePassView[];
+  loading: boolean;
+  /** Where "View All" goes. The admin board's register is `/all-passes`, which
+   *  `ROLE_ROUTES` closes to an HOD — so the route is the consumer's to name,
+   *  never this panel's to assume. */
+  viewAllTo?: string;
+};
+
+export default function BoardActivityFeed({ rows, loading, viewAllTo = '/all-passes' }: Props): React.ReactElement {
   // `created_at` is an ISO-8601 UTC string, so lexicographic order IS
   // chronological order — no Date allocation per comparison.
   const recent = [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, SHOWN);
@@ -27,7 +36,7 @@ export default function AdminActivityFeed({ rows, loading }: { rows: GatePassVie
     <section className="card p-5 flex flex-col h-full min-w-0">
       <div className="flex items-baseline justify-between gap-3 mb-3">
         <h2 className="card-title border-0 pb-0">Recent Activity</h2>
-        <Link to="/all-passes" className="text-caption font-semibold text-accent-600 hover:underline shrink-0">
+        <Link to={viewAllTo} className="text-caption font-semibold text-accent-600 hover:underline shrink-0">
           View All
         </Link>
       </div>

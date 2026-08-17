@@ -14,11 +14,11 @@
 // traffic rather than as a fifth alarm across the top.
 import React, { useState } from 'react';
 import type { GatePassView } from '../../types';
-import type { AdminDrill } from '../../lib/adminDrills';
-import { categorySlices, statusSlices, type Slice } from '../../lib/adminAnalytics';
-import DonutChart from '../../components/charts/DonutChart';
-import { CATEGORY_COLORS, PASS_STATUS_COLORS } from '../../components/charts/chartPalette';
-import AdminCard, { AdminCardSelect } from './AdminCard';
+import type { BoardDrill } from '../../lib/boardDrills';
+import { categorySlices, statusSlices, type Slice } from '../../lib/boardAnalytics';
+import DonutChart from '../charts/DonutChart';
+import { CATEGORY_COLORS, PASS_STATUS_COLORS } from '../charts/chartPalette';
+import BoardCard, { BoardCardSelect } from './BoardCard';
 
 type Mode = 'category' | 'status';
 
@@ -26,22 +26,22 @@ type Props = {
   rows: GatePassView[];
   loading: boolean;
   activeKey: string | null;
-  onSelect: (drill: AdminDrill) => void;
+  onSelect: (drill: BoardDrill) => void;
 };
 
-export default function AdminOverviewCard({ rows, loading, activeKey, onSelect }: Props): React.ReactElement {
+export default function BoardOverviewCard({ rows, loading, activeKey, onSelect }: Props): React.ReactElement {
   const [mode, setMode] = useState<Mode>('category');
   const slices = mode === 'category' ? categorySlices(rows) : statusSlices(rows);
 
   return (
-    <AdminCard
+    <BoardCard
       title="Gate Pass Overview"
       loading={loading}
       // Taller than the bar-list panels': the legend stacks UNDER the ring now,
       // so a donut card is a ring plus a column of rows.
       skeletonHeight="h-72"
       control={
-        <AdminCardSelect
+        <BoardCardSelect
           label="Gate Pass Overview breakdown"
           value={mode}
           onChange={setMode}
@@ -60,14 +60,14 @@ export default function AdminOverviewCard({ rows, loading, activeKey, onSelect }
         activeKey={sliceKeyOf(activeKey, mode)}
         onSelect={(slice) => onSelect(drillOf(slice, mode))}
       />
-    </AdminCard>
+    </BoardCard>
   );
 }
 
 /** Drill keys are namespaced by mode so "Cleared at Gate" (status) and any
  *  future category of the same name can never collide, and so switching modes
  *  does not leave the wrong slice looking selected. */
-function drillOf(slice: Slice, mode: Mode): AdminDrill {
+function drillOf(slice: Slice, mode: Mode): BoardDrill {
   return {
     key: `overview-${mode}-${slice.key}`,
     heading: mode === 'category' ? `${slice.label} passes` : `${slice.label} — ${slice.value === 1 ? 'this pass' : 'these passes'}`,

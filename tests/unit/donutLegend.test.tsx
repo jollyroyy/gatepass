@@ -9,7 +9,7 @@ import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import DonutChart from '../../src/components/charts/DonutChart';
-import type { Slice } from '../../src/lib/adminAnalytics';
+import type { Slice } from '../../src/lib/boardAnalytics';
 import type { GatePassView } from '../../src/types';
 
 function slice(key: string, label: string, value: number): Slice {

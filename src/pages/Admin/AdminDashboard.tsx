@@ -7,7 +7,7 @@
 //
 // THE INVARIANT SURVIVED THE REBUILD AND WAS WIDENED TO THE CHARTS. Every
 // clickable figure on this page — card, donut slice, bar, or day on the trend
-// line — resolves to an `AdminDrill` that CARRIES the rows it counted, and the
+// line — resolves to an `BoardDrill` that CARRIES the rows it counted, and the
 // panel below renders exactly that array. There is no second `count: 'exact'`
 // query and no predicate re-applied against a different array anywhere on the
 // board, which is the only way a chart and the list behind it can be guaranteed
@@ -36,22 +36,22 @@ import {
   type DashboardPeriod,
 } from '../../lib/dashboardPeriod';
 import DashboardPeriodFilter from '../../components/DashboardPeriodFilter';
-import { ADMIN_KPIS, drillDefOf, kpiDrill, IS_OPEN_RETURN, type AdminDrill } from '../../lib/adminDrills';
+import { BOARD_KPIS, drillDefOf, kpiDrill, IS_OPEN_RETURN, type BoardDrill } from '../../lib/boardDrills';
 import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
-import AdminKpiRow from './AdminKpiRow';
-import AdminOverviewCard from './AdminOverviewCard';
-import AdminTrendCard from './AdminTrendCard';
-import AdminActivityFeed from './AdminActivityFeed';
-import AdminPendingTable from './AdminPendingTable';
+import BoardKpiRow from '../../components/board/BoardKpiRow';
+import BoardOverviewCard from '../../components/board/BoardOverviewCard';
+import BoardTrendCard from '../../components/board/BoardTrendCard';
+import BoardActivityFeed from '../../components/board/BoardActivityFeed';
+import BoardPendingTable from '../../components/board/BoardPendingTable';
 import AdminBreakdownCards from './AdminBreakdownCards';
-import AdminOverdueList from './AdminOverdueList';
+import BoardOverdueList from '../../components/board/BoardOverdueList';
 
 export default function AdminDashboard(): React.ReactElement {
   const [rows, setRows] = useState<GatePassView[]>([]);
   const [items, setItems] = useState<GatePassItemView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [drill, setDrill] = useState<AdminDrill | null>(null);
+  const [drill, setDrill] = useState<BoardDrill | null>(null);
   const [period, setPeriod] = useState<DashboardPeriod>('today');
 
   const load = useCallback(async () => {
@@ -96,16 +96,16 @@ export default function AdminDashboard(): React.ReactElement {
     };
   }, [rows, period]);
 
-  // The one all-time list on the board. See AdminOverdueList for why.
+  // The one all-time list on the board. See BoardOverdueList for why.
   const overdueAllTime = useMemo(
     () => rows.filter((p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue),
     [rows],
   );
-  const pending = useMemo(() => scoped.filter(ADMIN_KPIS.pending.match), [scoped]);
+  const pending = useMemo(() => scoped.filter(BOARD_KPIS.pending.match), [scoped]);
 
   // Toggling: clicking the thing already open closes it. Compared by `key`,
   // not by object identity — every render builds fresh drill objects.
-  const select = useCallback((next: AdminDrill) => {
+  const select = useCallback((next: BoardDrill) => {
     setDrill((cur) => (cur?.key === next.key ? null : next));
   }, []);
 
@@ -128,7 +128,7 @@ export default function AdminDashboard(): React.ReactElement {
         Older passes are in <Link to="/all-passes" className="link-inline">Reports</Link>.
       </p>
 
-      <AdminKpiRow
+      <BoardKpiRow
         scoped={scoped}
         previous={previous}
         all={rows}
@@ -154,19 +154,19 @@ export default function AdminDashboard(): React.ReactElement {
           half empty. */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mt-8">
         <div className="xl:col-span-4 min-w-0">
-          <AdminOverviewCard rows={scoped} loading={loading} activeKey={activeKey} onSelect={select} />
+          <BoardOverviewCard rows={scoped} loading={loading} activeKey={activeKey} onSelect={select} />
         </div>
         <div className="xl:col-span-5 min-w-0">
-          <AdminTrendCard rows={rows} loading={loading} activeKey={activeKey} onSelect={select} />
+          <BoardTrendCard rows={rows} loading={loading} activeKey={activeKey} onSelect={select} />
         </div>
         <div className="xl:col-span-3 min-w-0">
-          <AdminActivityFeed rows={scoped} loading={loading} />
+          <BoardActivityFeed rows={scoped} loading={loading} />
         </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mt-4">
         <div className="xl:col-span-8 min-w-0">
-          <AdminPendingTable
+          <BoardPendingTable
             rows={pending}
             loading={loading}
             active={activeKey === kpiDrill('pending', pending).key}
@@ -174,7 +174,7 @@ export default function AdminDashboard(): React.ReactElement {
           />
         </div>
         <div className="xl:col-span-4 min-w-0">
-        <AdminOverdueList
+        <BoardOverdueList
           rows={overdueAllTime}
           loading={loading}
           active={activeKey === OVERDUE_ALL_TIME.key}
@@ -198,7 +198,7 @@ export default function AdminDashboard(): React.ReactElement {
  *  the two lists genuinely differ, and sharing a key would make clicking one
  *  silently close the other while showing different rows under the same
  *  heading. */
-const OVERDUE_ALL_TIME: AdminDrill = {
+const OVERDUE_ALL_TIME: BoardDrill = {
   key: 'overdue-all-time',
   heading: 'Past their return date (all time)',
   empty: 'Nothing is overdue.',

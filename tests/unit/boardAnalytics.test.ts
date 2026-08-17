@@ -13,7 +13,7 @@ import {
   trendBuckets,
   countsPerDay,
   deltaPercent,
-} from '../../src/lib/adminAnalytics';
+} from '../../src/lib/boardAnalytics';
 
 const DAY = 24 * 60 * 60 * 1000;
 // Fixed "now" so a test can never straddle local midnight and fail at 23:59.

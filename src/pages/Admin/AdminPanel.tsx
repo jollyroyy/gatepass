@@ -8,18 +8,16 @@
 import React, { useState } from 'react';
 import DepartmentsTab from './DepartmentsTab';
 import UsersTab from './UsersTab';
-import AIAnalyticsTab from './AIAnalyticsTab';
 import BlacklistTab from './BlacklistTab';
 import WhitelistRequestsTab from './WhitelistRequestsTab';
 import CeoApproverCard from './CeoApproverCard';
 import { useMyProfile } from '../../lib/useMyProfile';
 
-type Tab = 'departments' | 'users' | 'analytics' | 'blacklist' | 'whitelist';
+type Tab = 'departments' | 'users' | 'blacklist' | 'whitelist';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'departments', label: 'Departments' },
   { key: 'users', label: 'Users' },
-  { key: 'analytics', label: 'AI Analytics' },
   { key: 'blacklist', label: 'Blacklist' },
   { key: 'whitelist', label: 'Whitelist Requests' },
 ];
@@ -32,7 +30,6 @@ export default function AdminPanel(): React.ReactElement {
   const rendered: Record<Tab, React.ReactElement> = {
     departments: <DepartmentsTab />,
     users: <UsersTab />,
-    analytics: <AIAnalyticsTab />,
     blacklist: <BlacklistTab />,
     whitelist: (
       <div className="space-y-6">

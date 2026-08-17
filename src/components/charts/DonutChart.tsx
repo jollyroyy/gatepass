@@ -6,7 +6,7 @@
 // Drawn as dashed <circle>s rather than <path> arcs — see chartGeometry.ts for
 // why (the 100%-single-slice case, which is the normal state of a quiet day).
 import React from 'react';
-import type { Slice } from '../../lib/adminAnalytics';
+import type { Slice } from '../../lib/boardAnalytics';
 import { ringSegments, percentOf } from '../../lib/chartGeometry';
 import { NEUTRAL_SERIES } from './chartPalette';
 

@@ -14,14 +14,14 @@
 //   * the label and the note both `truncate`, with the full text on `title`;
 //   * `tabular` figures, so a ticking number never reflows its own width.
 import React from 'react';
-import type { AdminKpi } from '../../lib/adminDrills';
-import AdminKpiIcon from './AdminKpiIcon';
-import Sparkline from '../../components/charts/Sparkline';
-import { TONE_TEXT } from '../../components/KpiCard';
-import { TONE_SERIES_COLOR } from '../../components/charts/chartPalette';
+import type { BoardKpi } from '../../lib/boardDrills';
+import BoardKpiIcon from './BoardKpiIcon';
+import Sparkline from '../charts/Sparkline';
+import { TONE_TEXT } from '../KpiCard';
+import { TONE_SERIES_COLOR } from '../charts/chartPalette';
 
 type Props = {
-  kpi: AdminKpi;
+  kpi: BoardKpi;
   value: number;
   /** Percentage change against the previous window, or null when there is
    *  nothing to compare against (see adminAnalytics.deltaPercent). */
@@ -34,7 +34,7 @@ type Props = {
   onClick: () => void;
 };
 
-export default function AdminKpiCard({
+export default function BoardKpiCard({
   kpi, value, delta, deltaLabel, trend, loading, active, onClick,
 }: Props): React.ReactElement {
   return (
@@ -47,7 +47,7 @@ export default function AdminKpiCard({
       }`}
     >
       <div className="flex items-center gap-3 min-w-0">
-        <AdminKpiIcon kpi={kpi.key} tone={kpi.tone} />
+        <BoardKpiIcon kpi={kpi.key} tone={kpi.tone} />
         <span className="kpi-label truncate min-w-0" title={kpi.label}>
           {kpi.label}
         </span>

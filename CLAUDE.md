@@ -25,7 +25,7 @@ references are not followed without `--build`, so it type-checks **zero files** 
 exits 0. It passed cleanly while `PassDetail.tsx` had a real missing-enum-key error.
 Use `npm run check`.
 
-`npx vitest run path/to/one.test.tsx` runs a single spec. **551 tests across 43 files
+`npx vitest run path/to/one.test.tsx` runs a single spec. **868 tests across 81 files
 currently pass** (`tests/unit/`, `tests/security/`) — see "Current state" below for the
 authoritative gate run.
 
@@ -33,6 +33,97 @@ authoritative gate run.
 `APPLY_ALL.sql` is the artifact a human actually pastes; a migration edited but not
 re-concatenated is a fix that never reaches the database.
 `tests/security/applyAllIntegrity.test.ts` is the backstop that catches the drift.
+
+## Current state — 2026-08-17 (latest)
+
+**The HOD got the admin board, narrowed to one person. AI Analytics is gone.**
+Frontend only — no migration, no new dependency. Full gate: **868 tests across 81
+files** (`npm run check`, 2026-08-17). `npm run build` also clean.
+
+### The HOD dashboard is now the same board the admin gets
+
+Client: *"put a similar type of dashboard for the individual HOD, but only for
+their department and only for her or him — all those pie charts, kept relevant."*
+
+`/dashboard` now has the five headline KPI cards (with deltas and sparklines), the
+Gate Pass Overview donut (By category / By status), the Passes Trend line, Recent
+Activity, the Pending Approvals table, the all-time Overdue Returns panel, Top
+Materials and the Returnable Status ring. Every figure is drillable and carries
+its own rows — the admin board's invariant, unchanged.
+
+**TWO SCOPES STACK, AND ONLY ONE IS THE PAGE'S DOING.** Department scope is RLS's
+(`gate_passes_select`, 002: `department_id in (select my_department_ids())`, and
+since `032` a person holds at most one). **Person scope is ours:
+`.eq('raised_by', userId)` on every pass read in `src/pages/HOD/useHodBoardData.ts`,
+server-side on purpose** — a department may host more than one HOD, and filtering
+client-side would download a colleague's passes in order to hide them.
+`tests/unit/hodDashboardBoard.test.tsx` (14) pins it with a mock that RECORDS the
+`.eq()` filters and hands back a colleague's pass to any read that forgot one, so
+dropping the filter shows up as a stranger's pass on the board rather than as a
+silent widening. Verified by removing the filter and watching all 14 fail.
+
+**The ten flat KPI cards are gone; nothing was silently dropped.** Total / Pending
+/ Matched / Awaiting / Overdue became the five headline cards; RGP Issued and NRGP
+Issued became the overview donut's category mode; Expired and Mismatched became
+its status mode; Return Rate became the Returnable Status ring's three real
+drillable buckets. **Expired keeps its own red banner** as well — it is the one
+bucket that means material this HOD authorised never moved.
+
+**Department Activity is deliberately absent** from `HodBreakdownCards`, unlike the
+admin board's three-panel row. One HOD, one department, and RLS shows them only
+that one: the ranking could only ever be a single bar at 100% naming the reader's
+own department. Pinned by a test.
+
+**`gatepass.kpis()` NOW HAS NO CALLER IN `src/`.** The HOD dashboard was its last
+one, and it had to go: `kpis()` takes no date parameter and aggregates ALL TIME,
+which is exactly what caused the 2026-08-11 frozen-Return-Rate bug, and every
+figure on a board dashboard is now `rows.length` of the array its own click opens.
+Left in the database rather than dropped blind (the `bulk_create_passes`
+precedent), but per "never leave unused schema in place" **it wants a migration
+that drops it** — that is the single next action on this. The dead TypeScript went
+in the same change: `PassKpis` / `EMPTY_KPIS` (types), `mapKpiRow` / `KpiRow`
+(`hodKpis.ts`, which now holds only `todayBounds` for the guard board).
+
+### The board components moved out of `Admin/` — they are shared now
+
+Nine presentational components were generic given rows, so rather than duplicate
+them they moved to **`src/components/board/`** as `Board*`: `BoardCard` (+
+`BoardCardSelect`), `BoardKpiCard`, `BoardKpiIcon`, `BoardKpiRow`,
+`BoardOverviewCard`, `BoardTrendCard`, `BoardActivityFeed`, `BoardPendingTable`,
+`BoardOverdueList`. `src/lib/adminDrills.ts` → **`src/lib/boardDrills.ts`**
+(`ADMIN_KPIS` → `BOARD_KPIS`, `AdminDrill` → `BoardDrill`, …) and
+`src/lib/adminAnalytics.ts` → **`src/lib/boardAnalytics.ts`**. `AdminDashboard` and
+`AdminBreakdownCards` stayed put; the latter keeps Department Activity, which is
+the one panel that is genuinely admin-only.
+
+Two new props exist because an HOD cannot use the admin's routes:
+`BoardActivityFeed`/`BoardPendingTable` take **`viewAllTo`** (default
+`/all-passes`; the HOD board passes `/my-passes`, since `ROLE_ROUTES` closes
+`/all-passes` to an HOD — pinned by a test that walks every link on the page), and
+`BoardPendingTable` takes **`showDepartment`** (off on a single-department board,
+where the column is one repeated word).
+
+**`src/lib/hodDrills.ts` was DELETED.** Its `DrillDef` — the shape `DrillList`
+renders from — moved into `boardDrills.ts`. `src/lib/guardDrills.ts` deliberately
+keeps its own structurally identical copy: its `DrillKey` union is closed and its
+`DRILL_DEFS` is a `Record<DrillKey, …>`, which is what makes "added a drill,
+forgot its definition" a type error on that board.
+
+Tests: `hodDashboardDrills` / `hodDashboardExpiredDrill` / `hodReturnRate` were
+deleted and replaced by `hodDashboardBoard.test.tsx` (14); `hodDrillCard` now
+builds its fixture through `drillDefOf`; `adminAnalytics.test.ts` →
+`boardAnalytics.test.ts`.
+
+### AI Analytics is gone from the admin portal
+
+Client's call. `src/pages/Admin/AIAnalyticsTab.tsx` deleted and the tab removed
+from `AdminPanel`, which now offers exactly Departments · Users · Blacklist ·
+Whitelist Requests. `tests/unit/adminPanelTabs.test.tsx` (2) asserts that list by
+name AND in order, so it fails on a tab creeping back in *and* on one quietly
+disappearing. Both cases were watched failing against the old code first.
+
+**Not yet done: this board has not been seen in a real browser.** Everything below
+the sign-in wall was verified by the test suite and a production build only.
 
 ## Current state — 2026-08-17 (later)
 
@@ -943,7 +1034,8 @@ Two consequences worth knowing:
 **300-line cap:** `RaisePass` (451) and `BulkRaise` (315) were over and were split into
 `MaterialItemRow` / `MaterialItemsCard` / `PassDetailsCards` / `PassSubmittedModal` and
 `BulkItemRow` / `BulkResultList`. Still over the cap and **untouched this session**:
-`DepartmentsTab` (466), `UsersTab` (431), `HOD/Dashboard` (307), `AIAnalyticsTab` (307).
+`DepartmentsTab` (466), `UsersTab` (431). (`HOD/Dashboard` is 221 since the 2026-08-17
+rebuild; `AIAnalyticsTab` was deleted.)
 
 ### Admin UI split — Dashboard and Reports are now separate pages (2026-08-04)
 

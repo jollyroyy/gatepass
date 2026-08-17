@@ -17,7 +17,7 @@ type Props = {
 };
 
 /** Direct lookup — never derive the value colour from string matching on tone.
- *  Exported so the admin board's richer `AdminKpiCard` renders its number in
+ *  Exported so the admin board's richer `BoardKpiCard` renders its number in
  *  exactly the same colour as the guard's and HOD's plain cards, rather than
  *  keeping a second copy that drifts. */
 export const TONE_TEXT: Record<Tone, string> = {

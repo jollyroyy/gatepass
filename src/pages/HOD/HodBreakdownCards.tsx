@@ -1,23 +1,20 @@
-// The bottom row: Top Materials, Returnable Status, Department Activity.
+// The HOD board's bottom row: Top Materials and Returnable Status.
 //
-// Grouped in one file because they share one decision — all three are ranked or
-// proportional views of the SAME scoped array, and all three drill through the
-// same `onSelect`. Splitting them into three near-identical wrappers would put
-// the interesting part (which rows, under which heading) three files away from
-// each other.
+// TWO PANELS, NOT THE ADMIN BOARD'S THREE. "Department Activity" is gone, and
+// its absence is the point rather than an omission: since migration `032` a
+// person belongs to at most one department, and RLS shows an HOD only their
+// own (`gate_passes_select`: `department_id in (select my_department_ids())`).
+// A ranking of departments on this board is therefore one bar, at 100%, with
+// the reader's own department name on it — a chart that can only ever tell them
+// something they already knew. The client asked for the admin board's charts
+// "kept relevant to that HOD", and this is the one that is not.
 //
-// WHAT REPLACED "GATE WISE ACTIVITY" from the client's reference board, and
-// why: this system has no concept of a gate. `gatepass.verifications` records a
-// free-text `gate_name` the guard types at verification time, so it exists only
-// AFTER a pass is verified, is null on everything still pending, and is spelled
-// however the guard spelled it. Ranking on that would produce a chart of typos
-// that silently omits the whole pending queue. Department is the real, enforced,
-// always-present dimension — `department_id` is NOT NULL on every pass and is
-// what RLS itself partitions on — so the panel ranks departments instead.
+// Both panels are drillable on the same `onSelect` as everything else on the
+// board, and both carry the rows they counted. Same invariant, same reason.
 import React from 'react';
 import type { GatePassView, GatePassItemView } from '../../types';
 import type { BoardDrill } from '../../lib/boardDrills';
-import { departmentSlices, returnableSlices, topMaterials, type Slice } from '../../lib/boardAnalytics';
+import { returnableSlices, topMaterials, type Slice } from '../../lib/boardAnalytics';
 import BarList from '../../components/charts/BarList';
 import DonutChart from '../../components/charts/DonutChart';
 import { RETURNABLE_COLORS } from '../../components/charts/chartPalette';
@@ -33,16 +30,15 @@ type Props = {
   onSelect: (drill: BoardDrill) => void;
 };
 
-export default function AdminBreakdownCards({ rows, items, loading, activeKey, onSelect }: Props): React.ReactElement {
+export default function HodBreakdownCards({ rows, items, loading, activeKey, onSelect }: Props): React.ReactElement {
   const materials = topMaterials(items, rows, TOP_MATERIALS);
   const returnable = returnableSlices(rows);
-  const departments = departmentSlices(rows);
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-4">
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4">
       <BoardCard
         title="Top Materials"
-        subtitle="By movement — how many passes carried it, not how many units"
+        subtitle="By movement — how many of your passes carried it, not how many units"
         loading={loading}
       >
         <BarList
@@ -60,7 +56,7 @@ export default function AdminBreakdownCards({ rows, items, loading, activeKey, o
 
       <BoardCard
         title="Returnable Status"
-        subtitle="RGP passes only — an NRGP never enters a return cycle"
+        subtitle="Your RGP passes only — an NRGP never enters a return cycle"
         loading={loading}
         skeletonHeight="h-72"
       >
@@ -70,16 +66,6 @@ export default function AdminBreakdownCards({ rows, items, loading, activeKey, o
           centerLabel="Returnable"
           activeKey={keyWithin(activeKey, 'returnable')}
           onSelect={(s) => onSelect(drillOf('returnable', s, returnableHeading(s)))}
-        />
-      </BoardCard>
-
-      <BoardCard title="Department Activity" subtitle="Passes raised, busiest first" loading={loading}>
-        <BarList
-          slices={departments}
-          total={rows.length}
-          emptyMessage="No department raised a pass in this period."
-          activeKey={keyWithin(activeKey, 'dept')}
-          onSelect={(s) => onSelect(drillOf('dept', s, `${s.label} — passes raised`))}
         />
       </BoardCard>
     </div>

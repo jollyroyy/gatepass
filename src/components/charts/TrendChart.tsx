@@ -11,7 +11,7 @@
 //     the reader has a mouse — this board is also read on a tablet — so each
 //     day's total sits above its point and the y-axis is labelled.
 import React from 'react';
-import type { TrendBucket } from '../../lib/adminAnalytics';
+import type { TrendBucket } from '../../lib/boardAnalytics';
 import { linePoints, pathFrom, areaFrom, niceMax, axisTicks } from '../../lib/chartGeometry';
 import { SERIES_COLORS } from './chartPalette';
 

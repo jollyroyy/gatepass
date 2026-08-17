@@ -9,7 +9,7 @@
 import React from 'react';
 import type { GatePassView } from '../types';
 import DrillPassCard from './DrillPassCard';
-import type { DrillDef } from '../lib/hodDrills';
+import type { DrillDef } from '../lib/boardDrills';
 
 const SKELETON_ROWS = 6;
 

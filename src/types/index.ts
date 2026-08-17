@@ -330,33 +330,6 @@ export interface NewGatePass {
   items: NewGatePassItem[];
 }
 
-// ─── KPI shape shared by the HOD and admin dashboards ──────────────────────
-export interface PassKpis {
-  total: number;
-  pending: number;
-  matched: number;
-  flagged: number;
-  awaitingReturn: number;
-  overdue: number;
-  raisedToday: number;
-  overdueValue: number;
-  flaggedRate: number;
-  returnRate: number;
-}
-
-export const EMPTY_KPIS: PassKpis = {
-  total: 0,
-  pending: 0,
-  matched: 0,
-  flagged: 0,
-  awaitingReturn: 0,
-  overdue: 0,
-  raisedToday: 0,
-  overdueValue: 0,
-  flaggedRate: 0,
-  returnRate: 0,
-};
-
 // ─── Vendor profiles ──────────────────────────────────────────────────────
 export interface VendorProfile {
   id: string;

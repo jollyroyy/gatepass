@@ -14,9 +14,9 @@
 //               point, which is not a trend, it is a dot.
 import React from 'react';
 import type { GatePassView } from '../../types';
-import { ADMIN_KPIS, ADMIN_KPI_ORDER, kpiDrill, type AdminDrill, type AdminKpiKey } from '../../lib/adminDrills';
-import { countsPerDay, deltaPercent } from '../../lib/adminAnalytics';
-import AdminKpiCard from './AdminKpiCard';
+import { BOARD_KPIS, BOARD_KPI_ORDER, kpiDrill, type BoardDrill, type BoardKpiKey } from '../../lib/boardDrills';
+import { countsPerDay, deltaPercent } from '../../lib/boardAnalytics';
+import BoardKpiCard from './BoardKpiCard';
 
 const SPARK_DAYS = 7;
 
@@ -27,10 +27,10 @@ type Props = {
   loading: boolean;
   comparisonLabel: string;
   activeKey: string | null;
-  onSelect: (drill: AdminDrill) => void;
+  onSelect: (drill: BoardDrill) => void;
 };
 
-export default function AdminKpiRow({
+export default function BoardKpiRow({
   scoped, previous, all, loading, comparisonLabel, activeKey, onSelect,
 }: Props): React.ReactElement {
   return (
@@ -38,12 +38,12 @@ export default function AdminKpiRow({
     // five columns on a laptop, which is where a card this dense starts
     // clipping its own label.
     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-      {ADMIN_KPI_ORDER.map((key: AdminKpiKey) => {
-        const kpi = ADMIN_KPIS[key];
+      {BOARD_KPI_ORDER.map((key: BoardKpiKey) => {
+        const kpi = BOARD_KPIS[key];
         const rows = scoped.filter(kpi.match);
         const drill = kpiDrill(key, rows);
         return (
-          <AdminKpiCard
+          <BoardKpiCard
             key={key}
             kpi={kpi}
             value={rows.length}

@@ -7,7 +7,7 @@
 // number a reader would quote — so both facts are on the row and neither is
 // inferred from the other's geometry.
 import React from 'react';
-import type { Slice } from '../../lib/adminAnalytics';
+import type { Slice } from '../../lib/boardAnalytics';
 import { percentOf } from '../../lib/chartGeometry';
 import { rankColor } from './chartPalette';
 

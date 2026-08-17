@@ -12,10 +12,10 @@
 // looks like a data loss rather than a filter.
 import React, { useState } from 'react';
 import type { GatePassView } from '../../types';
-import type { AdminDrill } from '../../lib/adminDrills';
-import { trendBuckets, type TrendBucket } from '../../lib/adminAnalytics';
-import TrendChart, { bucketKey } from '../../components/charts/TrendChart';
-import AdminCard, { AdminCardSelect } from './AdminCard';
+import type { BoardDrill } from '../../lib/boardDrills';
+import { trendBuckets, type TrendBucket } from '../../lib/boardAnalytics';
+import TrendChart, { bucketKey } from '../charts/TrendChart';
+import BoardCard, { BoardCardSelect } from './BoardCard';
 
 type Window = '7' | '14' | '30';
 
@@ -29,21 +29,21 @@ type Props = {
   rows: GatePassView[];
   loading: boolean;
   activeKey: string | null;
-  onSelect: (drill: AdminDrill) => void;
+  onSelect: (drill: BoardDrill) => void;
 };
 
-export default function AdminTrendCard({ rows, loading, activeKey, onSelect }: Props): React.ReactElement {
+export default function BoardTrendCard({ rows, loading, activeKey, onSelect }: Props): React.ReactElement {
   const [window, setWindow] = useState<Window>('7');
   const buckets = trendBuckets(rows, Number(window));
 
   return (
-    <AdminCard
+    <BoardCard
       title="Passes Trend"
       subtitle={`${WINDOW_LABEL[window]} · independent of the board's period filter`}
       loading={loading}
       skeletonHeight="h-56"
       control={
-        <AdminCardSelect
+        <BoardCardSelect
           label="Passes Trend window"
           value={window}
           onChange={setWindow}
@@ -52,11 +52,11 @@ export default function AdminTrendCard({ rows, loading, activeKey, onSelect }: P
       }
     >
       <TrendChart buckets={buckets} activeKey={activeKey} onSelect={(b) => onSelect(drillOf(b))} />
-    </AdminCard>
+    </BoardCard>
   );
 }
 
-function drillOf(bucket: TrendBucket): AdminDrill {
+function drillOf(bucket: TrendBucket): BoardDrill {
   return {
     key: bucketKey(bucket),
     heading: `Raised on ${bucket.label}`,

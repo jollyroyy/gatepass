@@ -31,7 +31,7 @@ type Props = {
   active: boolean;
 };
 
-export default function AdminOverdueList({ rows, loading, onDrill, active }: Props): React.ReactElement {
+export default function BoardOverdueList({ rows, loading, onDrill, active }: Props): React.ReactElement {
   const shown = rows.slice(0, SHOWN);
 
   return (

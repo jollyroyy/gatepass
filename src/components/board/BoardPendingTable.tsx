@@ -31,9 +31,16 @@ type Props = {
   /** Opens the same rows this table is drawn from, as the shared drill list. */
   onDrill: () => void;
   active: boolean;
+  /** Where "Open the full register" goes — `/all-passes` is admin-only. */
+  viewAllTo?: string;
+  /** Off on a single-department board, where the column is one repeated word
+   *  costing a truncating column on a table that already has eight. */
+  showDepartment?: boolean;
 };
 
-export default function AdminPendingTable({ rows, loading, onDrill, active }: Props): React.ReactElement {
+export default function BoardPendingTable({
+  rows, loading, onDrill, active, viewAllTo = '/all-passes', showDepartment = true,
+}: Props): React.ReactElement {
   const shown = rows.slice(0, SHOWN);
 
   return (
@@ -73,7 +80,7 @@ export default function AdminPendingTable({ rows, loading, onDrill, active }: Pr
                 <th>Vendor</th>
                 <th>Material</th>
                 <th className="text-right">Qty</th>
-                <th>Department</th>
+                {showDepartment && <th>Department</th>}
                 <th>Raised On</th>
                 <th className="text-right">Details</th>
               </tr>
@@ -88,7 +95,7 @@ export default function AdminPendingTable({ rows, loading, onDrill, active }: Pr
                   <td className="max-w-[9rem] truncate">{parseCompanyInfo(p.visitor_company).name || '—'}</td>
                   <td className="max-w-[11rem] truncate">{p.material_summary || '—'}</td>
                   <td className="text-right tabular">{p.total_quantity}</td>
-                  <td className="max-w-[8rem] truncate">{p.department_name || '—'}</td>
+                  {showDepartment && <td className="max-w-[8rem] truncate">{p.department_name || '—'}</td>}
                   <td className="whitespace-nowrap text-navy-500">{formatDateTime(p.created_at)}</td>
                   <td className="text-right whitespace-nowrap">
                     <Link to={`/pass/${p.id}`} className="text-accent-600 font-semibold hover:underline">
@@ -105,7 +112,7 @@ export default function AdminPendingTable({ rows, loading, onDrill, active }: Pr
       {!loading && rows.length > SHOWN && (
         <p className="text-caption text-navy-500 mt-3">
           Showing {SHOWN} of {rows.length}.{' '}
-          <Link to="/all-passes" className="link-inline text-accent-600 hover:underline">
+          <Link to={viewAllTo} className="link-inline text-accent-600 hover:underline">
             Open the full register
           </Link>
           .

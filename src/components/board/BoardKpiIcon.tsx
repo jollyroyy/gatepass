@@ -1,19 +1,19 @@
 // The tinted glyph on each admin KPI card.
 //
-// Icons live here rather than on `ADMIN_KPIS` so `src/lib/adminDrills.ts` stays
+// Icons live here rather than on `BOARD_KPIS` so `src/lib/boardDrills.ts` stays
 // a plain `.ts` module of predicates and labels — importable by a test that has
 // no DOM, and by anything that wants the numbers without dragging React in.
 //
-// A `Record<AdminKpiKey, …>` lookup, never a string-matching chain: adding a
+// A `Record<BoardKpiKey, …>` lookup, never a string-matching chain: adding a
 // sixth KPI without an icon is then a TYPE ERROR rather than a blank square
 // nobody notices until it is on the client's screen.
 import React from 'react';
-import type { AdminKpiKey } from '../../lib/adminDrills';
-import type { Tone } from '../../components/KpiCard';
+import type { BoardKpiKey } from '../../lib/boardDrills';
+import type { Tone } from '../KpiCard';
 
 const SVG = { className: 'w-5 h-5', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', strokeWidth: 1.8 } as const;
 
-const GLYPHS: Record<AdminKpiKey, React.ReactElement> = {
+const GLYPHS: Record<BoardKpiKey, React.ReactElement> = {
   // Outbound tray — material leaving on paperwork.
   raised: (
     <svg {...SVG}>
@@ -65,7 +65,7 @@ const PLATE: Record<Tone, string> = {
   overdue: 'bg-overdue-50 text-overdue-700',
 };
 
-export default function AdminKpiIcon({ kpi, tone }: { kpi: AdminKpiKey; tone: Tone }): React.ReactElement {
+export default function BoardKpiIcon({ kpi, tone }: { kpi: BoardKpiKey; tone: Tone }): React.ReactElement {
   return (
     <span className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 ${PLATE[tone]}`} aria-hidden="true">
       {GLYPHS[kpi]}

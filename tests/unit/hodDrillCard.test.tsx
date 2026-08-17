@@ -15,7 +15,18 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { GatePassView } from '../../src/types';
 import DrillList from '../../src/components/DrillList';
-import { DRILL_DEFS } from '../../src/lib/hodDrills';
+import { drillDefOf } from '../../src/lib/boardDrills';
+
+// The HOD board carries its rows on a `BoardDrill` and adapts it through
+// `drillDefOf` — `src/lib/hodDrills.ts` and its ten flat KPI definitions were
+// deleted with the 2026-08-17 rebuild. `DrillList` reads only `heading` and
+// `empty`, so a hand-built drill is the honest fixture here.
+const AWAITING = drillDefOf({
+  key: 'kpi-outside',
+  heading: 'Still out',
+  empty: 'Nothing is still out.',
+  rows: [],
+});
 
 function pass(over: Partial<GatePassView> = {}): GatePassView {
   return {
@@ -42,7 +53,7 @@ function renderList(rows: GatePassView[], showRaisedBy = false) {
   return render(
     <MemoryRouter>
       <DrillList
-        def={DRILL_DEFS.awaiting}
+        def={AWAITING}
         rows={rows}
         loading={false}
         showRaisedBy={showRaisedBy}
@@ -99,8 +110,8 @@ describe('HOD drill cards', () => {
 
   it('renders the drill heading, count and empty state', () => {
     renderList([]);
-    expect(screen.getByText(DRILL_DEFS.awaiting.heading)).toBeInTheDocument();
-    expect(screen.getByText(DRILL_DEFS.awaiting.empty)).toBeInTheDocument();
+    expect(screen.getByText(AWAITING.heading)).toBeInTheDocument();
+    expect(screen.getByText(AWAITING.empty)).toBeInTheDocument();
   });
 
   it('renders one card per pass', () => {
