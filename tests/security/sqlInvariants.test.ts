@@ -796,3 +796,133 @@ describe('039 — whitelisting needs a justification and the CEO', () => {
     }
   });
 });
+
+// 040: "inactive" became a status instead of a role. The dangerous failure mode
+// is not a compile error — it is a suspended guard whose JWT still says `guard`
+// walking back into the console because one policy path never learned to ask.
+describe('040 — deactivation is a status, enforced in Postgres', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('040'))!.sql;
+  const bare = stripSqlComments(sql);
+
+  /** The final deployed body of a gatepass function, across all migrations. */
+  function finalBody(fn: string): string {
+    const all = extractFunctions(allMigrationsText()).filter((f) => f.name === `gatepass.${fn}`);
+    expect(all.length, `${fn} is not defined in any migration`).toBeGreaterThan(0);
+    return all[all.length - 1].body;
+  }
+
+  it('app_role() returns nothing for a deactivated caller', () => {
+    // is_security() and is_admin() both read app_role(), so this one wrapper
+    // closes every policy and RPC gated on either.
+    expect(finalBody('app_role')).toMatch(/gatepass\.is_user_active\(auth\.uid\(\)\)/i);
+  });
+
+  it('my_department_ids() returns nothing for a deactivated HOD', () => {
+    // gate_passes_select admits `department_id in (select my_department_ids())`
+    // — the ONE path in that does not consult app_role(). Miss it and a
+    // suspended HOD keeps reading and raising their department's passes.
+    expect(finalBody('my_department_ids')).toMatch(/gatepass\.is_user_active\(auth\.uid\(\)\)/i);
+  });
+
+  it('is_user_active() calls no other gate, so the status policy cannot recurse', () => {
+    const body = finalBody('is_user_active');
+    expect(body).toMatch(/security definer/i);
+    for (const gate of ['app_role', 'is_admin', 'is_security']) {
+      expect(
+        new RegExp(`gatepass\\.${gate}\\(`).test(body),
+        `is_user_active must not call ${gate}() — user_status_select reads is_admin()`
+      ).toBe(false);
+    }
+  });
+
+  it('an absent status row means active, so no backfill can lock anyone out', () => {
+    expect(finalBody('is_user_active')).toMatch(/coalesce\([\s\S]*?,\s*true\s*\)/i);
+  });
+
+  it('user_status is RLS-enabled and RPC-only', () => {
+    expect(bare).toMatch(/alter table gatepass\.user_status enable row level security/i);
+    expect(
+      /grant\s+(?:insert|update|delete|all)[^;]*on\s+gatepass\.user_status/i.test(bare),
+      'user_status must be written only by admin_soft_delete_user / admin_reactivate_user'
+    ).toBe(false);
+  });
+
+  it('deactivation no longer rewrites the person\'s role in VMS\'s table', () => {
+    const body = finalBody('admin_soft_delete_user');
+    expect(
+      /update public\.profiles/i.test(body),
+      'suspending someone must not touch public.profiles — the role has to survive it'
+    ).toBe(false);
+    expect(body).toMatch(/insert into gatepass\.user_status/i);
+    expect(body).toMatch(/is_active\s*=\s*false/i);
+  });
+
+  it('deactivation kills the live session, so a valid JWT cannot outlast it', () => {
+    expect(finalBody('admin_soft_delete_user')).toMatch(/delete from auth\.sessions where user_id = p_user_id/i);
+  });
+
+  it('deactivation keeps the HOD\'s department, so reactivating restores their exact scope', () => {
+    expect(
+      /delete from gatepass\.hod_departments/i.test(finalBody('admin_soft_delete_user')),
+      'the assignment is inert while inactive (my_department_ids checks the flag) — deleting it ' +
+        'means an admin has to re-derive which department the person held'
+    ).toBe(false);
+  });
+
+  it('neither deactivation nor reactivation can target an admin', () => {
+    expect(finalBody('admin_soft_delete_user')).toMatch(/in \('admin', 'super_admin'\)/i);
+    // Reactivation is gated the other way round: only a real app role qualifies.
+    expect(finalBody('admin_reactivate_user')).toMatch(/not in \('guard', 'hod'\)/i);
+  });
+
+  it('you cannot deactivate yourself', () => {
+    expect(finalBody('admin_soft_delete_user')).toMatch(/p_user_id = auth\.uid\(\)/i);
+  });
+
+  it('the admin portal can no longer write the role staff', () => {
+    for (const fn of ['admin_create_user', 'admin_update_user']) {
+      const body = finalBody(fn);
+      expect(body, `${fn} must allow guard and hod only`).toMatch(
+        /not in \('guard', 'hod'\)/i
+      );
+      expect(
+        /'guard', 'hod', 'staff'/i.test(body),
+        `${fn} still admits 'staff' — deactivation would go back to demoting people`
+      ).toBe(false);
+    }
+  });
+
+  it('040 keeps every earlier fix to the two admin user functions', () => {
+    const create = finalBody('admin_create_user');
+    // 034 — GoTrue cannot scan a NULL into a Go string.
+    for (const col of ['confirmation_token', 'recovery_token', 'email_change', 'email_change_token_new']) {
+      expect(create, `034's ${col} fix was dropped`).toMatch(new RegExp(col, 'i'));
+    }
+    // 023 — VMS's handle_new_user() trigger already inserted the profile row.
+    expect(
+      /insert into public\.profiles/i.test(create),
+      "023's fix was dropped: VMS's trigger already created the row, so an insert collides"
+    ).toBe(false);
+    // 032 — one department per person, mirrored into VMS's own column.
+    for (const fn of [create, finalBody('admin_update_user')]) {
+      expect(fn).toMatch(/at most one department/i);
+      expect(fn).toMatch(/department_id\s*=/i);
+    }
+  });
+
+  it('both client-facing profile readers carry the flag', () => {
+    expect(bare).toMatch(/drop function if exists gatepass\.my_profile\(\)/i);
+    expect(bare).toMatch(/drop function if exists gatepass\.admin_list_profiles\(text\)/i);
+    // The drop takes the grant with it.
+    expect(bare).toMatch(/grant execute on function gatepass\.my_profile\(\) to authenticated/i);
+    expect(bare).toMatch(/grant execute on function gatepass\.admin_list_profiles\(text\) to authenticated/i);
+    for (const fn of ['my_profile', 'admin_list_profiles']) {
+      expect(finalBody(fn), `${fn} must return is_active`).toMatch(/is_active/i);
+    }
+  });
+
+  it('the status table cannot hold an undated suspension', () => {
+    expect(bare).toMatch(/user_status_inactive_is_dated check \(is_active or deactivated_at is not null\)/i);
+  });
+});

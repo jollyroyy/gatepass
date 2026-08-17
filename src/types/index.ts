@@ -11,7 +11,9 @@
 // The enum lives in VMS's `public.user_role` and is shared. We do not add to it.
 // This app only cares about three of its five values:
 //   guard → security console · hod → raise passes · admin/super_admin → admin
-export type UserRole = 'guard' | 'hod' | 'staff' | 'admin' | 'super_admin';
+export const USER_ROLES = ['guard', 'hod', 'staff', 'admin', 'super_admin'] as const;
+
+export type UserRole = (typeof USER_ROLES)[number];
 
 /** Roles that may use this app at all. `staff` is intentionally excluded. */
 export const APP_ROLES = ['guard', 'hod', 'admin', 'super_admin'] as const;
@@ -83,6 +85,17 @@ export interface Profile {
   created_at: string;
   /** Migration 036: set by an admin password reset, cleared only by set_my_password. */
   must_change_password?: boolean;
+  /**
+   * Migration 040: `gatepass.user_status.is_active`, coalesced to true when the
+   * person has no row (which is every account nobody has ever suspended).
+   *
+   * This is the RAW flag, not "can this person use the app" — a `staff` row is
+   * flagged active and still reaches nothing. Ask `isAccountActive(role, flag)`
+   * in src/lib/userStatus.ts; never read this field alone.
+   */
+  is_active?: boolean;
+  /** Migration 040: when the suspension was recorded. Null while active. */
+  deactivated_at?: string | null;
 }
 
 export interface Department {

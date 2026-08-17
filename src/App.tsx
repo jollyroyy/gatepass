@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase, getUserRole } from './supabaseClient';
 import type { UserRole } from './types/index';
 import { homeFor, isForbidden } from './lib/roleRoutes';
-import { fetchMustChangePassword } from './lib/profiles';
+import { fetchAccessState } from './lib/profiles';
 import { ThemeProvider } from './lib/theme';
 import AppShell from './components/layout/AppShell';
 
@@ -70,6 +70,11 @@ export default function App(): React.ReactElement {
   // failure fails OPEN (false) rather than locking out every existing session
   // over a transient network error.
   const [mustChangePassword, setMustChangePassword] = useState(false);
+  // Has an admin suspended this account (migration 040)? Read from the same
+  // my_profile() call, and fails OPEN for the same reason: a dropped packet is
+  // not evidence of a suspension, and RLS refuses a genuinely suspended
+  // person's reads whatever this flag says.
+  const [deactivated, setDeactivated] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,20 +84,26 @@ export default function App(): React.ReactElement {
         if (!cancelled) {
           setRole(null);
           setMustChangePassword(false);
+          setDeactivated(false);
           setResolving(false);
         }
         return;
       }
       const r = await getUserRole();
       let mustChange = false;
+      let active = true;
       try {
-        mustChange = await fetchMustChangePassword();
+        const access = await fetchAccessState();
+        mustChange = access.mustChangePassword;
+        active = access.isActive;
       } catch {
         mustChange = false;
+        active = true;
       }
       if (!cancelled) {
         setRole((r as UserRole | null) ?? null);
         setMustChangePassword(mustChange);
+        setDeactivated(!active);
         setResolving(false);
       }
     };
@@ -151,6 +162,15 @@ export default function App(): React.ReactElement {
   // flag is false after a real set_my_password call.
   if (mustChangePassword) {
     return <ForcePasswordChange onCleared={() => setMustChangePassword(false)} />;
+  }
+
+  // Signed in with a real role, and an admin has suspended the account (040).
+  // The role check below cannot catch this any more, by design: deactivation
+  // stopped demoting people to `staff`, so the JWT still says `guard`. Without
+  // this branch they would reach the console and every panel would render empty,
+  // because RLS refuses their reads and nothing on screen would say why.
+  if (deactivated) {
+    return <NoAccess deactivated />;
   }
 
   // Signed in, but the role has no place in this app (e.g. VMS `staff`).

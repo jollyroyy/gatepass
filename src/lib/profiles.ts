@@ -16,6 +16,7 @@
 // `pub().from('profiles')` call reappears.
 import { gp } from '../supabaseClient';
 import type { Profile, UserRole } from '../types';
+import { isAccountActive } from './userStatus';
 
 /** Shape the RPCs return: identical to Profile except `role` arrives as text. */
 type ProfileRow = Omit<Profile, 'role'> & { role: string };
@@ -74,6 +75,32 @@ export async function fetchDisplayName(email: string | null | undefined): Promis
 export async function fetchMustChangePassword(): Promise<boolean> {
   const profile = await fetchMyProfile();
   return Boolean(profile?.must_change_password);
+}
+
+/**
+ * Everything App.tsx has to know before it renders a screen, in ONE read.
+ *
+ * Both facts live only in `gatepass.my_profile()` — neither is in the JWT — and
+ * both gate the whole app, so asking for them separately would be two RPCs to
+ * answer one question, with the second able to disagree with the first.
+ *
+ * `isActive` is the DERIVED answer (`isAccountActive`), not the raw column: a
+ * `staff` row is flagged active and still reaches nothing.
+ *
+ * Throws on a failed lookup. App.tsx decides to fail open on that, not this
+ * file — being unable to reach the database is not proof anybody is suspended.
+ */
+export async function fetchAccessState(): Promise<{
+  mustChangePassword: boolean;
+  isActive: boolean;
+}> {
+  const profile = await fetchMyProfile();
+  return {
+    mustChangePassword: Boolean(profile?.must_change_password),
+    // No profile row at all is not a suspension — the role check in App.tsx is
+    // what turns that into NoAccess, with a message that fits the cause.
+    isActive: profile ? isAccountActive(profile.role, profile.is_active) : true,
+  };
 }
 
 /** "sudeshna.pal@x.com" → "Sudeshna". Exported for the tests. */

@@ -1,8 +1,14 @@
-// The App-level gate for an admin-reset password (migration 036). A signed-in
-// user whose gatepass.my_profile().must_change_password is true must see the
-// ForcePasswordChange screen and NOT the app shell, on ANY URL — and this must
-// not regress the common case, which is every existing session where the flag
-// is false.
+// The App-level gate for a deactivated account (migration 040).
+//
+// Deactivation used to demote the person to `staff`, and the existing
+// role-has-no-place check below caught that. Now the role SURVIVES the
+// suspension, so their JWT still says `guard` and that check waves them
+// through — every read they make is refused by RLS instead, leaving someone
+// staring at an app that silently shows nothing. This gate is what turns that
+// into a sentence they can act on.
+//
+// RLS remains the real boundary: is_user_active() is consulted by app_role()
+// and my_department_ids(), so this screen is UX, not security.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -10,16 +16,12 @@ import { MemoryRouter } from 'react-router-dom';
 
 type AuthCb = (event: string, session: unknown) => void;
 
-// App.tsx reads both app-wide gates (the 036 password flag and 040's active
-// flag) from ONE my_profile() call — see fetchAccessState in lib/profiles.
 const { authCallbacks, getSession, getUserRole, fetchAccessState } = vi.hoisted(() => ({
   authCallbacks: [] as AuthCb[],
   getSession: vi.fn(),
   getUserRole: vi.fn(),
   fetchAccessState: vi.fn(),
 }));
-
-const mustChange = (flag: boolean) => ({ mustChangePassword: flag, isActive: true });
 
 const FAKE_SESSION = { user: { id: 'u1', email: 'guard@demo.vms', app_metadata: { role: 'guard' } } };
 
@@ -28,6 +30,7 @@ vi.mock('../../src/supabaseClient', () => ({
   supabase: {
     auth: {
       getSession,
+      getUser: () => Promise.resolve({ data: { user: FAKE_SESSION.user } }),
       onAuthStateChange: (cb: AuthCb) => {
         authCallbacks.push(cb);
         return { data: { subscription: { unsubscribe: () => undefined } } };
@@ -44,7 +47,6 @@ vi.mock('../../src/supabaseClient', () => ({
     removeChannel: () => undefined,
   },
   gp: () => ({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     from: () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const t: any = {};
@@ -76,9 +78,9 @@ beforeEach(() => {
   fetchAccessState.mockReset();
 });
 
-describe('App — admin-reset password gate', () => {
-  it('shows ForcePasswordChange, not the app shell, when the flag is true', async () => {
-    fetchAccessState.mockResolvedValue(mustChange(true));
+describe('App — deactivated account gate', () => {
+  it('a suspended guard sees the no-access screen, not the console', async () => {
+    fetchAccessState.mockResolvedValue({ mustChangePassword: false, isActive: false });
 
     render(
       <MemoryRouter initialEntries={['/console']}>
@@ -87,13 +89,13 @@ describe('App — admin-reset password gate', () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByRole('heading', { name: /set your password/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Account Deactivated' })).toBeInTheDocument()
     );
     expect(screen.queryByRole('heading', { name: 'Gate Console' })).not.toBeInTheDocument();
   });
 
-  it('is not escapable by URL — a deep link still lands on the gate', async () => {
-    fetchAccessState.mockResolvedValue(mustChange(true));
+  it('is not escapable by URL', async () => {
+    fetchAccessState.mockResolvedValue({ mustChangePassword: false, isActive: false });
 
     render(
       <MemoryRouter initialEntries={['/admin-dashboard']}>
@@ -102,12 +104,12 @@ describe('App — admin-reset password gate', () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByRole('heading', { name: /set your password/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Account Deactivated' })).toBeInTheDocument()
     );
   });
 
-  it('reaches the app normally when the flag is false — the regression that matters most', async () => {
-    fetchAccessState.mockResolvedValue(mustChange(false));
+  it('an active account reaches the app — the regression that matters most', async () => {
+    fetchAccessState.mockResolvedValue({ mustChangePassword: false, isActive: true });
 
     render(
       <MemoryRouter initialEntries={['/console']}>
@@ -116,10 +118,12 @@ describe('App — admin-reset password gate', () => {
     );
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Gate Console' })).toBeInTheDocument());
-    expect(screen.queryByRole('heading', { name: /set your password/i })).not.toBeInTheDocument();
   });
 
-  it('fails open (reaches the app) when the my_profile lookup errors', async () => {
+  // 040 writes a user_status row only for someone actually suspended, and a
+  // failed lookup must not lock out every existing session over a dropped
+  // packet. RLS still refuses a genuinely suspended person's reads.
+  it('fails open when the my_profile lookup errors', async () => {
     fetchAccessState.mockRejectedValue(new Error('network down'));
 
     render(
@@ -129,5 +133,19 @@ describe('App — admin-reset password gate', () => {
     );
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Gate Console' })).toBeInTheDocument());
+  });
+
+  it('the forced password change still outranks it', async () => {
+    fetchAccessState.mockResolvedValue({ mustChangePassword: true, isActive: true });
+
+    render(
+      <MemoryRouter initialEntries={['/console']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /set your password/i })).toBeInTheDocument()
+    );
   });
 });

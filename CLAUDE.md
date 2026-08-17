@@ -46,14 +46,138 @@ authoritative gate run.
 re-concatenated is a fix that never reaches the database.
 `tests/security/applyAllIntegrity.test.ts` is the backstop that catches the drift.
 
-## Current state — 2026-08-17 (latest)
+## Current state — 2026-08-17 (latest): `040` applied + verified live
+
+**"Inactive" is a STATUS now, not a role.** Migration `040` applied to the live DB and
+**verified behaviourally with real anon-key JWTs — `node scripts/verify-040.mjs`, 23/23**
+(postgres bypasses every guard here, so psql could not have proven any of it). Full gate:
+**958 tests across 91 files** (`npm run check`, 2026-08-17). `npm run build` clean.
+
+Client: *"user role can't be inactive in admin portal, change them to proper role, but
+create a separate column for active or not, and remove staff role from admin."* All three
+were the same defect: **deactivating someone wrote `public.profiles.role = 'staff'`**, so
+the Role column printed "Inactive" (not a role), the person's real role was destroyed by
+the act of suspending them, and this app was overwriting a **VMS-owned** column to record a
+fact of its own — `staff` is VMS's legitimate role for someone who does not use GatePass.
+
+### `gatepass.user_status` holds the fact, and Postgres enforces it
+
+`user_id` (PK → `auth.users`, cascade) · `is_active` · `deactivated_at` · `deactivated_by`
+· `updated_at`, RLS on (own row or `is_admin()`), **select-only grant — the two RPCs are
+the only writers** (verified live: an admin's direct INSERT gets `permission denied`).
+
+**ABSENT ROW = ACTIVE** (`is_user_active()` coalesces to true), so all 39 existing accounts
+stayed exactly as they were with no backfill, and a row exists only for someone actually
+suspended. `user_status` is back to **0 rows** after the probe.
+
+**A suspended person is shut out by the database, not by a screen** — their JWT still says
+`guard` and a JWT cannot be un-issued. The flag is consulted by the **two** functions every
+policy already goes through, and BOTH are load-bearing:
+
+| Function | Effect when inactive | Why it alone is not enough |
+|---|---|---|
+| `app_role()` | returns **null** | kills `is_security()` / `is_admin()` and every policy and RPC gated on them |
+| `my_department_ids()` | returns **nothing** | `gate_passes_select` admits `department_id in (select my_department_ids())` — the ONE path in that never reads `app_role()` |
+
+Proven live: a suspended guard **can still authenticate** (GoTrue knows nothing about the
+flag — the block is authorization), `app_role()` → null, and **passes visible went 45 → 0**;
+a suspended HOD's `my_department_ids()` → `[]` and their department's passes → 0.
+
+`is_user_active()` deliberately calls **nothing** — an `is_admin()` call inside it would
+recurse through `user_status_select`, the very policy it exists to answer.
+
+### Deactivation keeps the role AND the department; reactivation is a real RPC
+
+`admin_soft_delete_user` no longer touches `public.profiles` at all (pinned by a test).
+It writes the flag, **keeps `hod_departments`** (021 deleted it — the assignment is inert
+while `my_department_ids()` returns nothing, and keeping it means reactivation restores the
+person's *exact* scope instead of an admin re-deriving it), and **deletes every
+`auth.sessions` row** so a live JWT cannot outlast the decision (036's precedent). It
+refuses an `admin`/`super_admin` target and refuses `auth.uid()`.
+
+New **`admin_reactivate_user`** — 021 had none, because "reactivating" used to mean an admin
+*guessing* a role. It **refuses a row whose role is not guard/hod**: a `staff` account has
+no access whether the flag is true or false, so flipping it would report someone Active who
+still cannot sign in to anything (verified live). The portal offers such a row **Edit only**.
+
+### `staff` is no longer writable from the portal
+
+`admin_create_user` / `admin_update_user` now allow **guard and hod only** (both verified
+live refusing `'staff'`, both bodies copied verbatim from 034 / 032 with only that one line
+changed — 034's four `auth.users` token columns, 023's UPDATE-not-INSERT, 032's
+one-department guard and `profiles.department_id` mirror are all preserved, and a test fails
+if any of them is dropped).
+
+**Legacy `staff` rows are NOT rewritten** (user's call, asked explicitly). 16 exist and they
+are a mix — some GatePass suspended, some VMS-native (`delegate.it@demo.vms`,
+`staff@demo.vms`) — and **nothing on the row says which**, so promoting them to `guard`
+would be inventing a role the data does not record and handing gate access to a VMS delegate
+on some later reactivation. They read **Role: Staff · Status: Inactive**, which is true of
+both kinds; giving one a real role in Edit is what makes it a usable account.
+
+### Frontend
+
+`src/lib/userStatus.ts` is the single derivation — `ROLE_LABEL` (no value is ever
+"Inactive"), `ROLE_CHIP`, `ASSIGNABLE_ROLES` (guard/hod, mirroring the server),
+`isAccountActive(role, flag)` and its label/chip. **Two independent reasons an account is
+unusable and both live there**: the flag is false, or the role has no place in this app.
+
+`UsersTab` gained a **Status column** beside Role; the filter tabs' last entry is now a
+**status** filter (`inactive`), so the Guard and HOD filters still list a suspended guard or
+HOD — they are still a guard and an HOD, which is the point. Reactivate calls the RPC
+directly (no confirmation: it is not destructive, which is why Deactivate has a dialog).
+
+`App.tsx` reads both app-wide gates from **one** `my_profile()` call —
+`fetchAccessState()` in `src/lib/profiles.ts` — and renders `<NoAccess deactivated />` for a
+suspended account, which says *"deactivated by an administrator… your role and department
+are unchanged"* rather than "an administrator can grant you access". It **fails open** on a
+lookup error, exactly as the 036 gate does: a dropped packet is not evidence of a
+suspension, and RLS refuses a genuinely suspended person's reads regardless.
+
+Tests: `userStatus` (10), `usersTabStatus` (14), `deactivatedAccountGate` (5), plus **13 new
+`sqlInvariants` cases** for 040 — including ones that fail if `app_role()` or
+`my_department_ids()` stops consulting the flag, if `admin_soft_delete_user` starts writing
+`public.profiles` again, or if either admin function re-admits `'staff'`.
+`forcePasswordChangeGate` was updated to mock `fetchAccessState`.
+
+**Known, not fixed here:** `UsersTab.tsx` is **478 lines**, over the 300-line cap. It was
+already 466 before this change (a pre-existing violation this file documents); the honest
+fix is extracting the Add-User and Edit-User modals, which is a refactor of its own.
+**Not yet seen signed-in in a real browser** — the suite, a production build and the live
+RPC probe only.
+
+## Current state — 2026-08-17
 
 **Three client changes, all frontend-only — no migration, no new dependency.**
 Full gate: **938 tests across 87 files** (`npm run check`, 2026-08-17). `npm run build`
 clean. **Not yet seen signed-in in a real browser** — the login card renders, but the
 board itself is verified by the suite and a production build only.
 
-### The headline KPI row is CHOSEN BY THE CATEGORY TOGGLE now
+### ⚠ The board was rebuilt AFTER this section — everything below it about the category toggle is SUPERSEDED
+
+**Both dashboards are now one component, `src/components/board/GateBoard.tsx`**, with RGP and
+NRGP as their own KPI **sections** (`src/lib/boardKpis.ts`: RGP Overview 6 · NRGP Overview 3
+· Quick Summary 5) instead of a category toggle — *"the same information without asking the
+reader to press a button to discover the other half of it"*, per that file's own header.
+`BoardKpiCard` / `BoardKpiRow` / `BoardOverviewCard` / `BoardTrendCard` /
+`BoardActivityFeed` / `BoardPendingTable` / `BoardOverdueList`, `AdminBreakdownCards`,
+`HodBreakdownCards` and `src/lib/boardCategory.ts` were **deleted**, replaced by
+`BoardKpiTile` / `BoardKpiSection` / `BoardHeader` / `BoardMovementTrend` /
+`BoardStatusBreakdown` / `BoardReturnWatch` / `BoardOutstanding` / `BoardActivityTimeline`
+plus `boardKpis.ts` / `returnWatch.ts` / `gateActivity.ts` / `localDay.ts`.
+
+**Every card now declares a SCOPE** — `period` (raised in the window, carries a delta),
+`returned` (dated by `actual_return_date`, because scoping a return on `created_at` drops
+today's return of last month's pass) or `current` (a running obligation, never period-scoped
+and carrying no delta). Pinned by `tests/unit/boardKpiSections.test.ts`. The drill invariant
+is unchanged: every clickable figure resolves to a `BoardDrill` carrying its own rows.
+
+So `boardKpiOrder(category)`, `categoryHasReturns`, `filterByCategory` and the two breakdown
+rows named below **no longer exist**. The section is kept for the *reasons* recorded in it
+(why an NRGP board carries no return card; why "Materials Outside" was renamed) — those
+still hold.
+
+### The headline KPI row is CHOSEN BY THE CATEGORY TOGGLE now (SUPERSEDED — see above)
 
 Client: *"make sure you dynamically change those KPI buttons depending on what we have
 selected… for NRGP you have mentioned return information but NRGP does not have any return

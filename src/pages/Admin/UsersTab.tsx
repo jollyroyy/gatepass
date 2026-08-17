@@ -7,43 +7,28 @@ import { formatDateOnly } from '../../lib/formatDate';
 import { nameError } from '../../lib/nameValidation';
 import ResetPasswordSection from './ResetPasswordSection';
 import ModalShell from '../../components/ModalShell';
+import {
+  ASSIGNABLE_ROLES,
+  ROLE_CHIP,
+  ROLE_LABEL,
+  accountStatusChip,
+  accountStatusLabel,
+  isAccountActive,
+  isAssignableRole,
+  type AssignableRole,
+} from '../../lib/userStatus';
 
-type RoleFilter = 'all' | 'hod' | 'guard' | 'admin' | 'staff';
+// `inactive` is a STATUS filter, not a role filter (migration 040). The Guard
+// and HOD filters therefore still list a suspended guard or HOD — they are
+// still a guard and an HOD, which is the whole point of splitting the columns.
+type RoleFilter = 'all' | 'hod' | 'guard' | 'admin' | 'inactive';
 
 const ROLE_FILTERS: { key: RoleFilter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'hod', label: 'HOD' },
   { key: 'guard', label: 'Guard' },
   { key: 'admin', label: 'Admin' },
-  { key: 'staff', label: 'Inactive' },
-];
-
-const ROLE_CHIP: Record<UserRole, string> = {
-  guard: 'bg-brand-50 text-brand-700 border border-brand-500/25',
-  hod: 'bg-matched-50 text-matched-700 border border-matched-500/25',
-  admin: 'bg-flagged-50 text-flagged-700 border border-flagged-500/25',
-  super_admin: 'bg-flagged-50 text-flagged-700 border border-flagged-500/25',
-  staff: 'bg-surface-100 text-navy-600 border border-surface-200',
-};
-
-const ROLE_LABEL: Record<UserRole, string> = {
-  guard: 'Guard',
-  hod: 'HOD',
-  admin: 'Admin',
-  super_admin: 'Super Admin',
-  staff: 'Inactive',
-};
-
-const CREATE_ROLES: { key: 'guard' | 'hod' | 'staff'; label: string }[] = [
-  { key: 'guard', label: 'Guard' },
-  { key: 'hod', label: 'HOD' },
-  { key: 'staff', label: 'Staff (no access)' },
-];
-
-const EDIT_ROLES: { key: 'guard' | 'hod' | 'staff'; label: string }[] = [
-  { key: 'guard', label: 'Guard' },
-  { key: 'hod', label: 'HOD' },
-  { key: 'staff', label: 'Deactivate (Staff)' },
+  { key: 'inactive', label: 'Inactive' },
 ];
 
 interface Dept {
@@ -52,11 +37,11 @@ interface Dept {
   code: string;
 }
 
-function matchesFilter(role: UserRole, filter: RoleFilter): boolean {
+function matchesFilter(p: Profile, filter: RoleFilter): boolean {
   if (filter === 'all') return true;
-  if (filter === 'admin') return role === 'admin' || role === 'super_admin';
-  if (filter === 'staff') return role === 'staff';
-  return role === filter;
+  if (filter === 'inactive') return !isAccountActive(p.role, p.is_active);
+  if (filter === 'admin') return p.role === 'admin' || p.role === 'super_admin';
+  return p.role === filter;
 }
 
 const SKELETON_ROWS = 6;
@@ -75,7 +60,7 @@ export default function UsersTab(): React.ReactElement {
   const [createEmail, setCreateEmail] = useState('');
   const [createPassword, setCreatePassword] = useState('');
   const [createName, setCreateName] = useState('');
-  const [createRole, setCreateRole] = useState<'guard' | 'hod' | 'staff'>('guard');
+  const [createRole, setCreateRole] = useState<AssignableRole>('guard');
   const [createDeptId, setCreateDeptId] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -84,13 +69,14 @@ export default function UsersTab(): React.ReactElement {
   // Edit modal
   const [editProfile, setEditProfile] = useState<Profile | null>(null);
   const [editName, setEditName] = useState('');
-  const [editRole, setEditRole] = useState<'guard' | 'hod' | 'staff'>('guard');
+  const [editRole, setEditRole] = useState<AssignableRole>('guard');
   const [editDeptId, setEditDeptId] = useState('');
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [editNameErr, setEditNameErr] = useState<string | null>(null);
 
-  // Soft-delete
+  // Deactivate / reactivate — one in-flight id covers both, since a row can
+  // only ever offer one of the two.
   const [deactivateTarget, setDeactivateTarget] = useState<Profile | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -131,7 +117,7 @@ export default function UsersTab(): React.ReactElement {
     load();
   }, [load]);
 
-  const filtered = useMemo(() => profiles.filter((p) => matchesFilter(p.role, filter)), [profiles, filter]);
+  const filtered = useMemo(() => profiles.filter((p) => matchesFilter(p, filter)), [profiles, filter]);
 
   function resetCreate() {
     setCreateEmail('');
@@ -176,8 +162,10 @@ export default function UsersTab(): React.ReactElement {
   function openEdit(p: Profile) {
     setEditProfile(p);
     setEditName(p.full_name);
-    const role = p.role === 'guard' || p.role === 'hod' || p.role === 'staff' ? p.role : 'staff';
-    setEditRole(role);
+    // A legacy `staff` row has no assignable role to pre-fill; it defaults to
+    // Guard, which is the choice the admin is here to make. Saving cannot
+    // reinstate anyone by accident — access comes back only via Reactivate.
+    setEditRole(isAssignableRole(p.role) ? p.role : 'guard');
     setEditDeptId(deptIdByHod.get(p.id) ?? '');
     setEditError(null);
     setEditNameErr(null);
@@ -218,6 +206,23 @@ export default function UsersTab(): React.ReactElement {
     setDeletingId(profile.id);
     try {
       const { error: rpcErr } = await gp().rpc('admin_soft_delete_user', { p_user_id: profile.id });
+      if (rpcErr) throw rpcErr;
+      await load();
+    } catch (err) {
+      setError(safeErrorMessage(err));
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  // Reactivation needs no confirmation and no role choice: 040 kept the role
+  // and the department assignment, so this restores exactly what was suspended.
+  // It is also not destructive — the reason Deactivate has a dialog.
+  async function handleReactivate(profile: Profile) {
+    setDeletingId(profile.id);
+    setError(null);
+    try {
+      const { error: rpcErr } = await gp().rpc('admin_reactivate_user', { p_user_id: profile.id });
       if (rpcErr) throw rpcErr;
       await load();
     } catch (err) {
@@ -268,6 +273,7 @@ export default function UsersTab(): React.ReactElement {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
+                <th>Status</th>
                 <th>Departments</th>
                 <th>Created</th>
                 <th />
@@ -280,6 +286,11 @@ export default function UsersTab(): React.ReactElement {
                   <td>{p.email}</td>
                   <td>
                     <span className={`status-badge ${ROLE_CHIP[p.role]}`}>{ROLE_LABEL[p.role]}</span>
+                  </td>
+                  <td>
+                    <span className={`status-badge ${accountStatusChip(p.role, p.is_active)}`}>
+                      {accountStatusLabel(p.role, p.is_active)}
+                    </span>
                   </td>
                   <td className="text-sm text-navy-500">
                     {p.role === 'hod' ? deptNamesByHod.get(p.id)?.join(', ') || '—' : '—'}
@@ -295,21 +306,22 @@ export default function UsersTab(): React.ReactElement {
                         >
                           Edit
                         </button>
-                        {p.role === 'staff' ? (
-                          // A `staff` row is already deactivated (it's what
-                          // "Deactivate" sets, and it's what the Inactive
-                          // filter shows) — a "Deactivate" action here does
-                          // nothing meaningful. There is no reactivation RPC,
-                          // only `admin_update_user`'s role param, so
-                          // reactivating means giving the person a real role
-                          // again — this opens the same Edit modal Edit does,
-                          // where guard/HOD/staff can be chosen.
+                        {!isAssignableRole(p.role) ? (
+                          // A legacy `staff` row: nothing to reactivate, because
+                          // there is no role to restore — the flag says active
+                          // and the account still reaches nothing. Editing it
+                          // into a Guard or an HOD is what makes it usable, and
+                          // `admin_reactivate_user` refuses such a target for
+                          // exactly this reason. Only Edit is offered.
+                          null
+                        ) : !isAccountActive(p.role, p.is_active) ? (
                           <button
                             type="button"
                             className="text-xs font-medium text-matched-600 hover:text-matched-800"
-                            onClick={() => openEdit(p)}
+                            disabled={deletingId === p.id}
+                            onClick={() => void handleReactivate(p)}
                           >
-                            Reactivate
+                            {deletingId === p.id ? '…' : 'Reactivate'}
                           </button>
                         ) : (
                           <button
@@ -342,7 +354,7 @@ export default function UsersTab(): React.ReactElement {
       {showCreate && (
         <ModalShell onClose={() => { setShowCreate(false); resetCreate(); }} labelledBy="create-user-title">
             <h2 id="create-user-title" className="text-h2 text-navy-950 mb-1">Add User</h2>
-            <p className="text-sm text-navy-500 mb-5">Provision a new guard, HOD, or staff account.</p>
+            <p className="text-sm text-navy-500 mb-5">Provision a new guard or HOD account.</p>
             <form onSubmit={handleCreate} className="flex flex-col gap-4">
               <div>
                 <label className="label">Email</label>
@@ -358,9 +370,9 @@ export default function UsersTab(): React.ReactElement {
                 {createNameErr && <p className="field-error">{createNameErr}</p>}
               </div>
               <div>
-                <label className="label">Role</label>
-                <select className="input" value={createRole} onChange={(e) => { setCreateRole(e.target.value as 'guard' | 'hod' | 'staff'); setCreateDeptId(''); }}>
-                  {CREATE_ROLES.map((r) => (
+                <label className="label" htmlFor="create-user-role">Role</label>
+                <select id="create-user-role" className="input" value={createRole} onChange={(e) => { setCreateRole(e.target.value as AssignableRole); setCreateDeptId(''); }}>
+                  {ASSIGNABLE_ROLES.map((r) => (
                     <option key={r.key} value={r.key}>{r.label}</option>
                   ))}
                 </select>
@@ -424,9 +436,9 @@ export default function UsersTab(): React.ReactElement {
                 {editNameErr && <p className="field-error">{editNameErr}</p>}
               </div>
               <div>
-                <label className="label">Role</label>
-                <select className="input" value={editRole} onChange={(e) => { setEditRole(e.target.value as 'guard' | 'hod' | 'staff'); setEditDeptId(''); }}>
-                  {EDIT_ROLES.map((r) => (
+                <label className="label" htmlFor="edit-user-role">Role</label>
+                <select id="edit-user-role" className="input" value={editRole} onChange={(e) => { setEditRole(e.target.value as AssignableRole); setEditDeptId(''); }}>
+                  {ASSIGNABLE_ROLES.map((r) => (
                     <option key={r.key} value={r.key}>{r.label}</option>
                   ))}
                 </select>
