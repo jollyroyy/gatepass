@@ -52,33 +52,29 @@ export const STATUS_COLORS = {
   overdue: '#f97316',
 } as const;
 
-export const CATEGORY_COLORS: Record<string, string> = {
-  'RGP-out': SERIES_COLORS.blue,
-  'RGP-in': SERIES_COLORS.violet,
-  'NRGP-out': SERIES_COLORS.teal,
+/** The RGP Status Breakdown ring and the Return Watch tabs — the four buckets of
+ *  `src/lib/returnWatch.ts`.
+ *
+ *  These ARE statuses, so they take the real status hues rather than series
+ *  colours: an overdue arc in some arbitrary violet, while every overdue badge on
+ *  the same screen is orange, is exactly the confusion the design system's rule
+ *  exists to prevent. `dueLater` is deliberately the calm accent blue — a
+ *  return that is a fortnight away is information, not a warning, and drawing it
+ *  in a warm hue would make a healthy board look like a busy one. */
+export const RETURN_WATCH_COLORS: Record<string, string> = {
+  overdue: STATUS_COLORS.flagged,
+  dueToday: STATUS_COLORS.overdue,
+  dueIn7: STATUS_COLORS.pending,
+  dueLater: SERIES_COLORS.blue,
 };
 
-/** The status ring. These ARE statuses, so they take the real status hues —
- *  the same ones `statusStyles.ts` gives the badges beside them. `hod_reviewed`
- *  borrows the accent blue (it is a decision, not an alarm) and the two rare
- *  terminal states take neutral stone. */
-export const PASS_STATUS_COLORS: Record<string, string> = {
-  pending: STATUS_COLORS.pending,
-  // Maroon, from questmall.in's own stylesheet. NOT the flagged red it sits
-  // next to in the ring: expired and mismatched are different failures and two
-  // adjacent arcs of the same hue would read as one arc.
-  expired: '#740e0c',
-  matched: STATUS_COLORS.matched,
-  flagged: STATUS_COLORS.flagged,
-  hod_reviewed: SERIES_COLORS.blue,
-  held: SERIES_COLORS.slate,
-  cancelled: '#A8A399',
-};
-
-export const RETURNABLE_COLORS: Record<string, string> = {
-  returned: STATUS_COLORS.matched,
-  awaiting: STATUS_COLORS.pending,
-  overdue: STATUS_COLORS.overdue,
+/** The three lines of the Daily Movement Trend. Movements are not statuses — a
+ *  return is not "good" and an outbound trip is not "pending" — so these take
+ *  series identities, and none of them is the brand gold. */
+export const MOVEMENT_COLORS: Record<string, string> = {
+  rgpOut: SERIES_COLORS.blue,
+  rgpReturn: STATUS_COLORS.matched,
+  nrgpOut: SERIES_COLORS.violet,
 };
 
 /** The ranked bar lists (departments, top materials) cycle this. Order matters:

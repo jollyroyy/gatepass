@@ -1,26 +1,24 @@
-// The HOD dashboard, rebuilt 2026-08-17 to the same board layout as the admin
-// one: five headline KPIs, the Gate Pass Overview donut, a trend line, the
-// pending table, the overdue panel, Top Materials and the Returnable Status
-// ring — all drillable.
+// The HOD dashboard — the same board the admin gets (rebuilt 2026-08-17 to the
+// client's reference layout), narrowed to one person.
 //
-// THREE THINGS THIS FILE EXISTS TO PIN, in order of how quietly they could
-// break:
+// THREE THINGS THIS FILE EXISTS TO PIN, in order of how quietly they could break:
 //
 //   1. THE PERSON SCOPE. The client asked for a board that is "only for their
-//      department and only for her or him". Department is RLS's job and this
-//      test cannot see it; the PERSON half is this page's, and it is a
-//      `.eq('raised_by', …)` on the query. The mock below therefore records the
-//      filters it was handed and returns a colleague's pass for any read that
-//      did NOT ask for one — so forgetting the filter shows up as a stranger's
-//      pass on the board, not as a silent widening nobody notices.
-//   2. THE FIGURE/DRILL AGREEMENT. Read what a card or a chart segment prints,
-//      click it, count the list underneath. A donut slice reading 3 that opens
-//      4 passes is invisible to the eye and fatal to trust.
-//   3. THE THINGS DELIBERATELY ABSENT — Department Activity (one bar on a
-//      single-department board) and any link to `/all-passes`, which
-//      ROLE_ROUTES closes to an HOD.
+//      department and only for her or him". Department is RLS's job and this test
+//      cannot see it; the PERSON half is this page's, and it is a
+//      `.eq('raised_by', …)` on every read. The mock below RECORDS the filters it
+//      was handed and returns a colleague's pass to any read that did NOT ask for
+//      one — so forgetting the filter shows up as a stranger's pass on the board,
+//      not as a silent widening nobody notices.
+//   2. THE FIGURE/DRILL AGREEMENT. Read what a tile prints, click it, count the
+//      list underneath.
+//   3. THE THINGS DELIBERATELY DIFFERENT FROM THE ADMIN BOARD — outstanding
+//      material ranked by MATERIAL rather than by department (one HOD, one
+//      department: a department ranking could only draw one bar at 100% naming the
+//      reader's own), and no link to `/all-passes`, which ROLE_ROUTES closes to an
+//      HOD.
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { GatePassView } from '../../src/types';
@@ -30,89 +28,60 @@ const COLLEAGUE = 'hod-2';
 
 function pass(over: Partial<GatePassView>): GatePassView {
   return {
-    id: 'x',
-    pass_number: 'RGP-OUT-20260817-0001',
-    type: 'RGP',
-    direction: 'out',
-    status: 'matched',
-    return_status: 'not_applicable',
-    department_id: 'd1',
-    department_name: 'Engineering',
-    department_code: 'ENG',
-    raised_by: ME,
-    raised_by_name: 'P M Sharma',
-    visitor_name: 'Alice',
-    visitor_company: null,
-    vehicle_number: null,
-    purpose: null,
-    expected_return_date: null,
-    actual_return_date: null,
-    verified_by: null,
-    verified_by_name: null,
-    verified_at: null,
-    flag_reason: null,
-    qr_token: 't',
-    expires_at: null,
-    created_at: new Date().toISOString(),
-    is_overdue: false,
-    is_expired: false,
-    due_state: 'not_applicable',
-    item_count: 1,
-    total_quantity: 1,
-    returned_quantity: 0,
-    total_value: 0,
-    material_summary: 'Bolts',
-    flagged_at: null,
-    hod_reviewed_at: null,
+    id: 'x', pass_number: 'RGP-OUT-20260817-0001', type: 'RGP', direction: 'out',
+    status: 'matched', return_status: 'not_applicable',
+    department_id: 'd1', department_name: 'Engineering', department_code: 'ENG',
+    raised_by: ME, raised_by_name: 'P M Sharma',
+    visitor_name: 'Alice', visitor_company: null, vehicle_number: null, purpose: null,
+    expected_return_date: null, actual_return_date: null,
+    verified_by: null, verified_by_name: null, verified_at: null, flag_reason: null,
+    qr_token: 't', expires_at: null, created_at: new Date().toISOString(),
+    is_overdue: false, is_expired: false, due_state: 'not_applicable',
+    item_count: 1, total_quantity: 1, returned_quantity: 0, total_value: 0,
+    material_summary: 'Bolts', flagged_at: null, hod_reviewed_at: null,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ...(over as any),
   } as GatePassView;
 }
 
-const TODAY = new Date().toISOString();
+const now = new Date();
+const TODAY = now.toISOString();
+const TODAY_0900 = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0).toISOString();
 const FIVE_DAYS_AGO = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
 
-// Six of this HOD's passes today, one of theirs five days old.
-//
-//   raised 6 · cleared 4 · pending 1 · outside 2 · overdue 1 · expired 1
-//
-// The five-day-old row is awaiting AND overdue, so it must appear in the
-// all-time Overdue Returns panel but in no Today-scoped figure at all.
+// This HOD's own passes: three raised today, one still out from five days ago.
 const MINE: GatePassView[] = [
   pass({ id: 't1', visitor_name: 'Alice', created_at: TODAY, status: 'pending' }),
-  pass({ id: 't2', visitor_name: 'Bob', created_at: TODAY, status: 'matched', return_status: 'awaiting_return' }),
   pass({
-    id: 't3', visitor_name: 'Carol', created_at: TODAY, status: 'matched',
-    return_status: 'partially_returned', is_overdue: true, expected_return_date: FIVE_DAYS_AGO,
+    id: 't2', visitor_name: 'Bob', created_at: TODAY, status: 'matched', verified_at: TODAY_0900,
+    return_status: 'awaiting_return', material_summary: 'Ladder',
   }),
-  pass({ id: 't4', visitor_name: 'Dan', created_at: TODAY, type: 'NRGP', status: 'matched' }),
-  pass({ id: 't5', visitor_name: 'Eve', created_at: TODAY, status: 'flagged', flag_reason: 'Qty short' }),
-  pass({ id: 't6', visitor_name: 'Fay', created_at: TODAY, status: 'matched', return_status: 'returned' }),
+  pass({ id: 't3', visitor_name: 'Eve', created_at: TODAY, status: 'flagged', flag_reason: 'Qty short' }),
   pass({
-    id: 'o1', visitor_name: 'Gus', created_at: FIVE_DAYS_AGO, status: 'matched',
-    return_status: 'awaiting_return', is_overdue: true, expected_return_date: FIVE_DAYS_AGO,
+    id: 'o1', visitor_name: 'Gus', created_at: FIVE_DAYS_AGO, status: 'matched', verified_at: FIVE_DAYS_AGO,
+    return_status: 'awaiting_return', is_overdue: true, due_state: 'overdue',
+    expected_return_date: '2026-01-02', material_summary: 'Hydraulic Pump',
   }),
 ];
 
-// Never raised by this HOD. RLS would hand it over (same department), so only
-// the page's own `.eq('raised_by', …)` keeps it off the board.
+// Never raised by this HOD. RLS would hand it over (same department), so only the
+// page's own `.eq('raised_by', …)` keeps it off the board.
 const THEIRS = pass({
-  id: 'c1', visitor_name: 'Zara', pass_number: 'RGP-OUT-20260817-0099',
-  created_at: TODAY, status: 'pending', raised_by: COLLEAGUE, raised_by_name: 'Someone Else',
+  id: 'c1', visitor_name: 'Zara', pass_number: 'RGP-OUT-20260817-0099', created_at: TODAY,
+  status: 'pending', raised_by: COLLEAGUE, raised_by_name: 'Someone Else',
 });
 
 const ITEMS = [
-  { id: 'i1', gate_pass_id: 't1', name: 'Ladder', quantity: 2 },
-  { id: 'i2', gate_pass_id: 't2', name: 'Ladder', quantity: 1 },
-  { id: 'i3', gate_pass_id: 't3', name: 'Hydraulic Pump', quantity: 1 },
-  // Belongs to the colleague's pass. `topMaterials` keeps only lines whose
-  // parent pass is in scope, so this must never reach a bar.
-  { id: 'i4', gate_pass_id: 'c1', name: 'Scaffold Tower', quantity: 1 },
+  { id: 'i1', gate_pass_id: 't2', name: 'Ladder', quantity: 2 },
+  { id: 'i2', gate_pass_id: 'o1', name: 'Hydraulic Pump', quantity: 1 },
+  // Belongs to the colleague's pass. Outstanding-material ranking keeps only lines
+  // whose parent pass is in scope, so this must never reach a bar.
+  { id: 'i3', gate_pass_id: 'c1', name: 'Scaffold Tower', quantity: 1 },
 ];
 
 /** Records the `.eq()` filters a query was built with, and answers accordingly.
- *  This is the whole point of the harness: a read that never asked for
- *  `raised_by` gets the colleague's pass mixed in. */
+ *  This is the whole point of the harness: a read that never asked for `raised_by`
+ *  gets the colleague's pass mixed in. */
 function passQuery() {
   const eqs: Record<string, string> = {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -170,197 +139,117 @@ function renderBoard() {
   );
 }
 
-/** The KPI card button whose accessible name starts with this label. */
-function kpi(label: string): HTMLElement {
-  return within(screen.getByRole('group', { name: 'Headline figures' })).getByRole('button', {
-    name: new RegExp(`^${label}`),
-  });
+function tile(section: string, label: string): HTMLElement {
+  const group = screen.getByRole('group', { name: `${section} figures` });
+  const found = within(group)
+    .getAllByRole('button')
+    .find((b) => (b.textContent ?? '').startsWith(label));
+  if (!found) throw new Error(`no "${label}" tile in ${section}`);
+  return found;
 }
 
-/** The headline row is chosen by the category toggle, so a test that wants the
- *  return cards has to say which category it is talking about. */
-function pickCategory(label: string) {
-  fireEvent.click(
-    within(screen.getByRole('group', { name: 'Pass category' })).getByRole('button', { name: label }),
-  );
+function expectFigure(section: string, label: string, value: number): void {
+  expect(tile(section, label).textContent).toMatch(new RegExp(`^${label}\\s*${value}(\\D|$)`));
 }
 
-/** The panel a drill click opens. Scoped lookups matter: the ranked bar lists
- *  on the same page also print "2 passes". */
 function drill(): HTMLElement {
   return screen.getByRole('region', { name: 'Selected passes' });
 }
 
-async function loaded() {
-  await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('6'));
+async function loaded(): Promise<void> {
+  await waitFor(() => expectFigure('Quick Summary', 'Total Gate Passes Today', 3));
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
-});
-
-describe('HOD board — scoped to this HOD, not the whole department', () => {
-  it('never shows a pass someone else raised', async () => {
+describe('the HOD board is scoped to this HOD', () => {
+  it('counts only passes this HOD raised', async () => {
     renderBoard();
     await loaded();
-    // 6 today, not 7: the colleague's pending pass is excluded from the COUNT
-    // itself, not merely hidden from a list.
-    expect(kpi('Pending Approvals')).toHaveTextContent('1');
-    expect(screen.queryByText('Zara')).not.toBeInTheDocument();
-    expect(screen.queryByText('RGP-OUT-20260817-0099')).not.toBeInTheDocument();
 
-    fireEvent.click(kpi('Pending Approvals'));
-    expect(within(drill()).getByText('1 pass')).toBeInTheDocument();
+    // The colleague's pending pass would push Pending Approvals to 2.
+    expectFigure('Quick Summary', 'Pending Approvals', 1);
+    expectFigure('RGP Overview', 'RGP Requests', 1);
+    expect(screen.queryByText('RGP-OUT-20260817-0099')).not.toBeInTheDocument();
+  });
+
+  it('never lists a colleague\'s pass in any drill', async () => {
+    renderBoard();
+    await loaded();
+
+    fireEvent.click(tile('Quick Summary', 'Pending Approvals'));
     expect(within(drill()).getByText('Alice')).toBeInTheDocument();
     expect(within(drill()).queryByText('Zara')).not.toBeInTheDocument();
-  });
-
-  it('drops a colleague’s material line from Top Materials', async () => {
-    renderBoard();
-    await loaded();
-    expect(screen.getByRole('button', { name: /^Ladder: 2 passes/ })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Scaffold Tower/ })).not.toBeInTheDocument();
-  });
-
-  // The HOD raised every pass on this board by construction now.
-  it('never prints "Raised By" on a drill card', async () => {
-    renderBoard();
-    await loaded();
-    fireEvent.click(kpi('Passes Raised'));
-    expect(within(drill()).getByText('Alice')).toBeInTheDocument();
-    expect(screen.queryByText('Raised By')).toBeNull();
-    expect(screen.queryByText('P M Sharma')).toBeNull();
-  });
-});
-
-describe('HOD board — the headline KPIs', () => {
-  it('matches the seeded Today fixture exactly', async () => {
-    renderBoard();
-    await loaded();
-    expect(kpi('RGP Out Raised')).toHaveTextContent('5');
-    expect(kpi('NRGP Out Raised')).toHaveTextContent('1');
-    expect(kpi('Pending Approvals')).toHaveTextContent('1');
-    expect(kpi('Overdue Returns')).toHaveTextContent('1');
-
-    pickCategory('RGP Out');
-    await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('5'));
-    expect(kpi('Cleared at Gate')).toHaveTextContent('3');
-    expect(kpi('Pending Return')).toHaveTextContent('2');
-  });
-
-  it('opens exactly the rows it counted, and toggles shut on a second click', async () => {
-    renderBoard();
-    await loaded();
-    pickCategory('RGP Out');
-    await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('5'));
-    const outside = kpi('Pending Return');
-
-    fireEvent.click(outside);
-    expect(outside).toHaveAttribute('aria-pressed', 'true');
-    expect(within(drill()).getByText('Still out — not yet returned')).toBeInTheDocument();
-    expect(within(drill()).getByText('2 passes')).toBeInTheDocument();
-    expect(within(drill()).getByText('Bob')).toBeInTheDocument();
-    expect(within(drill()).getByText('Carol')).toBeInTheDocument();
-    // Fay came back; Gus is out of scope.
-    expect(screen.queryByText('Fay')).not.toBeInTheDocument();
-    expect(screen.queryByText('Gus')).not.toBeInTheDocument();
-
-    fireEvent.click(outside);
-    expect(outside).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.queryByRole('region', { name: 'Selected passes' })).not.toBeInTheDocument();
-  });
-
-  it('re-scopes every KPI when the period changes', async () => {
-    renderBoard();
-    await loaded();
-    pickCategory('RGP Out');
-    fireEvent.click(screen.getByRole('button', { name: 'Yearly' }));
-    await waitFor(() => expect(kpi('Passes Raised')).toHaveTextContent('6'));
-    expect(kpi('Pending Return')).toHaveTextContent('3');
-    expect(kpi('Overdue Returns')).toHaveTextContent('2');
-  });
-});
-
-describe('HOD board — the charts, and the one that is deliberately missing', () => {
-  it('the category donut splits this HOD’s passes and drills into a slice', async () => {
-    renderBoard();
-    await loaded();
-    // 5 RGP Out of 6 scoped passes; Dan is the NRGP.
-    const rgpOut = screen.getByRole('button', { name: /^RGP Out: 5 passes/ });
-    fireEvent.click(rgpOut);
-    expect(within(drill()).getByText('RGP Out passes')).toBeInTheDocument();
-    expect(within(drill()).getByText('5 passes')).toBeInTheDocument();
-    expect(within(drill()).queryByText('Dan')).not.toBeInTheDocument();
-  });
-
-  it('the status mode carries Mismatched, which has no KPI card of its own', async () => {
-    renderBoard();
-    await loaded();
-    fireEvent.change(screen.getByLabelText('Gate Pass Overview breakdown'), { target: { value: 'status' } });
-
-    fireEvent.click(screen.getByRole('button', { name: /^Mismatched: 1 pass/ }));
     expect(within(drill()).getByText('1 pass')).toBeInTheDocument();
-    expect(within(drill()).getByText('Eve')).toBeInTheDocument();
   });
 
-  it('the returnable ring never double-counts an overdue pass as also awaiting', async () => {
+  it('names the HOD\'s department in the subtitle', async () => {
     renderBoard();
-    await loaded();
-    expect(screen.getByRole('button', { name: /^Returned: 1 pass/ })).toBeInTheDocument();
-    // `/^Overdue: 1 pass/` deliberately — the KPI card is "Overdue Returns".
-    expect(screen.getByRole('button', { name: /^Overdue: 1 pass/ })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /^Awaiting Return: 1 pass/ }));
-    expect(within(drill()).getByText('Still out, not yet due')).toBeInTheDocument();
-    expect(within(drill()).getByText('Bob')).toBeInTheDocument();
-    expect(within(drill()).queryByText('Carol')).not.toBeInTheDocument();
-  });
-
-  // One HOD, one department (unique index on hod_departments.hod_id, `032`), and
-  // RLS shows them only that one. The ranking could only ever be a single bar at
-  // 100% naming the reader's own department.
-  it('has no Department Activity panel', async () => {
-    renderBoard();
-    await loaded();
-    expect(screen.queryByText('Department Activity')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Engineering: / })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Engineering — passes you raised/)).toBeInTheDocument());
   });
 });
 
-describe('HOD board — the panels', () => {
-  it('keeps the expired banner, which the donut alone would bury', async () => {
+describe('the HOD board\'s figures', () => {
+  it('matches the fixture', async () => {
     renderBoard();
     await loaded();
-    // No pending pass is expired in the fixture, so the banner must be absent
-    // rather than rendered empty.
-    expect(screen.queryByText(/expired without reaching the gate/)).not.toBeInTheDocument();
+
+    expectFigure('RGP Overview', 'RGP Out Today', 3); // t1 t2 t3
+    expectFigure('RGP Overview', 'RGP Currently Outside', 2); // t2 o1
+    expectFigure('RGP Overview', 'RGP Overdue', 1); // o1
+    expectFigure('Quick Summary', 'Total Cleared Today', 1); // t2
+    expectFigure('Quick Summary', 'Overdue Returns', 1);
   });
 
-  it('Overdue Returns is all-time and therefore shows the out-of-scope pass too', async () => {
+  it('the all-time overdue pass is in no period figure but is still on the board', async () => {
     renderBoard();
     await loaded();
-    expect(kpi('Overdue Returns')).toHaveTextContent('1');
-    fireEvent.click(screen.getByRole('button', { name: 'View All' }));
-    expect(within(drill()).getByText('Past their return date (all time)')).toBeInTheDocument();
-    expect(within(drill()).getByText('2 passes')).toBeInTheDocument();
+
+    fireEvent.click(tile('RGP Overview', 'RGP Out Today'));
+    expect(within(drill()).queryByText('Gus')).not.toBeInTheDocument();
+
+    fireEvent.click(tile('RGP Overview', 'RGP Overdue'));
     expect(within(drill()).getByText('Gus')).toBeInTheDocument();
   });
 
-  it('still surfaces mismatches needing review', async () => {
+  it('a drill row does not repeat the reader\'s own name back at them', async () => {
     renderBoard();
     await loaded();
-    expect(screen.getByText('Mismatches needing review')).toBeInTheDocument();
-    expect(screen.getByText('Qty short')).toBeInTheDocument();
+    fireEvent.click(tile('RGP Overview', 'RGP Currently Outside'));
+    expect(within(drill()).queryByText(/P M Sharma/)).not.toBeInTheDocument();
+  });
+});
+
+describe('what differs from the admin board', () => {
+  it('ranks outstanding material by MATERIAL, not by department', async () => {
+    renderBoard();
+    await loaded();
+
+    expect(screen.getByText('Material Wise Outstanding RGP')).toBeInTheDocument();
+    expect(screen.queryByText('Department Wise Outstanding RGP')).not.toBeInTheDocument();
+
+    const bars = screen.getByText('Material Wise Outstanding RGP').closest('section') as HTMLElement;
+    // Only lines whose parent pass is in scope: the colleague's Scaffold Tower
+    // must not appear even though RLS hands the item row over.
+    expect(within(bars).queryByText(/Scaffold Tower/)).not.toBeInTheDocument();
+    fireEvent.click(within(bars).getByRole('button', { name: /^Hydraulic Pump: 1 pass/ }));
+    expect(within(drill()).getByText('Gus')).toBeInTheDocument();
   });
 
-  // `/all-passes` is admin-only in ROLE_ROUTES. A link to it here would be a
-  // dead end that redirects.
-  it('never links to the admin-only register', async () => {
+  it('links only to routes an HOD may open', async () => {
     renderBoard();
     await loaded();
+
     for (const link of screen.getAllByRole('link')) {
-      expect(link.getAttribute('href')).not.toBe('/all-passes');
+      const href = link.getAttribute('href') ?? '';
+      expect(href.startsWith('/all-passes')).toBe(false);
     }
     expect(screen.getByRole('link', { name: 'My Passes' })).toHaveAttribute('href', '/my-passes');
+  });
+
+  it('keeps the flagged-review queue, fed unscoped by period', async () => {
+    renderBoard();
+    await loaded();
+    // t3 is flagged and was raised today; the queue is its own unscoped read, and
+    // the period filter must never hide an open action item.
+    await waitFor(() => expect(screen.getByText(/Qty short/)).toBeInTheDocument());
   });
 });

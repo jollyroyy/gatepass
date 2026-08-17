@@ -1,83 +1,111 @@
-// The tinted glyph on each admin KPI card.
+// The tinted glyph on each KPI tile.
 //
-// Icons live here rather than on `BOARD_KPIS` so `src/lib/boardDrills.ts` stays
-// a plain `.ts` module of predicates and labels — importable by a test that has
-// no DOM, and by anything that wants the numbers without dragging React in.
+// Icons live here rather than on `BOARD_KPIS` so `src/lib/boardKpis.ts` stays a
+// plain `.ts` module of predicates and labels — importable by a test that has no
+// DOM, and by anything that wants the numbers without dragging React in.
 //
-// A `Record<BoardKpiKey, …>` lookup, never a string-matching chain: adding a
-// sixth KPI without an icon is then a TYPE ERROR rather than a blank square
-// nobody notices until it is on the client's screen.
+// TWO LOOKUPS, BOTH `Record`s, NEVER STRING CHAINS. `GLYPH_OF` maps every KPI to
+// one of a small set of drawings, so a fourteenth card without an icon is a TYPE
+// ERROR rather than a blank square nobody notices until it is on the client's
+// screen. Several cards share a glyph on purpose: "Pending Approvals" and "NRGP
+// Awaiting Clearance" are the same clock because they are the same kind of fact,
+// and inventing a distinct drawing for each would make the row harder to scan,
+// not easier.
 import React from 'react';
-import type { BoardKpiKey } from '../../lib/boardDrills';
+import type { BoardKpiKey } from '../../lib/boardKpis';
 import type { Tone } from '../KpiCard';
 
-const SVG = { className: 'w-5 h-5', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', strokeWidth: 1.8 } as const;
+const SVG = {
+  className: 'w-[18px] h-[18px]',
+  fill: 'none',
+  viewBox: '0 0 24 24',
+  stroke: 'currentColor',
+  strokeWidth: 1.8,
+} as const;
 
-const GLYPHS: Record<BoardKpiKey, React.ReactElement> = {
-  // Outbound tray — material leaving on paperwork.
-  raised: (
+const GLYPHS = {
+  // Document with a tick — paperwork awaiting a decision.
+  doc: (
     <svg {...SVG}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 3.75h9L19.5 7.5v12a.75.75 0 01-.75.75H5.25a.75.75 0 01-.75-.75v-12L7.5 3.75z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 13.5h4l1.5 2h4l1.5-2h4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 3.75h9L19.5 7.5v12a.75.75 0 01-.75.75H5.25a.75.75 0 01-.75-.75V4.5a.75.75 0 01.75-.75z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 13.5l2 2 4-4.5" />
     </svg>
   ),
-  // Box + arrow leaving, with the return curve above it — returnable, outbound.
-  rgpOut: (
+  // Van — material on the move through the gate.
+  truck: (
     <svg {...SVG}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5v8.25a.75.75 0 00.75.75h9a.75.75 0 00.75-.75V10.5" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 7.5h4.5m0 0l-2.25-2.25M21.75 7.5l-2.25 2.25" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5h10.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.75 6.75h10.5v8.5H2.75zM13.25 9.75h3.5l2.5 3v2.5h-6z" />
+      <circle cx="6.5" cy="17.25" r="1.6" />
+      <circle cx="15.75" cy="17.25" r="1.6" />
     </svg>
   ),
-  // The same box, arrow pointing in.
-  rgpIn: (
+  // Arrow curving back into a box — the return leg.
+  returned: (
     <svg {...SVG}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 10.5v8.25a.75.75 0 00.75.75h9a.75.75 0 00.75-.75V10.5" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5h-4.5m0 0L4.5 5.25M2.25 7.5L4.5 9.75" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 10.5h10.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5v8.25a.75.75 0 00.75.75h13.5a.75.75 0 00.75-.75V10.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15V6.75m0 0L8.75 10M12 6.75L15.25 10" />
     </svg>
   ),
-  // Arrow out through an open door — leaving, nothing to come back for.
-  nrgpOut: (
+  // Closed crate — material physically off site.
+  box: (
     <svg {...SVG}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 4.5H6a.75.75 0 00-.75.75v13.5a.75.75 0 00.75.75h8.25" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 12h9m0 0l-3-3m3 3l-3 3" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 8.25L12 4.5l8.25 3.75v7.5L12 19.5l-8.25-3.75v-7.5z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 8.25L12 12m0 0l8.25-3.75M12 12v7.5" />
+    </svg>
+  ),
+  // Calendar — a date the reader is being held to.
+  calendar: (
+    <svg {...SVG}>
+      <rect x="3.75" y="5.25" width="16.5" height="15" rx="1.5" />
+      <path strokeLinecap="round" d="M3.75 10.5h16.5M8.25 3.75v3M15.75 3.75v3" />
+    </svg>
+  ),
+  // Warning triangle — the only tone that is an accusation.
+  alert: (
+    <svg {...SVG}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5l8.25 14.25H3.75L12 4.5z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v3.5M12 16.25h.01" />
     </svg>
   ),
   // Tick in a circle — verified at the barrier.
-  cleared: (
+  check: (
     <svg {...SVG}>
       <circle cx="12" cy="12" r="8.25" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M8.75 12.25l2.25 2.25 4.25-4.5" />
     </svg>
   ),
   // Clock — something is waiting on a person.
-  pending: (
+  clock: (
     <svg {...SVG}>
       <circle cx="12" cy="12" r="8.25" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5V12l3 1.75" />
     </svg>
   ),
-  // Box with an outbound arrow — material physically off site.
-  outside: (
-    <svg {...SVG}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 8.25L12 4.5l8.25 3.75v7.5L12 19.5l-8.25-3.75v-7.5z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 8.25L12 12m0 0l8.25-3.75M12 12v7.5" />
-    </svg>
-  ),
-  // Warning triangle — the only KPI that is an accusation.
-  overdue: (
-    <svg {...SVG}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5l8.25 14.25H3.75L12 4.5z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v3.5M12 16.25h.01" />
-    </svg>
-  ),
+} as const;
+
+type GlyphName = keyof typeof GLYPHS;
+
+const GLYPH_OF: Record<BoardKpiKey, GlyphName> = {
+  rgpRequests: 'doc',
+  rgpOut: 'truck',
+  rgpReturned: 'returned',
+  rgpOutside: 'box',
+  rgpDueToday: 'calendar',
+  rgpOverdue: 'alert',
+  nrgpOut: 'truck',
+  nrgpCleared: 'check',
+  nrgpPending: 'clock',
+  totalRaised: 'doc',
+  totalCleared: 'check',
+  pendingApprovals: 'clock',
+  overdueReturns: 'alert',
+  materialOutside: 'box',
 };
 
-/** Tinted plate behind the glyph. Tint + dark ink, never a solid saturated
- *  fill: a solid status fill is reserved for the gate's own decision buttons,
- *  and five of them across the top of a board would drown the one card that
- *  actually needs to shout. */
+/** Tinted plate behind the glyph. Tint + dark ink, never a solid saturated fill:
+ *  a solid status fill is reserved for the gate's own decision buttons, and
+ *  fourteen of them across a board would drown the one card that needs to
+ *  shout. */
 const PLATE: Record<Tone, string> = {
   neutral: 'bg-surface-100 text-navy-600',
   accent: 'bg-accent-50 text-accent-600',
@@ -90,8 +118,11 @@ const PLATE: Record<Tone, string> = {
 
 export default function BoardKpiIcon({ kpi, tone }: { kpi: BoardKpiKey; tone: Tone }): React.ReactElement {
   return (
-    <span className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 ${PLATE[tone]}`} aria-hidden="true">
-      {GLYPHS[kpi]}
+    <span
+      className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 ${PLATE[tone]}`}
+      aria-hidden="true"
+    >
+      {GLYPHS[GLYPH_OF[kpi]]}
     </span>
   );
 }

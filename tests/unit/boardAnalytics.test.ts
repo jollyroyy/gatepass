@@ -5,14 +5,7 @@
 // impossible rather than merely unlikely.
 import { describe, it, expect } from 'vitest';
 import type { GatePassView, GatePassItemView } from '../../src/types';
-import {
-  categorySlices,
-  returnableSlices,
-  departmentSlices,
-  topMaterials,
-  trendBuckets,
-  deltaPercent,
-} from '../../src/lib/boardAnalytics';
+import { departmentSlices, topMaterials } from '../../src/lib/boardAnalytics';
 
 const DAY = 24 * 60 * 60 * 1000;
 // Fixed "now" so a test can never straddle local midnight and fail at 23:59.
@@ -35,65 +28,6 @@ function pass(over: Partial<GatePassView>): GatePassView {
     ...over,
   } as GatePassView;
 }
-
-describe('categorySlices — the Gate Pass Overview donut', () => {
-  const rows = [
-    pass({ id: 'a', type: 'RGP', direction: 'out' }),
-    pass({ id: 'b', type: 'RGP', direction: 'out' }),
-    pass({ id: 'c', type: 'RGP', direction: 'in' }),
-    pass({ id: 'd', type: 'NRGP', direction: 'out' }),
-  ];
-
-  it('splits on the two axes the pass model actually has, in a fixed order', () => {
-    expect(categorySlices(rows).map((s) => [s.label, s.value])).toEqual([
-      ['RGP Out', 2],
-      ['RGP In', 1],
-      ['NRGP Out', 1],
-    ]);
-  });
-
-  it('carries the counted rows on every slice, so the drill cannot disagree', () => {
-    for (const slice of categorySlices(rows)) {
-      expect(slice.rows).toHaveLength(slice.value);
-    }
-    expect(categorySlices(rows)[0].rows.map((p) => p.id)).toEqual(['a', 'b']);
-  });
-
-  it('keeps a zero category in the list — a legend that hides "RGP In" reads as "there is no such thing"', () => {
-    const slices = categorySlices([pass({ type: 'NRGP', direction: 'out' })]);
-    expect(slices.map((s) => s.value)).toEqual([0, 0, 1]);
-  });
-});
-
-describe('returnableSlices — the Returnable Status donut', () => {
-  const rows = [
-    pass({ id: 'closed', return_status: 'returned' }),
-    pass({ id: 'out', return_status: 'awaiting_return' }),
-    pass({ id: 'part', return_status: 'partially_returned' }),
-    pass({ id: 'late', return_status: 'awaiting_return', is_overdue: true }),
-    // An NRGP never enters the return cycle at all and must not dilute the ring.
-    pass({ id: 'nrgp', type: 'NRGP', return_status: 'not_applicable' }),
-  ];
-
-  it('counts returned, still-out and overdue, and excludes non-returnable passes entirely', () => {
-    expect(returnableSlices(rows).map((s) => [s.label, s.value])).toEqual([
-      ['Returned', 1],
-      ['Awaiting Return', 2],
-      ['Overdue', 1],
-    ]);
-  });
-
-  it('puts an overdue pass in Overdue only — never in Awaiting Return as well', () => {
-    // Double-counting here would make the ring add up to more than the passes
-    // that exist, which is exactly the "graphs disagree with the database"
-    // failure this board must not have.
-    const slices = returnableSlices(rows);
-    const total = slices.reduce((s, x) => s + x.value, 0);
-    expect(total).toBe(4);
-    expect(slices[1].rows.map((p) => p.id)).toEqual(['out', 'part']);
-    expect(slices[2].rows.map((p) => p.id)).toEqual(['late']);
-  });
-});
 
 describe('departmentSlices', () => {
   it('ranks departments by volume, busiest first', () => {
@@ -178,40 +112,3 @@ describe('topMaterials', () => {
   });
 });
 
-describe('trendBuckets — the Passes Trend line', () => {
-  const rows = [
-    pass({ id: '1', type: 'RGP', created_at: daysAgo(0) }),
-    pass({ id: '2', type: 'RGP', created_at: daysAgo(0) }),
-    pass({ id: '3', type: 'NRGP', created_at: daysAgo(0) }),
-    pass({ id: '4', type: 'RGP', created_at: daysAgo(2) }),
-    // Older than the window — must not appear anywhere in it.
-    pass({ id: '5', type: 'RGP', created_at: daysAgo(40) }),
-  ];
-
-  it('returns one bucket per day, oldest first, ending today', () => {
-    const buckets = trendBuckets(rows, 7, NOW);
-    expect(buckets).toHaveLength(7);
-    expect(buckets[6].rgp).toBe(2);
-    expect(buckets[6].nrgp).toBe(1);
-    expect(buckets[4].rgp).toBe(1);
-    expect(buckets[5].total).toBe(0);
-  });
-
-  it('never counts a pass in two buckets, and drops what falls outside the window', () => {
-    const buckets = trendBuckets(rows, 7, NOW);
-    const counted = buckets.reduce((s, b) => s + b.total, 0);
-    expect(counted).toBe(4);
-  });
-});
-
-describe('deltaPercent', () => {
-  it('is the signed percentage change against the previous window', () => {
-    expect(deltaPercent(38, 34)).toBe(12);
-    expect(deltaPercent(24, 26)).toBe(-8);
-  });
-
-  it('is null when there is nothing to compare against — "+∞%" is not a fact', () => {
-    expect(deltaPercent(5, 0)).toBeNull();
-    expect(deltaPercent(0, 0)).toBeNull();
-  });
-});

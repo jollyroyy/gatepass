@@ -30,6 +30,10 @@ export type HodBoardData = {
   flagged: GatePassView[];
   loading: boolean;
   error: string | null;
+  /** Re-reads every query. The board's Refresh button — realtime already keeps the
+   *  numbers moving, but a reader who has just acted elsewhere wants to be able to
+   *  ask rather than wait. */
+  reload: () => Promise<void>;
 };
 
 export function useHodBoardData(): HodBoardData {
@@ -135,7 +139,7 @@ export function useHodBoardData(): HodBoardData {
     };
   }, [load]);
 
-  return { rows, items, flagged, loading, error };
+  return { rows, items, flagged, loading, error, reload: () => load() };
 }
 
 /** The HOD's own departments, by name — the page subtitle and nothing else.

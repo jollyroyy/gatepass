@@ -9,9 +9,8 @@
 // from) reappears in any colour a chart actually draws with.
 import { describe, it, expect } from 'vitest';
 import {
-  CATEGORY_COLORS,
-  PASS_STATUS_COLORS,
-  RETURNABLE_COLORS,
+  RETURN_WATCH_COLORS,
+  MOVEMENT_COLORS,
   RANK_COLORS,
   SERIES_COLORS,
   NEUTRAL_SERIES,
@@ -31,17 +30,24 @@ function assertNoGold(where: string, colors: string[]): void {
 describe('no chart draws in the theme gold', () => {
   it.each([
     ['SERIES_COLORS', Object.values(SERIES_COLORS)],
-    ['CATEGORY_COLORS', Object.values(CATEGORY_COLORS)],
-    ['PASS_STATUS_COLORS', Object.values(PASS_STATUS_COLORS)],
-    ['RETURNABLE_COLORS', Object.values(RETURNABLE_COLORS)],
+    ['RETURN_WATCH_COLORS', Object.values(RETURN_WATCH_COLORS)],
+    ['MOVEMENT_COLORS', Object.values(MOVEMENT_COLORS)],
     ['RANK_COLORS', RANK_COLORS],
     ['NEUTRAL_SERIES', [NEUTRAL_SERIES]],
   ])('%s', (name, colors) => assertNoGold(name, colors as string[]));
 
-  it('gives the three pass categories three distinct, non-gold hues', () => {
-    const vals = Object.values(CATEGORY_COLORS);
+  it('gives the four return-watch buckets four distinct, non-gold hues', () => {
+    // The ring and the tabs are the only place a reader learns which colour means
+    // "overdue" — two buckets sharing a hue makes the legend a guess.
+    const vals = Object.values(RETURN_WATCH_COLORS);
     expect(new Set(vals).size).toBe(vals.length);
-    assertNoGold('CATEGORY_COLORS', vals);
+    assertNoGold('RETURN_WATCH_COLORS', vals);
+  });
+
+  it('gives the three movement series three distinct, non-gold hues', () => {
+    const vals = Object.values(MOVEMENT_COLORS);
+    expect(new Set(vals).size).toBe(vals.length);
+    assertNoGold('MOVEMENT_COLORS', vals);
   });
 
   it('never repeats a hue on adjacent ranks', () => {
