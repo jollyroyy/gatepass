@@ -18,9 +18,10 @@
 import React, { useCallback, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { gp } from '../../supabaseClient';
-import type { ScanOutcome, ScanResult } from '../../types';
+import type { GatePassView, ScanOutcome, ScanResult } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
 import QrScanner from '../../components/QrScanner';
+import { isPhoneQuery, passMatchesPhone, phoneSearchPattern } from '../../lib/phoneSearch';
 
 /** Direct lookup, never an includes() chain — same rule as statusStyles.ts.
  *  Adding an outcome to the Postgres function breaks the build here until it
@@ -41,7 +42,13 @@ interface Outcome {
   passId: string | null;
 }
 
-export default function GateLookup(): React.ReactElement {
+type Props = {
+  /** A mobile-number search resolves to a LIST, which is too wide for this
+   *  380px card — GateConsole renders it full width above the queue. */
+  onPhoneResults?: (query: string, rows: GatePassView[]) => void;
+};
+
+export default function GateLookup({ onPhoneResults }: Props = {}): React.ReactElement {
   const navigate = useNavigate();
 
   const [value, setValue] = useState('');
@@ -62,6 +69,26 @@ export default function GateLookup(): React.ReactElement {
       setBlacklistMatch(null);
       setPendingPassId(null);
       try {
+        // A mobile number is a PERSON, not a pass, so it deliberately does NOT
+        // go through `lookup_pass`: that RPC returns one row, decides a single
+        // outcome and logs a scan attempt — none of which is true of a search
+        // that may return three passes and no scan at all.
+        if (isPhoneQuery(raw)) {
+          const { data, error: qErr } = await gp()
+            .from('v_gate_passes')
+            .select('*')
+            .ilike('visitor_company', phoneSearchPattern(raw))
+            .order('created_at', { ascending: false })
+            .limit(50);
+          if (qErr) throw qErr;
+          // The ilike is a narrowing on the last four digits only and can
+          // over-match (an address with the same digits); this is the filter
+          // that decides, on the pass's own phone field.
+          const rows = ((data as GatePassView[] | null) ?? []).filter((p) => passMatchesPhone(p, raw));
+          onPhoneResults?.(raw.trim(), rows);
+          return;
+        }
+
         const { data, error: rpcErr } = await gp().rpc('lookup_pass', { p_code: raw });
         if (rpcErr) throw rpcErr;
 
@@ -94,7 +121,7 @@ export default function GateLookup(): React.ReactElement {
         setBusy(false);
       }
     },
-    [navigate]
+    [navigate, onPhoneResults]
   );
 
   // Close the viewfinder before resolving so the camera light goes out while the
@@ -142,7 +169,7 @@ export default function GateLookup(): React.ReactElement {
           <input
             id="gate-lookup"
             className="input !pl-9 !py-2 text-sm w-full"
-            placeholder="Pass number — e.g. RGP-OUT-20260726-0001"
+            placeholder="Pass number or mobile — e.g. RGP-OUT-20260726-0001 / 9876543210"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             autoFocus

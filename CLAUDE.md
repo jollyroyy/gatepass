@@ -1,24 +1,21 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) working in this repository.
 
 ## Response style — STRICT, no deviation
 
 **When work is finished, reply with the goal only.** One or two lines saying what the change
-achieves. No summary of steps taken, no file-by-file account, no list of what was edited, no
-narration of reasoning, no test-run transcript. The detail belongs in this file's **Current
-state** section, not in the reply.
-
-This applies to every subsequent response in every session (user's standing instruction,
-2026-08-17). Still say it plainly if something failed, was skipped, or is unverified — a
-faithful outcome is not "detail". Answers to direct questions are not affected; this governs
-the report at the end of a piece of work.
+achieves. No summary of steps, no file-by-file account, no narration of reasoning, no test
+transcript. Detail belongs in **Current state** below, not in the reply. (User's standing
+instruction, 2026-08-17.) Still say it plainly if something failed, was skipped, or is
+unverified — a faithful outcome is not "detail". Answers to direct questions are unaffected.
 
 # GatePass — Material Gate Pass System
 
 React 18 + TypeScript + Vite + Tailwind, on Supabase (auth, Postgres, realtime, RLS).
-HODs raise material gate passes (IGP/OGP/RGP/NRGP); security verifies them at the gate
-and either **Matches** or **Flags** them.
+HODs raise material gate passes (RGP/NRGP); security verifies them at the gate and either
+**Matches** or **Flags** them. Deployed as an SPA on Vercel; shares one Supabase project
+(`oxzzeonftrmohdrancex`, region `ap-south-1`, PG 17.6) with a separate **VMS** visitor system.
 
 ## Commands
 
@@ -32,2263 +29,83 @@ node scripts/verify-rls.mjs           # live RLS checks against the real DB
 ```
 
 **`npm run lint` is a no-op — never trust it.** It runs bare `tsc --noEmit`, which picks up
-the root `tsconfig.json`, and that file is `{"files": [], "references": [...]}`. Project
-references are not followed without `--build`, so it type-checks **zero files** and always
-exits 0. It passed cleanly while `PassDetail.tsx` had a real missing-enum-key error.
-Use `npm run check`.
-
-`npx vitest run path/to/one.test.tsx` runs a single spec. **868 tests across 81 files
-currently pass** (`tests/unit/`, `tests/security/`) — see "Current state" below for the
-authoritative gate run.
-
-**After editing any file in `supabase/migrations/`, run `npm run build:sql`.**
-`APPLY_ALL.sql` is the artifact a human actually pastes; a migration edited but not
-re-concatenated is a fix that never reaches the database.
-`tests/security/applyAllIntegrity.test.ts` is the backstop that catches the drift.
-
-## Current state — 2026-08-17 (LATEST): the README is the front door, and headings are gold
-
-**Frontend + docs only — no migration, no new dependency, no new RPC.** Full gate:
-**1048 tests across 96 files** (`npm run check`, 2026-08-17). `npm run build` clean.
-**Not seen signed-in in a real browser** — the suite and a production build only.
-
-### `README.md` was rewritten around the architecture, the workflows and the deploy
-
-It was stale in ways that would mislead a new reader: migrations "001–011" (they run to
-`041`), the **Slate + Cyan** design system (rebranded to Quest Gold + Charcoal months ago),
-an HOD who can "void or delete their own pending ones" (`024` removed cancellation
-entirely), a guard landing on `/console` (it is `/guard-dashboard`), and a layout listing
-`BulkRaise` / `History`, both deleted.
-
-It is now **visual first** — four **Mermaid** diagrams, which GitHub renders natively so no
-image assets are checked in: a layered architecture flowchart (browser → PostgREST → the two
-schemas), the outward-trip `stateDiagram`, the return-leg `stateDiagram` (the second axis —
-`status` freezes at `matched`, `return_status` is what moves), a `sequenceDiagram` for the
-mismatch/expiry decision loop, and a role flowchart. Everything else is a table: the pass
-model, roles and landing pages, **the whole RPC catalogue as "every writer, in one table"**,
-the deploy steps, and the error-code → layer map.
-
-**Facts were re-read from the repo, not from this file** — `roleRoutes.ts`, `Sidebar.tsx`,
-`package.json`, `vercel.json`, `ls supabase/migrations`, and a grep of every `.rpc('…')` call
-site — because several of the stale claims above originally came from here.
-
-### Headings are the display serif in brass gold, in every view
-
-Client, in four messages: highlight the dashboard's heading and subheadings, change their
-colour "across all views", "consistent with the theme", "put them in golden theme colour
-which goes with the brand theme", and make the face different from normal text.
-
-**One ladder, one face, one colour** (`src/index.css`, `@layer components`):
-
-| Class | Size | Where |
-|---|---|---|
-| `.page-title` | 28 | every page's h1 |
-| `.section-title` | 22 | a region of a page (keeps its rule) |
-| **`.modal-title`** (new) | 22 | a dialog's own title — **deliberately no rule**: a modal is already a bounded box |
-| `.card-title` | 18 | one card inside a region |
-| `.board-section-title` (new) | 18 | a KPI band on the dashboard |
-
-All five are `font-display font-normal text-brand-800 dark:text-brand-300`. Three things are
-load-bearing and all three are pinned by **`tests/unit/headingIdentity.test.ts` (29)**:
-
-1. **`font-normal` everywhere, and the sizes written LONGHAND.** Antic Didone is weight 400
-   only, and `text-h1/h2/h3` each carry a fontWeight (700/700/600) — applying one beside the
-   display face synthesises a bold and smears the didone hairlines. The test fails on any
-   `text-h[123]` inside these blocks.
-2. **The `dark:` half is not polish.** `brand-200…950` are literal hex in
-   `tailwind.config.ts`; unlike `navy`/`surface` they do NOT invert. `text-brand-800` alone
-   is #866A31 on the near-black `.dark` surface — the shipped default — at ~1.9:1.
-3. **Ink gold is not fill gold.** The test **computes WCAG ratios from the real tokens**
-   (parsing the hex out of `tailwind.config.ts` and `--c-surface-50` out of `index.css`) and
-   fails below 4.5:1: brand-800 on light is ~4.8, brand-300 on dark ~11.5, and it separately
-   asserts `brand-600` — the primary FILL — is under 3:1 and therefore never a heading.
-
-**The print block names all five and forces `#111 !important`.** `body { color: #111 }` does
-NOT reach an element that sets its own colour, so without that selector list the register and
-the slip would print gold headings as pale grey on a mono laser.
-
-**`.page-subtitle` stays Inter and neutral, on purpose** — it is a sentence of prose, not a
-rung. A full line of explanation in gold serif is wallpaper, and it would leave the title
-with nothing to contrast against.
-
-Dialog titles moved onto `.modal-title` (`DepartmentsTab` ×4, `UsersTab` ×3, `VerifyPanels`
-×2, `SessionTimeout`). **"Delete Department?" keeps `text-flagged-600`** — status outranks
-the house gold, and Tailwind emits utilities after components so the override needs no `!`.
-
-**Two older tests encoded the OPPOSITE rule and were deliberately rewritten, not deleted:**
-`designSystem`'s "section-title … never brand gold" and `boardHeadings`' "neutral ink, never
-the brand gold". Both now assert the new contract and point at `headingIdentity`. The
-superseded rule is left as a comment in `designSystem.test.ts` so nobody restores it from
-memory.
-
-### The dashboard's headings are marked, and its bands are real headings
-
-`BoardKpiSection`'s heading was `text-micro text-navy-500 uppercase` — 11px grey, **lighter
-than the tile labels underneath it**, which inverts the ladder the type scale exists to
-enforce and is why the bands did not read as sections at all. It is `.board-section-title`
-now, at the same rung as the chart panels beside it (a KPI band and a chart panel are peers
-in the grid), with a hairline under the header row.
-
-**`.board-accent`** — a 4px gold rule, `aria-hidden`, on **every** heading of the board:
-`BoardHeader`, all three `BoardKpiSection`s, every `BoardCard` panel, and `BoardReturnWatch`
-(which builds its own frame rather than using `BoardCard`, so it repeats the marker by hand).
-It is the same device `BoardAttention` uses with a status hue directly above — gold there is
-structural fill, which is exactly what keeps the red rule meaning something.
-**`tests/unit/boardHeadings.test.tsx` (20)** renders the board and fails if any of the nine
-headings loses its marker, if a marker gains text or loses `aria-hidden`, or if the micro
-eyebrow comes back.
-
-**Not changed, and worth knowing:** `DepartmentsTab`'s department-name `h3` and
-`PassDetail`'s pass-number `h1` stay neutral — they are DATA styled as headings, and gold
-names would read as links. `PassPrint`'s own `h1` is untouched black-on-white.
-
-## Current state — 2026-08-17 (earlier): the reference board is back, and expiry is a decision
-
-**One migration (`041`, applied + verified live, 11/11) and a board rebuild.** Full gate:
-**999 tests across 94 files** (`npm run check`, 2026-08-17). `npm run build` clean.
-**Not yet seen signed-in in a real browser** — the suite, a production build and the live
-RPC probe only.
-
-⚠ The section below this one — "today-only board + the mismatch loop" — is **SUPERSEDED**
-on the LAYOUT. The mismatch loop it describes (bell → `/mismatch/:id` → two decisions) is
-unchanged and still correct; the panels it says were deleted have been RESTORED.
-
-### The board is the client's reference screenshot, box for box
-
-Client sent the reference image back a second time: *"I want to see exactly in this format,
-except the previous days counts and gate activity… the exact graph looking and the exact
-layout of those individual boxes should remain the same"*, then *"just remove today's gate
-activity timeline and put top items by their frequency as a pie chart"*.
-
-`GateBoard.tsx` is now: attention strip · RGP Overview (6) · NRGP Overview (3) · drill panel
-· Daily Movement Trend (8/12) + RGP Status Breakdown ring (4/12) · RGP Return Watch (6/12) +
-Department Wise Outstanding RGP (3/12) + **Top Items Today** (3/12) · Quick Summary (5).
-
-**RESTORED from `cb6d486^` rather than rewritten**: `BoardMovementTrend`,
-`BoardStatusBreakdown`, `BoardReturnWatch`, `BoardOutstanding`, `charts/TrendChart`,
-`charts/BarList`, `lib/returnWatch.ts`, `departmentSlices` / `topMaterials` /
-`movementBuckets` / `MOVEMENT_SERIES` in `boardAnalytics.ts`, the line/area/axis half of
-`chartGeometry.ts`, and `RETURN_WATCH_COLORS` / `MOVEMENT_COLORS` / `RANK_COLORS` /
-`rankColor` in `chartPalette.ts`, with their specs (`boardAnalytics`, `returnWatch`,
-`chartGeometry`, `chartPalette`).
-
-**NOT restored, and deliberately:** the period selector (the tiles stay today-only, and each
-says "Today" on itself), the "vs yesterday" deltas (client removed them by name — still
-impossible to compute: `BoardWindows` has no previous window), and `dashboardPeriod.ts`.
-
-**DELETED in this pass:** `BoardActivityPie`, `lib/gateActivity.ts`, `ACTIVITY_COLORS` and
-`tests/unit/gateActivity.test.ts` — the client removed gate activity by name, and its slot
-is Top Items now.
-
-**Two tiles were dropped to match the reference: `rgpMismatch` and `nrgpMismatch`** (added
-earlier the same day). RGP is 6 and NRGP is 3 exactly as in the image. **Nothing is lost**:
-`BoardAttention.tsx` sits above the sections on BOTH boards and counts what is stopped and
-what is void, all-time, each one a drill; and the bell still takes the raising HOD straight
-to a decision. The two mismatch KPI keys, the `flag` glyph and their tests are gone —
-`tests/unit/boardKpiSections.test.ts` now FAILS if any key matching `/mismatch/i` returns to
-a tile row.
-
-**Top Items Today** (`BoardTopItems.tsx`) is a donut of `topMaterials(items, windows.raised, 5)`
-— **ranked by number of passes, never by quantity** (client's word: "frequency"). One
-delivery of 500 screws is one movement; a ladder on two passes is two. Each slice carries
-its passes, so the legend figure and the list its click opens are one array.
-
-**Both dashboards read `v_gate_pass_items` again** (`AdminDashboard`, `useHodBoardData`) for
-the two ranked panels. **The HOD's item read is NOT person-scoped and cannot be** — that view
-has no `raised_by`, so RLS scopes it to the DEPARTMENT and a colleague's line arrives. Both
-panels ignore any item whose parent pass is not in `rows` (which IS person-scoped), which is
-what keeps it off the board; `hodDashboardBoard.test.tsx` hands over a colleague's line and
-fails if it reaches a bar. Admin uses `outstandingMode="department"`, the HOD `"material"`
-(one HOD, one department — a department ranking there is one bar at 100%).
-
-### An expired pass is null and void, and the HOD is told
-
-Client: *"if something is not out and has expired, make it null and void and notify the HOD
-about that so that he can either raise it or reject it. He can review it and raise it or
-maybe void it completely."*
-
-**Expiry stays DERIVED — no pg_cron, no `expired` enum label** (user's call when asked).
-`match_pass` has refused an expired pass since 008, so it IS void from the moment the clock
-passes; what was missing was a way to CLOSE it. Three parts:
-
-1. **It stops counting as a queue.** `isWaiting` in `boardKpis.ts` is
-   `status === 'pending' && !is_expired`, so RGP Requests / NRGP Awaiting Clearance /
-   Pending Approvals no longer include dead paperwork on either board.
-2. **The bell derives it on mount**, alongside the flagged notice, from `v_gate_passes` where
-   `raised_by = auth.uid()`, `status = 'pending'`, `is_expired = true` (all three filters
-   server-side). **Realtime could never have carried this**: nothing is written when a pass
-   expires — `expires_at` simply falls behind `now()` — so there is no row change to
-   subscribe to. The mount query is the only mechanism. A realtime UPDATE that moves the pass
-   out of `pending` drops the notice.
-3. **`/expired/:id` — `src/pages/HOD/ExpiredReview.tsx`** (HOD-only in `ROLE_ROUTES`), the
-   twin of `/mismatch/:id`. Both now share **`PassDecisionPanel.tsx`**: Raise It Again, and
-   a destructive button behind an inline confirm. `NotificationBell`'s `DECISION_ROUTE`
-   lookup is what routes each notice type.
-
-**`041` — `gatepass.hod_void_expired_pass(uuid, text)`**, `security definer`, raising HOD
-only, `pending` only, and **it re-checks `expires_at < now()` ON THE SERVER**. That check is
-the load-bearing one: without it the browser could void a live pass by calling the RPC
-directly, which is the HOD cancellation `024` removed, restored by the back door. It has
-**no approve branch by design** — `035` made `hod_review_flagged_pass(approve)` refresh
-`expires_at`, so a function that admitted an expired pass AND could approve would let an HOD
-revive their own dead paperwork with no security involvement. It writes a `verifications`
-row (`cancelled`, authored by the HOD) and reuses existing enum labels only.
-
-**`voidSupersededPass` now picks its RPC from the source pass** — `hod_void_expired_pass`
-for an expired one, `hod_review_flagged_pass(reject)` for a flagged one — because each
-refuses the other's state, and the call happens AFTER `raise_pass` returns, where a failure
-is a warning and never a submit error.
-
-**Verified live 2026-08-17 — `node scripts/verify-041.mjs`, 11/11**, real anon-key JWTs
-(postgres bypasses every guard here). A live pass is refused ("has not expired"); an aged
-pass is refused by `match_pass`, by another HOD and by a guard; the raising HOD voids it, it
-lands `cancelled` with a `verifications` row authored by them, and a second void is refused.
-Probe rows deleted — `gate_passes` back to **45**.
-
-**⚠ FOUND ON THE WAY, NOT FIXED, AND IT AFFECTS `035`:** `touch_updated_at` (001/008/010)
-pins `new.expires_at := old.expires_at` on EVERY update, postgres included. So
-`hod_review_flagged_pass(approve)`'s refresh of `expires_at` **cannot take effect** — the
-trigger reverts it. 035's live probe passed because it overrode a pass raised the same day,
-where the old and new values are identical. An override of a pass raised YESTERDAY keeps
-yesterday's expiry and the gate will still refuse it. The fix is to let the trigger keep
-`expires_at` unless the RPC is deliberately moving it; this probe's own workaround —
-disabling the trigger for one statement inside a transaction — is a probe technique, not a
-pattern to copy.
-
-New tests, watched failing by real mutation: `expiredReview` (6), the expiry half of
-`mismatchNotice` (9 total — removing the derivation fails 8 of 9; routing the notice to
-`/pass/:id` fails 2), the expired-supersede case in `reraisePass` (7), the attention strip
-and Top Items in `gateBoard` (13), and **9 new `sqlInvariants` cases for 041**.
-
-## Current state — 2026-08-17 (earlier): today-only board + the mismatch loop
-
-**Frontend only — no migration, no new dependency, no new RPC.** Full gate:
-**948 tests across 92 files** (`npm run check`, 2026-08-17). `npm run build` clean.
-**Not yet seen signed-in in a real browser** — the suite and a production build only.
-
-⚠ Everything below this section about the board's panels, the period filter and the KPI
-deltas is **SUPERSEDED**. Those sections are kept for the reasons recorded in them.
-
-### Both dashboards are "Today's Gate Pass Summary", and that is all they are
-
-Client: *"in the dashboard of the admin you only show today's Gate Pass Summary. Remove all
-the other things. On top it should only mention Today's Gate Pass Summary."* Asked whether
-the HOD board should follow — **yes, both** (user's call).
-
-`GateBoard.tsx` is now the three KPI sections, the drill list a tile opens, and one ring.
-**DELETED** (components and their libs, not hidden behind a flag): `BoardMovementTrend`,
-`BoardStatusBreakdown`, `BoardReturnWatch`, `BoardOutstanding`, `BoardActivityTimeline`,
-`charts/TrendChart`, `charts/BarList`, `lib/returnWatch.ts`, `lib/dashboardPeriod.ts`, and
-`departmentSlices` / `topMaterials` / `movementBuckets` / `MOVEMENT_SERIES` out of
-`boardAnalytics.ts` (which keeps only `Slice`), plus the line/area/axis half of
-`chartGeometry.ts` and `RETURN_WATCH_COLORS` / `MOVEMENT_COLORS` / `RANK_COLORS` /
-`rankColor` out of `chartPalette.ts`.
-
-**THE CUT IS SAFE BECAUSE OF THE SCOPE SPLIT, and that is the thing not to undo.** A
-`current`-scoped tile is NOT day-scoped: Outside, Due Today, Overdue, Pending and both
-Mismatch tiles still count a pass raised last month. Only `period` / `returned` tiles mean
-"today", and their labels say "Today" out loud for exactly that reason. A change that
-day-scoped the running tiles would print 0 while material sat off site.
-
-Consequences worth not re-deriving:
-
-- **`v_gate_pass_items` is no longer read by either dashboard.** It fed the outstanding
-  ranking only; the query went with the panel, so `AdminDashboard` does ONE read and
-  `useHodBoardData` no longer returns `items`.
-- **`DashboardPeriodFilter` was RENAMED to `src/components/PeriodFilter.tsx`**, its default
-  period list dropped (it is a required prop now), and its one remaining consumer is My
-  Passes. The dashboards carry no period control at all.
-- **`todayBounds()` in `hodKpis.ts` now delegates to `dayStart` in `localDay.ts`** — its old
-  delegate, `periodBounds('today')`, went with `dashboardPeriod.ts`.
-- `src/lib/boardKpis.ts` was split: it is the CATALOGUE, and **`src/lib/boardWindows.ts`** is
-  the plumbing (`BoardWindows` / `rowsFor` / `kpiLabel` / `kpiDrill`). That was to get back
-  under the 300-line cap, and it also lets a test read the numbers without the labels.
-
-### No KPI card carries a delta any more
-
-Client: *"remove the 8 vs yesterday, 9 vs yesterday from all the KPI cards under admin."*
-**Removed, not hidden**: `BoardKpiTile` takes no `previous` / `comparisonLabel`,
-`previousRowsFor` is gone, and `BoardWindows` no longer has `raisedPrev` / `returnedPrev` —
-so nothing on the board can compute one. `tests/unit/boardKpiTile.test.tsx` (4) greps the
-four sources and fails if any of those names comes back.
-
-### "Today's Gate Activity" is a pie now, and unlike the timeline it DRILLS
-
-Client's call, confirmed: the activity timeline becomes a chart. `BoardActivityPie` draws
-`gateActivitySlices(rows)` (new, in `gateActivity.ts`) through the existing `DonutChart`.
-Four fixed buckets in a fixed order — RGP Out · RGP In · RGP Returned · NRGP Cleared —
-listed even at zero, because they are a closed taxonomy and "nothing came back today" is a
-fact worth stating. `ACTIVITY_COLORS` is new in `chartPalette.ts`; `returned` deliberately
-takes the matched green (a closed return IS the settled state, and every badge for it on
-the same screen is that green), the rest take series identities.
-
-**It is a drill, which the timeline was not** — each slice carries the passes it counted, so
-the legend figure and the list its click opens are one array. A pass that went out and came
-back today is in BOTH slices: two visits to the barrier. A flagged pass is in none — the
-material did not go anywhere.
-
-### Mismatch at the gate has its own card, per category
-
-`rgpMismatch` / `nrgpMismatch`, tone `flagged`, scope `current`, matching `status = 'flagged'`
-within their category. Two cards rather than one because a stopped RGP still owes a return
-and a stopped NRGP does not, so "which kind is stopped" is the first thing an admin needs.
-RGP Overview is 7 tiles now (4-across, two rows — 7-across is seven slivers), NRGP is 4.
-New `flag` glyph in `BoardKpiIcon`, deliberately NOT the `alert` triangle overdue uses: the
-two sit two tiles apart in the same red-toned row.
-
-### The mismatch loop: the HOD is told, and given exactly two decisions
-
-Client: *"just notify the respective HOD that their gate passes were mismatched at the gate
-… this should appear as a notification in the HOD's notification bell … once he clicks on
-that notification it should show the details about that particular gate pass, why it was
-rejected or mismatched, who did it, and there will be two options — completely reject, or
-raise it again."*
-
-**1. The bell now has TWO sources, and the second one is the point.**
-`NotificationProvider` had realtime alone, so a mismatch raised while the HOD was signed out
-was announced to nobody and never appeared again — an empty bell precisely when it had the
-most to say, and invisible to a signed-in tester. It now ALSO **derives** notices on mount
-from `v_gate_passes` where `raised_by = auth.uid()` and `status = 'flagged'` (both filters
-server-side). **No new table and no migration: a flagged pass IS the outstanding
-notification**, and it stops being one the moment the HOD decides. A realtime UPDATE that
-moves a pass OUT of `flagged` drops its notice too.
-
-**Dismissal is persisted** in `localStorage` (`src/lib/notificationDismissals.ts`), because
-with the derivation above an in-memory dismissal comes straight back on the next load and
-the bell becomes un-clearable. It is a display preference of one browser, not a fact about
-the pass — which is why it is not a column. Every storage call is wrapped: Safari in private
-mode throws on write.
-
-**2. `/mismatch/:id` — `src/pages/HOD/MismatchReview.tsx`** (HOD-only in `ROLE_ROUTES`).
-A flagged notice opens THIS, not `/pass/:id` — the detail page is a record, the client asked
-for a decision. It states the reason, **who flagged it** (`verified_by_name`) and when
-(`flagged_at`), then offers **Reject Permanently** (inline confirm → the existing
-`hod_review_flagged_pass(reject)`, which voids the pass and writes a `verifications` row) and
-**Raise It Again**. **There is deliberately no Approve Override here** — it still exists on
-the pass detail page, but it is a different decision, and three buttons under a heading that
-promises two is how a screen gets misread at speed. A pass that is no longer flagged gets an
-explanation instead of buttons the RPC would refuse. The notice is NOT dismissed on click: a
-mismatch is cleared by being DECIDED, so a mis-tap cannot lose the pointer to it.
-
-**3. "Raise It Again" pre-fills the raise form — and the ORDER OF OPERATIONS is the
-load-bearing part.** `useReraisePass.ts` reads `location.state.copyFrom` (router state, not a
-query param: a `?copyFrom=` would survive a bookmark and silently re-arm a supersede) and
-re-reads the pass and its lines from the database. It copies type, authorized person, the
-unpacked `{n,a,v}` vendor blob, vehicle and every material line. **Department is not copied**
-(the form resolves it from the HOD's own assignment; copying it would let a pass raised
-before a transfer re-raise into a department this person no longer heads), and **a return
-date already in the past is BLANKED** — `validateRaiseForm` refuses one, so a faithful copy
-would hand back a form that cannot be submitted and an error under a field nobody touched.
-
-**The old pass is voided only AFTER `raise_pass` returns**, via
-`voidSupersededPass(id, newNumber)` → `hod_review_flagged_pass(reject)` with the reason
-`Superseded by <new number>`. Voiding on the button press would destroy the record of what
-the gate stopped for anyone who then closed the tab, and leave the gate with nothing if the
-replacement were never submitted. **A failed supersede is a WARNING, never a submit error**:
-the new pass exists either way, and reporting failure would invite a third one.
-
-`RaisePass.tsx` went over the 300-line cap once it took this on, so `validate` /
-`earliestReturnDate` / `packVendor` / `todayStr` moved to **`src/lib/raisePassForm.ts`**
-(292 lines now).
-
-**New tests, all watched failing first** (the two most important by real mutation — disabling
-the mount-time derivation fails 5 of 6, routing a flagged notice to `/pass/:id` fails 1):
-`mismatchNotice` (6), `mismatchReview` (7), `reraisePass` (7), `boardKpiTile` (4).
-Rewritten or trimmed: `gateBoard`, `hodDashboardBoard`, `boardKpiSections`, `gateActivity`,
-`chartPalette`, `chartGeometry`, `navLinksResolve` (`/mismatch` is exempt from the
-"reachable without typing a URL" audit — the bell is how it is reached, by design).
-Deleted with their subjects: the `boardAnalytics`, `returnWatch` and `dashboardPeriod` specs.
-
-## Current state — 2026-08-17 (earlier): `040` applied + verified live
-
-**"Inactive" is a STATUS now, not a role.** Migration `040` applied to the live DB and
-**verified behaviourally with real anon-key JWTs — `node scripts/verify-040.mjs`, 23/23**
-(postgres bypasses every guard here, so psql could not have proven any of it). Full gate:
-**958 tests across 91 files** (`npm run check`, 2026-08-17). `npm run build` clean.
-
-Client: *"user role can't be inactive in admin portal, change them to proper role, but
-create a separate column for active or not, and remove staff role from admin."* All three
-were the same defect: **deactivating someone wrote `public.profiles.role = 'staff'`**, so
-the Role column printed "Inactive" (not a role), the person's real role was destroyed by
-the act of suspending them, and this app was overwriting a **VMS-owned** column to record a
-fact of its own — `staff` is VMS's legitimate role for someone who does not use GatePass.
-
-### `gatepass.user_status` holds the fact, and Postgres enforces it
-
-`user_id` (PK → `auth.users`, cascade) · `is_active` · `deactivated_at` · `deactivated_by`
-· `updated_at`, RLS on (own row or `is_admin()`), **select-only grant — the two RPCs are
-the only writers** (verified live: an admin's direct INSERT gets `permission denied`).
-
-**ABSENT ROW = ACTIVE** (`is_user_active()` coalesces to true), so all 39 existing accounts
-stayed exactly as they were with no backfill, and a row exists only for someone actually
-suspended. `user_status` is back to **0 rows** after the probe.
-
-**A suspended person is shut out by the database, not by a screen** — their JWT still says
-`guard` and a JWT cannot be un-issued. The flag is consulted by the **two** functions every
-policy already goes through, and BOTH are load-bearing:
-
-| Function | Effect when inactive | Why it alone is not enough |
-|---|---|---|
-| `app_role()` | returns **null** | kills `is_security()` / `is_admin()` and every policy and RPC gated on them |
-| `my_department_ids()` | returns **nothing** | `gate_passes_select` admits `department_id in (select my_department_ids())` — the ONE path in that never reads `app_role()` |
-
-Proven live: a suspended guard **can still authenticate** (GoTrue knows nothing about the
-flag — the block is authorization), `app_role()` → null, and **passes visible went 45 → 0**;
-a suspended HOD's `my_department_ids()` → `[]` and their department's passes → 0.
-
-`is_user_active()` deliberately calls **nothing** — an `is_admin()` call inside it would
-recurse through `user_status_select`, the very policy it exists to answer.
-
-### Deactivation keeps the role AND the department; reactivation is a real RPC
-
-`admin_soft_delete_user` no longer touches `public.profiles` at all (pinned by a test).
-It writes the flag, **keeps `hod_departments`** (021 deleted it — the assignment is inert
-while `my_department_ids()` returns nothing, and keeping it means reactivation restores the
-person's *exact* scope instead of an admin re-deriving it), and **deletes every
-`auth.sessions` row** so a live JWT cannot outlast the decision (036's precedent). It
-refuses an `admin`/`super_admin` target and refuses `auth.uid()`.
-
-New **`admin_reactivate_user`** — 021 had none, because "reactivating" used to mean an admin
-*guessing* a role. It **refuses a row whose role is not guard/hod**: a `staff` account has
-no access whether the flag is true or false, so flipping it would report someone Active who
-still cannot sign in to anything (verified live). The portal offers such a row **Edit only**.
-
-### `staff` is no longer writable from the portal
-
-`admin_create_user` / `admin_update_user` now allow **guard and hod only** (both verified
-live refusing `'staff'`, both bodies copied verbatim from 034 / 032 with only that one line
-changed — 034's four `auth.users` token columns, 023's UPDATE-not-INSERT, 032's
-one-department guard and `profiles.department_id` mirror are all preserved, and a test fails
-if any of them is dropped).
-
-**Legacy `staff` rows are NOT rewritten** (user's call, asked explicitly). 16 exist and they
-are a mix — some GatePass suspended, some VMS-native (`delegate.it@demo.vms`,
-`staff@demo.vms`) — and **nothing on the row says which**, so promoting them to `guard`
-would be inventing a role the data does not record and handing gate access to a VMS delegate
-on some later reactivation. They read **Role: Staff · Status: Inactive**, which is true of
-both kinds; giving one a real role in Edit is what makes it a usable account.
-
-### Frontend
-
-`src/lib/userStatus.ts` is the single derivation — `ROLE_LABEL` (no value is ever
-"Inactive"), `ROLE_CHIP`, `ASSIGNABLE_ROLES` (guard/hod, mirroring the server),
-`isAccountActive(role, flag)` and its label/chip. **Two independent reasons an account is
-unusable and both live there**: the flag is false, or the role has no place in this app.
-
-`UsersTab` gained a **Status column** beside Role; the filter tabs' last entry is now a
-**status** filter (`inactive`), so the Guard and HOD filters still list a suspended guard or
-HOD — they are still a guard and an HOD, which is the point. Reactivate calls the RPC
-directly (no confirmation: it is not destructive, which is why Deactivate has a dialog).
-
-`App.tsx` reads both app-wide gates from **one** `my_profile()` call —
-`fetchAccessState()` in `src/lib/profiles.ts` — and renders `<NoAccess deactivated />` for a
-suspended account, which says *"deactivated by an administrator… your role and department
-are unchanged"* rather than "an administrator can grant you access". It **fails open** on a
-lookup error, exactly as the 036 gate does: a dropped packet is not evidence of a
-suspension, and RLS refuses a genuinely suspended person's reads regardless.
-
-Tests: `userStatus` (10), `usersTabStatus` (14), `deactivatedAccountGate` (5), plus **13 new
-`sqlInvariants` cases** for 040 — including ones that fail if `app_role()` or
-`my_department_ids()` stops consulting the flag, if `admin_soft_delete_user` starts writing
-`public.profiles` again, or if either admin function re-admits `'staff'`.
-`forcePasswordChangeGate` was updated to mock `fetchAccessState`.
-
-**Known, not fixed here:** `UsersTab.tsx` is **478 lines**, over the 300-line cap. It was
-already 466 before this change (a pre-existing violation this file documents); the honest
-fix is extracting the Add-User and Edit-User modals, which is a refactor of its own.
-**Not yet seen signed-in in a real browser** — the suite, a production build and the live
-RPC probe only.
-
-## Current state — 2026-08-17
-
-**Three client changes, all frontend-only — no migration, no new dependency.**
-Full gate: **938 tests across 87 files** (`npm run check`, 2026-08-17). `npm run build`
-clean. **Not yet seen signed-in in a real browser** — the login card renders, but the
-board itself is verified by the suite and a production build only.
-
-### ⚠ The board was rebuilt AFTER this section — everything below it about the category toggle is SUPERSEDED
-
-**Both dashboards are now one component, `src/components/board/GateBoard.tsx`**, with RGP and
-NRGP as their own KPI **sections** (`src/lib/boardKpis.ts`: RGP Overview 6 · NRGP Overview 3
-· Quick Summary 5) instead of a category toggle — *"the same information without asking the
-reader to press a button to discover the other half of it"*, per that file's own header.
-`BoardKpiCard` / `BoardKpiRow` / `BoardOverviewCard` / `BoardTrendCard` /
-`BoardActivityFeed` / `BoardPendingTable` / `BoardOverdueList`, `AdminBreakdownCards`,
-`HodBreakdownCards` and `src/lib/boardCategory.ts` were **deleted**, replaced by
-`BoardKpiTile` / `BoardKpiSection` / `BoardHeader` / `BoardMovementTrend` /
-`BoardStatusBreakdown` / `BoardReturnWatch` / `BoardOutstanding` / `BoardActivityTimeline`
-plus `boardKpis.ts` / `returnWatch.ts` / `gateActivity.ts` / `localDay.ts`.
-
-**Every card now declares a SCOPE** — `period` (raised in the window, carries a delta),
-`returned` (dated by `actual_return_date`, because scoping a return on `created_at` drops
-today's return of last month's pass) or `current` (a running obligation, never period-scoped
-and carrying no delta). Pinned by `tests/unit/boardKpiSections.test.ts`. The drill invariant
-is unchanged: every clickable figure resolves to a `BoardDrill` carrying its own rows.
-
-So `boardKpiOrder(category)`, `categoryHasReturns`, `filterByCategory` and the two breakdown
-rows named below **no longer exist**. The section is kept for the *reasons* recorded in it
-(why an NRGP board carries no return card; why "Materials Outside" was renamed) — those
-still hold.
-
-### The headline KPI row is CHOSEN BY THE CATEGORY TOGGLE now (SUPERSEDED — see above)
-
-Client: *"make sure you dynamically change those KPI buttons depending on what we have
-selected… for NRGP you have mentioned return information but NRGP does not have any return
-information… remove all the unnecessary KPIs which are not relevant to that particular
-selected item… when we are selecting All it should mention how many total NRGP has been
-raised, and RGP In and Out."*
-
-`BOARD_KPI_ORDER` (a constant) became **`boardKpiOrder(category)`** in
-`src/lib/boardDrills.ts`, a `Record<BoardCategory, BoardKpiKey[]>` lookup — a category
-added to `PASS_CATEGORY_LIST` without a row is a type error, not a board that silently
-keeps showing the last selection's cards. Three new KPI keys exist: **`rgpOut` / `rgpIn` /
-`nrgpOut`**, each matching through `categoryKey(type, direction)` — the same lookup
-`filterByCategory` uses, so a counter and the board it sits on cannot disagree about what
-an inbound pass is.
-
-| Category | Cards |
-|---|---|
-| All | Passes Raised · RGP Out Raised · RGP In Raised · NRGP Out Raised · Pending Approvals · Overdue Returns |
-| RGP Out / RGP In | Passes Raised · Pending Approvals · Cleared at Gate · Pending Return · Overdue Returns |
-| NRGP Out | Passes Raised · Pending Approvals · Cleared at Gate |
-
-Two rules decide every row, and both are pinned by `tests/unit/boardKpiSets.test.ts` (11):
-
-1. **No return card on an NRGP board.** `gate_passes_return_status_rgp_only` (001) pins an
-   NRGP to `not_applicable`, so Pending Return and Overdue Returns can only ever read zero
-   there. A permanent "0 Overdue" on a category that CANNOT go overdue is not reassurance,
-   it is a wrong reading — the cards are removed, not zeroed.
-2. **No category counter on a narrowed board.** "RGP Out Raised" on an RGP Out board is
-   "Passes Raised" under a second name; two cards that can never disagree are one card and
-   a decoration.
-
-**`categoryHasReturns(category)` extends the same rule below the cards**: on NRGP Out the
-**Overdue Returns panel and the Returnable Status donut are not rendered at all** (the
-pending queue takes the full 12 columns; `AdminBreakdownCards` drops to 2 across,
-`HodBreakdownCards` to 1) via a new `showReturnable` prop on both breakdown rows. A test
-asserts `boardKpiOrder` and `categoryHasReturns` agree, so the cards and the panels can
-never disagree about whether a category has a return leg.
-
-`BoardKpiRow` gained a **`category`** prop and picks its grid width from a lookup
-(`XL_COLUMNS`) — Tailwind cannot see `xl:grid-cols-${n}`. Six cards go 3-across on two
-rows, never 6-across, which is where a card this dense clips its own label.
-
-### "Materials Outside" was invisible, in both senses — it is "Pending Return" now
-
-Client: *"material outside is not visible, so it should not be Material Outside — it should
-be pending RGP or something like that."* Both halves were real. The words did not say what
-the number counted, and the card's tone was **`brand`** — the brass gold that is this
-system's primary *fill* (sidebar active link, primary button, wordmark) and reads at about
-2:1 as ink on a card, the same defect the notification panel had. It is now
-`tone: 'accent'` with the note "Out and not yet returned", and the drill heading reads
-"Still out — not yet returned". A test fails if any headline KPI takes the `brand` tone
-again, or if the string `Materials Outside` returns.
-
-### Reports is ONE register — the three portals are gone
-
-Client's call, confirmed: keep Reports, drop **Return Schedule** and **Department
-Summary**. `src/pages/Admin/ReturnScheduleReport.tsx`, `DepartmentSummaryReport.tsx` and
-`DeptBreakdownTable.tsx` (whose only consumer was the Department Summary) are **deleted**,
-along with the tab bar — a switcher with one option is a label. `RETURN_SCHEDULE_CSV_COLUMNS`
-went with it, so `tests/unit/csvExport.test.ts` now covers two column sets, not three.
-
-Neither removal loses a fact the admin cannot reach: expected vs actual return dates are
-columns of the register itself, and the whole return loop is the dashboard's Returnable
-Status ring and Overdue Returns panel, both drillable; per-department counts are the
-dashboard's Department Activity bar list, also drillable, where this page only ever printed
-a static table. The printed sheet's title is now the constant `REPORT_TITLE`
-("Gate Pass Register"). `tests/unit/reportsFilters.test.tsx` fails if any of the three
-portal buttons reappears.
-
-## Current state — 2026-08-17 (KPI sparklines / chart palette / CSV)
-
-**Three client changes, all frontend-only — no migration, no new dependency.**
-Full gate: **923 tests across 86 files** (`npm run check`, 2026-08-17). `npm run build`
-clean.
-
-### The KPI sparklines are gone, and `src/components/charts/Sparkline.tsx` with them
-
-Client: *"make sure you don't put the small graphs inside the KPI numbers — those are not
-looking good."* Deleted rather than restyled, because the chart could not be made to mean
-anything at that size: it was normalised against **its own peak**, so two sparklines on the
-same row were not comparable to each other, and it took horizontal room from the one thing
-on the card anybody reads. Trend over time still exists exactly once, as the **Passes
-Trend** line, which has an axis and a window the reader chose.
-
-The prop chain went with it rather than being left plumbed for nothing: `BoardKpiCard`'s
-`trend`, `BoardKpiRow`'s **`all`** prop (its only consumer), `boardAnalytics.countsPerDay`
-(its only caller) and `chartPalette.TONE_SERIES_COLOR` are all deleted; both dashboards
-stopped passing `all={inCategory}`. Pinned by `tests/unit/boardKpiCard.test.tsx` (3): the
-card renders exactly one `svg` (the tone icon, which is an icon and not a chart) and none
-of it beside the figure, plus a walk of every file in `src/` that fails on the string
-`Sparkline` or `countsPerDay` reappearing.
-
-### No chart draws in the brand gold any more
-
-Client: *"keep the colour of the doughnut pie charts different from the gold colour, because
-gold is the theme."* Correct — gold is the sidebar's active link, the primary button and the
-wordmark, so a slice drawn in it reads as part of the frame rather than as a category.
-
-`SERIES_COLORS` is now **blue `#2563EB` · violet `#7C3AED` · teal `#0D9488`** (+ the warm
-stone `#7C766C` fallback); `brand`/`accent` as series names are gone. Categories: RGP Out
-blue, RGP In violet, NRGP Out teal. `RANK_COLORS` swaps gold→blue and stone→teal, and
-`TrendChart`'s two lines are blue (RGP) and teal (NRGP, still dashed). The **status** hues
-are untouched on purpose — Returned/Awaiting/Overdue are real statuses and must stay the
-same colour as the badges beside them (see the file's own header comment). `#740e0c` maroon
-for `expired` stays too: it is Quest's maroon, not its gold.
-
-Pinned by `tests/unit/chartPalette.test.ts` (8), which fails if `#C6A15B` **or** either gold
-on questmall.in's own stylesheet (`#d0ad68` / `#d09918`) reappears in any exported chart
-colour map.
-
-### The CSV exports say what the screen says — three real defects
-
-Client: *"when you are exporting the CSV, both for admin or HOD, make sure no gibberish …
-don't show any ASCII format or anything other than the normal numbers."* Three separate
-causes, all now fixed and all pinned by `tests/unit/csvExport.test.ts` (16):
-
-1. **Every cell went through a formula guard that prefixed a literal TAB** to anything
-   starting `= + - @`. So an ordinary negative number arrived in Excel with a control
-   character welded to it. The guard now **skips plain numbers** (`/^-?\d+(\.\d+)?$/`) and
-   still mangles a real `=SUM(...)`, because a mangled cell beats an executed one.
-2. **Enum keys and ISO timestamps were exported raw** — `hod_reviewed`, `not_applicable`,
-   `nos`, `2026-08-17T09:47:23.481+00:00`. New **`src/lib/csvCells.ts`** formats them
-   through the *same* label maps the badges use (`statusStyles` / `passTypes` / `units` /
-   `formatDate`), so a status renamed for the screen is renamed in the export in one edit.
-   Two rules it follows: "nothing here" is an **empty cell, never the em-dash** the screen
-   shows (a dash is a value in a spreadsheet column and breaks sorting and SUM), and it
-   never re-derives a fact — `csvStatus` reuses `isExpiredPending`, so an expired pass
-   exports as "Expired" and not "Pending Gate Review".
-3. **The HOD's export listed three columns migration 013 deleted** —
-   `material_description` / `quantity` / `unit` have not been on `gate_passes` since the
-   material lines moved to `gate_pass_items`, so every row exported them **blank**. Replaced
-   by `material_summary` / `item_count` / `total_quantity`, which is what the page's own
-   table renders. A test asserts no column list names a dead key.
-
-`CsvColumn` is now generic (`CsvColumn<T>`) with an optional `format: (row: T) => string`,
-and `downloadCsv<T>` takes the typed rows — the four call sites dropped their
-`as unknown as Record<string, unknown>[]` casts. `toCsv` is split out and exported so a test
-can read what a download would contain without touching the DOM. `type` exports as the
-**category** ("RGP Out" / "RGP In" / "NRGP Out"), not the bare type: direction is half of
-what a pass is, and a Type column reading "RGP" for both legs cannot be filtered on.
-
-**Not yet seen in a real browser** — verified by the suite and a production build only. The
-`hodDashboardBoard` / `myPasses` / `adminDashboardKpis` 5s-`waitFor` flakiness under a
-loaded `npm run check` is unchanged and still pre-existing (documented below).
-
-## Current state — 2026-08-17 (earlier)
-
-**Two client changes, both frontend-only — no migration, no new dependency.**
-
-### Rupee values are EXACT now — no more "₹3.1K" / "₹1.1L"
-
-Client: *"when you are putting the value in the NRGP and RGP gate pass for any HOD, you
-should not mention 3k, 4k — it should be the exact number, like 3100, 200, 110."* Correct,
-and it was worse than cosmetic: `formatCurrency` rounded to one decimal, so **₹3,149 and
-₹3,050 both printed "₹3.1K"** — a guard comparing the slip against the screen had nothing
-to compare, and the value is the figure a gate pass is *about*.
-
-`src/lib/formatCurrency.ts` is now one line: `'₹' + Math.round(n).toLocaleString('en-IN')`.
-Indian grouping stays (₹1,10,000) — it separates digits without losing any (user's call
-when asked). Four surfaces follow automatically, since this is the app's single formatter:
-`PassRowCompact`, `PassDetailItems` (per-line and the total), `MyPassCard`, and the HOD
-board's overdue value. `PassPrint` has its own local `formatCurrency` and already printed
-exact — untouched. Pinned by `tests/unit/formatCurrency.test.ts` (4), including a loop that
-fails on any `K` or `L` in the output; `passRowCompact` / `myPassCard` updated from `₹25K`.
-
-### Both board dashboards have an RGP/NRGP toggle beside the period filter
-
-Client: *"can I do one thing for each and every admin — toggle between RGP Out and NRGP
-Out? When I'm selecting RGP Out it would show how many are there in total, how many are
-pending at the gate, how many are overdue… keep the same filter on the top right corner,
-today / last one week / last one month — I just put the toggle and keep all the KPI buttons
-and all the pie charts accordingly."*
-
-`/admin-dashboard` and `/dashboard` now carry **All · RGP Out · RGP In · NRGP Out** above
-the period filter (both are the same `DashboardPeriodFilter` segmented control, which
-gained a `label` prop so the two `role="group"`s have different accessible names). The
-options come off `PASS_CATEGORY_LIST`, so this toggle and the gate console's filter can
-never offer different categories — and there is no NRGP In, for the same reason no such
-pass exists.
-
-**IT IS APPLIED ONCE, TO THE RAW `rows` ARRAY, BEFORE THE PERIOD SCOPE** —
-`src/lib/boardCategory.ts`'s `filterByCategory`, into a memo called `inCategory`, and
-**nothing on either page reads `rows` any more**. That is what keeps the board's invariant
-intact: every figure is still `rows.length` of the very array its click opens, because
-there is still only one array. Filtering per-panel would give each panel its own chance to
-forget, and the two panels deliberately exempt from the PERIOD filter — the all-time
-Overdue list and the trend line — would be the two that forgot. "All time" means the period
-filter, not the category one.
-
-Three consequences worth not re-deriving:
-
-- **The overview donut drops "By category" once a category is picked** (`categoryScoped`
-  prop). A category donut of one category is a 100% ring naming the button the reader just
-  pressed. It falls back to status mode and the mode select disappears; the reader's own
-  mode choice is remembered and returns intact when they go back to All.
-- **Changing the category closes any open drill.** A `BoardDrill` CARRIES its rows, so one
-  left open would keep listing passes captured under the old category while every figure
-  around it moved — the one way this board could show a list disagreeing with the card that
-  opened it.
-- **The HOD's `FlaggedReviewCard` is the ONE panel the toggle does not touch**, exactly as
-  the period filter does not. It is a task list, not a measurement: a mismatched NRGP still
-  needs deciding while the reader is looking at RGP Out.
-
-`BoardKpiRow`'s grid gained `role="group" aria-label="Headline figures"` — once the board
-is narrowed the status donut carries slices labelled with the same words ("Cleared at
-Gate", "Pending"), so without it neither a keyboard reader nor a test can say which one
-they mean. Pinned by `tests/unit/boardCategoryToggle.test.tsx` (20 — every case runs
-against BOTH boards via `describe.each`), all watched failing first.
-
-**Not yet seen in a real browser.** Verified by the test suite and a production build only.
-
-**Test-suite flakiness, pre-existing and NOT caused by this change:** under a loaded
-`npm run check` run, `hodDashboardBoard` / `myPasses` / `authorizedPersonLabel` /
-`hodReviewGateFlow` / `adminDashboardKpis` intermittently blow their 5s `waitFor` timeout.
-Confirmed by stashing this work and reproducing the same failures on a clean tree. They
-pass every time when run in a small batch. If it becomes annoying, raise `testTimeout` in
-`vite.config.ts` rather than chasing individual specs.
-
-### The notification popup was unreadable — badly in dark, in three places in light
-
-`NotificationBell` was the only content surface in `src/` carrying an opaque **`bg-white`**
-(everything else is `bg-white/<alpha>` overlays on the fixed-dark shell, or a token). It
-paired that literal with `text-navy-*` / `border-surface-*`, which **invert** under `.dark`
-— the shipped default — so the whole panel rendered `rgb(240 237 231)` title text on a white
-card. Panel and bell button are now **`bg-surface-50`**, which follows the theme.
-
-Three separate LIGHT-mode contrast failures, measured against the panel surface using the
-`:root` values in `src/index.css`:
-
-| Control | Was | Ratio | Now |
-|---|---|---|---|
-| "Dismiss all" | `text-brand-600` (#C6A15B) | **2.2:1** | `text-accent-600 dark:text-accent-300` |
-| Per-row dismiss × | `text-navy-300` (213 209 201) | **1.4:1** | `text-navy-500 hover:text-navy-900` |
-| New-pass icon | `text-brand-600` on `bg-brand-100` | **1.9:1** | `text-brand-800 dark:text-brand-300` |
-
-Gold is this system's primary **fill**; as ink on a light surface it is barely there, which
-is why the house link colour is `accent-600` and every other link in `src/` already uses it.
-The flagged and matched icons were always fine (red-600 / emerald-600 on their own 100-tints
-clear 3:1) — the gold one was the odd one out. Row hover went `hover:bg-surface-50` →
-`hover:bg-surface-100`, which was a **no-op** once the panel itself became surface-50.
-
-Pinned by 5 new tests, all watched failing first: `tests/unit/themeAudit.test.ts` gains the
-mirror of its existing rule — **no opaque `bg-white` paired with an inverting neutral token**
-(alpha overlays deliberately excluded by the `(?![/\w-])` guard; `PassPrint` exempt, it is
-black-on-white for a mono laser printer) — and `tests/unit/notificationBell.test.tsx` gains
-four source pins for the specific colours above. Full gate: **873 tests across 81 files**
-(`npm run check`, 2026-08-17). Frontend only; no migration.
-
-**Known, NOT fixed here (out of the notification scope, but the same `text-navy-300` ≈1.4:1
-defect in light mode):** `AppShell.tsx:38` (the 11px footer line — real text),
-`DepartmentsTab.tsx` 337/347/375 (the edit/delete icon buttons). `GateConsole.tsx:181` and
-`VerifyItemsTable.tsx:64` also use it but only for a `/` and a `·` separator glyph, where low
-contrast is intentional. Banning `text-navy-300` app-wide the way `text-navy-400` already is
-would be the tidy fix, once those two separators are given something else.
-
-**The HOD got the admin board, narrowed to one person. AI Analytics is gone.**
-Frontend only — no migration, no new dependency. Full gate: **868 tests across 81
-files** (`npm run check`, 2026-08-17). `npm run build` also clean.
-
-### The HOD dashboard is now the same board the admin gets
-
-Client: *"put a similar type of dashboard for the individual HOD, but only for
-their department and only for her or him — all those pie charts, kept relevant."*
-
-`/dashboard` now has the five headline KPI cards (with deltas and sparklines), the
-Gate Pass Overview donut (By category / By status), the Passes Trend line, Recent
-Activity, the Pending Approvals table, the all-time Overdue Returns panel, Top
-Materials and the Returnable Status ring. Every figure is drillable and carries
-its own rows — the admin board's invariant, unchanged.
-
-**TWO SCOPES STACK, AND ONLY ONE IS THE PAGE'S DOING.** Department scope is RLS's
-(`gate_passes_select`, 002: `department_id in (select my_department_ids())`, and
-since `032` a person holds at most one). **Person scope is ours:
-`.eq('raised_by', userId)` on every pass read in `src/pages/HOD/useHodBoardData.ts`,
-server-side on purpose** — a department may host more than one HOD, and filtering
-client-side would download a colleague's passes in order to hide them.
-`tests/unit/hodDashboardBoard.test.tsx` (14) pins it with a mock that RECORDS the
-`.eq()` filters and hands back a colleague's pass to any read that forgot one, so
-dropping the filter shows up as a stranger's pass on the board rather than as a
-silent widening. Verified by removing the filter and watching all 14 fail.
-
-**The ten flat KPI cards are gone; nothing was silently dropped.** Total / Pending
-/ Matched / Awaiting / Overdue became the five headline cards; RGP Issued and NRGP
-Issued became the overview donut's category mode; Expired and Mismatched became
-its status mode; Return Rate became the Returnable Status ring's three real
-drillable buckets. **Expired keeps its own red banner** as well — it is the one
-bucket that means material this HOD authorised never moved.
-
-**Department Activity is deliberately absent** from `HodBreakdownCards`, unlike the
-admin board's three-panel row. One HOD, one department, and RLS shows them only
-that one: the ranking could only ever be a single bar at 100% naming the reader's
-own department. Pinned by a test.
-
-**`gatepass.kpis()` NOW HAS NO CALLER IN `src/`.** The HOD dashboard was its last
-one, and it had to go: `kpis()` takes no date parameter and aggregates ALL TIME,
-which is exactly what caused the 2026-08-11 frozen-Return-Rate bug, and every
-figure on a board dashboard is now `rows.length` of the array its own click opens.
-Left in the database rather than dropped blind (the `bulk_create_passes`
-precedent), but per "never leave unused schema in place" **it wants a migration
-that drops it** — that is the single next action on this. The dead TypeScript went
-in the same change: `PassKpis` / `EMPTY_KPIS` (types), `mapKpiRow` / `KpiRow`
-(`hodKpis.ts`, which now holds only `todayBounds` for the guard board).
-
-### The board components moved out of `Admin/` — they are shared now
-
-Nine presentational components were generic given rows, so rather than duplicate
-them they moved to **`src/components/board/`** as `Board*`: `BoardCard` (+
-`BoardCardSelect`), `BoardKpiCard`, `BoardKpiIcon`, `BoardKpiRow`,
-`BoardOverviewCard`, `BoardTrendCard`, `BoardActivityFeed`, `BoardPendingTable`,
-`BoardOverdueList`. `src/lib/adminDrills.ts` → **`src/lib/boardDrills.ts`**
-(`ADMIN_KPIS` → `BOARD_KPIS`, `AdminDrill` → `BoardDrill`, …) and
-`src/lib/adminAnalytics.ts` → **`src/lib/boardAnalytics.ts`**. `AdminDashboard` and
-`AdminBreakdownCards` stayed put; the latter keeps Department Activity, which is
-the one panel that is genuinely admin-only.
-
-Two new props exist because an HOD cannot use the admin's routes:
-`BoardActivityFeed`/`BoardPendingTable` take **`viewAllTo`** (default
-`/all-passes`; the HOD board passes `/my-passes`, since `ROLE_ROUTES` closes
-`/all-passes` to an HOD — pinned by a test that walks every link on the page), and
-`BoardPendingTable` takes **`showDepartment`** (off on a single-department board,
-where the column is one repeated word).
-
-**`src/lib/hodDrills.ts` was DELETED.** Its `DrillDef` — the shape `DrillList`
-renders from — moved into `boardDrills.ts`. `src/lib/guardDrills.ts` deliberately
-keeps its own structurally identical copy: its `DrillKey` union is closed and its
-`DRILL_DEFS` is a `Record<DrillKey, …>`, which is what makes "added a drill,
-forgot its definition" a type error on that board.
-
-Tests: `hodDashboardDrills` / `hodDashboardExpiredDrill` / `hodReturnRate` were
-deleted and replaced by `hodDashboardBoard.test.tsx` (14); `hodDrillCard` now
-builds its fixture through `drillDefOf`; `adminAnalytics.test.ts` →
-`boardAnalytics.test.ts`.
-
-### AI Analytics is gone from the admin portal
-
-Client's call. `src/pages/Admin/AIAnalyticsTab.tsx` deleted and the tab removed
-from `AdminPanel`, which now offers exactly Departments · Users · Blacklist ·
-Whitelist Requests. `tests/unit/adminPanelTabs.test.tsx` (2) asserts that list by
-name AND in order, so it fails on a tab creeping back in *and* on one quietly
-disappearing. Both cases were watched failing against the old code first.
-
-**Not yet done: this board has not been seen in a real browser.** Everything below
-the sign-in wall was verified by the test suite and a production build only.
-
-## Current state — 2026-08-17 (later)
-
-**Two client changes, both frontend-only — no migration, no new dependency.**
-Full gate: **875 tests across 82 files** (`npm run check`, 2026-08-17).
-
-### Donut legends sit UNDER the ring now, not beside it
-
-`DonutChart` was `flex-col sm:flex-row`, so on anything wider than a phone the legend sat
-to the right of the ring. Both donuts live in a one-third-width card (`xl:grid-cols-3`), so
-the legend got whatever remained of ~380px after a 150px ring plus a gap — labels truncated
-and the client could not tell which colour meant what. It is now `flex-col` at **every**
-width, with the `<ul>` at full card width. `tests/unit/donutLegend.test.tsx` (3) pins the
-absence of any `flex-row` variant and the ring-before-legend DOM order. The two donut cards'
-`skeletonHeight` went `h-44` → `h-72` so the loading placeholder still matches the real
-height. `SIZE` stays 150 — the ring no longer has to leave room for text, but three panels
-on one row should carry the same visual weight.
-
-### The guard returns items by TICK BOX, and can untick before saving
-
-Client's call. `ItemReturnList`'s per-line **"Mark Returned" button is gone**, replaced by a
-checkbox per line plus one **Record** submit, a **Tick all still out / Clear all** toggle,
-and a per-line state word: **Pending** → **Marked returned** (ticked, unsaved) → **✓
-Returned** (in the database). Three words, deliberately: collapsing the middle one into
-"Returned" would show a line as closed before anything was written.
-
-Why it matters at a barrier: the old button committed on the press, and **there is no undo
-in the database** — `apply_item_returns` only ever ADDS to `returned_qty` (a `qty <= 0` is
-skipped outright) and `returned_at` is written through `coalesce`, so it can never be moved
-once set. A tick is a decision the guard can take back; a press was not.
-
-**A line already recorded shows a checked, DISABLED box, and that is now a SETTLED RULE, not
-a limitation to be fixed** (user's call, 2026-08-17, asked and answered explicitly): **a
-guard cannot undo a recorded return.** Once material is logged back in, reversing it is not
-the gate's decision to make — it would let the one person standing at the barrier both
-record a return and erase it, with nothing in `verifications` to show a return was ever
-claimed. So do NOT write a `reverse_item_return` RPC, and do not "finish the job" by
-enabling that checkbox. The tick box is undoable up to the Record press; after it, the
-record stands. If a genuine mistake ever has to be corrected, that is an admin/DB action
-with a human deciding it, not a control on the guard's screen.
-
-Ticked lines go in **one** `apply_item_returns` call, not one per line, so a two-line return
-is one row in `verifications` rather than two that read as separate visits. `picked` is
-cleared on every re-read, so after a successful Record the boxes are driven by the
-database's answer and not by local state. `GuardDrillCard` gained one line of help text
-above the list; Return All is untouched. `tests/unit/itemReturnList.test.tsx` rewritten (14),
-`pendingReturnsTab.test.tsx` updated to tick-then-record.
-
-## Current state — 2026-08-17
-
-**The admin dashboard was rebuilt to the client's reference layout. Frontend only —
-no migration, no new dependency, and every number still comes from the same two reads.**
-Full gate: **866 tests across 81 files** (`npm run check`, 2026-08-17).
-
-The client supplied a reference screenshot ("GatePass Pro") and asked for the same board
-with our own figures, everything drillable, and no overflow. `/admin-dashboard` now has:
-
-- **Five KPI cards** — Passes Raised · Cleared at Gate · Pending Approvals · Materials
-  Outside · Overdue Returns (`ADMIN_KPIS` in `src/lib/adminDrills.ts`). Each carries an
-  icon, a "vs previous window" delta and a 7-day sparkline.
-- **Gate Pass Overview** — a donut with a mode select: **By category** (RGP Out / RGP In /
-  NRGP Out) or **By status** (Pending / Expired / Cleared / Mismatched / HOD Approved / …).
-- **Passes Trend** — RGP vs NRGP raised per day, with its own 7/14/30-day window.
-- **Recent Activity**, **Pending Approvals** (table), **Top Materials**, **Returnable
-  Status** (donut), **Department Activity**, **Overdue Returns**.
-
-**THE INVARIANT NOW COVERS THE CHARTS, not just the KPI cards.** Every clickable figure —
-card, donut slice, bar, or day on the trend line — resolves to an `AdminDrill` that
-**carries the rows it counted**, and the shared `DrillList` renders exactly that array.
-Aggregates in `src/lib/adminAnalytics.ts` return `Slice { key, label, value, rows }`; a
-`value` that disagreed with its own `rows` would be a type-level lie rather than a
-plausible-looking chart. **Never re-derive a chart's rows from a predicate at the call
-site, and never add a `count: 'exact'` query to this board.**
-
-New files:
-- `src/lib/chartGeometry.ts` (+ 18 tests) — donut ring segments, line/area paths, nice
-  axis maxima. **There is deliberately no charting dependency**: `vercel.json`'s CSP
-  applies only in production (a live footgun documented below), the neutral ramp inverts
-  under `.dark` so a library would need a parallel theme, and this is sixty lines of
-  arithmetic. Donuts are dashed `<circle>`s, not `<path>` arcs — an arc whose start and
-  end coincide (a single 100% slice, the normal state of a quiet day) collapses to nothing.
-- `src/lib/adminAnalytics.ts` (+ 17 tests) — `categorySlices` / `statusSlices` /
-  `returnableSlices` / `departmentSlices` / `topMaterials` / `trendBuckets` /
-  `countsPerDay` / `deltaPercent`.
-- `src/components/charts/` — `DonutChart`, `TrendChart`, `BarList`, `Sparkline`,
-  `chartPalette.ts`.
-- `src/pages/Admin/` — `AdminKpiRow`, `AdminKpiCard`, `AdminKpiIcon`, `AdminCard`,
-  `AdminOverviewCard`, `AdminTrendCard`, `AdminActivityFeed`, `AdminPendingTable`,
-  `AdminBreakdownCards`, `AdminOverdueList`.
-
-Decisions worth not re-litigating:
-
-- **`src/components/charts/chartPalette.ts` is the ONLY module in `src/` allowed literal
-  hex**, and `tests/unit/themeAudit.test.ts` now enforces that — it was widened to scan
-  `.ts` as well as `.tsx` and exempts that one file by name. A chart series colour must
-  not invert with the theme (a category that changes hue is not an identity), but a colour
-  laundered through a constants file is exactly as un-invertible as an inline one, so the
-  exemption is one file, not one extension.
-- **"Gate Wise Activity" became "Department Activity".** This system has no gate entity.
-  `verifications.gate_name` is free text the guard types *at verification time*, so it is
-  null on everything still pending and spelled however it was typed — ranking on it would
-  chart typos and silently omit the whole pending queue. `department_id` is NOT NULL on
-  every pass and is what RLS partitions on.
-- **The pending table has no approve/reject controls**, unlike the reference. An admin
-  cannot verify a pass: state transitions are RPC-only, no client holds UPDATE, and
-  `match_pass` refuses anyone who is not security. A tick there would be a button that
-  always fails. Pinned by a test.
-- **The trend chart takes UNSCOPED rows and has its own window.** The board defaults to
-  Today, and a trend over one day is a dot. The card says which window it is showing.
-- **Overdue Returns (the panel) is all-time; the Overdue Returns KPI card is scoped.**
-  They have separate drill keys on purpose — same heading, genuinely different lists.
-- **`returnableSlices` puts an overdue pass in Overdue only, never also in Awaiting.**
-  The two obvious predicates overlap and would make the ring sum to more passes than exist.
-- **Return Rate is gone as a KPI card**; the Returnable Status donut shows the same ratio
-  as three real, drillable buckets instead of one percentage.
-- `KpiCard`'s `TONE_TEXT` is now exported and reused by `AdminKpiCard`, so the admin
-  board's numbers cannot drift from the guard's and HOD's.
-- **`Mismatched` has no headline card** — it lives in the donut's status mode. Pinned by a
-  test, so removing that mode without a replacement fails the gate.
-
-Not yet done: **this board has not been seen in a real browser.** Everything below the
-sign-in wall was verified by the test suite only.
-
-## Current state — verified 2026-08-13
-
-**`039` applied + verified live. Whitelisting a blacklisted vendor now needs a justification
-and the designated CEO's approval.** Full gate: **828 tests across 79 files**
-(`npm run check`, 2026-08-13).
-
-Five client changes landed together; all but `039` are frontend-only:
-
-- **The RGP item form says "Expected Return Date"**, not "Return Date" (`MaterialItemRow`
-  `aria-label`/`data-label` + `MaterialItemsCard` column header). Label only — the column,
-  the payload key and the validation are untouched.
-- **The printed slip carries a CEO block**, immediately after COO. `SIGNATURE_ROWS` is now
-  **seven blocks over three rows**: Issuing HOD · Security HOD · COO / CEO · Finance HOD /
-  Security Verification · Receiver Signature. Read left→right, top→bottom the approval order
-  is unchanged with CEO inserted after COO. **The row split is a print constraint, not a
-  grouping**: five boxes across A5 leaves ~18mm each, narrower than a rubber stamp.
-  `PassPrint` pads short rows out to `BOXES_PER_ROW = 3` so every box is the same width on
-  every row — keep rows at three or fewer. Applies to every category (RGP out/in, NRGP out),
-  and to previously raised passes, since the block is static markup.
-- **The slip's vendor row reads "Vendor Name"** (`Vendor Address` unchanged).
-- **`visitor_name`'s user-facing label is now "Authorized Person's Name"**, everywhere a
-  human reads it — the form, the success popup, the detail page, the printed slip, the
-  compact card, and the report/CSV column headers. Column, RPC arg, and CSV keys untouched.
-- **The printed slip's `<h1>` no longer says "Material"** — "Returnable Gate Pass" /
-  "Non‑Returnable Gate Pass", since "Material Items" already headed the table below it.
-- **`039` — the blacklist is vendors-only, and removal is a CEO decision.**
-
-### "Authorized Person's Name" replaces "Visitor Name" everywhere, and the slip drops "Material" from its heading (2026-08-13, frontend only)
-
-Client's call, both pieces. No migration — the column stays `visitor_name`, the RPC arg
-stays `p_visitor_name`, and every CSV `key` stays `visitor_name`; only the label a human
-reads changed.
-
-**Every surface got the rename, not just the raise-pass form the client named it on.**
-`tests/unit/visitorNameLabel.test.tsx` existed for exactly this reason: a past session found
-the field reading "Authorized Person" on the detail page/slip/popup while cards and report
-tables still said "Visitor", agreeing with neither each other nor the column, and unified
-all of them to "Visitor Name" with a grep backstop. Relabelling only the form now would have
-reintroduced that same mismatch — so the user was asked and chose every surface. Edited:
-`src/pages/HOD/PassDetailsCards.tsx` (the field label, and "Visitor Details" →
-"Authorized Person Details" — this is the raise-pass form shared by RGP and NRGP alike, one
-edit covers both categories), `src/pages/HOD/PassSubmittedModal.tsx` (the `Fact` label and
-the `FactBlock` title "Vendor & Visitor" → "Vendor & Authorized Person"),
-`src/pages/Shared/PassDetail.tsx`, `src/pages/Security/Verify.tsx` (detail row / field
-label), `src/pages/Shared/PassPrint.tsx` (the slip's detail-table row label — its column
-widened `w-[130px]` → `w-[150px]` so the longer label doesn't wrap on the A5 sheet),
-`src/components/PassRowBody.tsx` (compact card field label "Visitor" → "Authorized Person"),
-`src/pages/Admin/AllPassesReport.tsx`, `src/pages/Admin/ReturnScheduleReport.tsx`,
-`src/pages/HOD/MyPasses.tsx` (the `<th>` and the CSV *header* string — the CSV `key` stays
-`visitor_name`), and `src/pages/HOD/RaisePass.tsx` (the validation message, now "Authorized
-person's name is required.").
-
-**The slip's `<h1>` no longer says "Material"** — it now reads "Returnable Gate Pass" /
-"Non‑Returnable Gate Pass" (the non-breaking hyphen in "Non‑Returnable" is unchanged), derived
-from `pass.type` with no per-pass data, so this applies to every pass printed including ones
-raised before today. It was dropped because "Material Items" already headed the item table
-directly below — the word was printed twice on one sheet.
-
-**Test bookkeeping**: `tests/unit/visitorNameLabel.test.tsx` was deleted and replaced by
-`tests/unit/authorizedPersonLabel.test.tsx` (5 tests), which pins the label on the raise-pass
-form, the success popup, the pass-detail page and the printed slip, plus the slip's new h1,
-and **inverts** the grep backstop — it now fails if `Visitor Name`, `Visitor Details`,
-`label="Visitor"` or `Material Gate Pass` appears anywhere in `src/**`.
-`tests/unit/passSubmittedModal.test.tsx` was updated for the new `FactBlock` title.
-
-### `039` — an admin can no longer take a vendor off the blacklist (2026-08-13)
-
-`remove_blacklist_entry` (016) let any admin delete a blacklist row with one click, no reason
-recorded, no second pair of eyes. Blacklisting is the one control that stops a vendor at the
-gate, so the ability to quietly undo it is the ability to quietly disable the control.
-**The RPC is DROPPED**, not left beside the new flow — leaving it would make the whole chain
-optional, since the browser could call it directly and the CEO would never see the request.
-
-- **`gatepass.whitelist_requests`** — an admin calls `request_vendor_whitelist(uuid, text)`
-  with a justification. The floor is **10 characters, enforced twice on purpose**: the form
-  refuses it immediately, and `whitelist_requests_justification_substantive` refuses it again
-  so a caller that skips the screen gains nothing. One open request per entry (partial unique
-  index `where status = 'pending'`), so a rejected vendor can be asked about again later.
-  **The entry stays enforced while the request is pending** — verified live.
-- **`blacklist_id` is `on delete set null`, and the row keeps its own snapshot** of
-  `list_type` / `list_value` / `blocked_reason`. Approval DELETES the blacklist entry;
-  `on delete cascade` would erase the audit trail at the exact moment it becomes the only
-  record that the vendor was ever blocked and why they were let back in.
-- **Who the CEO is: a DESIGNATED ACCOUNT, not a role.** `public.user_role` is VMS-owned
-  (guard / hod / admin / super_admin / staff) and this app must never alter `public`, so
-  `gatepass.ceo_approver` holds exactly one row — a boolean PK constrained to true, so "who
-  is the CEO" has one answer and no `limit 1` anywhere decides it. Two guards, both
-  load-bearing: **only a super_admin may set it** (an admin who could nominate would nominate
-  themselves and self-approve), and **the designee must be an admin/super_admin** (the queue
-  lives under `/admin`, which `ROLE_ROUTES` opens to admins only).
-- **`approve_whitelist_request` / `reject_whitelist_request` are `is_ceo()`-gated.** Approval
-  is what deletes the entry — there is no path that removes one without a recorded approval.
-  A rejection **requires a note**, because a refusal with no reason tells the admin nothing
-  about whether to re-submit.
-
-**⚠️ Live blocker for this feature: there is no `super_admin` account in the database.**
-`admin@demo.vms` is `admin`, and it is the only admin. So **nobody can designate the CEO
-through the UI**, and until one is designated **no whitelist request can ever be approved**
-(`CeoApproverCard` says exactly that, in an `.alert-warning`). Two ways out, both the user's
-call: promote an account to `super_admin`, or seed the row once via psql —
-`insert into gatepass.ceo_approver (only_row, user_id, designated_by) select true, u.id, u.id
-from auth.users u where u.email = '<the CEO>';`
-
-**Frontend.** `BlacklistTab`'s type dropdown offers **one option, "Vendor"** — Vehicle and
-Driver are gone from the form (client's call). **The stored `list_type` is still `company`**:
-`blacklist_type_valid` (016), the raise-time trigger (027/033) and every existing row use
-that label, so this is a rename in the UI and not a data change. Pre-existing vehicle/driver
-rows still render honestly through `TYPE_LABELS`. The Remove button is replaced by **Request
-Whitelist** + a mandatory justification; an entry already awaiting a decision reads
-"Awaiting CEO approval" and offers no second request. New files: `BlacklistAddForm.tsx`
-(extracted to keep `BlacklistTab` under the cap), `WhitelistRequestsTab.tsx` +
-`WhitelistRequestCard.tsx` (the CEO's queue — Approve behind an inline "Sure?", Reject behind
-a mandatory note), `CeoApproverCard.tsx` (super_admin-only designation). Both live under a new
-**Whitelist Requests** tab in `AdminPanel`, with the designation card above the queue because
-the setting and its consequence belong on one screen.
-
-**Consequence worth knowing: `src/lib/indianVehicle.ts` now has no caller in `src/`.** It was
-only used to validate a `vehicle` blacklist entry, and that option is gone. Its 29 unit tests
-still pass and it still mirrors a live CHECK constraint on `gate_passes.vehicle_number`, so it
-was kept rather than deleted — but it is a knowing exception to "never leave unused code", and
-the honest fix is either to wire it into `RaisePass`'s vehicle field or to delete it.
-
-**Verified live 2026-08-13** — `node scripts/verify-039.mjs --decisions`, **17/17**, real
-anon-key JWTs throughout (postgres bypasses every guard here, so psql could not have proven
-any of it): `remove_blacklist_entry` is gone (PGRST202); a token justification is refused; a
-guard cannot request; the vendor stays blacklisted while pending; a second pending request is
-refused; a non-CEO admin cannot approve; an admin cannot designate the CEO; the CEO can reject
-(and a rejected vendor stays blacklisted) and approve (and the entry disappears while the
-approved request keeps its snapshot); a decided request cannot be decided twice. The probe's
-temporary CEO row, its 4 blacklist rows and 5 request rows were deleted afterwards —
-`blacklist` is back to its original **3** rows, `whitelist_requests` and `ceo_approver` are
-**0**. Static backstops: 10 new cases in `tests/security/sqlInvariants.test.ts`, including one
-that fails if any later migration re-creates `remove_blacklist_entry`.
-
-**One real bug found and fixed on the way**, in `BlacklistTab` (and mirrored into the two new
-screens): `load()` cleared the error banner on its SUCCESS path, and the mount-time refresh
-resolves in the same microtask queue as a failed action — so an RPC refusal could be wiped
-before it rendered. The banner is now cleared UP FRONT, never on success.
-
-## Current state — verified 2026-08-11 (afternoon)
-
-**Notification bell verified live, and the printed slip spells out "Numbers" (2026-08-11).**
-Both are frontend-only plus one new probe script; no migration was needed.
-
-- **`scripts/verify-notifications.mjs` — live proof the guard's bell works.** Guard subscribes
-  to `postgres_changes` INSERTs on `gatepass.gate_passes` via the anon key, HOD raises a pass,
-  and the event lands on the guard's client (**3/3, verified 2026-08-11** — `gate_passes` is in
-  the `supabase_realtime` publication, and RLS lets the guard's SELECT policy pass the payload).
-  Probe rows cleaned up. This was written because the guard's red badge never visibly fired in
-  the client's hands while every piece of the chain *looked* configured; the chain is now
-  proven end-to-end (DB publication → realtime delivery → `NotificationProvider` → red badge
-  on `NotificationBell`). `tests/unit/notificationDelivery.test.tsx` pins the client half —
-  it fires the provider's INSERT callback directly and asserts the badge and the "waiting at
-  the gate" message; the older `notifications.test.tsx` never fired a callback at all.
-- **Print slip unit column reads "Numbers", not "nos"** (`PassPrint` item table). The display
-  map moved out of `MaterialItemRow` into `src/lib/units.ts` — `unitLabel()` is now the single
-  source for every surface, so the raise-pass dropdown and the print can never disagree again.
-  `tests/unit/unitLabels.test.ts` + `tests/unit/passPrintUnit.test.tsx` pin it (the latter
-  renders a real `PassPrint` with a `nos` item).
-- **`COO Signature & Stamp` box added to the printed slip** (client, 2026-08-11) — row 1 is now
-  Issuing HOD · Security HOD · COO · Finance HOD; `SIGNATURE_ROWS` in
-  `src/pages/Shared/signatureBlocks.ts`, pinned by `tests/unit/passPrintSignatures.test.tsx`.
-  Applies to every pass printed, including previously raised ones — the signature section is
-  static markup with no per-pass data.
-
-Full gate: **796 tests across 76 files** (`npm run check`, 2026-08-11).
-
-## Current state — verified 2026-08-08
-
-Frontend typechecks and passes the full suite — verified by a real `npm run check` run on
-2026-08-08 (**551 tests across 43 files**). **All migrations through `035` are applied to
-the live database**; `026`–`035` were written and applied 2026-08-08, `029` verified live
-with real anon-key JWTs (13/13 behavioural checks, see below).
+the root `tsconfig.json` (`{"files": [], "references": [...]}`); project references are not
+followed without `--build`, so it type-checks **zero files** and always exits 0. Use
+`npm run check`. `npx vitest run path/to/one.test.tsx` runs a single spec.
+
+**After editing any file in `supabase/migrations/`, run `npm run build:sql`.** `APPLY_ALL.sql`
+is the artifact a human pastes; a migration edited but not re-concatenated never reaches the
+database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
+
+## Current state — 2026-08-18
+
+Full gate: **1059 tests across 98 files** (`npm run check`), `npm run build` clean.
+Migrations **`001`–`041` are all applied to the live DB**; `039`, `040`, `041` were each
+verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 
 | Thing | State |
 |---|---|
-| Supabase project | `oxzzeonftrmohdrancex` — named **VMS**, region `ap-south-1`, PG 17.6 |
-| Migrations `001`–`004`, `006` | ✅ applied (`006` was applied all along — see note below) |
-| Migration `007` | ✅ superseded by `009`; harmless to re-run |
-| Migration `008` | ✅ **applied 2026-07-27** — enums, columns, functions, index, view |
-| Migration `009` | ✅ **applied 2026-07-27** — grant correction |
-| Migration `010` | ✅ **applied 2026-07-27** — direction column, IGP/OGP retired, HOD delete |
-| Migration `011` | ✅ **applied 2026-07-27** — dropped dead `gate_passes_type_idx` |
-| Migration `012` | ✅ **applied 2026-07-27** — pass integrity constraints |
-| Migration `013`–`016` | ✅ **applied 2026-07-27** — gate items, verification detail, HOD review, KPIs/aging/vendor/blacklist/bulk |
-| Migration `017` | ✅ **applied 2026-07-27** — RGP-in constraint fix (`rgp_needs_return_date` dropped, `gate_passes_return_date_required` with direction-aware check) |
-| Migrations `018`–`022` | ✅ applied — image/category, per-item fields, bulk-create index fix, admin user + department management RPCs |
-| Migration `023` | ✅ **applied 2026-07-30** — fixes `admin_create_user` false "already exists" (see below) |
-| Migration `024` | ✅ **applied 2026-08-04** — **cancellation removed entirely** (see below): `cancel_pass` dropped, HOD delete revoked, flagged-review `reject` removed, `cancel_reason` column dropped |
-| Migration `025` | ✅ **applied 2026-08-04** — **self-service profile** (see below): `my_profile()` gains `avatar_url` (drop+recreate), plus `update_my_name(text)` / `set_my_avatar(text)` |
-| Migration `026` | ✅ **applied + verified live 2026-08-08** — HOD override was 100% broken; `flag_reason` now survives it (see below) |
-| Migration `027` | ✅ **applied + verified live 2026-08-08** — blacklist actually enforced (trigger), HOD final rejection (see below) |
-| Migration `028` | ✅ **applied + verified live 2026-08-08** — same-day expiry; `lookup_pass` blacklist JSON fix (see below) |
-| Migration `029` | ✅ **applied + verified live 2026-08-08** — per-item return timestamps; `gate_pass_items.returned_at` (see below) |
-| Migration `030` | ✅ **applied 2026-08-08** — dropped `returnable_aging()`, whose only screen was removed |
-| Migration `031` | ✅ **applied + verified live 2026-08-08** — RLS + SELECT grants for `blacklist`/`vendor_profiles`, `lookup_pass` return renamed `blacklist_match`, dead code dropped (see below) |
-| Migration `032` | ✅ **applied + verified live 2026-08-08** — **one department per person** (see below): unique index on `hod_departments(hod_id)`, admin RPCs refuse >1 and mirror into `profiles.department_id` |
-| Migration `034` | ✅ **applied + verified live 2026-08-08** — **admin-created users can finally sign in** (see below): NULL GoTrue token columns backfilled (7 rows) and `admin_create_user` fixed |
-| Migration `033` | ✅ **applied + verified live 2026-08-08** — **blacklist + vehicle format hardened** (see below): strict Indian vehicle-format CHECK, blacklist form strictness, `parseCompanyInfo` packed-keys fix |
-| Migration `035` | ✅ **applied + verified live 2026-08-08** — **HOD override = fresh pass** (see below): override refreshes `expires_at` to end of day, `flag_pass` admits `hod_reviewed`, view carries `flagged_at` / `hod_reviewed_at` |
-| Migration `036` | ✅ **applied + verified live 2026-08-10** — **admin-assisted password reset** (see below): `admin_reset_user_password`, `set_my_password`, `my_profile()` carries `must_change_password`. **Requires VMS `064` first** |
-| Migration `039` | ✅ **applied + verified live 2026-08-13** — whitelisting a blacklisted vendor needs a justification and the designated CEO; `remove_blacklist_entry` dropped (see above) |
-| Migration `040` | ✅ **applied + verified live 2026-08-17** — `gatepass.user_status`; deactivation is a status, not a role (see above) |
-| Migration `041` | ✅ **applied + verified live 2026-08-17** — `hod_void_expired_pass`: the raising HOD closes a pass that expired unused (see above) |
-| `gatepass.gate_passes` | **45 rows** (verified live 2026-08-17) — real user data. **Not a scratch database; do not wipe it.** |
-| `public.departments` | ✅ **12 rows** (verified live 2026-08-10): FIN, DEV, HT, HR, IT, IS, MR, OPS, SA, OFT, TH, VLG. Real data — do not wipe. |
-
-### Guard dashboard trimmed to what still needs a guard (2026-08-11, frontend only)
-
-Two KPI drills removed from `src/lib/guardDrills.ts` at the client's request — the board is
-a shift console, and both counters only ever went up when the gate had already finished
-with the pass. **Neither removal loses a pass**, and the reasons differ:
-
-- **"Successful Gate Passes"** (`matched`, sourced from `verifiedToday`). Reports
-  (`/all-passes`) still holds every matched pass of any date, and a *returnable* pass that
-  came back is still on this board under **Returned & Closed** (`closed`). Consequence
-  worth knowing: an **NRGP never comes back, so once matched it now appears in no drill on
-  this board at all.** That is intended — it is done — but the guard's board no longer
-  shows a same-shift count of everything cleared. If that is ever missed, the fix is a
-  Today/All-time toggle in Reports, not this card.
-- **"HOD Approved"** (`hod_reviewed`). This one is redundant rather than expendable, and
-  the distinction matters: the drill was originally added to close a real hole — for two
-  months an override moved a pass `flagged → hod_reviewed` and every guard surface then
-  refused to act on it (queue filtered `pending` only, Verify hid Match), so a truck the
-  HOD had approved could not be cleared. **That hole is closed at its source**:
-  `GateConsole`'s queue selects `.in('status', ['pending','hod_reviewed'])` (035) and
-  Verify offers both Match and Flag. `tests/unit/hodReviewGateFlow.test.tsx` pins both of
-  those AND now pins the drill's absence — so narrowing the queue back to `pending` alone
-  fails that spec rather than silently recreating the original bug with no card left to
-  reveal it.
-
-`DrillKey`, `DRILL_DEFS` and `DRILL_ORDER` all shrank accordingly; the `verifiedToday`
-query stays (`flagged` and `closed` still read it). Full gate: **789 tests across 73
-files** (`npm run check`, 2026-08-11).
-
-### One badge per pass — the latest state only (2026-08-11, frontend only)
-
-Client, same day, on the two-pill card the section below introduced: *"Only show
-what is the latest status. Maybe it is matched but it has gone out, so you don't have to
-show the match in the main card section — do show it when people look at more details, in
-that timeline. If the passes are closed, completely returned, just put it Closed. Don't
-show matched returned."* And on the detail page: *"the things which have already been
-returned and closed, when I'm clicking on the card to see more details, on the top it is
-still showing them as matched."*
-
-Two new modules, both presentation-only — no query, no column, no migration:
-
-- **`src/lib/passStage.ts`** — `passStageStyle()` collapses the status badge and the RGP
-  stage pill into ONE. Precedence: **expired-pending → attention → RGP stage → status**.
-  The *attention* tier (`OUTRANKS_RETURN_LOOP`, a `Record<PassStatus, boolean>`) is
-  `flagged` / `held` / `cancelled`, and it is deliberately ABOVE the return loop even
-  though the combination is unreachable today — `flag_pass` admits only pending / held /
-  hod_reviewed, so nothing can flag a pass already cleared out. **This pre-wires the
-  return-leg flag** the client asked for (see "Next" below): when a guard can stop a pass
-  coming back IN, it must read "Mismatched", not "Out — Not Returned", and getting the
-  order right now means that feature changes the database and the gate screen, not every
-  card. `rgpLifecycle.ts` is unchanged and still owns the return-loop labels.
-- **`src/lib/passTimeline.ts`** — `passTimeline()` returns the moments, oldest first:
-  **Raised → Mismatch → Override → Cleared Out → Returned**. This is where the outward
-  match went. Two things it fixes on the way: **Override is keyed off `hod_reviewed_at`,
-  not `status === 'hod_reviewed'`**, so the moment survives the gate matching the fresh
-  pass (the old cards dropped it exactly when a reader most wants it); and **Cleared Out
-  reads `verified_at`**, which is safe because neither `apply_item_returns` nor
-  `mark_returned` touches that column — they write a `verifications` row and move
-  `return_status` instead.
-
-`PassDetail`'s header used `STATUS_STYLES[pass.status]` directly, which is why a closed
-RGP read "Matched" at the top of its own record: **`status` freezes at `matched` after the
-outward trip and only `return_status` moves afterwards.** It now uses `passStageStyle`,
-so a card and the page it opens can never disagree.
-
-**`src/components/PassTimelineStrip.tsx`** extracted: `TimelineItem` had been copied
-byte-for-byte into `PassRow`, `PassRowBody` and `PassRowCompact`, and the timeline had
-just gone from decoration to the only legible record of the two gate events. Three copies
-of that is three chances for one surface to quietly stop rendering a moment. The
-extraction also brought `PassRow` back under the 300-line cap (309 → 292).
-
-**My Passes cards rebuilt** (client: *"make it like the card format of the dashboard but
-with a little less information — premium looking glass morphic design"*).
-`src/pages/HOD/MyPassCard.tsx` is DrillPassCard's sibling on a `.card-glass` surface, with
-three deliberate differences: **collapsed by default** (a dashboard drill answers one KPI
-click; My Passes is a scrollable register, and a stack of open cards was the "too much
-information" complaint); a **header subtitle** of material + value, always visible, so a
-column of pass numbers is still scannable; and `slim`, a new `PassRowBody` prop that drops
-Visitor / Department / Raised By / Raised At / Verified By — an HOD reading their own
-register already knows those, and the raise time is in the timeline directly below.
-`PassRow` gained `subtitle` and `slim` (drill variant only). `MyPassesTable`'s separate
-return badge is **gone** — the single pill covers it — along with its `returnBadge` helper.
-
-**Next, agreed with the client and NOT yet built: the return-leg mismatch.** A guard
-cannot flag a pass coming back in — `flag_pass` refuses a `matched` pass — so a shortfall
-at the return currently shows only as Partly Returned / Overdue. That needs a migration
-plus a control on the guard's Record Returns screen. `passStageStyle`'s precedence and
-`tests/unit/passStage.test.ts` ("lets a flag outrank the return loop") are already written
-for it.
-
-Full gate: **788 tests across 73 files pass** (`npm run check`, 2026-08-11). New specs:
-`passStage`, `passTimeline`, `passDetailHeader`, `myPassCard`; `rgpStageBadge` and
-`hodDrillCard` rewritten to pin the single-pill rule.
-
-### The RGP return loop is now visible — and two real bugs behind it (2026-08-11, frontend only)
-
-Client: *"once the RGP is cleared for going out it shows as matched and not cleared — it is
-half matched, half not yet closed."* Correct, and **no migration was needed**: an RGP has
-two axes, and only one of them was ever rendered.
-
-`match_pass` (003) sets `status = 'matched'` **and** `return_status = 'awaiting_return'` in
-the same statement — `status` describes only the OUTWARD trip and never changes again;
-`apply_item_returns` / `mark_returned` (013) advance `return_status` to
-`partially_returned` → `returned`. So a pass still standing outside the mall and one that
-closed weeks ago are BOTH `matched`, and every card rendered exactly one badge.
-
-**`src/lib/rgpLifecycle.ts`** is the fix: `rgpStage()` / `rgpStageStyle()` derive the stage
-from **`return_status` alone** — never from `status`, because `return_status` is the axis
-the database actually advances, and it is already pinned to `not_applicable` for NRGPs
-(`gate_passes_return_status_rgp_only`, 001) and for anything not yet cleared, so both
-"no badge" cases fall out of one `Record<ReturnStatus, RgpStage | null>` rather than
-needing a second condition that could drift. `PassRow` renders it as a **second pill beside
-the status badge, in all three variants** (row / drill / compact). "Matched" deliberately
-survives — the guard still needs to know the gate cleared it. Labels: **Out — Not Returned**
-/ Partly Returned / **Closed**. Overdue re-TONES the pill and never renames it (same rule
-the status badge follows — several KPIs are named "Overdue" and exact-text lookups of
-those must stay unambiguous).
-
-**Bug 1 — the HOD's Return Rate was frozen at an all-time figure.** It was the ONE KPI on
-that page whose value came from the `kpis()` RPC (`kpis.returnRate`) instead of the
-period-scoped array every other card uses. `kpis()` takes no date parameter and aggregates
-**all time** (016), so the client raised an RGP today and the card sat at 93%. The page's
-own comment called it a "decorative delta" — it is a card's actual value. Now
-`returnRateOf(scopedRows)` in `src/lib/hodDrills.ts`, and the card is a **drill** whose
-click lists the numerator (mirroring what `AdminDashboard` already did correctly at line
-66). `tests/unit/hodReturnRate.test.tsx` mocks the RPC to return **93** on purpose — if the
-card ever reads 93% again, the RPC has crept back in.
-
-**Bug 2 — a part-returned RGP became unfinishable.** `GuardDashboard`'s open-obligations
-query was `.eq('return_status', 'awaiting_return')`, so the moment a guard recorded ONE
-line of a multi-line RGP the pass left that query, vanished from the Awaiting Return drill
-— **the only place `Record Returns` is reachable** — and its remaining lines could never be
-recorded through the UI. The database always allowed it (`apply_item_returns` accepts
-`partially_returned`); only the client had shut the door. Now `.in('return_status',
-['awaiting_return','partially_returned'])`, and `guardDrills`' `isAwaiting` includes the
-partial state to match `hodDrills`, which always did.
-
-New drills: **`closed`** on both boards. Guard's is sourced from `verifiedToday` (a shift
-board shows what the gate finished today; the all-time archive belongs in Reports); the
-HOD's is the Return Rate card's numerator.
-
-**HOD cards renovated to the gate-console idiom (same session, client request).** The HOD
-dashboard's drill rows were flat single lines; they are now `DrillPassCard` — the same
-shadcn Card `GuardDrillCard` uses (`PassRow variant="drill"`) at **`dense`** spacing.
-`PassRow` / `PassRowBody` gained `dense` and `showRaisedBy`. **"Raised By" is gone from
-every HOD surface** — the HOD raised the pass, so their own name back at them is noise:
-`DrillList` takes `showRaisedBy` (defaults **true** for the admin board, which oversees
-every department; HOD passes `false`), and `PassRowCompact` drops the field outright since
-its only consumers are `MyPassesTable` and `FlaggedReviewCard`, both HOD-only.
-`DrillList`'s `onOpen` is gone — the card's own "Full details →" link replaces it, so
-`AdminDashboard` no longer needs `useNavigate` either.
-
-Full gate: **756 tests across 69 files pass** (`npm run check`, 2026-08-11). New specs:
-`rgpLifecycle`, `rgpStageBadge`, `hodReturnRate`, `hodDrillCard`.
-
-### `035` — HOD override = fresh pass, and the timeline the boss asked for (2026-08-08)
-
-Business rule (user's call, 2026-08-08): **when the HOD overrides a flag, the pass is a
-FRESH gate pass.** The department head has settled the paper; the truck is standing at the
-barrier — the pass must be eligible to leave again THAT day, and the gate must be able to
-either match it or re-flag it. Before `035`, an overridden pass kept its old `expires_at`
-(so one flagged at 09:00 died at midnight even if the HOD cleared it at 11:00) and
-`flag_pass` refused `hod_reviewed` outright — the queue/Verify changes made in the same
-session would have been cosmetic without it.
-
-Three parts:
-
-1. **`hod_review_flagged_pass` (approve) refreshes `expires_at`** to the end of the
-   CURRENT day in `site_tz()` — the exact expression `028` uses for a brand-new pass
-   (`((date_trunc('day', (now() at time zone gatepass.site_tz())) + interval '1 day') at
-   time zone gatepass.site_tz()) - interval '1 microsecond'`), so "overridden" and
-   "freshly raised" can never disagree about when the pass dies. Same 028 trade-off: an
-   override approved at 23:50 is valid for ten minutes. The reject branch is unchanged
-   (status `'cancelled'` + a `verifications` row), and both branches now write a
-   `verifications` row (`'hod_reviewed'` / `'cancelled'`) so the timeline reads from one
-   table.
-2. **`flag_pass` admits `hod_reviewed`** (`drop function` + recreate, since the
-   signature `(uuid, text, text, jsonb, jsonb)` from 013 is unchanged in shape; the
-   5-arg drop is required or `create or replace` cannot change the body. Error text now
-   says "Only a pending, held or HOD-approved pass can be flagged." Deliberately NO
-   expiry check: refusing to record a real mismatch because the paperwork went stale is
-   backwards (008's rule, still true).
-3. **`v_gate_passes` gains `flagged_at` / `hod_reviewed_at`** — scalar subselects over
-   `gatepass.verifications` (`max(created_at) where action = 'flagged'` / `'hod_reviewed'`).
-   These are the SPECIFIC moments; `verified_at` is the LATEST verification and stays what
-   it was. Dropped + rebuilt because `create or replace view` cannot absorb new columns;
-   `grant select` re-applied, `notify pgrst, 'reload schema'`.
-
-Frontend (same session, TDD):
-
-- **`GateConsole` queue query**: `.in('status', ['pending','hod_reviewed']).gte('expires_at', nowIso)`
-  — the queue still shows only actionable passes — hide rows whose OWN expiry passed
-  (works for both states; `is_expired'' covers pending only). An override approved
-  yesterday that was never matched drops off too; `flag_pass` still admits it via lookup.
-- **`Verify`**: Flag Mismatch now renders for `status !== 'matched'` — an override
-  approval is a judgement about the paper, not a fact about the material, so the guard at
-  the barrier must be able to re-flag a fresh pass whose mismatch was not actually fixed.
-- **`PassRow`** (`src/components/PassRow.tsx`): the 2026-08-08 card rule lands — every
-  pass card is a horizontal row (number / type / vendor / visitor / material / vehicle /
-  dept / the Raised → Mismatch → Override timeline / status badge) with optional
-  expansion for the full detail. Consumers converted: `QueueCard` (Link to `/verify/:id`,
-  wait pill), `GuardDrillCard` (row starts expanded — the drill IS the detail),
-  `FlaggedReviewCard` (flag reason stays visually focused), `HodDrillList` and
-  `MyPassesTable` (rows, not tables). Status badge is STATUS-only (EXPIRED for an
-  expired-pending pass, else `STATUS_STYLES[status]`) — an overdue pass gets the overdue
-  RING, never an 'Overdue' label, because several drills sit beside KPIs named "Overdue"
-  / "Expired" and exact-text lookups of those labels must stay unambiguous.
-
-**Verification**: applied to the live DB 2026-08-08 and **verified behaviourally
-2026-08-08 with real anon-key JWTs** (`node scripts/verify-035.mjs`, hod.it + guard,
-10/10) — raise has the 028 same-day `expires_at`; flag → `flagged_at` timeline column
-is set; HOD approve keeps the reason, sets `hod_reviewed_at`, and refreshes `expires_at`
-to the end of the CURRENT raising day (verified equal to a brand-new pass's); the fresh
-pass then MATCHES at the gate AND can be RE-FLAGGED with a new reason; a `hod_reviewed`
-pass still carries an `expires_at` for the queue's `.gte` filter. Probe rows cleaned up
-(`visitor_name = '035 Probe'` swept via psql; 0 remain). Catalog counts also confirmed
-via psql (`information_schema` shows `flagged_at`/`hod_reviewed_at`; both
-`pg_get_functiondef` checks t/t). Static backstops: `tests/security/sqlInvariants.test.ts`
-"035: ..." fails if the final `hod_review_flagged_pass` stops refreshing `expires_at`,
-if `flag_pass` stops admitting `hod_reviewed`, or if the view loses either column;
-all written-first.
-
-### `034` — every user the admin panel created was unable to log in (2026-08-08)
-
-**An admin adds a guard or HOD; the account is created and looks perfectly healthy — right
-row in `auth.users`, right role in `public.profiles` AND in `raw_app_meta_data`, email
-already confirmed, visible in the Users tab — and the person still cannot sign in.** Not
-"invalid credentials": a **500** from the auth server. Live auth logs named it:
-
-```
-converting NULL to string is unsupported
-```
-
-GoTrue scans `auth.users`' token columns into Go `string` fields, which cannot hold NULL.
-Four of them are **nullable with no column default**: `confirmation_token`,
-`recovery_token`, `email_change`, `email_change_token_new`. `admin_create_user` never
-listed them in its INSERT (021 → 023 → 032 all inherited the omission), so every account it
-created carried NULLs and died inside the auth server on the first sign-in attempt.
-
-Why nobody caught it earlier: **Supabase's own signup path writes `''` into all four**, so
-demo accounts, self-signups and `scripts/create-user.ts` (which goes through the Admin API)
-were unaffected. And the defect is invisible from GatePass's side — the RPC returns success,
-every row reads correctly, and no GatePass query touches those columns. Only the auth
-server does.
-
-`034` does two things, because fixing the function alone leaves the existing people locked
-out forever:
-1. **Backfills NULL→`''`** on those four columns (`UPDATE 7` live — every account the admin
-   panel had ever created). It touches nothing else, so a healthy row is left alone.
-2. **Recreates `admin_create_user`** with the four columns in the INSERT list, otherwise
-   byte-identical to `032`'s body (023's trigger fix and 032's one-department guard + VMS
-   mirror both preserved).
-
-The other string columns — `phone_change`, `phone_change_token`,
-`email_change_token_current`, `reauthentication_token` — each default to `''` and were
-always written correctly. They are deliberately omitted.
-
-**Verified live 2026-08-08**, end to end through the anon key, not psql: signed in as
-`admin@demo.vms`, called `admin_create_user` for real, then signed in as the brand-new user
-from a **fresh client** — succeeded, with `role: 'guard'` in the JWT. Probe user deleted;
-`still_null = 0` across all 32 `auth.users` rows.
-
-Static backstops in `tests/security/sqlInvariants.test.ts`: one test fails if the final
-`admin_create_user` definition stops setting any of the four columns, another fails if no
-migration backfills them. Both were written first and watched fail.
-
-**Rule this leaves behind: never hand-write an `insert into auth.users` without those four
-columns.** Nothing in Postgres will complain — the failure surfaces only in the auth
-server, on a later request, as a 500 with no connection to the insert that caused it.
-
-### `safeErrorMessage` hardened — no blobs, no constraint names (2026-08-08, frontend only)
-
-Two follow-ups from `034`, both in `src/lib/errors.ts`:
-
-- **A message that says nothing to a human is now replaced by the caller's fallback.**
-  `OPAQUE_MESSAGES` catches `{}`, `[]`, `[object Object]`, `null`, `undefined` — what
-  supabase-js hands over when it cannot turn a response body into a sentence. Before this,
-  a login failure could render as bare punctuation, which reads as a broken UI rather than
-  an error. **Matched exactly, after trimming, never as a substring** — a real sentence may
-  legitimately contain braces (the packed vendor blob in a blacklist refusal does), and
-  must still be shown.
-- **`AUTH_CODE_MESSAGES`** maps GoTrue codes (`AuthApiError.code` — auth-server strings,
-  **not** SQLSTATEs, hence a separate map). `unexpected_failure` is the one that matters:
-  it is how a 500 from the auth server arrives, and its own text is "Database error
-  querying schema". Checked *after* the SQLSTATE map so a Postgres code can never be
-  shadowed. An unlisted auth code still shows GoTrue's own text.
-- **`public.profiles`' three name checks are now named** in `CONSTRAINT_MESSAGES`:
-  `profiles_full_name_charset` (letters, spaces, full stops, apostrophes, hyphens — so a
-  name with a digit, like "Probe 034", is refused), `_length` (2–80), `_trimmed`. These are
-  VMS-owned `NOT VALID` checks and fire on the admin Users tab and the profile page.
-
-**23514 has deliberately NOT been added to `CODE_MESSAGES`.** A catch-all "that value is
-not allowed" would be *less* informative than the constraint name for every check this map
-does not name — `033`'s vehicle-format check among them. Name the constraint instead;
-`tests/unit/errors.test.ts` pins that an unnamed 23514 still passes its text through.
-
-### `033` — blacklist + vehicle format hardened (2026-08-08)
-
-**`visitor_company` used to render as raw JSON on the slip and the detail page.**
-`RaisePass` writes `JSON.stringify({n, a, v})`, and when the HOD leaves all three vendor
-fields blank it writes `{"n":"","a":"","v":""}` — a *truthy non-empty string*. Old
-`parseCompanyInfo` tested `parsed.n` for truthiness, so the empty blob fell through to the
-legacy branch and displayed the raw JSON as the company name everywhere. It now recognises
-the packed shape by its **keys** (`n/c/a/v` present), not by truthiness — and `RaisePass`
-stops writing blobs at all: `packVendor()` returns `null` when all three fields are blank,
-so the honest record of "no vendor" is a null column (`company_name_of()` already coped).
-`PassDetail` also renders `—` for a missing name.
-
-**Blacklist and vehicle numbers are now strict.** `033` adds a CHECK on `gate_passes`
-enforcing the Indian format (`IN` or `WB` … `XX 1234`/`XX9 1234`/`X9 1234`, exactly one
-space before the digits, digits 13BF to 9999) and hardens the blacklist form
-(`tests/unit/blacklistForm.test.tsx`) — blanks rejected, leading zeros rejected, etc. The
-migration also refactors `check_blacklist` to compare on the *packed* `n` key so a
-blacklisted vendor name can never slip past as `{"n":"bsc",…}`.
-
-Two live-DB quirks surfaced while applying `033`, fixed in the migration body:
-- **Postgres `overlay(to… from 3…)` REPLACES rather than inserts** — use
-  `left(…) || '0' || substring(…)` to splice a digit in.
-- **The server's collation mangled `[^A-Z0-9]`** (stripped letters) — use the POSIX class
-  `[[:alnum:]]` instead.
-
-Verified live with real anon-key JWTs: blank-vendor raise → `visitor_company = null`; the
-pass detail/slip show `—`; a blacklisted vendor by name and by number is refused; a valid
-pass matches. Probe rows cleaned up; `gate_passes` back to ~18 rows. **No commit of this
-was made before the next push (see git log — `033` ships in the same push as the docs).**
-
-### `036` — the admin resets a password, the user is forced to replace it (2026-08-10)
-
-The other half of removing self-service reset (section below). An admin resets a
-password from **Admin → Users → Edit User**; the person signs in with what the admin gives
-them and is then made to choose their own before reaching any screen.
-
-**The browser cannot do this on its own.** `auth.admin.updateUserById` needs the
-service-role key, which must never reach the bundle. So the write happens in a
-SECURITY DEFINER function using the same bcrypt shape `admin_create_user` has used since
-`021` — `extensions.crypt(pw, extensions.gen_salt('bf'))`. GoTrue accepts a hash written
-this way; that was already proven live by `034`, and re-proven here.
-
-- **`gatepass.admin_reset_user_password(uuid, text)`** — `is_admin()` gated. Sets the
-  password, raises `must_change_password`, and **deletes every session the user has**
-  (`auth.sessions`; `refresh_tokens.session_id` cascades — verified live, `confdeltype`
-  is `'c'`). Without that delete, someone already signed in elsewhere keeps full access,
-  which defeats the point of a reset when the reason for it is a suspected compromise.
-- **It refuses to target an `admin` / `super_admin`.** Otherwise the weakest admin account
-  becomes a takeover route into every stronger one, and "reset" is an undetectable way to
-  seize a super_admin. A locked-out admin is a Supabase-dashboard job, deliberately. This
-  mirrors `admin_create_user`, which likewise will not mint an admin.
-- **`gatepass.set_my_password(text)`** — the user's own choice, scoped to `auth.uid()`.
-  **It clears the flag in the same call that writes the password, and nothing else clears
-  it.** A separate "clear the flag" RPC would let the forced-change screen be skipped from
-  the browser console. It also refuses reusing the current password (`crypt(new, current)
-  = current`), because keeping the password the admin just read out over the phone leaves
-  the account exactly as exposed as it was.
-- **`my_profile()` was drop+recreated** to carry `must_change_password` — its return type
-  changed, which `create or replace` cannot do (the same dance `025` did for `avatar_url`);
-  the execute grant is re-applied in the same transaction. GatePass never reads
-  `public.profiles` directly (the `006` rule), so this function is the only way the flag
-  reaches the client.
-
-**The flag lives in `public.profiles`, added by VMS migration `064` — not by this one.**
-`public` is VMS-owned and GatePass must never alter it. This migration only reads and
-writes the column's *value*, exactly as `admin_create_user` already writes
-`public.profiles.role`. **Apply VMS `064` first**; `036` is a no-op-then-error without it.
-The two apps' functions deliberately MIRROR rather than call each other: each authorizes
-with its own admin check, and each app's callable surface stays in its own schema.
-
-**Verified live 2026-08-10** — `node scripts/verify-036.mjs`, **16/16**, real anon-key
-JWTs throughout (postgres bypasses every guard here, so psql could not have proven any of
-it). Covers: a fresh user is NOT flagged (the regression that would lock out the whole
-org); a non-admin is refused; an admin cannot reset an admin; a short password is refused;
-the old password stops working; the new one signs in; both apps' flag readers agree;
-reusing the temp password is refused; the user's own choice clears the flag; a second
-sign-in is not gated; the temp password dies once replaced. Probe user deleted;
-`profiles` has **0** rows flagged.
-
-### Password reset is admin-assisted — self-service is GONE (2026-08-10, frontend only)
-
-**There is no "Forgot password?" link any more** (user's call, 2026-08-10). The login card
-carries a line of help text instead: *"Forgot your password? Contact the administrator at
-admin@demo.vms to have it reset."*, with the address as a `mailto:` link.
-`src/components/ForgotPasswordCard.tsx` was **deleted** along with `Login`'s `mode` state,
-so `resetPasswordForEmail` now has **no caller anywhere in `src/`**.
-
-The address lives in **one** place — `ADMIN_CONTACT_EMAIL`, exported from
-`src/pages/Login.tsx` — so the test asserts the same constant the page renders and the two
-cannot drift. Change it there if the real administrator's mailbox differs from the demo one.
-
-Why removing it is an improvement and not a regression: the built-in Supabase sender is
-capped at **~2 emails/hour project-wide** (see the section below, still true), so the
-self-serve button failed for most people who pressed it and left them with a rate-limit
-error and no next step. A named human is a better answer than a button that usually fails.
-
-**`ResetPassword.tsx` and the `/reset-password` route are deliberately KEPT.** They are no
-longer reachable from inside the app, but they are still the landing page for a recovery
-email the **admin** triggers from the Supabase dashboard — which is exactly the flow this
-change institutes. Deleting them would break the new process, not tidy it. This is a
-knowing exception to "never leave unused code": the page has a caller, it is just not in
-this codebase. `tests/unit/resetPassword.test.tsx` (7) still covers it.
-
-`tests/unit/forgotPassword.test.tsx` was rewritten (4 tests) and now pins the *absence* of
-the control plus the presence of the mailto — so the link cannot creep back in. Full gate:
-**555 tests across 43 files pass** (`npm run check`, 2026-08-10).
-
-The original 2026-08-08 fix that this supersedes is kept below only for the recovery-page
-mechanics, which are unchanged:
-
-- **`ResetPassword.tsx`** at `/reset-password` — the recovery token the email embeds is
-  an implicit-grant callback: the SDK detects it and fires the `PASSWORD_RECOVERY`
-  event, and only that event unlocks the new-password + confirm form (`updateUser`).
-  A fallback 1.5 s timer shows "link invalid" if no recovery event arrives (stale or
-  forged link). On success it `signOut()`s and shows a confirmation — password is set,
-  session is not kept.
-- **`App.tsx`** routes `/reset-password` — the render branch sits **before** the
-  `!session` gate, because the recovery session is valid but must not be treated as a
-  logged-in visit (it would bounce to the console instead of the form).
-- **Login.tsx HTML validity:** the card's own `<form>` used to nest inside the outer
-  sign-in `<form>` (invalid HTML). The outer element is a `<div>`; the sign-in content is
-  its own inner `<form>`. Keep it that way — it is still the only `<form>` on the card.
-
-Still worth verifying with a real mailbox: that the link in an **admin-triggered** recovery
-email lands on `/reset-password` and the form there accepts a new password.
-
-### Reset email rate limit — the built-in sender is capped at ~2 emails/hour (2026-08-08)
-
-**The built-in Supabase email provider allows only ~2 emails per hour, PROJECT-WIDE** —
-signup + reset emails from *both* GatePass and VMS (shared project) count against the same
-budget. The dashboard's Rate Limits settings do NOT lift it — "Custom SMTP only" per the
-docs. Users hitting it see `over_email_send_rate_limit` (429), which `safeErrorMessage`
-already translated. Two follow-ups landed:
-
-- **The message now says it is an hourly cap**, not "a few minutes"
-  (`src/lib/errors.ts`, tests pin `/hour/i`) — with the built-in sender the wait really
-  can be until the next hour.
-- ~~`ForgotPasswordCard`'s 60-second client-side resend cooldown~~ — **gone with the card
-  itself on 2026-08-10** (see the section above). Nothing in the app sends a reset email
-  any more, so no client-side throttle is needed. **The cap itself still applies** to
-  whatever the admin triggers from the Supabase dashboard, and it is still project-wide
-  and shared with VMS.
-
-To raise the cap for real: configure a **custom SMTP** provider in Authentication →
-Settings (e.g. Resend), then raise `rate_limit_email_sent` in Authentication → Rate
-Limits or via the Management API (`/v1/projects/oxzzeonftrmohdrancex/config/auth`).
-Full gate: **551 tests pass** (`npm run check`, 2026-08-08).
-
-### UI overhaul, 2026-08-04 (frontend only — no migration)
-
-**The RGP form could not be submitted at all, and had been broken since `019`.**
-`RaisePass.validate()` required a *pass-level* `expected_return_date`, but `019` replaced
-that field with per-item dates and the form stopped rendering a pass-level input. So every
-RGP submit failed validation on a field the user could neither see nor fill, and
-`errors.expected_return_date` was never rendered either — the button just did nothing. Worse,
-`handleSubmit` never sent `p_expected_return_date`, and the view computes `is_overdue` /
-`due_state` from the **pass-level** column, so a pass that did get through could never go
-overdue. Fixed: each RGP line requires its own Return Date (error rendered inline under the
-input), and the pass-level date is derived as the **earliest** item date — a pass is due when
-its first line is due. Covered by `tests/unit/raisePassSubmit.test.tsx`.
-
-**Serial number removed from the HOD forms** — `RaisePass`, `BulkRaise`, and the
-`NewGatePassItem` form type, plus the `PassDetail` row and the `PassPrint` column.
-`gatepass.gate_pass_items.serial_no` **still exists in the database and is now write-dead**;
-dropping it needs a migration that rebuilds `v_gate_pass_items`. Deliberately deferred —
-user's call, 2026-08-04. This is the one known violation of "never leave unused schema".
-
-**Guard view split into Dashboard + Gate Console.**
-- **`/guard-dashboard`** (`GuardDashboard.tsx`) is the guard's first sidebar tab, "Dashboard".
-  Five KPI cards — Pending for Gate Approval, Matched at Gate, Mismatch at Gate, Awaiting
-  Return, Overdue — and **each is a drill**: clicking it lists the matching passes as full
-  premium cards *on the same page*, no navigation, because a guard is standing at a barrier.
-  Drill definitions live once in `src/lib/guardDrills.ts` as a `Record<DrillKey, DrillDef>`.
-  **Each KPI number is `rows.length` of the very list the click opens**, so the count and the
-  list cannot disagree — do not "optimise" this back into a separate `count: 'exact'` query.
-- ~~**`/returns` and `Security/PendingReturns.tsx` are gone.**~~ **THIS IS FALSE — corrected
-  2026-08-10.** Both still exist and are fully wired: `PendingReturns.tsx` is on disk,
-  `App.tsx:184` routes `/returns`, `ROLE_ROUTES.guard` permits it, and `Sidebar.tsx`
-  offers it to guards as "Pending Returns". Either the deletion was never carried out or
-  it was reverted; the doc was never corrected. Verified by
-  `tests/unit/navLinksResolve.test.ts`, which now fails if any nav link stops resolving to
-  a real, permitted route.
-  What IS true from that change: its KPIs also became guard-dashboard drills, and
-  **`mark_returned` is reachable from `GuardDrillCard.tsx`** as well. So there are now TWO
-  routes to closing an RGP, not one — worth deciding deliberately rather than leaving to
-  drift. **Before believing any "X was deleted" claim in this file, check the disk.**
-- **`/history` and `Security/History.tsx` are gone** (user's call, 2026-08-04), along with
-  `tests/unit/history.test.tsx`. Note the capability actually lost: the Matched / Mismatch
-  drills are **today-only**, so a guard can no longer look back at past verifications at all.
-  Adding a Today/All-time toggle to those two drills is the fix if that is ever missed.
-- **`GateConsole` is the pending queue and nothing else.** Its KPI row moved to the dashboard;
-  `GateLookup` moved from a full-width card above the KPIs to a compact fixed-width card
-  anchored right of the page header, with an icon-only QR button. `QueueCard.tsx` was
-  extracted to keep the file under the 300-line cap.
-
-**Session timeout is now 5 minutes, not 10.** `SessionTimeout.tsx` already existed and was
-already mounted in `AppShell` — it just never fired within the window anyone waited. It now
-exports `IDLE_TIMEOUT_MS` / `COUNTDOWN_SEC` so `tests/unit/sessionTimeout.test.tsx` asserts
-the threshold rather than trusting a comment. **Activity does not dismiss a visible prompt** —
-only "Keep session" does, so the mouse nudge that wakes a screen cannot silently cancel a
-logout nobody saw.
-
-**Reports filters lifted to the page.** The All / Pending / Matched / Mismatched status tabs
-were removed from `AllPassesReport` and those counts became KPI cards on the admin Dashboard.
-Department and RGP/NRGP filters moved OUT of `AllPassesReport` into `ReportsFilterBar.tsx`,
-rendered by `ReportsPage`, so **the scope now applies to all three report portals** and is
-appended to the printed report header (`rangeLabel`) — a filtered report that does not say so
-on the paper reads as the whole org and undercounts by an unknowable amount. `AllPassesReport`
-keeps only free-text search and CSV export.
-
-**`RGP In` added to the gate console's category filter — and `categoryKey` was wrong.**
-It took only the type and hardcoded `` `${type}-out` ``, so an RGP-in pass was filed under
-"RGP Out" and could not be filtered for at all. Bulk Create's direction select already
-allows "In" for RGP, so such rows can genuinely exist. `categoryKey(type, direction)` and
-`categoryFor(type, direction)` now take both; `PASS_CATEGORIES` gained `RGP-in` with a
-`direction` field. **Still no `NRGP-in`** — that is a goods receipt, not a gate pass
-(`gate_passes_nrgp_is_outward`). `tests/unit/lookupMaps.test.ts` had a test *named* "three
-combinations" that asserted two; corrected. Note `RaisePass` still hardcodes
-`p_direction: 'out'`, so RGP-in passes can only be created via Bulk Create today.
-
-**Sidebar labels:** admin "Admin Dashboard" → "Dashboard"; guard order is Dashboard, Gate
-Console. `ALL_LINKS` is now exported from `Sidebar.tsx` so tests can assert nav order.
-**All four roles now land on their KPI board** (2026-08-08): `ROLE_HOME.guard` is
-`/guard-dashboard` (was `/console`), matching admin's `/admin-dashboard` and HOD's
-`/dashboard`. The console is still where a shift is spent, but it shows only the pending
-queue — **Expired, Awaiting Return and Overdue appear nowhere else in the guard's UI, and
-`mark_returned` is reachable only from a dashboard drill**, so landing on the queue meant
-those were seen only if someone thought to click across. `tests/unit/roleRoutes.test.ts`
-pins each role's landing page and the "first entry of `ROLE_ROUTES` is the landing page"
-convention for guard and admin alike.
-
-### Dashboards are period-scoped, and every KPI is a drill (2026-08-08)
-
-**All three dashboards default to today.** Historical data is reached through Reports
-(`/all-passes`, admin) or My Passes (`/my-passes`, HOD) — user's call: a dashboard is a
-snapshot, not an archive.
-
-- **HOD and Admin** carry a **period filter** top-right (`src/components/DashboardPeriodFilter.tsx`,
-  bounds in `src/lib/dashboardPeriod.ts`): Today / Weekly / Biweekly / Monthly / Yearly,
-  rolling windows ending at midnight tomorrow, default Today. `todayBounds()` in
-  `src/lib/hodKpis.ts` now delegates to `periodBounds('today')` — do not let a second
-  "start of today" implementation reappear.
-- **HOD dashboard**: Recent Passes is gone; every KPI is a clickable drill
-  (`src/lib/hodDrills.ts` + `HodDrillList.tsx`), including **RGP Issued**, **NRGP Issued**
-  and **Expired**. The **`<FlaggedReviewCard>` is deliberately fed by UNSCOPED rows** — a
-  mismatch raised yesterday still needs a decision today. Keep that comment.
-- **Admin dashboard** no longer calls the `kpis()` RPC (it aggregates all-time and takes no
-  date parameter); it derives its four KPIs from `v_gate_passes` rows instead. `kpis()` still
-  has one caller, the HOD dashboard.
-- **Guard dashboard is deliberately mixed-scope, and this is load-bearing.** Pending /
-  Matched / Mismatch / Expired are today-only; **Awaiting Return and Overdue are all-time**
-  and labelled "all time" on the card. They were previously (and wrongly) scoped to
-  `raisedToday`, which meant an RGP raised last week and still out was **invisible** — and
-  since `mark_returned` is reachable nowhere else in the UI, those passes could never be
-  closed at all. Do not "fix" the inconsistency by scoping them.
-
-**The invariant across all three:** a KPI's number is `rows.length` of the very list the
-click opens, both from the same filtered array. Never a separate `count: 'exact'` query.
-
-### HOD nav trimmed + admin lands on the KPI board (2026-08-08, frontend only)
-
-**`ROLE_HOME.admin` / `.super_admin` is now `/admin-dashboard`, not `/admin`** — an admin
-signing in sees the KPI board, not Departments & Users. `ROLE_ROUTES` was reordered to keep
-the documented "first entry is the landing page" convention true; `tests/unit/roleRoutes.test.ts`
-now pins it.
-
-**Vendors and Bulk Create were removed from the HOD sidebar entirely** (user's call,
-2026-08-08). Deleted: `HOD/VendorProfiles.tsx`, `HOD/BulkRaise.tsx`, `HOD/BulkItemRow.tsx`,
-`HOD/BulkResultList.tsx`, `tests/unit/bulkRaise.test.tsx`, both routes and both `ALL_LINKS`
-entries, and `/vendors` from `ROLE_ROUTES.hod`. `tests/unit/hodNav.test.tsx` pins the
-surviving HOD nav (Dashboard, Raise Gate Pass, My Passes) so neither tab can creep back.
-
-Two consequences worth knowing:
-- **RGP-in passes can no longer be created at all.** `RaisePass` hardcodes
-  `p_direction: 'out'` and Bulk Create was the only screen whose direction select allowed
-  "In". The `RGP In` filter in the gate console will now never match anything. Giving
-  `RaisePass` a direction selector is the fix if inbound returnables are ever needed.
-- **The vendor *prefill* inside Raise Gate Pass deliberately stays** — the "Vendor Details"
-  card, the "Load from vendor…" dropdown, the "Save as vendor profile" checkbox and the
-  `list_vendor_profiles` / `save_vendor_profile` RPCs are all untouched. Only the standalone
-  browse/manage page went. So vendors can still be saved and reused, just not browsed.
-- `bulk_create_passes` in the database now has **no caller**. Left in place rather than
-  dropped, pending a decision on whether Bulk Create returns.
-
-**300-line cap:** `RaisePass` (451) and `BulkRaise` (315) were over and were split into
-`MaterialItemRow` / `MaterialItemsCard` / `PassDetailsCards` / `PassSubmittedModal` and
-`BulkItemRow` / `BulkResultList`. Still over the cap and **untouched this session**:
-`DepartmentsTab` (466), `UsersTab` (431). (`HOD/Dashboard` is 221 since the 2026-08-17
-rebuild; `AIAnalyticsTab` was deleted.)
-
-### Admin UI split — Dashboard and Reports are now separate pages (2026-08-04)
-
-The admin left-sidebar gained **Admin Dashboard** (`/admin-dashboard`, admin + super_admin) —
-the KPI board (`kpis()` + per-department breakdown) that used to sit on top of the old
-`AllPasses`. `/all-passes` is now **Reports** only: three report "portals" behind a
-date-range toolbar (`ReportsPage` + `ReportsToolbar`, range presets from
-`src/lib/reportsDateRange.ts`): **All Passes** (register + filters),
-**Return Schedule** (RGP-only, Expected Return + Actual Return columns off the view) and
-**Department Summary**. Reports print A4 landscape via a **named page**
-(`@page report-sheet`) with a Quest letterhead (`ReportsPrintHeader`, `QuestLockup` light
-tone) — the A5 slip's `@page` rule is untouched. Old `Admin/AllPasses.tsx` was deleted.
-
-**Dashboard is a slim operational snapshot — status counts live only under Reports.**
-2026-08-04 feedback: `Pending for Gate Approval` / `Matched` / `Mismatched` KPI cards, the
-per-department `By Department` table, and the `Open Reports →` button were all removed from
-`AdminDashboard.tsx`; it now loads only the `kpis()` RPC and shows `Total`, `Awaiting Return`,
-`Return Rate`, `Overdue`. The status register and per-department counts are exclusively in
-`/all-passes` (the `DeptBreakdownTable` component now has exactly one consumer, the
-`DepartmentSummaryReport`). The Reports page header subtitle was dropped too.
-
-### `025` — self-service profile page (2026-08-04)
-
-Clicking the **bottom-left profile block** in the sidebar now opens `/profile` (all four roles),
-mirroring VMS's profile page: upload / replace / **remove** the photo, and edit the display
-name. The photo lives in the shared `avatars` storage bucket (`avatars/<uid>/avatar`, created
-by VMS migration 053 — same project, so a photo set here shows in VMS too). Client writes go
-through two new **SECURITY DEFINER** RPCs scoped to `auth.uid()` — `gatepass.update_my_name(text)`
-(validates non-empty / ≤80 chars, raises otherwise) and `gatepass.set_my_avatar(text)`
-(null or `''` clears) — never `public.profiles` directly (the 006 rule). `my_profile()` was
-drop+recreated to return `avatar_url` (its return type changed, which `create or replace`
-cannot do; the execute grant was re-applied in the same migration). Files:
-`src/pages/Shared/Profile.tsx` + `ProfilePhotoCard.tsx` + `ProfileDetails.tsx`,
-`src/lib/useMyProfile.ts`, `src/lib/avatarUpload.ts`, `src/lib/initials.ts`, and the
-`/profile` link in `SidebarProfile.tsx` (re-fetches the avatar on navigation so returning
-from the page shows the new photo). **Verified live** as `guard@demo.vms` via real anon-key
-JWT: name updated, avatar set/cleared, and the empty-name case rejected with HTTP 400
-(`gatepass` schema REST needs `Accept-Profile`/`Content-Profile: gatepass` headers).
-
-**Sidebar active-link fix (2026-08-04):** the nav highlight used a bare `startsWith`, so
-`/admin-dashboard` lit up *both* **Admin Dashboard** and **Departments & Users**. Now
-`isNavActive()` (in `src/lib/roleRoutes.ts`) matches exact or parent-segment only. **AI
-Analytics was removed from the HOD view** (sidebar link, `/analytics` route,
-`HodAnalytics.tsx` deleted); the admin's AI Analytics tab under `/admin` is untouched.
-
-### `027` / `028` — the blacklist was decorative, and the JSON trap that hid it
-
-**`visitor_company` does not hold a company name.** `RaisePass` writes
-`JSON.stringify({n: name, a: address, v: phone})`, so the column holds
-`{"n":"BSC","a":"…","v":"…"}`. Every blacklist comparison in the codebase was
-`lower(list_value) = lower(trim(visitor_company))`, which can never equal `'bsc'`. This bit
-in **two** separate places, and both looked correct on inspection:
-- `check_blacklist()` (016) was never called at raise time at all — the list was advisory
-  data no code path consulted. `027` fixes this with a **BEFORE INSERT trigger**
-  (`gate_passes_enforce_blacklist`), not a check inside `raise_pass`: there are TWO
-  `raise_pass` overloads plus `bulk_create_passes`, and a trigger covers every insert path
-  including ones added later. The refusal message includes the reason, because an HOD told
-  only "blocked" cannot tell a deliberate ban from a typo and will just retry.
-- `lookup_pass()` compared the same raw JSON on the **gate** side, so a guard's scan
-  silently returned a null blacklist note every time — indistinguishable from "this vendor
-  is fine". `028` fixes it.
-
-`gatepass.company_name_of(text)` (027) unwraps the JSON and falls back to the raw text for
-legacy rows that stored a bare name. **Use it for any future comparison against
-`visitor_company`.** The trigger fires on INSERT only — blacklisting a vendor must not break
-the gate for passes already standing at the barrier.
-
-**Verified live 2026-08-08** (real anon-key JWTs): the JSON-wrapped, lowercased+padded, and
-legacy bare-text spellings of a blacklisted company were all refused with the reason; a clean
-vendor still got through; and rejection/matching behaved as designed. Probe rows deleted.
-
-**HOD final rejection (027).** A flagged pass could only ever be *approved*, so one the HOD
-did not want released sat at `flagged` forever. `hod_review_flagged_pass` now accepts
-`p_action = 'reject'`, moving the pass to **`cancelled`** and keeping `flag_reason`. This does
-not reopen what `024` closed: `024` stopped an HOD voiding their own pass on a whim; this
-applies only to a pass security has already stopped, only by the raising HOD, and adds no
-DELETE grant or UPDATE policy. Verified live: a rejected pass is refused by `match_pass`.
-
-**`'cancelled'` cannot appear in a CHECK constraint.** `026` used an allow-list
-(`status in ('flagged','hod_reviewed','matched')`); `027` needed `cancelled` too, and naming
-it **aborts the whole `APPLY_ALL.sql` paste** — the label is added by `008`, and the paste is
-ONE transaction, so Postgres hits "unsafe use of new value" at DDL time. It would have worked
-on this live DB and failed on every fresh deploy. `tests/security/sqlInvariants.test.ts`
-caught it. The constraint is now an inverted deny-list, `status not in ('pending','held')`,
-which names only original `001` labels and states `012`'s intent more directly anyway.
-
-### `029` — per-item returns, and the RPC that had no caller for three migrations
-
-**`apply_item_returns` has taken `[{item_id, qty}]` since `013` and nothing ever called it.**
-The only return action reachable in the UI was `mark_returned`, which closes every line at
-once — so a trolley that went out with a drill, two ladders and a coil could only come back
-all together, and the record showed a single timestamp on the parent for a return that
-physically happened over three days. `029` adds `gate_pass_items.returned_at` and
-`src/pages/Security/ItemReturnList.tsx` is the first caller.
-
-- **`returned_at` is stamped only when a line becomes FULLY returned.** A partially-returned
-  line (2 of 3 ladders) stays null: it still owes material, and a date on it reads as "this
-  came back" on every screen that renders one. Outstanding quantity expresses a partial
-  return; the timestamp expresses closure. It is nullable for the same reason — a
-  `not null default now()` would stamp every line at raise time.
-- **The stamp is set in the same UPDATE that moves `returned_qty`**, with
-  `coalesce(returned_at, ...)` so it can never be moved once written.
-- **The pass closes itself.** The roll-up (unchanged since `013`) sets `return_status =
-  'returned'` in the same call once no line has `returned_qty < quantity`. The client never
-  decides closure — `ItemReturnList` calls back so the dashboard *re-reads* it. Do not
-  compute "all items are back" in TypeScript and act on it.
-- `v_gate_pass_items` was drop+rebuilt (TRAP 2 — `select i.*` cannot absorb a new base
-  column) and its grant re-applied in the same transaction.
-- The guard card's button is now **Record Returns**, opening per-line buttons plus a
-  **Return All** fallback for the single-move common case. Items load only when a card is
-  opened, so a long Awaiting Return drill doesn't fire one query per pass at the barrier.
-
-**Verified live 2026-08-08**, real anon-key JWTs for `hod.it` + `guard`, 13/13: a 3-line RGP
-raised and matched; line 1 returned alone → stamped, lines 2–3 null, pass
-`partially_returned` with no `actual_return_date`; 1 of 2 ladders returned → still no stamp
-on that line; remainder returned → all three stamped with **distinct** times, line 1's
-original stamp unchanged, pass `returned` with an `actual_return_date`. A closed pass refuses
-a further return; an HOD is refused outright ("Only security can record a return."). Probe
-row deleted via psql — note the anon path **cannot** clean up, because nobody holds DELETE on
-`gate_passes`. `tests/security/perItemReturns.test.ts` + `tests/unit/itemReturnList.test.tsx`.
-
-### `030` — Returnable Aging removed (2026-08-08, user's call)
-
-The HOD dashboard's Returnable Aging card (Period / Items Out / Estimated Value) is gone:
-`src/pages/HOD/ReturnableAging.tsx` deleted, the `returnable_aging` RPC call and its state
-removed from `HOD/Dashboard.tsx`, `ReturnableAgingBucket` dropped from `src/types/index.ts`,
-and `030` drops `gatepass.returnable_aging(uuid)` itself. An unused SECURITY DEFINER function
-stays EXECUTE-able over PostgREST by every authenticated user — it is attack surface no
-screen exercises and nobody reviews.
-
-`formatCurrency` was **kept**: still used by the HOD Overdue KPI and `PassPrint`.
-`bulk_create_passes` is still **not** dropped — that one is pending a decision on whether
-Bulk Create returns; Returnable Aging is not coming back.
-
-### `032` — one department per person, DB-enforced (2026-08-08)
-
-Business rule: a person can belong to AT MOST ONE department, in both apps. VMS already
-models it structurally — `public.profiles.department_id` is a single column. The only place a
-user could acquire two departments was GatePass's join table. `032` closes that gap three
-ways:
-
-- **A unique index** `hod_departments_one_department_per_person` on `hod_departments (hod_id)`.
-  The database itself rejects a second row for the same person with a 23505 — no RPC can be
-  forgotten later, because every write path hits the same index.
-- **The admin functions now agree with VMS.** `admin_create_user` / `admin_update_user`
-  refuse a `p_department_ids` array longer than one ("A person can belong to at most one
-  department — found N."), and mirror the sole department into `profiles.department_id`
-  (VMS's authority) so both apps read the same fact for the same person. `[]` still clears,
-  `null` still means "unchanged".
-- **The demo seed no longer invents a multi-department HOD** — `005` seeds from
-  `profiles.department_id` only (it always did; the IT+DEV+SA cross-join is gone).
-
-Frontend follows: `DepartmentsTab`'s Assign action is now a MOVE (delete-then-insert, so
-assigning an already-assigned HOD relocates them instead of failing), and `UsersTab`'s
-create/edit modals use single-select department chips (edit pre-fills the HOD's current one;
-leave empty to unassign).
-
-**Verified live 2026-08-08:** applied cleanly (0 rows needed dedupe — all 7 HODs already
-held exactly one row); `7 people / 7 rows / max 1 per person`; a second row for a real HOD
-was refused with the exact `23505 duplicate key` and rolled back; both deployed function
-bodies carry the guard and the `department_id` mirror (checked via `pg_get_functiondef`).
-Static backstops: `tests/security/sqlInvariants.test.ts` now fails if the unique index is
-ever dropped, or if either admin function stops rejecting >1 / stops mirroring.
-
-### KPI clicks scroll their results into view (2026-08-08, frontend only)
-
-`src/lib/useScrollIntoViewOnChange.ts` — one hook, used by `GuardDashboard` and
-`HOD/Dashboard`, that scrolls the revealed drill list to the top of the viewport when the
-selected KPI changes. Three things in it are load-bearing:
-- **It never scrolls on first mount.** A page that jumps on load is worse than one that
-  doesn't scroll.
-- **`scrollIntoView` does not exist in jsdom** — it is called only after a
-  `typeof el.scrollIntoView === 'function'` check. Without that guard every dashboard test
-  crashes.
-- **`prefers-reduced-motion: reduce` downgrades to `behavior: 'auto'`**, with `matchMedia`
-  itself feature-detected because jsdom may not implement it.
-
-**The admin dashboard is deliberately not wired up: its four KPIs are not clickable at all**
-(no `onClick`, no drill list to reveal), so there is nothing to scroll to. Making them drills
-is the prerequisite if that is ever wanted.
-
-### `028` — expiry is now same-day
-
-`expires_at` was end of the **next** day; it is now **end of the raising day** in
-`site_tz()`. Verified live: raised 09:47 IST → expires 23:59:59 the same day.
-
-**Trade-off to know about:** a pass raised at 23:50 is now valid for ten minutes. The old
-`+2 days` existed precisely to avoid that cliff. If it bites, the fix is "end of the raising
-day, but never less than N hours" — not a return to `+2 days`.
-
-**There is deliberately no `'expired'` status enum label and no `pg_cron` job.** Expiry is
-derived at query time from `expires_at`, exactly like `is_overdue`, and surfaced as
-`is_expired` on `v_gate_passes`. A pass reads as Expired when
-**`status === 'pending' && is_expired`** — a matched or flagged pass already reached its
-outcome. `src/lib/statusStyles.ts` exports `isExpiredPending()`; use it rather than
-re-deriving the pair, and **never recompute expiry from `expires_at` in TypeScript.**
-
-### `026` — the HOD override could never have worked (2026-08-08)
-
-`hod_review_flagged_pass` moves a pass `flagged → hod_reviewed` without touching
-`flag_reason`, but `012` added `gate_passes_flag_reason_only_when_flagged`
-(`flag_reason is null or status = 'flagged'`). Since `flagged_needs_reason` guarantees a
-flagged pass *has* a reason, that UPDATE aborted every single time:
-**"new row … violates check constraint gate_passes_flag_reason_only_when_flagged"**.
-Broken for every pass since `012`, not intermittently.
-
-The fix is NOT to null the reason in the RPC — that destroys the audit trail at exactly the
-moment it matters, and erases the text the HOD screens display. `026` widens the constraint
-to `status in ('flagged','hod_reviewed','matched')` instead. `matched` is included because
-**`match_pass` explicitly admits `hod_reviewed`**, so the real path is
-`flagged → hod_reviewed → matched` and a matched pass legitimately keeps the reason it was
-once flagged for. `pending`/`held`/`cancelled` still cannot carry one, so `012`'s actual
-intent — no accusation on a pass nobody acted on — is fully preserved.
-
-**Verified live 2026-08-08** with real anon-key JWTs (hod.it + guard): raise → flag →
-override → match all succeeded, `flag_reason` intact at every step, and a control pending
-pass still came back with `flag_reason = null`. Probe rows deleted; `gate_passes` back to 0.
-
-**Consequence for the UI: a `matched` pass CAN now carry a `flag_reason`.** The note on
-commit `89726b3` ("matched passes never have a flag_reason, so the Mismatch Reason column is
-pure noise on the Matched tab") is **no longer true** — an overridden-then-matched pass has
-one. Revisit that column's visibility if overrides become common.
-
-### `024` — cancellation removed: a raised gate pass is permanent
-
-Business rule fixed 2026-08-04: **once a gate pass is raised it cannot be cancelled or
-deleted.** Migration `024` removed every cancellation path — `gatepass.cancel_pass` (the HOD
-void), the `gate_passes_delete` policy + the schema's only DELETE grant (the HOD hard-delete),
-the `reject` branch of `hod_review_flagged_pass` (a flagged pass can now only be **approved**),
-the now-dead `cancel_reason` column, and the `'cancelled'` branches of `validate_pass` /
-`lookup_pass`. The enum labels stay — Postgres cannot drop enum values — but no code path sets
-them. Verified live: `cancel_pass` gone, `gate_passes_delete` policy gone, `cancel_reason`
-column gone. The `VoidPassPanel.tsx` / `DeletePassPanel.tsx` / `useDeletePass.ts` files were
-deleted and the Cancel/Delete/Reject buttons removed from `MyPasses` and `PassDetail`.
-
-Companion rule (already true, verified, not changed): **an RGP pass closes only when ALL its
-items are fully returned.** `apply_item_returns` (013) rolls lines up into the parent and only
-sets `return_status = 'returned'` when no line has `returned_qty < quantity`; a partially
-returned multi-item pass stays `partially_returned` (still outstanding, still overdue-reckoned)
-until every line is back.
-
-### `023` — admin_create_user collided with VMS's own signup trigger
-
-Every "Add User" in the admin panel failed with **"That record already exists."**, even for
-a genuinely unused email. Root cause: `public.handle_new_user()` — VMS's own trigger on
-`auth.users`, owned by the `public` schema — fires on the `insert into auth.users` inside
-`admin_create_user` and **already inserts the matching `public.profiles` row itself**
-(role defaulted to `'staff'`), *and* immediately overwrites `raw_app_meta_data` back to
-`role: 'staff'`. `021`'s `admin_create_user` then ran its own `insert into public.profiles`,
-which collided with the trigger's row — a `23505` unique violation, which
-`src/lib/errors.ts` renders as the generic "already exists" message. Even if that insert
-were skipped, the trigger's `app_metadata` overwrite would have silently demoted every new
-guard/HOD back to `staff`.
-
-`023` changes `admin_create_user` to `UPDATE` the profile and `app_metadata` the trigger
-already created, instead of inserting a second time. **Verified live this session** by
-signing in as `admin@demo.vms` and calling the RPC for real (not via `psql`, which runs as
-`postgres` and would bypass `is_admin()`): a `guard` and an `hod` test account were created
-with the correct `role` in both `public.profiles` and `auth.users.raw_app_meta_data`, then
-deleted. `sqlInvariants.test.ts`/`applyAllIntegrity.test.ts` do not (and cannot) catch this
-class of bug — it only exists at the intersection of this app's RPC and VMS's trigger,
-neither of which is visible from the other's migration files alone.
-
-**`006` was never actually missing.** The previous session concluded it was unapplied from a
-`PGRST205`/`PGRST202`, but `gatepass.profile_names`, `my_profile()` and `admin_list_profiles()`
-were all present in the catalog. That error means "not in PostgREST's *schema cache*", which a
-stale cache produces just as readily as a missing object. **Query `pg_catalog` before
-concluding a migration did not run** — a PostgREST error code cannot distinguish the two.
-
-### The grant drift that `009` fixes — expect it to come back
-
-Probed live *before* `009`, `gate_passes` carried `DELETE, INSERT, SELECT, UPDATE` for **all
-three** of `anon`, `authenticated`, and `service_role` — flatly contradicting the documented
-invariant that no client holds `UPDATE`. Cause: adding a schema to **Exposed schemas** in the
-Supabase dashboard also runs `grant all on all tables in schema gatepass to anon,
-authenticated, service_role`. It is a one-time blanket grant (no `pg_default_acl` entry was
-left behind, so new objects are unaffected — the rebuilt `v_gate_passes` came back clean).
-
-The app was never actually exploitable: RLS held on its own, because `gate_passes` has only
-`gate_passes_select` and `gate_passes_insert` policies, both scoped to `authenticated`. No
-UPDATE policy exists, so UPDATE failed for want of a policy; `anon` has no policy at all.
-What was lost was a layer of defence in depth — and the remaining layer was one careless
-`for all` policy away from total.
-
-**`tests/security/sqlInvariants.test.ts` cannot catch this.** It greps migration *files*,
-which were always clean. Only live verification sees dashboard-introduced drift.
-**Re-run `009` if anyone toggles Exposed schemas again.**
-
-Live permission probes after `009` (via `set local role`, so real checks apply):
-
-| Probe | Result |
-|---|---|
-| `anon` → `app_role()` / `select gate_passes` / `lookup_pass()` | BLOCKED `42501 permission denied for schema gatepass` |
-| `authenticated` → `UPDATE` / `DELETE` on `gate_passes` | BLOCKED `42501 permission denied for table` |
-
-### How migrations actually get applied here — CLAUDE CAN DO THIS NOW
-
-The old claim "Claude cannot apply migrations; only the user can" is **obsolete**. Two paths:
-
-- **`psql` + session pooler** — this is what applied `008`/`009`. Use
-  `aws-1-ap-south-1.pooler.supabase.com:5432`, user `postgres.oxzzeonftrmohdrancex`.
-  The direct `db.<ref>.supabase.co` host is **IPv6-only and does not resolve** here.
-  Always `--single-transaction -v ON_ERROR_STOP=1 -f <file>`. Prefer this over pasting SQL
-  into a tool argument: `-f` sends the file byte-for-byte, with no transcription risk.
-  `SUPABASE_DB_URL` is now set in `.env` (git-ignored) and confirmed working.
-  **Percent-encode special characters in the password** — an `@` must be `%40`, or libpq
-  splits the URI at the wrong `@` and reports `could not translate host name "…"`, which
-  reads like DNS failure rather than a credential-format problem. This cost a round trip.
-  `.gitignore` now uses `.env*` with `!.env.example`, because an exact-name rule would not
-  have caught `.env.bak` or any renamed copy.
-- **Supabase MCP server** (`.mcp.json`, project scope) — excellent for *reading*: catalog
-  probes, grant audits, `get_advisors`. Needs no password. `apply_migration` exists but
-  requires inlining the whole file into the call.
-
-Note this connects as **`postgres`, which bypasses RLS entirely** — it can never prove RLS
-works. Only `set local role` probes or a real anon/authenticated JWT can.
-
-### RLS verified live — 2026-07-27, first ever run
-
-`node scripts/verify-rls.mjs --mutate` → **17 passed, 0 failed, 1 informational.** Run with
-real `anon`-key JWTs for a throwaway HOD and guard, so it proves RLS as the browser sees it
-(unlike a `postgres` psql session, which bypasses RLS entirely).
-
-The RPC-only state machine is now *proven*, not just designed: guard cannot PATCH
-`gate_passes` (`42501`), HOD cannot PATCH their own pass after raising it (`42501`), HOD
-cannot match their own pass (`Only security can verify a gate pass.`), a second match is
-refused, and a matched pass reads back with a verifier name (no `42P17`).
-
-The one INFO is expected and is not ours: VMS's `public.profiles` still throws
-`42P17 infinite recursion`. GatePass is immune because it reads through
-`gatepass.my_profile()` — that is exactly what `006` exists for.
-
-`008`'s triggers verified against a real row (`NRGP-20260727-0001`, since deleted):
-raised 27 Jul 13:04 IST → `expires_at` 28 Jul 23:59:59 IST, i.e. end of the *next* day in
-`site_tz()`. The UTC-skew bug that motivated `site_tz()` is confirmed absent.
-`qr_token` was stamped by the trigger and is unrelated to `pass_number`.
-
-Test data was cleaned up via psql; `gate_passes` is back to **0 rows**.
-
-### Still unverified
-
-**`MANUAL_TEST.md` (repo root) is the walkthrough for everything below** — ordered by role,
-with expected results and failure signatures. It covers the parts no automated test can
-reach: real browsers, realtime across two windows, printing, and the camera.
-
-- **The camera scan path.** No phone camera has decoded a real printed slip. This cannot be
-  tested on `http://<lan-ip>` — see Deployment below.
-- **Expiry refusal in practice.** `match_pass`'s expiry branch has never fired against a
-  genuinely stale pass (would need a pass older than ~48h, or a hand-edited `expires_at`).
-- **The duplicate-material index.** Never tripped by a real second insert.
-
-`verify-rls.mjs` does not yet cover the `009`-era additions. Extending it to check that a
-guard cannot call `cancel_pass` and an expired pass is refused by `match_pass` but still
-flaggable is the highest-value next test work. (Cancellation itself is gone as of `024` —
-there is no longer a `cancel_pass` to refuse.)
-
-### Gate-side features added in `008` (applied 2026-07-27)
-
-- **Camera QR scanning.** `src/components/QrScanner.tsx` + `src/lib/qrDecode.ts`. Prefers
-  the native `BarcodeDetector`, lazy-loads `jsqr` otherwise (that fallback is the whole
-  iOS/Safari story — no iPhone has `BarcodeDetector`). Requires **HTTPS**; on plain HTTP
-  `getUserMedia` does not exist at all, which is the most likely real-deployment failure.
-  The typed pass-number field is always mounted beside it and must stay that way.
-- **`qr_token`.** The QR encodes an opaque uuid, never `pass_number` — the number is
-  sequential (`RGP-20260726-0001`) and a QR built from it can be forged for a pass nobody
-  ever held. Printed slips still show the number for the typed fallback.
-- **Expiry.** `expires_at` = end of the next day in `gatepass.site_tz()` (`Asia/Kolkata`).
-  `match_pass` refuses an expired pass; **`flag_pass` deliberately does not** — refusing to
-  record a real mismatch because the paperwork went stale is backwards. `is_expired` is
-  defined once, in the view, exactly like `is_overdue`.
-- **`scan_attempts`.** Every scan including failures. `verifications` records what
-  succeeded; this records what was *tried*, which is how a forged-QR probe becomes visible.
-- **One pending pass per material per department**, as a partial unique index on
-  normalised text. Race-safe by construction; a `select … if exists` check is not.
-
-The Supabase **CLI is not installed at all** (not on PATH; `~/.supabase` holds only
-telemetry, so it was never logged in) and the project is not linked — `supabase db push`
-is not available. `psql` **is** installed (`C:\Program Files\PostgreSQL\18\bin\psql.exe`,
-v18.3) and is the working path; see "How migrations actually get applied here" above.
-
-Still outstanding: the E2E walkthrough, and the live RLS run itself.
-Migration `005` is an **optional demo seed** — skip it in a real deployment.
-
-### The pass model — two types, one direction (migration 010)
-
-The old four types conflated two independent facts, and **OGP and NRGP meant exactly the
-same thing**. Worse, inward-returnable — a contractor bringing their own tools in, which
-must leave again — could not be expressed at all.
-
-```
-type      = does it come back?      RGP | NRGP
-direction = which way is it going?  in  | out
-```
-
-**Exactly three combinations are legal**, and that is enforced by check constraints, not by
-the dropdown: `RGP-out`, `RGP-in`, `NRGP-out`. `src/lib/passTypes.ts` mirrors this in
-`PASS_CATEGORIES`, which is what the gate console filters on — a guard picks a whole
-category, not two independent axes.
-
-**NRGP is outward-only** (`gate_passes_nrgp_is_outward`). Permanently *inbound* material is
-a goods receipt, not a gate pass: the gate never had custody, so the gate log must not claim
-it did. If inbound deliveries ever need recording, that is a GRN feature, not a fourth type.
-
-`pass_number` now carries direction: **`RGP-OUT-20260727-0001`**. Counters are per
-(type, direction, day), which the existing advisory lock handles for free since it keys on
-the whole prefix.
-
-IGP/OGP still exist as labels in `gatepass.pass_type` — **Postgres cannot drop an enum
-value**. They are made unreachable by `gate_passes_type_is_current` instead. Do not try to
-"clean this up" by recreating the type; the column, view and every index would need
-rebuilding for a cosmetic gain.
-
-### HOD delete — removed in migration `024`
-
-The HOD could once **delete** their own still-`pending` pass via an RLS policy
-(`gate_passes_delete`), and **void** it via `cancel_pass`. As of `024` neither exists: a
-raised gate pass is permanent. The policy + DELETE grant and the RPC were dropped together
-so the RPC-only state machine is complete even for the service key. `sqlInvariants.test.ts`
-still fails any UPDATE grant, or a DELETE grant anywhere (its one `010` approval is legacy —
-`024` revoked it).
-
-### Demo accounts — all set to `demo123` on 2026-07-27
-
-**All 14 accounts** in `auth.users` share the password **`demo123`**, and all are
-email-confirmed. Verified by real sign-in through the anon key that `guard@demo.vms`,
-`hod.it@demo.vms`, `admin@demo.vms`, `hod.fin@demo.vms` and `staff@demo.vms` each return the
-correct `app_metadata.role` in the JWT — which is what RLS authorizes off, not `profiles`.
-
-`demo` itself is impossible: Supabase rejects anything under 6 characters with
-`422 weak_password`. Lowering that minimum would weaken it for VMS too, so `demo123` was
-chosen instead.
-
-`hod.it@demo.vms` heads Information Technology only — since migration `032` a person belongs
-to at most one department (unique index on `hod_departments.hod_id`), so no single account
-exercises a multi-department shape any more. `staff@demo.vms` is the one to use for testing
-the no-access path.
-
-**`auth.users` is shared with VMS**, so this changed VMS's logins as well — there is only one
-credential set across both apps. The separate **NoonHR** project (`ibxguyqsizpjfkhhuqrz`) was
-deliberately not touched.
-
-### Deployment — not deployed yet
-
-There is **no hosted URL**; the app has only ever run on `localhost`. `vercel.json` was added
-2026-07-27 with the SPA rewrite (`BrowserRouter` deep links like `/pass/<uuid>` would
-otherwise 404 on refresh), asset caching, and `Permissions-Policy: camera=(self)` — the
-camera scanner needs that header not to be restrictive.
-
-**Camera QR scanning cannot be tested over LAN HTTP.** `getUserMedia` only exists in a secure
-context: `localhost` qualifies, `http://<lan-ip>:5175` from a phone does not. Testing the
-scanner on a real phone requires HTTPS — i.e. a Vercel deploy or a tunnel.
-
-**The CSP in `vercel.json` is a live footgun: it applies ONLY in production.** The Vite dev
-server sends no CSP at all, so anything the policy blocks works perfectly on localhost and
-fails only once deployed — with no error the user can see. This shipped once: profile photos
-were invisible on Vercel because `img-src` was `'self' data: blob:` while avatars are served
-cross-origin from `https://oxzzeonftrmohdrancex.supabase.co/storage/v1/object/public/...`.
-`connect-src` already allowed that host, so the upload and `set_my_avatar` both *succeeded*
-and the row was written — only the `<img>` was blocked, so the symptom was "nothing happens".
-Fixed 2026-08-08 by adding the Supabase origin to `img-src`;
-`tests/security/cspAllowsSupabase.test.ts` now pins every directive the app depends on.
-**Any new remote origin — a CDN, a font host, an image bucket — needs its directive added
-there in the same commit, or it will pass every local check and break in production.**
-
-Vercel needs exactly two env vars: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
-**Never add `SUPABASE_SERVICE_ROLE_KEY`** — it is not used by any file under `src/`, and a
-`VITE_`-prefixed secret is inlined into the public bundle.
-
-### Diagnosing DB errors — the error code tells you which layer failed
-
-Don't guess; these three look identical from the UI and have completely different fixes:
-
-- `PGRST106 Invalid schema` → `gatepass` is missing from **Exposed schemas**. Dashboard fix.
-- `PGRST205` / `PGRST202` *(table/function not in schema cache)* → the object genuinely
-  **does not exist**; the migration was never applied. Paste it.
-- `42501 permission denied for schema gatepass` → the object exists and is exposed, but
-  **your role lacks a GRANT**. Schema `USAGE` is checked before table privileges, which is
-  why this names the schema and never the table.
-- `42P17 infinite recursion detected in policy for relation profiles` → VMS's recursive
-  policy. Migration `006` makes GatePass immune; see `supabase/fixes/`.
+| `gatepass.gate_passes` | **45 rows** — real user data. **Not a scratch DB; do not wipe it.** |
+| `public.departments` | **12 rows** (VMS-owned, shared) — do not wipe |
+| Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
+| Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
+
+**Latest change (2026-08-18): the gate can search by the mobile number of the person who
+took the material.** Frontend only — no migration, no new RPC.
+`src/lib/phoneSearch.ts` + `src/pages/Security/PhoneSearchResults.tsx`; `GateLookup` routes
+the query and `GateConsole` renders the results full width above the queue.
+
+- The number is not its own column — it is packed into `visitor_company` as
+  `{"n":…,"a":…,"v":phone}` and stored exactly as typed, so the comparison is on **digits
+  only**. Server-side narrowing is `ilike '%<last 4 digits>%'`: separators are written between
+  groups from the left, so the final four are contiguous in every format seen here. That
+  filter may **over**-match (an address with the same digits) and never under-matches —
+  `passMatchesPhone` decides, on the pass's own phone field.
+- **A mobile number deliberately does NOT go through `lookup_pass`.** That RPC returns one
+  row, decides a single outcome and logs a scan attempt; a person may hold three passes and
+  no scan happened. A pass number (anything containing a letter) still goes through it.
+- Every result carries its own action button: **Verify at Gate** when `canVerifyAtGate` —
+  the same rule the queue and `match_pass` use (`pending`/`hod_reviewed`, own expiry not
+  passed) — otherwise **View Details**. A button that always fails is worse than no button.
+- Pinned by `tests/unit/phoneSearch.test.ts` (6) and `tests/unit/gateLookupPhone.test.tsx` (5).
+
+### Known, not fixed
+
+- **⚠ `touch_updated_at` (001/008/010) pins `new.expires_at := old.expires_at` on EVERY
+  update**, so `hod_review_flagged_pass(approve)`'s refresh of `expires_at` (035) **cannot
+  take effect**. 035's live probe passed only because it overrode a pass raised the same day.
+  An override of a pass raised YESTERDAY keeps yesterday's expiry and the gate still refuses
+  it. Fix: let the trigger keep `expires_at` unless an RPC is deliberately moving it.
+- **`UsersTab.tsx` is 478 lines**, over the 300-line cap (pre-existing). The honest fix is
+  extracting the Add-User and Edit-User modals.
+- **`gatepass.kpis()` and `bulk_create_passes` have no caller in `src/`.** Both want a
+  migration that drops them (see "never leave unused schema").
+- **`gate_pass_items.serial_no` is write-dead**; dropping it needs the view rebuilt.
+- **`src/lib/indianVehicle.ts` has no caller** since the blacklist form dropped the vehicle
+  option; it still mirrors a live CHECK constraint, so it was kept knowingly.
+- **Nothing since 2026-08-17 has been seen signed-in in a real browser** — the suite, a
+  production build and live RPC probes only. `MANUAL_TEST.md` is the walkthrough for what no
+  automated test can reach: real browsers, realtime across two windows, printing, the camera.
+- **The camera scan path has never decoded a real printed slip**, and cannot be tested over
+  LAN HTTP — `getUserMedia` needs a secure context (localhost or HTTPS).
 
 ## The two-schema rule — read before writing any query
-
-This project shares one Supabase project with a separate **VMS visitor system**.
 
 | Schema | Owner | Contents |
 |---|---|---|
 | `public` | **VMS — treat as read-only** | `profiles`, `departments`, `auth.users` |
-| `gatepass` | this app | `gate_passes`, `verifications`, `hod_departments` |
+| `gatepass` | this app | `gate_passes`, `verifications`, `hod_departments`, `user_status`, … |
 
-- Query through the explicit helpers in `src/supabaseClient.ts`: **`gp()`** for the
-  `gatepass` schema, **`pub()`** for `public`. There is deliberately no default-schema
-  shortcut — a reader must always see which schema a query hits.
-- **Never write a migration that alters anything in `public`.** New objects go in
-  `gatepass` and reference `public.profiles` / `public.departments` by foreign key only.
-- Creating a department writes to VMS's shared `public.departments`, so VMS sees it too.
-  The admin UI says so out loud — keep that warning.
+- Query through the explicit helpers in `src/supabaseClient.ts`: **`gp()`** for `gatepass`,
+  **`pub()`** for `public`. There is deliberately no default-schema shortcut.
+- **Never write a migration that alters anything in `public`.** New objects go in `gatepass`
+  and reference `public.*` by foreign key only. Writing a *value* into a VMS column through a
+  SECURITY DEFINER RPC is allowed (`admin_create_user` sets `profiles.role`); adding or
+  altering the column is not — VMS's own migrations do that.
+- Creating a department writes to VMS's shared `public.departments`, so VMS sees it. The
+  admin UI says so out loud — keep that warning.
 
 ## Roles — mapped onto VMS's enum, not our own
-
-There is no app-specific role enum. `public.user_role` is shared and owned by VMS:
 
 | App role | `profiles.role` |
 |---|---|
@@ -2297,231 +114,300 @@ There is no app-specific role enum. `public.user_role` is shared and owned by VM
 | Admin | `admin` / `super_admin` |
 | no access | `staff` |
 
-Role comes from the JWT's **`app_metadata.role`** (server-writable only), with a
-`profiles` fallback. Never authorize off `user_metadata` — users can write it.
+Role comes from the JWT's **`app_metadata.role`** (server-writable only), with a `profiles`
+fallback. **Never authorize off `user_metadata`** — users can write it. Consequence: every VMS
+guard automatically has gate-console access, and every VMS HOD can raise passes once assigned
+a department. Accounts must be created with `app_metadata.role` set or RLS cannot authorize
+them. `ASSIGNABLE_ROLES` (guard/hod) mirrors the server: the portal cannot write `staff`.
 
-Consequence to keep in mind: every existing VMS guard automatically has gate-console
-access, and every VMS HOD can raise passes once assigned a department.
+**Active/inactive is a STATUS, not a role** (migration `040`). `gatepass.user_status` holds
+it; **an absent row means active**, so no backfill was needed. A suspended person is shut out
+by the database, not by a screen: `app_role()` returns null AND `my_department_ids()` returns
+nothing — both are load-bearing, because `gate_passes_select` admits `department_id in (select
+my_department_ids())` without ever reading `app_role()`. `is_user_active()` deliberately calls
+nothing (an `is_admin()` inside it would recurse through its own policy). Deactivation keeps
+the role and the department assignment and deletes every `auth.sessions` row.
 
 ## Architecture
 
-**State transitions are RPC-only.** No client holds `UPDATE` on `gatepass.gate_passes`
-(migration `002` grants only `select, insert`). `match_pass`, `flag_pass`, and
-`mark_returned` in migration `003` own the whole state machine. This exists because
-Postgres RLS cannot express "you may change `status` but not `visitor_name`" — so column
-authority lives in `security definer` functions instead. Route new state changes through
-a new RPC; do not add an UPDATE policy.
+**State transitions are RPC-only.** No client holds `UPDATE` or `DELETE` on
+`gatepass.gate_passes`. `match_pass`, `flag_pass`, `mark_returned`, `apply_item_returns`,
+`hod_review_flagged_pass`, `hod_void_expired_pass` own the whole state machine. This exists
+because RLS cannot express "you may change `status` but not `visitor_name`". Route new state
+changes through a new RPC; **do not add an UPDATE policy**.
 
-**HOD→department is one-to-many** (`gatepass.hod_departments`, one row per person since
-`032`; a department may still host several HODs). VMS models the same rule structurally via
-`profiles.department_id` (a single column), and the admin functions mirror the sole
-department into it so both apps agree. Never write a second row for the same `hod_id` — the
-unique index rejects it with a 23505.
+**A raised gate pass is permanent** (migration `024`): no cancellation, no HOD delete. The
+two ways a pass is closed without moving are `hod_review_flagged_pass('reject')` (a pass
+security stopped) and `hod_void_expired_pass` (a pass that expired unused) — both raising-HOD
+only, both re-checked server-side, both writing a `verifications` row.
 
-**`is_overdue` is defined exactly once**, in the `gatepass.v_gate_passes` view. Never
-recompute it in TypeScript. Overdue is computed at query time — no `pg_cron` dependency.
+**Two axes, and only one of them moves after the gate.** `status` describes the OUTWARD trip
+and **freezes at `matched`**; the return leg is `return_status`
+(`awaiting_return` → `partially_returned` → `returned`). Derive the return stage from
+`return_status` alone (`src/lib/rgpLifecycle.ts`); `passStageStyle` collapses both axes into
+**one** badge naming the latest state, and `passTimeline` holds the moments it supersedes.
+
+**An RGP closes only when every line is fully returned.** `apply_item_returns` rolls the lines
+up into the parent; the client never computes "all items are back". A recorded return **cannot
+be undone** — `returned_qty` only ever increases and `returned_at` is written through
+`coalesce`. That is a settled rule, not a limitation: do not write a `reverse_item_return`.
+
+**`is_overdue` / `is_expired` are defined exactly once, in `gatepass.v_gate_passes`.** Never
+recompute either in TypeScript. There is deliberately no `expired` enum label and no `pg_cron`
+— expiry is derived at query time. A pass reads Expired when `status === 'pending' &&
+is_expired`; use `isExpiredPending()` in `src/lib/statusStyles.ts`.
+
+**One department per person** (`032`): a unique index on `hod_departments(hod_id)`, mirrored
+into VMS's `profiles.department_id`. A department may still host several HODs — which is why
+the HOD board scopes by `raised_by` **server-side** as well.
 
 **Route access**: `src/lib/roleRoutes.ts` is the single source of truth (`ROLE_ROUTES`,
-`ROLE_HOME`, `isForbidden`), enforced once in `App.tsx`. Import it, never duplicate the
-list. This is UX defence in depth — **RLS is the security boundary**, not this.
+`ROLE_HOME`, `isForbidden`), enforced once in `App.tsx`; the first entry of each role's list
+is its landing page. This is UX defence in depth — **RLS is the security boundary**.
 
-### SQL invariants that are easy to break silently
+**Dashboard invariant, on every board:** a KPI's number is `rows.length` of the very array its
+click opens, and every aggregate (`Slice`) carries the rows it counted. **Never re-derive a
+chart's rows from a predicate at the call site, and never add a `count: 'exact'` query.**
 
-- **Views need `with (security_invoker = true)`.** Without it a view runs as its owner and
-  bypasses RLS entirely — any HOD would read every department's passes.
+## The pass model — two types, one direction (migration 010)
+
+```
+type      = does it come back?      RGP | NRGP
+direction = which way is it going?  in  | out
+```
+
+**Exactly three combinations are legal**, enforced by check constraints, not by the dropdown:
+`RGP-out`, `RGP-in`, `NRGP-out`. `src/lib/passTypes.ts` mirrors this in `PASS_CATEGORIES`.
+NRGP is outward-only — permanently inbound material is a goods receipt, not a gate pass.
+`pass_number` carries direction (`RGP-OUT-20260727-0001`), counters are per (type, direction,
+day). IGP/OGP remain as unreachable enum labels (Postgres cannot drop one); the
+`gate_passes_type_is_current` check is what retires them.
+**`RaisePass` hardcodes `p_direction: 'out'`, so RGP-in passes cannot currently be created.**
+
+## SQL invariants that are easy to break silently
+
+- **Views need `with (security_invoker = true)`** — otherwise a view runs as its owner and
+  bypasses RLS entirely.
 - **`SECURITY DEFINER` functions must pin `set search_path = ''`** and fully qualify every
-  reference; a mutable search_path is a privilege-escalation vector.
-- **The view's joins to `public.*` are `LEFT JOIN` on purpose.** VMS owns those tables and
-  can narrow its policies without notice; an inner join would make pass rows silently
-  vanish, where a left join degrades to a null name — visibly wrong beats invisibly wrong.
-- **`pass_number` generation takes an advisory lock.** A plain `max()+1` lets concurrent
-  inserts collide on the unique constraint (VMS had to patch exactly this).
-- **A new schema inherits no Supabase grants.** `service_role` is omnipotent over `public`
-  only because Supabase granted it there at project creation; nothing propagates that to
-  `gatepass`. Migration `002` grants `authenticated` and nobody else, which is why the
-  service key hit `42501` and `verify-rls.mjs` could never run. Migration `007` grants
-  `service_role` the narrowest set that unblocks it — and **no privilege at all on
+  reference.
+- **The view's joins to `public.*` are `LEFT JOIN` on purpose** — VMS can narrow its policies
+  without notice; an inner join would make pass rows vanish, a left join degrades to a null
+  name. Visibly wrong beats invisibly wrong.
+- **`pass_number` generation takes an advisory lock** — a plain `max()+1` lets concurrent
+  inserts collide.
+- **A new schema inherits no Supabase grants.** `002` grants `authenticated`; `007` grants
+  `service_role` the narrowest set that unblocks the RLS probe and **no privilege at all on
   `gate_passes`**, so the RPC-only state machine holds even for the service key.
-- **A new enum value cannot be USED in the transaction that adds it.** `alter type … add
-  value` is fine inside a transaction (PG12+), but referencing the new value from anything
-  Postgres evaluates at DDL time — a `check (…)` constraint, or a `language sql` function
-  body — aborts with `unsafe use of new value`. Since `APPLY_ALL.sql` is pasted as **one
-  transaction**, that would kill the entire paste. `plpgsql` bodies are stored as text and
-  are safe. This is why `008` has no `cancelled_needs_reason` constraint and why
-  `cancel_pass` is plpgsql rather than sql. `sqlInvariants.test.ts` now guards it.
-- **`create or replace view` cannot absorb new base-table columns.** A view's column list
-  is fixed at creation, so `select p.*` does not grow when `gate_passes` does — replacing
-  it fails with "cannot change name of view column". The view must be dropped and rebuilt
-  (`008` does this). Safe because `kpis()` is `$$`-quoted, so Postgres records no
-  dependency on it.
+- **A new enum value cannot be USED in the transaction that adds it.** `APPLY_ALL.sql` is
+  pasted as ONE transaction, so naming a new label in a `check (…)` or a `language sql` body
+  aborts the whole paste. `plpgsql` bodies are stored as text and are safe. This is why 027's
+  constraint is the inverted `status not in ('pending','held')`.
+- **`create or replace view` cannot absorb new base-table columns** — the view must be dropped
+  and rebuilt, and its `grant select` re-applied in the same transaction. Same for a function
+  whose RETURN TYPE changes (`my_profile()` has been drop+recreated twice).
+- **Never hand-write an `insert into auth.users` without `confirmation_token`,
+  `recovery_token`, `email_change`, `email_change_token_new` set to `''`** (migration `034`).
+  They are nullable with no default; GoTrue scans them into Go `string` and dies with
+  `converting NULL to string is unsupported` — a **500 on sign-in**, with nothing wrong
+  visible in Postgres.
+- **`visitor_company` is not a company name.** It is `{"n":name,"a":address,"v":phone}`. Use
+  `gatepass.company_name_of(text)` in SQL and `parseCompanyInfo` in TypeScript — the packed
+  shape is recognised by its KEYS, never by truthiness.
 - **Nobody holds `UPDATE`/`DELETE` on `gatepass.gate_passes`** — enforced statically by
-  `tests/security/sqlInvariants.test.ts`, which greps every migration. The cost is real and
-  accepted: `verify-rls.mjs --mutate` cannot delete the pass it raises, so it prints manual
-  cleanup SQL instead. Don't "fix" that by adding the grant.
+  `tests/security/sqlInvariants.test.ts`. The cost is accepted: `verify-rls.mjs --mutate`
+  cannot delete the pass it raises and prints manual cleanup SQL instead. Don't "fix" that.
 
-## Gotchas hit in practice
+### Applying migrations — Claude can do this
 
-- **Supabase's query builder resolves to a `PromiseLike`, which has no `.catch()`.**
-  `await` it inside `try/catch`; chaining `.catch()` is a type error.
-- **Realtime**: `postgres_changes` on `gatepass.gate_passes`. Always refresh silently
-  (`load(silent = true)`) so KPIs don't flash. Write subscriptions defensively (optional
-  chaining + try/catch) so a partially-mocked client in tests can't throw. Channel mock
-  pattern: `const ch: any = {}; ch.on = () => ch;` avoids a TDZ error.
-- **The service-role key must never get a `VITE_` prefix** — Vite inlines `VITE_*` into
-  the bundle. It appears only in `scripts/create-user.ts`, never under `src/`.
-- Accounts must be created with `app_metadata.role` set, or RLS cannot authorize them.
+- **`psql` + session pooler** (the working path): `aws-1-ap-south-1.pooler.supabase.com:5432`,
+  user `postgres.oxzzeonftrmohdrancex`, `SUPABASE_DB_URL` in `.env` (git-ignored). The direct
+  `db.<ref>.supabase.co` host is IPv6-only and does not resolve here. Always
+  `--single-transaction -v ON_ERROR_STOP=1 -f <file>` — `-f` sends the file byte-for-byte.
+  **Percent-encode the password** (`@` → `%40`), or libpq reports a bogus DNS failure.
+- **Supabase MCP server** — excellent for reading: catalog probes, grant audits, advisors.
 
-## Conventions
+**psql connects as `postgres`, which bypasses RLS entirely — it can never prove RLS or any
+`is_admin()`-style guard works.** Only `set local role` probes or a real anon-key JWT can.
+Verifying a security change means a `scripts/verify-0NN.mjs` run with real JWTs; clean up
+probe rows afterwards and record the row count.
 
-- **Max 300 lines per file**, no exceptions — extract sub-components instead. Several
-  files sit near the cap (`RaisePass` 291, `GateConsole` 286, `DepartmentsTab` 285).
-- **No fuzzy string matching on enums** — use a `Record<Enum, T>` lookup map, never an
-  `includes()` chain. See `src/lib/statusStyles.ts`, `src/lib/passTypes.ts`.
-- **Never `window.alert` / `confirm` / `prompt`** — they block the page and break
-  automation. Use inline panels or `.modal-overlay` / `.modal-content`.
-  (`window.print()` in `PassPrint.tsx` is fine, and must stay click-triggered, not on mount.)
-- Every list handles loading (`.skeleton`), empty (`.empty-state`), and populated explicitly.
+**Grant drift:** adding a schema to **Exposed schemas** in the dashboard runs
+`grant all … to anon, authenticated, service_role` over it. `009` corrects that. It is
+one-time (no `pg_default_acl` entry), but **re-run `009` if anyone toggles Exposed schemas**.
+`sqlInvariants` greps migration files and cannot see dashboard-introduced drift.
 
-## Working on this repo
+### Diagnosing DB errors — the code tells you which layer failed
 
-### TDD, always, in a loop
+- `PGRST106 Invalid schema` → `gatepass` missing from **Exposed schemas**. Dashboard fix.
+- `PGRST205` / `PGRST202` → not in PostgREST's **schema cache**. This does NOT prove the
+  object is missing — a stale cache reads identically. **Query `pg_catalog` before concluding
+  a migration never ran.**
+- `42501 permission denied for schema gatepass` → exists and is exposed, but the role lacks a
+  GRANT (schema `USAGE` is checked before table privileges, hence the schema in the message).
+- `42P17 infinite recursion … relation profiles` → VMS's recursive policy. GatePass is immune
+  because it reads through `gatepass.my_profile()` — that is what `006` exists for.
 
-**Write the failing test first, then the minimum code to pass it, then verify.** Every
-feature, no exceptions. Loop until green — do not batch up a large change and test at the
-end, because then a failure tells you only that *something* in the batch broke.
-
-The order is: name the goal → write the test that would prove it → watch it fail for the
-right reason → write the smallest code that passes → `npm run check` → repeat. A test that
-has never failed has proven nothing; if it passes the moment you write it, it is testing
-the wrong thing.
-
-This applies to SQL too. `tests/security/sqlInvariants.test.ts` and
-`applyAllIntegrity.test.ts` are how a migration gets tested without a database — extend
-them in the same commit as the migration, never afterwards.
-
-### Never leave unused schema in place
-
-**If a table, column, type, function, policy or grant is not needed, remove it** — do not
-leave it "in case". Every unused object is attack surface that nobody is reviewing: an
-orphan column still gets selected by `p.*` into the view, an unused function is still
-`EXECUTE`-able over PostgREST, and a stale grant still applies the day someone adds a
-policy. Audit after every feature that changes the data model, and drop what the feature
-retired in the same migration that retired it.
-
-Two hard exceptions, both Postgres limitations rather than choices:
-- **Enum labels cannot be dropped.** `IGP`/`OGP` still exist in `gatepass.pass_type` and are
-  made unreachable by the `gate_passes_type_is_current` check constraint instead (`010`).
-- **Dropping a column used by a view** requires rebuilding the view (TRAP 2).
-
-### Always delegate low-level work to subagents on cheaper models
-
-Fan mechanical work out to **parallel subagents on `sonnet`** (or `haiku` for the most
-rote work), launched in a **single message** so they run concurrently. Don't do this work
-serially on the main model.
-
-**Delegate:** file/content searches, fact-gathering, boilerplate and scaffolding,
-mechanical ports and renames, config files, test fixtures, doc and comment writing,
-repetitive per-file edits that follow a pattern already established.
-
-**Keep on the main model:** schema design, RLS/auth/grant decisions, debugging, code
-review, trade-off calls, and synthesis of whatever the subagents return.
-
-**Git work always goes to a `sonnet` subagent.** Commits, pushes, branch and remote setup,
-tags — spawn an agent with `model: "sonnet"` rather than running the mutation on the main
-model. Give it the repo path, remote URL, branch, commit message, and anything that must
-NOT be committed, since it starts cold. Read-only inspection (`git status`, `git log`,
-`git remote -v`) may still be run directly when the answer decides what to do next.
-User instruction, 2026-07-27.
-
-**Always push after completing work — do not wait to be asked.** The user's standing
-instruction (2026-08-11): every finished change is committed and pushed to `origin/main`
-before the session moves on. A subagent does the commit+push per the rules above.
-
-Give each subagent full context up front — it starts cold — including exact file paths,
-the pattern to copy, and the decisions already made, so it never re-derives them. In this
-repo that means telling it about the two-schema rule and the 300-line cap explicitly.
-**Never merge a subagent's output unread**, and never let one make a security call.
-
-### Keep this file current — it is the session handoff
-
-When you finish a chunk of work, update **Current state** above: what is applied, what is
-merely written, and what the single next action is. Note whether a claim is *verified* or
-*assumed*, and say which credential proved it (browser/`anon`, `service_role`, or
-`postgres` — they see different things, and `postgres` bypasses every policy, so it can
-never prove RLS works). Delete lines that have gone stale rather than appending to them;
-the "zero test specs" line survived three sessions past being false.
+`src/lib/errors.ts` maps SQLSTATEs, named constraints and GoTrue codes to human sentences, and
+replaces opaque bodies (`{}`, `[object Object]`) with the caller's fallback. **23514 is
+deliberately unmapped** — the constraint name is more informative than a catch-all.
 
 ## Design system — Quest Gold + Charcoal
-
-Rebranded 2026-07-29 to the client's identity (Quest Mall, Kolkata). Seven colours, and
-**saturated colour means status, never decoration**.
 
 ```
 Shell     #16161A sidebar — DARK IN BOTH THEMES (chrome, not content); ink #101014
 Primary   brand-600  #C6A15B brass gold   buttons, active nav, focus
 Accent    accent-600 #2B3FA0 royal blue   links, secondary emphasis
-Status    pending-*  amber   matched-* emerald   flagged-* red   overdue-* orange
+Status    pending-* amber · matched-* emerald · flagged-* red · overdue-* orange
 Neutral   navy-* / surface-*  warm stone   meta, borders, baselines
 Display   Antic Didone (serif, ONE weight) — headings, wordmark
 ```
 
-Palette sourced from questmall.in's own `css/custom.css` (verified 2026-07-29): gold
-`#d0ad68`/`#d09918`, charcoal `#404041`, maroon `#740e0c`, warm off-white `#fff9eb`.
+**Saturated colour means status, never decoration.**
 
-- **Text on gold is charcoal (`shell.ink` / `brand.ink`), never white.** White on
-  `#C6A15B` is ~2.4:1 and fails AA; charcoal is ~9.1:1. `.btn-primary` and
-  `.sidebar-link-active` already do this — match them.
-- **Never apply `font-bold` to `font-display`.** Antic Didone ships weight 400 only;
-  bolding it synthesises a smeared faux-bold. Presence comes from size and tracking.
-  `.kpi-value` deliberately does NOT use the display face — numerals need a real heavy
-  weight and tabular figures.
-- **Three warm hues now coexist** — brass gold, amber pending, orange overdue. They are
-  separated by *saturation* (gold is muted ~48%, status hues are vivid ~92%) and by
-  form: status appears only as a tinted pill with dark text, never as a solid fill.
-  Break either of those and the distinction collapses.
-- **Fixed-context surfaces must use literal colours, not `navy-*`/`surface-*` tokens.**
-  The neutral ramp INVERTS under `.dark`, which is the shipped default (`index.html`
-  hardcodes `class="dark"`). Anything that is always-light — the login card, `AuthField`,
-  `QuestLockup tone="light"`, the printed slip — renders near-white on near-white if
-  tokenised. This bit twice during the rebrand; the print case is invisible on screen.
-- Token *names* still match VMS (`brand`/`accent`/`navy`/`surface`) so layout code ported
-  from there works unchanged; only the hues differ. **`navy` is a name, not a colour** —
-  it is the warm-stone ramp now. Do not rename it; every ported file would follow.
-- **The logo is `src/components/QuestMark.tsx`**, redrawn as vector. The client publishes
-  their logo only as a JPEG matted onto white (`questmall.in/images/quest-logo.jpg`) —
-  that would show a white box with compression fringing on the charcoal shell. Exports
-  `QuestMark` (faceted-gem glyph) and `QuestLockup` (gem + wordmark + subtitle,
-  `tone="dark"|"light"`). `public/favicon.svg` repeats the same geometry — change both
-  together or they drift.
-- `.shell-sidebar` hardcodes dark values — never add `dark:` variants to the shell.
-  **There is no top bar.** `.shell-topbar` and the `<header>` in `AppShell.tsx` were removed
-  2026-07-27: it was a permanently empty dark band, since breadcrumbs never landed there and
-  identity lives in `SidebarProfile` by design. `main` carries `pt-20 lg:pt-8` to replace the
-  clearance the 64px header gave the fixed mobile hamburger (`Sidebar.tsx:217`). Do not
-  reintroduce the strip without content to put in it.
-- The printed slip (`PassPrint.tsx`) is black-on-white with **no colour-dependent
-  information**; it must read on a cheap mono laser printer. It now carries the
-  `QuestLockup` in its header — a logo is decoration, not information, and prints as
-  grey. Nothing a guard must *read* may depend on colour.
-- **The login background is generated, not hand-edited.** `public/login-bg.jpg` is built
-  from the client's facade photo by `scripts/make-login-bg.mjs` (`npm run build:login-bg`,
-  needs the `sharp` devDependency). Re-run it rather than editing the JPEG. The lit
-  facade sits on the RIGHT of the frame, which is why the login card is anchored LEFT on
-  wide screens — it lands on the quiet part of the photo instead of covering the subject.
-- Guard controls are deliberately oversized (`.btn-match`, `.btn-flag`) — someone uses
-  these standing at a gate, one-handed, with a truck waiting.
+- **Text on gold is charcoal, never white** (~9.1:1 vs ~2.4:1).
+- **Never apply `font-bold` to `font-display`** — Antic Didone is weight 400 only; bolding
+  synthesises a smeared faux-bold. Presence comes from size and tracking.
+- **Headings are the display serif in brand gold, at five rungs**, all
+  `font-display font-normal text-brand-800 dark:text-brand-300` with sizes written
+  **longhand** (`text-h1/h2/h3` each carry a fontWeight): `.page-title` 28 · `.section-title`
+  22 · `.modal-title` 22 (no rule — a modal is already a bounded box) · `.card-title` 18 ·
+  `.board-section-title` 18. **The `dark:` half is not polish**: `brand-*` are literal hex and
+  do NOT invert, so `text-brand-800` alone is ~1.9:1 on the shipped dark surface. **Ink gold is
+  not fill gold** — `brand-600` is the primary FILL and is under 3:1 as ink; it is never a
+  heading. `.page-subtitle` stays Inter and neutral on purpose. Status outranks the house gold
+  ("Delete Department?" keeps `text-flagged-600`). Data styled as a heading — a department
+  name, a pass number — stays neutral. The print block names all five and forces
+  `#111 !important`, because `body { color }` does not reach an element that sets its own.
+  Pinned by `tests/unit/headingIdentity.test.ts`, which computes real WCAG ratios from the
+  tokens.
+- **Fixed-context surfaces must use literal colours, not `navy-*`/`surface-*` tokens.** The
+  neutral ramp INVERTS under `.dark`, which is the shipped default. Anything always-light —
+  the login card, `AuthField`, `QuestLockup tone="light"`, the printed slip — renders
+  near-white on near-white if tokenised. `tests/unit/themeAudit.test.ts` also bans an opaque
+  `bg-white` paired with an inverting token (alpha overlays excluded; `PassPrint` exempt).
+- Token *names* match VMS so ported layout code works unchanged. **`navy` is a name, not a
+  colour** — it is the warm-stone ramp now. Do not rename it.
+- **No chart draws in the brand gold** — gold is the frame (sidebar, primary button,
+  wordmark), so a slice in it reads as chrome. Series are blue / violet / teal;
+  **`src/components/charts/chartPalette.ts` is the ONLY module in `src/` allowed literal hex**,
+  and `themeAudit` enforces that by name. Status hues are untouched: a chart bucket must be the
+  same colour as the badge beside it.
+- The logo is `src/components/QuestMark.tsx`, redrawn as vector (the client publishes only a
+  JPEG matted onto white). `public/favicon.svg` repeats the geometry — change both together.
+- `.shell-sidebar` hardcodes dark values — never add `dark:` variants to the shell. **There is
+  no top bar**; `main` carries `pt-20 lg:pt-8` for the fixed mobile hamburger.
+- The printed slip is black-on-white with **no colour-dependent information** — it must read on
+  a cheap mono laser. Guard controls are deliberately oversized: someone uses them standing at
+  a gate, one-handed, with a truck waiting.
+- **Rupee values are exact** — `formatCurrency` is `'₹' + Math.round(n).toLocaleString('en-IN')`.
+  No `₹3.1K`: ₹3,149 and ₹3,050 both printed that, and the value is what a pass is about.
+- The login background is generated by `scripts/make-login-bg.mjs`, not hand-edited.
+
+## Conventions
+
+- **Max 300 lines per file**, no exceptions — extract sub-components instead.
+- **No fuzzy string matching on enums** — a `Record<Enum, T>` lookup map, never an
+  `includes()` chain. Adding an enum member should be a type error, not a silent blank panel.
+- **Never `window.alert` / `confirm` / `prompt`** — they block the page and break automation.
+  Use inline panels or `.modal-overlay` / `.modal-content`. (`window.print()` in `PassPrint`
+  is fine, and must stay click-triggered.)
+- Every list handles loading (`.skeleton`), empty (`.empty-state`) and populated explicitly.
+- **CSV exports say what the screen says** — `src/lib/csvCells.ts` formats through the same
+  label maps the badges use. "Nothing here" is an empty cell, never the em-dash the screen
+  shows (a dash breaks sorting and SUM). The formula guard skips plain numbers.
+- **Realtime**: `postgres_changes` on `gatepass.gate_passes`; always refresh silently
+  (`load(true)`) so KPIs don't flash. Write subscriptions defensively (optional chaining +
+  try/catch) so a partially-mocked client cannot throw. Channel mock pattern:
+  `const ch: any = {}; ch.on = () => ch;` avoids a TDZ error.
+  **Realtime cannot carry expiry** — nothing is written when a pass expires, so a mount-time
+  query is the only mechanism.
+- **Supabase's query builder resolves to a `PromiseLike`, which has no `.catch()`** — `await`
+  it inside `try/catch`.
+- **The service-role key must never get a `VITE_` prefix** — Vite inlines `VITE_*` into the
+  bundle. It appears only in `scripts/create-user.ts`, never under `src/`.
+
+## Deployment
+
+`vercel.json` holds the SPA rewrite (deep links like `/pass/<uuid>` would 404 on refresh),
+asset caching, `Permissions-Policy: camera=(self)`, and the CSP.
+
+**The CSP is a live footgun: it applies ONLY in production.** The Vite dev server sends none,
+so anything it blocks works perfectly on localhost and fails only once deployed, silently.
+This shipped once (avatars blocked by `img-src` while `connect-src` allowed the upload, so the
+symptom was "nothing happens"). **Any new remote origin — a CDN, a font host, an image bucket
+— needs its directive added in the same commit.** `tests/security/cspAllowsSupabase.test.ts`
+pins every directive the app depends on.
+
+**Password reset is admin-assisted; there is no self-service link.** The built-in Supabase
+sender is capped at ~2 emails/hour **project-wide**, shared with VMS, and the dashboard's rate
+limits do not lift it (custom SMTP only). An admin resets from Admin → Users → Edit User
+(`admin_reset_user_password`, which also deletes every session), the user is forced to choose
+their own on next sign-in (`set_my_password`, which clears the flag in the same call — nothing
+else clears it). `/reset-password` is kept deliberately: it is the landing page for a recovery
+email an admin triggers from the Supabase dashboard.
+
+## Working on this repo
+
+### TDD, always, in a loop
+
+**Write the failing test first, then the minimum code to pass it, then verify.** Name the goal
+→ write the test that would prove it → watch it fail for the right reason → write the smallest
+code that passes → `npm run check` → repeat. A test that has never failed has proven nothing.
+Do not batch a large change and test at the end — then a failure tells you only that
+*something* broke.
+
+This applies to SQL: `tests/security/sqlInvariants.test.ts` and `applyAllIntegrity.test.ts`
+are how a migration is tested without a database — extend them **in the same commit** as the
+migration. Note what they cannot catch: anything that only exists at the intersection of this
+app's RPC and a VMS trigger (`023`), and anything introduced through the dashboard (`009`).
+
+### Never leave unused schema or code in place
+
+If a table, column, type, function, policy or grant is not needed, **remove it in the same
+migration that retired it**. An unused SECURITY DEFINER function is still `EXECUTE`-able over
+PostgREST by every authenticated user — attack surface nobody reviews. Two hard exceptions,
+both Postgres limitations: enum labels cannot be dropped, and dropping a column used by a view
+requires rebuilding the view.
+
+### Delegate low-level work to subagents on cheaper models
+
+Fan mechanical work out to **parallel subagents on `sonnet`** (or `haiku` for the most rote
+work), launched in a **single message** so they run concurrently: file/content searches,
+fact-gathering, boilerplate, mechanical ports and renames, config files, test fixtures, doc
+writing, repetitive per-file edits following an established pattern.
+
+**Keep on the main model:** schema design, RLS/auth/grant decisions, debugging, code review,
+trade-off calls, and synthesis. Give each agent full context up front — it starts cold —
+including the two-schema rule and the 300-line cap. **Never merge a subagent's output unread**,
+and never let one make a security call.
+
+**Git work always goes to a `sonnet` subagent** (user instruction): commits, pushes, branches,
+tags. Read-only inspection may be run directly. **Always push after completing work — do not
+wait to be asked.** Commits are the USER's: no `Co-Authored-By`, no AI attribution anywhere in
+a message, title, body or trailer.
+
+### Keep this file current — it is the session handoff
+
+When you finish a chunk of work, update **Current state**: what is applied, what is merely
+written, and what the single next action is. Say whether a claim is *verified* or *assumed*,
+and **which credential proved it** — browser/`anon`, `service_role` or `postgres` see
+different things, and `postgres` bypasses every policy. **Delete stale lines rather than
+appending to them**, and before believing any "X was deleted" claim in here, check the disk —
+that has been wrong before.
 
 ## Layout
 
 **Docs live in `docs/`** — `ARCHITECTURE.md`, `DATABASE.md`, `SECURITY.md`, `DEPLOYMENT.md`,
-indexed from `README.md`. They are framed for a **Mall Management Office**: material moves
-through the mall's service gate / loading bay, HODs are Mall Management Office department
-heads (Housekeeping, Engineering/MEP, Facilities, Marketing & Events, Retail Ops, F&B, IT),
-and `visitor_company` is the tenant, brand, or contractor firm. Keep that vocabulary — no
+indexed from a Mermaid-diagrammed `README.md`. They are framed for a **Mall Management
+Office**: material moves through the mall's service gate, HODs are department heads
+(Housekeeping, Engineering/MEP, Facilities, Marketing, Retail Ops, F&B, IT), and
+`visitor_company` is the tenant, brand or contractor firm. Keep that vocabulary — no
 "factory"/"plant"/"manufacturing".
 
-`src/pages/` is grouped by who uses it: `HOD/` (Dashboard, RaisePass, MyPasses),
-`Security/` (GateConsole, Verify, PendingReturns, History), `Admin/` (AdminPanel and its
-tabs, AdminDashboard, ReportsPage + report views), `Shared/` (PassDetail, PassPrint).
-`src/lib/` holds the lookup maps and formatters; `supabase/migrations/` is `001` schema →
-`002` RLS → `003` RPCs → `004` views → `005` optional seed.
+`src/pages/` is grouped by who uses it: `HOD/` (Dashboard, RaisePass, MyPasses,
+MismatchReview, ExpiredReview), `Security/` (GateConsole, GateLookup, Verify, GuardDashboard,
+PendingReturns), `Admin/` (AdminPanel and its tabs, AdminDashboard, ReportsPage), `Shared/`
+(PassDetail, PassPrint, Profile). `src/components/board/` is the dashboard both the admin and
+the HOD get — one component, the HOD's scoped to one person server-side. `src/lib/` holds the
+lookup maps, derivations and formatters; `supabase/migrations/` runs `001` → `041`, with
+`005` an **optional demo seed** to skip in a real deployment.

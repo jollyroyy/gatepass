@@ -9,6 +9,7 @@ import type { GatePassView } from '../../types';
 import { PASS_CATEGORY_LIST, PASS_CATEGORIES, categoryKey, type PassCategoryKey } from '../../lib/passTypes';
 import { safeErrorMessage } from '../../lib/errors';
 import GateLookup from './GateLookup';
+import PhoneSearchResults from './PhoneSearchResults';
 import QueueCard from './QueueCard';
 
 interface DeptOption {
@@ -37,6 +38,11 @@ export default function GateConsole(): React.ReactElement {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [queue, setQueue] = useState<GatePassView[]>([]);
+
+  // A mobile-number search from the lookup card. Null = no search running;
+  // an empty array is a real answer ("nobody by that number") and must not
+  // collapse into the same state.
+  const [phoneSearch, setPhoneSearch] = useState<{ query: string; rows: GatePassView[] } | null>(null);
 
   const [categoryFilter, setCategoryFilter] = useState<PassCategoryKey | 'all'>('all');
   const [deptFilter, setDeptFilter] = useState<string>('all');
@@ -129,12 +135,20 @@ export default function GateConsole(): React.ReactElement {
           <h1 className="page-title">Gate Console</h1>
           <p className="page-subtitle">Work the pending queue, or look up a pass.</p>
         </div>
-        <GateLookup />
+        <GateLookup onPhoneResults={(query, rows) => setPhoneSearch({ query, rows })} />
       </div>
 
       {flash && <div className="alert-success mb-6">{flash}</div>}
 
       {error && <div className="alert-error mb-6">{error}</div>}
+
+      {phoneSearch && (
+        <PhoneSearchResults
+          query={phoneSearch.query}
+          rows={phoneSearch.rows}
+          onClear={() => setPhoneSearch(null)}
+        />
+      )}
 
       <div ref={queueRef} id="queue" className="mb-5">
         <div className="inline-flex items-center gap-2 bg-surface-100/60 border border-surface-200 rounded-xl px-3 py-2 backdrop-blur-sm">
