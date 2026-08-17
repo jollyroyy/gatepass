@@ -22,8 +22,7 @@
 //     pass on this board, so their own name back at them is noise;
 //   * links go to `/my-passes`, since `ROLE_ROUTES` closes `/all-passes` to an HOD.
 import React from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { isExpiredPending } from '../../lib/statusStyles';
+import { useNavigate } from 'react-router-dom';
 import GateBoard from '../../components/board/GateBoard';
 import FlaggedReviewCard from './FlaggedReviewCard';
 import { useHodBoardData, useMyDepartmentNames } from './useHodBoardData';
@@ -34,51 +33,31 @@ const REGISTER = '/my-passes';
 
 export default function Dashboard(): React.ReactElement {
   const navigate = useNavigate();
-  const { rows, flagged, loading, error, reload } = useHodBoardData();
+  const { rows, items, flagged, loading, error, reload } = useHodBoardData();
   const deptNames = useMyDepartmentNames();
-
-  // All-time, not period-scoped: an expired pass is dead paperwork whenever it
-  // was raised, and the Today default must not hide it.
-  const expired = rows.filter(isExpiredPending);
 
   return (
     <GateBoard
-      title="Today's Gate Pass Summary"
+      title="Gate Pass Management Dashboard"
       subtitle={
         deptNames.length > 0 ? `${deptNames.join(' · ')} — passes you raised` : 'Passes you raised'
       }
       rows={rows}
+      items={items}
       loading={loading}
       error={error}
       registerTo={REGISTER}
+      // One HOD, one department (032), and RLS shows them only that one — a
+      // department ranking here could only ever draw a single bar at 100% naming
+      // the reader's own department. Same panel, a question that has an answer.
+      outstandingMode="material"
+      showDepartment={false}
       showRaisedBy={false}
       onRefresh={() => void reload()}
-      banner={
-        <>
-          {/* Zero renders nothing — an empty red banner is noise. Expired is the
-              one bucket that means material this HOD authorised never moved and
-              the paperwork is now dead, so it gets a banner of its own rather
-              than a tile among fourteen. */}
-          {expired.length > 0 && (
-            <div className="bg-flagged-500/10 border-l-4 border-flagged-500 rounded-r-lg px-4 py-3 mb-6">
-              <p className="text-sm font-semibold text-flagged-700">
-                {expired.length} {expired.length === 1 ? 'pass' : 'passes'} expired without reaching the gate.
-              </p>
-            </div>
-          )}
-          <p className="text-[11px] text-navy-500 mb-3">
-            Older passes are in{' '}
-            <Link to={REGISTER} className="text-accent-600 hover:underline font-semibold">
-              My Passes
-            </Link>
-            .
-          </p>
-        </>
-      }
       footer={
         /* Fed by the UNSCOPED flagged fetch, never a window — a mismatch raised
-           yesterday still needs this HOD's decision today, and the period filter
-           must not hide an open action item. Below the panels because it is a task
+           yesterday still needs this HOD's decision today, and the board's day
+           scope must not hide an open action item. Below the panels because it is a task
            list, not a measurement. */
         !loading ? (
           <div className="mt-8">

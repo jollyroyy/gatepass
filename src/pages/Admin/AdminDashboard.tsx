@@ -5,23 +5,20 @@
 // dashboard renders too, so the two cannot drift apart in layout the way they did
 // before.
 //
-// ONE read, on mount: `v_gate_passes`. Every figure, ring and list on the board
-// comes out of that single array.
-//
-// The board used to also read `v_gate_pass_items`, for the outstanding-material
-// ranking. That panel went when the board was cut back to today only
-// (2026-08-17), and the query went with it rather than being left fetching rows
-// nothing renders.
+// TWO reads, on mount: `v_gate_passes` and `v_gate_pass_items`. Every figure,
+// ring, bar and list on the board comes out of those two arrays — the items only
+// feed the two ranked panels (outstanding material, and today's top items).
 //
 // No aggregate query, deliberately. See the invariant in GateBoard.tsx.
 import React, { useCallback, useEffect, useState } from 'react';
 import { gp } from '../../supabaseClient';
-import type { GatePassView } from '../../types';
+import type { GatePassItemView, GatePassView } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
 import GateBoard from '../../components/board/GateBoard';
 
 export default function AdminDashboard(): React.ReactElement {
   const [rows, setRows] = useState<GatePassView[]>([]);
+  const [items, setItems] = useState<GatePassItemView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,9 +29,16 @@ export default function AdminDashboard(): React.ReactElement {
     // before it ever rendered (the 2026-08-13 BlacklistTab bug).
     setError(null);
     try {
-      const passRes = await gp().from('v_gate_passes').select('*');
+      const [passRes, itemRes] = await Promise.all([
+        gp().from('v_gate_passes').select('*'),
+        gp().from('v_gate_pass_items').select('*'),
+      ]);
       if (passRes.error) throw passRes.error;
       setRows((passRes.data as GatePassView[] | null) ?? []);
+      // A board that refuses to render because ONE panel's query failed is worse
+      // than a board with one empty panel: the items feed two ranked panels and
+      // nothing else.
+      setItems(itemRes.error ? [] : ((itemRes.data as GatePassItemView[] | null) ?? []));
     } catch (err) {
       setError(safeErrorMessage(err));
     } finally {
@@ -48,12 +52,16 @@ export default function AdminDashboard(): React.ReactElement {
 
   return (
     <GateBoard
-      title="Today's Gate Pass Summary"
-      subtitle="Material gate pass activity across the site today."
+      title="Gate Pass Management Dashboard"
+      subtitle="Real-time overview of all material gate pass activity."
       rows={rows}
+      items={items}
       loading={loading}
       error={error}
       registerTo="/all-passes"
+      // An admin oversees every department, so the ranked panel is the one the
+      // reference board shows: which department is holding material off site.
+      outstandingMode="department"
       onRefresh={() => void load()}
     />
   );

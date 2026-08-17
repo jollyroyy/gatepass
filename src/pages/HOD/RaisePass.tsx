@@ -1,9 +1,9 @@
 // Pass-creation form. Type is chosen first (biggest control on the page) via
 // PassTypeSelector; everything else follows in reading order.
 //
-// IT IS ALSO THE "RAISE IT AGAIN" SCREEN. A mismatch review sends the HOD here
-// with `state.copyFrom`, and `useReraisePass` fills the form from the flagged
-// pass so they correct it rather than retype it. The superseded pass is voided
+// IT IS ALSO THE "RAISE IT AGAIN" SCREEN. A mismatch review or an expired-pass
+// review sends the HOD here with `state.copyFrom`, and `useReraisePass` fills the
+// form from that pass so they correct it rather than retype it. The superseded pass is voided
 // AFTER the replacement is in the database — see that module's header for why
 // the order matters.
 import React, { useEffect, useState } from 'react';
@@ -195,7 +195,7 @@ export default function RaisePass(): React.ReactElement {
       // new pass is raised either way, and telling the HOD "that failed" would
       // invite them to raise a third.
       if (sourceId) {
-        const voidErr = await voidSupersededPass(sourceId, created.pass_number);
+        const voidErr = await voidSupersededPass(sourceId, created.pass_number, source);
         setSupersedeWarning(
           voidErr
             ? `The new pass was raised, but ${source?.pass_number ?? 'the mismatched pass'} could not be closed: ${voidErr}. Reject it from your dashboard.`

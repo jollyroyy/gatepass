@@ -219,17 +219,23 @@ describe('the HOD board\'s figures', () => {
 });
 
 describe('what differs from the admin board', () => {
-  it('draws its own gate activity, not the whole org\'s', async () => {
-    // The outstanding-material ranking this case used to assert went with the
-    // board's cut back to today only (2026-08-17), and the department/material
-    // split it pinned went with it: there is no ranked panel on either board
-    // now. What survives — and matters more — is that the HOD board is fed the
-    // reader's OWN rows, so every panel on it is narrowed by construction.
+  it('ranks outstanding material by MATERIAL, never by department, and never a colleague line', async () => {
+    // One HOD, one department (032), and RLS shows them only that one — a
+    // department ranking here could draw a single bar at 100% naming the reader's
+    // own department. The material ranking is the same panel asking a question
+    // that has an answer.
+    //
+    // `v_gate_pass_items` carries no `raised_by`, so RLS hands over the WHOLE
+    // department's lines including the colleague's Scaffold Tower. Only the
+    // panel's own rule — ignore any item whose parent pass is not in `rows` —
+    // keeps it off the board.
     renderBoard();
     await loaded();
 
-    const ring = screen.getByText("Today's Gate Activity").closest('section') as HTMLElement;
-    expect(within(ring).queryByText(/Scaffold Tower/)).not.toBeInTheDocument();
+    const panel = screen.getByText('Material Wise Outstanding RGP').closest('section') as HTMLElement;
+    expect(within(panel).getByText('Hydraulic Pump')).toBeInTheDocument();
+    expect(within(panel).queryByText('Scaffold Tower')).not.toBeInTheDocument();
+    expect(screen.queryByText('Department Wise Outstanding RGP')).not.toBeInTheDocument();
   });
 
   it('links only to routes an HOD may open', async () => {
@@ -240,7 +246,9 @@ describe('what differs from the admin board', () => {
       const href = link.getAttribute('href') ?? '';
       expect(href.startsWith('/all-passes')).toBe(false);
     }
-    expect(screen.getByRole('link', { name: 'My Passes' })).toHaveAttribute('href', '/my-passes');
+    // The register link every panel falls back to. `/all-passes` is the admin's;
+    // ROLE_ROUTES closes it to an HOD, so this board must point at `/my-passes`.
+    expect(screen.getByRole('link', { name: 'the register' })).toHaveAttribute('href', '/my-passes');
   });
 
   it('keeps the flagged-review queue, fed unscoped by period', async () => {

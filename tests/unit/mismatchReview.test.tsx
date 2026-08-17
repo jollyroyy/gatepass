@@ -121,7 +121,7 @@ describe('the mismatch review screen', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Reject Permanently' }));
     expect(rpcCalls).toEqual([]);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm Rejection' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm — Reject Permanently' }));
     await waitFor(() => expect(rpcCalls).toHaveLength(1));
     expect(rpcCalls[0].fn).toBe('hod_review_flagged_pass');
     expect(rpcCalls[0].args.p_action).toBe('reject');

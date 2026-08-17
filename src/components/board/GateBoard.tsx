@@ -1,5 +1,5 @@
-// TODAY'S GATE PASS SUMMARY — the whole dashboard, shared by the admin and the
-// HOD.
+// THE GATE PASS MANAGEMENT BOARD — the whole dashboard, shared by the admin and
+// the HOD.
 //
 // One component, two consumers, because the two boards differ only in WHICH ROWS
 // they are handed and where their "view all" links point. Duplicating this layout
@@ -9,63 +9,83 @@
 //   /dashboard        one HOD's own passes — department scope is RLS's, person
 //                     scope is `.eq('raised_by', …)` in useHodBoardData.ts.
 //
-// THE BOARD IS TODAY-ONLY (client, 2026-08-17). The period selector, the daily
-// movement trend, the status ring, the return-watch table and the outstanding
-// ranking were all REMOVED — not hidden behind a flag, deleted with their
-// components — leaving the three KPI sections, the list a card's click opens,
-// and one ring of today's gate activity. Anything older is read in the register
-// (`/all-passes` for an admin, `/my-passes` for an HOD), which every panel here
-// links to.
+// IT IS THE CLIENT'S REFERENCE LAYOUT, BOX FOR BOX (2026-08-17, second pass:
+// "I want to see exactly in this format… the exact graph looking and the exact
+// layout of those individual boxes should remain the same"), with exactly two
+// deliberate departures, both of them the client's own words:
 //
-// NOTHING WAS LOST TO THE OVERDUE READER, and that is why the cut is safe: the
-// `current`-scoped cards — Outside, Due Today, Overdue, Pending, Mismatched —
-// are running obligations and are NOT day-scoped. An RGP that went overdue last
-// month still counts on today's board, and says so on the tile.
+//   * NO "vs yesterday" ANYWHERE. Removed rather than hidden — `BoardWindows`
+//     carries no previous window, so nothing here can compute a delta.
+//   * NO GATE ACTIVITY TIMELINE. Its slot in the third row is "Top Items Today",
+//     a ring of the materials that moved most often today.
 //
-// THE INVARIANT, UNCHANGED: every clickable figure on this page — tile or ring
-// segment — resolves to a `BoardDrill` that CARRIES the rows it counted, and the
-// panel below renders exactly that array. There is no `count: 'exact'` query
-// anywhere on this board and no predicate re-applied against a second array. Do
-// not "optimise" this into aggregate queries: a figure that disagrees with the
-// list its own click opens is invisible to the eye and fatal to trust.
+// TWO KINDS OF SCOPE LIVE ON THIS PAGE, and mixing them up is the mistake this
+// layout is arranged to prevent:
+//
+//   TODAY — the "issued" / "cleared" / "returned" tiles and the Quick Summary's
+//           volume tiles. They say "Today" on themselves.
+//   RUNNING — everything about open obligations: outside, due, overdue, the
+//           status ring, the return watch, the outstanding ranking and the
+//           attention strip. They are NOT day-scoped, because an obligation does
+//           not stop being open because the calendar rolled over.
+//
+// THE INVARIANT, UNCHANGED THROUGH EVERY REBUILD: every clickable figure on this
+// page — tile, ring segment, bar, tab, day on the trend line, attention count —
+// resolves to a `BoardDrill` that CARRIES the rows it counted, and the panel
+// below renders exactly that array. There is no `count: 'exact'` query anywhere
+// on this board and no predicate re-applied against a second array. Do not
+// "optimise" this into aggregate queries: a figure that disagrees with the list
+// its own click opens is invisible to the eye and fatal to trust.
 import React, { useCallback, useMemo, useState } from 'react';
-import type { GatePassView } from '../../types';
+import { Link } from 'react-router-dom';
+import type { GatePassView, GatePassItemView } from '../../types';
 import DrillList from '../DrillList';
 import { RGP_SECTION, NRGP_SECTION, SUMMARY_SECTION } from '../../lib/boardKpis';
 import type { BoardWindows } from '../../lib/boardWindows';
-import { drillDefOf, type BoardDrill } from '../../lib/boardDrills';
+import { drillDefOf, IS_OPEN_RETURN, type BoardDrill } from '../../lib/boardDrills';
 import { dayStart, DAY_MS } from '../../lib/localDay';
 import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 import BoardHeader from './BoardHeader';
 import BoardKpiSection from './BoardKpiSection';
-import BoardActivityPie from './BoardActivityPie';
+import BoardAttention from './BoardAttention';
+import BoardMovementTrend from './BoardMovementTrend';
+import BoardStatusBreakdown from './BoardStatusBreakdown';
+import BoardReturnWatch from './BoardReturnWatch';
+import BoardOutstanding, { type OutstandingMode } from './BoardOutstanding';
+import BoardTopItems from './BoardTopItems';
 
 type Props = {
   title: string;
   subtitle: string;
   /** Every pass the reader may see. Day-scoping happens here, once. */
   rows: GatePassView[];
+  /** Line rows for those passes — the Top Items ring and the material ranking. */
+  items: GatePassItemView[];
   loading: boolean;
   error: string | null;
   /** The register this reader is allowed to open — `/all-passes` is admin-only. */
   registerTo: string;
+  /** Rank outstanding material by department (admin) or by material (one HOD). */
+  outstandingMode: OutstandingMode;
+  /** Off on a single-department board, where the column is one repeated word. */
+  showDepartment?: boolean;
   /** Whose name a drill row shows. False on the HOD board — the reader raised
    *  every pass on it, so their own name back at them is noise. */
   showRaisedBy?: boolean;
   onRefresh?: () => void;
-  /** Rendered above the sections — the HOD's expired-pass banner. */
+  /** Rendered under the attention strip — the HOD's register link. */
   banner?: React.ReactNode;
   /** Rendered at the foot — the HOD's flagged-review queue. */
   footer?: React.ReactNode;
 };
 
 export default function GateBoard({
-  title, subtitle, rows, loading, error, registerTo,
-  showRaisedBy = true, onRefresh, banner, footer,
+  title, subtitle, rows, items, loading, error, registerTo, outstandingMode,
+  showDepartment = true, showRaisedBy = true, onRefresh, banner, footer,
 }: Props): React.ReactElement {
   const [drill, setDrill] = useState<BoardDrill | null>(null);
 
-  // THE THREE ARRAYS EVERY FIGURE ON THIS PAGE IS DRAWN FROM. Built once, here,
+  // THE THREE ARRAYS EVERY TILE ON THIS PAGE IS DRAWN FROM. Built once, here,
   // so a tile and the list its click opens are the same array by construction.
   const windows: BoardWindows = useMemo(() => {
     const start = dayStart(Date.now());
@@ -85,6 +105,9 @@ export default function GateBoard({
     };
   }, [rows]);
 
+  /** Still-out material, all time — the ranked bars read this one array. */
+  const outstanding = useMemo(() => rows.filter((p) => IS_OPEN_RETURN[p.return_status]), [rows]);
+
   // Toggling: clicking the thing already open closes it. Compared by `key`, not by
   // object identity — every render builds fresh drill objects.
   const select = useCallback((next: BoardDrill) => {
@@ -99,6 +122,7 @@ export default function GateBoard({
       <BoardHeader title={title} subtitle={subtitle} onRefresh={onRefresh} refreshing={loading} />
 
       {error && <div className="alert-error mb-6">{error}</div>}
+      <BoardAttention rows={rows} activeKey={activeKey} onSelect={select} />
       {banner}
 
       <div className="flex flex-col gap-4">
@@ -124,13 +148,58 @@ export default function GateBoard({
 
       {/* The drill panel sits directly under the sections rather than at the foot
           of the page: it is opened from anywhere on the board, and a reader who
-          clicked the ring at the bottom should not have to hunt for where the
-          answer appeared. `useScrollIntoViewOnChange` brings it into view. */}
+          clicked a bar at the bottom should not have to hunt for where the answer
+          appeared. `useScrollIntoViewOnChange` brings it into view. */}
       {drill && (
         <div ref={resultsRef} className="mt-6" role="region" aria-label="Selected passes">
           <DrillList def={drillDefOf(drill)} rows={drill.rows} loading={loading} showRaisedBy={showRaisedBy} />
         </div>
       )}
+
+      {/* A 12-column grid rather than equal halves: the trend plots up to 30
+          buckets and needs the room; the ring is a fixed 150px plus its legend. */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mt-6">
+        <div className="xl:col-span-8 min-w-0">
+          <BoardMovementTrend rows={rows} loading={loading} activeKey={activeKey} onSelect={select} />
+        </div>
+        <div className="xl:col-span-4 min-w-0">
+          <BoardStatusBreakdown rows={rows} loading={loading} activeKey={activeKey} onSelect={select} />
+        </div>
+      </div>
+
+      {/* Return Watch gets 6 of 12 on purpose: it has eight columns, and any
+          narrower the table scrolls sideways on every laptop. The two rings
+          beside it are 150px each plus a legend, which is what 3 columns holds. */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mt-4">
+        <div className="xl:col-span-6 min-w-0">
+          <BoardReturnWatch
+            rows={rows}
+            loading={loading}
+            activeKey={activeKey}
+            onSelect={select}
+            showDepartment={showDepartment}
+          />
+        </div>
+        <div className="xl:col-span-3 min-w-0">
+          <BoardOutstanding
+            rows={outstanding}
+            items={items}
+            mode={outstandingMode}
+            loading={loading}
+            activeKey={activeKey}
+            onSelect={select}
+          />
+        </div>
+        <div className="xl:col-span-3 min-w-0">
+          <BoardTopItems
+            rows={windows.raised}
+            items={items}
+            loading={loading}
+            activeKey={activeKey}
+            onSelect={select}
+          />
+        </div>
+      </div>
 
       <div className="mt-4">
         <BoardKpiSection
@@ -144,17 +213,15 @@ export default function GateBoard({
         />
       </div>
 
-      <div className="mt-4">
-        <BoardActivityPie
-          rows={rows}
-          loading={loading}
-          activeKey={activeKey}
-          onSelect={select}
-          viewAllTo={registerTo}
-        />
-      </div>
-
       {footer}
+
+      <p className="text-[11px] text-navy-500 mt-6">
+        Anything older or wider than these panels is in{' '}
+        <Link to={registerTo} className="text-accent-600 hover:underline font-semibold">
+          the register
+        </Link>
+        .
+      </p>
     </div>
   );
 }

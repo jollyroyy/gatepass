@@ -48,6 +48,10 @@ const SOURCE_ITEMS = [
   },
 ];
 
+/** The dead pass being replaced. Mutable so one case can swap the flagged
+ *  source for an EXPIRED one — the two are voided by different RPCs. */
+let sourceRow: GatePassView = SOURCE;
+
 const rpcCalls: { fn: string; args: Record<string, unknown> }[] = [];
 let supersedeError: { message: string } | null = null;
 
@@ -73,7 +77,7 @@ vi.mock('../../src/supabaseClient', () => ({
         ? thenable(SOURCE_ITEMS)
         : table === 'hod_departments'
           ? thenable([{ department_id: 'd1' }])
-          : thenable(SOURCE),
+          : thenable(sourceRow),
     rpc: (fn: string, args: Record<string, unknown>) => {
       rpcCalls.push({ fn, args });
       if (fn === 'raise_pass') {
@@ -86,7 +90,9 @@ vi.mock('../../src/supabaseClient', () => ({
           error: null,
         });
       }
-      if (fn === 'hod_review_flagged_pass') return Promise.resolve({ data: null, error: supersedeError });
+      if (fn === 'hod_review_flagged_pass' || fn === 'hod_void_expired_pass') {
+        return Promise.resolve({ data: null, error: supersedeError });
+      }
       return Promise.resolve({ data: [], error: null });
     },
   }),
@@ -121,6 +127,7 @@ function renderFresh() {
 beforeEach(() => {
   rpcCalls.length = 0;
   supersedeError = null;
+  sourceRow = SOURCE;
 });
 
 describe('the raise form, arrived at from a mismatch', () => {
@@ -201,5 +208,33 @@ describe('the raise form, arrived at normally', () => {
     expect(screen.queryByText(/Correcting/)).not.toBeInTheDocument();
     // One empty line, not the source pass's two.
     await waitFor(() => expect(screen.queryByDisplayValue('Ladder')).not.toBeInTheDocument());
+  });
+});
+
+describe('the raise form, arrived at from an EXPIRED pass', () => {
+  it('supersedes through hod_void_expired_pass, not the flagged RPC', async () => {
+    // THE BUG THIS EXISTS FOR: `hod_review_flagged_pass` refuses anything that is
+    // not currently flagged, so superseding an expired pass through it fails
+    // every time — and fails AFTER the replacement is already raised, leaving the
+    // dead pass open with a warning the HOD cannot act on.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sourceRow = { ...SOURCE, status: 'pending', is_expired: true, flag_reason: null } as any;
+    renderReraise();
+    await waitFor(() => expect(screen.getByDisplayValue('Ladder')).toBeInTheDocument());
+
+    const dates = screen.getAllByLabelText(/Expected Return Date/i) as HTMLInputElement[];
+    fireEvent.change(dates[1], { target: { value: TOMORROW } });
+    fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
+
+    await waitFor(() => expect(rpcCalls.some((c) => c.fn === 'hod_void_expired_pass')).toBe(true));
+    const order = rpcCalls.map((c) => c.fn).filter((f) => f === 'raise_pass' || f === 'hod_void_expired_pass');
+    // Still only AFTER the replacement exists, for the same reason as the
+    // flagged case: an unsubmitted form must not have destroyed the record.
+    expect(order).toEqual(['raise_pass', 'hod_void_expired_pass']);
+    expect(rpcCalls.some((c) => c.fn === 'hod_review_flagged_pass')).toBe(false);
+
+    const supersede = rpcCalls.find((c) => c.fn === 'hod_void_expired_pass')!;
+    expect(supersede.args.p_pass_id).toBe('p-flagged');
+    expect(supersede.args.p_reason).toBe('Superseded by RGP-OUT-20260817-0011');
   });
 });

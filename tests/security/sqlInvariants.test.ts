@@ -926,3 +926,76 @@ describe('040 — deactivation is a status, enforced in Postgres', () => {
     expect(bare).toMatch(/user_status_inactive_is_dated check \(is_active or deactivated_at is not null\)/i);
   });
 });
+
+describe('041 — the HOD decides what happens to an expired pass', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('041'))!.sql;
+  const bare = stripSqlComments(sql);
+
+  /** The final deployed body of a gatepass function, across all migrations. */
+  function finalBody(fn: string): string {
+    const all = extractFunctions(allMigrationsText()).filter((f) => f.name === `gatepass.${fn}`);
+    expect(all.length, `${fn} is not defined in any migration`).toBeGreaterThan(0);
+    return all[all.length - 1].body;
+  }
+
+  it('only the HOD who raised the pass may void it', () => {
+    expect(finalBody('hod_void_expired_pass')).toMatch(/raised_by <> v_user_id/i);
+  });
+
+  it('EXPIRY IS RE-CHECKED ON THE SERVER, never taken from the caller', () => {
+    // Without this, the browser could void a perfectly live pass by calling the
+    // RPC directly — which is the HOD cancellation 024 removed, restored by the
+    // back door. The screen decides which button to draw; the database decides
+    // what is true.
+    const body = finalBody('hod_void_expired_pass');
+    expect(body).toMatch(/expires_at is null or v_pass\.expires_at >= now\(\)/i);
+    expect(body).toMatch(/has not expired/i);
+  });
+
+  it('it refuses a pass that already reached an outcome', () => {
+    // matched / flagged / held / hod_reviewed / cancelled are all decisions
+    // somebody already took, and expiry does not reopen any of them.
+    expect(finalBody('hod_void_expired_pass')).toMatch(/status::text <> 'pending'/i);
+  });
+
+  it('there is NO approve branch, so an HOD cannot un-expire their own paperwork', () => {
+    // 035 made `hod_review_flagged_pass(approve)` refresh `expires_at` to the end
+    // of the current day. A function that admitted an expired pass AND carried an
+    // approve branch would hand every HOD a way to revive dead paperwork with no
+    // security involvement at all.
+    const body = finalBody('hod_void_expired_pass');
+    expect(/p_action/i.test(body), 'this RPC has exactly one outcome — void').toBe(false);
+    expect(/expires_at\s*=/i.test(body), 'nothing here may WRITE expires_at').toBe(false);
+  });
+
+  it('the void is recorded in verifications, with the HOD as its author', () => {
+    // A pass that changed state with no row there is a state change for no
+    // recorded reason.
+    const body = finalBody('hod_void_expired_pass');
+    expect(body).toMatch(/insert into gatepass\.verifications/i);
+    expect(body).toMatch(/'cancelled'::gatepass\.verify_action/i);
+    expect(body).toMatch(/v_user_id/);
+  });
+
+  it('it reuses existing enum labels only', () => {
+    // APPLY_ALL.sql is pasted as ONE transaction, and a label added in the same
+    // transaction cannot be referenced by anything Postgres evaluates at DDL
+    // time. 'cancelled' exists since 008 in both enums.
+    expect(/alter type/i.test(bare), '041 must not add an enum label').toBe(false);
+  });
+
+  it('it grants execute to authenticated and to nobody else', () => {
+    expect(bare).toMatch(/revoke all on function gatepass\.hod_void_expired_pass\(uuid, text\) from public/i);
+    expect(bare).toMatch(/grant execute on function gatepass\.hod_void_expired_pass\(uuid, text\) to authenticated/i);
+  });
+
+  it('adds no UPDATE or DELETE grant — the state machine stays RPC-only', () => {
+    expect(/grant\s+[^;]*\b(update|delete)\b[^;]*on\s+gatepass\.gate_passes/i.test(bare)).toBe(false);
+  });
+
+  it('it is SECURITY DEFINER with a pinned search_path', () => {
+    expect(bare).toMatch(/security definer/i);
+    expect(bare).toMatch(/set search_path = ''/i);
+  });
+});

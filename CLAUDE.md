@@ -46,7 +46,125 @@ authoritative gate run.
 re-concatenated is a fix that never reaches the database.
 `tests/security/applyAllIntegrity.test.ts` is the backstop that catches the drift.
 
-## Current state — 2026-08-17 (LATEST): today-only board + the mismatch loop
+## Current state — 2026-08-17 (LATEST): the reference board is back, and expiry is a decision
+
+**One migration (`041`, applied + verified live, 11/11) and a board rebuild.** Full gate:
+**999 tests across 94 files** (`npm run check`, 2026-08-17). `npm run build` clean.
+**Not yet seen signed-in in a real browser** — the suite, a production build and the live
+RPC probe only.
+
+⚠ The section below this one — "today-only board + the mismatch loop" — is **SUPERSEDED**
+on the LAYOUT. The mismatch loop it describes (bell → `/mismatch/:id` → two decisions) is
+unchanged and still correct; the panels it says were deleted have been RESTORED.
+
+### The board is the client's reference screenshot, box for box
+
+Client sent the reference image back a second time: *"I want to see exactly in this format,
+except the previous days counts and gate activity… the exact graph looking and the exact
+layout of those individual boxes should remain the same"*, then *"just remove today's gate
+activity timeline and put top items by their frequency as a pie chart"*.
+
+`GateBoard.tsx` is now: attention strip · RGP Overview (6) · NRGP Overview (3) · drill panel
+· Daily Movement Trend (8/12) + RGP Status Breakdown ring (4/12) · RGP Return Watch (6/12) +
+Department Wise Outstanding RGP (3/12) + **Top Items Today** (3/12) · Quick Summary (5).
+
+**RESTORED from `cb6d486^` rather than rewritten**: `BoardMovementTrend`,
+`BoardStatusBreakdown`, `BoardReturnWatch`, `BoardOutstanding`, `charts/TrendChart`,
+`charts/BarList`, `lib/returnWatch.ts`, `departmentSlices` / `topMaterials` /
+`movementBuckets` / `MOVEMENT_SERIES` in `boardAnalytics.ts`, the line/area/axis half of
+`chartGeometry.ts`, and `RETURN_WATCH_COLORS` / `MOVEMENT_COLORS` / `RANK_COLORS` /
+`rankColor` in `chartPalette.ts`, with their specs (`boardAnalytics`, `returnWatch`,
+`chartGeometry`, `chartPalette`).
+
+**NOT restored, and deliberately:** the period selector (the tiles stay today-only, and each
+says "Today" on itself), the "vs yesterday" deltas (client removed them by name — still
+impossible to compute: `BoardWindows` has no previous window), and `dashboardPeriod.ts`.
+
+**DELETED in this pass:** `BoardActivityPie`, `lib/gateActivity.ts`, `ACTIVITY_COLORS` and
+`tests/unit/gateActivity.test.ts` — the client removed gate activity by name, and its slot
+is Top Items now.
+
+**Two tiles were dropped to match the reference: `rgpMismatch` and `nrgpMismatch`** (added
+earlier the same day). RGP is 6 and NRGP is 3 exactly as in the image. **Nothing is lost**:
+`BoardAttention.tsx` sits above the sections on BOTH boards and counts what is stopped and
+what is void, all-time, each one a drill; and the bell still takes the raising HOD straight
+to a decision. The two mismatch KPI keys, the `flag` glyph and their tests are gone —
+`tests/unit/boardKpiSections.test.ts` now FAILS if any key matching `/mismatch/i` returns to
+a tile row.
+
+**Top Items Today** (`BoardTopItems.tsx`) is a donut of `topMaterials(items, windows.raised, 5)`
+— **ranked by number of passes, never by quantity** (client's word: "frequency"). One
+delivery of 500 screws is one movement; a ladder on two passes is two. Each slice carries
+its passes, so the legend figure and the list its click opens are one array.
+
+**Both dashboards read `v_gate_pass_items` again** (`AdminDashboard`, `useHodBoardData`) for
+the two ranked panels. **The HOD's item read is NOT person-scoped and cannot be** — that view
+has no `raised_by`, so RLS scopes it to the DEPARTMENT and a colleague's line arrives. Both
+panels ignore any item whose parent pass is not in `rows` (which IS person-scoped), which is
+what keeps it off the board; `hodDashboardBoard.test.tsx` hands over a colleague's line and
+fails if it reaches a bar. Admin uses `outstandingMode="department"`, the HOD `"material"`
+(one HOD, one department — a department ranking there is one bar at 100%).
+
+### An expired pass is null and void, and the HOD is told
+
+Client: *"if something is not out and has expired, make it null and void and notify the HOD
+about that so that he can either raise it or reject it. He can review it and raise it or
+maybe void it completely."*
+
+**Expiry stays DERIVED — no pg_cron, no `expired` enum label** (user's call when asked).
+`match_pass` has refused an expired pass since 008, so it IS void from the moment the clock
+passes; what was missing was a way to CLOSE it. Three parts:
+
+1. **It stops counting as a queue.** `isWaiting` in `boardKpis.ts` is
+   `status === 'pending' && !is_expired`, so RGP Requests / NRGP Awaiting Clearance /
+   Pending Approvals no longer include dead paperwork on either board.
+2. **The bell derives it on mount**, alongside the flagged notice, from `v_gate_passes` where
+   `raised_by = auth.uid()`, `status = 'pending'`, `is_expired = true` (all three filters
+   server-side). **Realtime could never have carried this**: nothing is written when a pass
+   expires — `expires_at` simply falls behind `now()` — so there is no row change to
+   subscribe to. The mount query is the only mechanism. A realtime UPDATE that moves the pass
+   out of `pending` drops the notice.
+3. **`/expired/:id` — `src/pages/HOD/ExpiredReview.tsx`** (HOD-only in `ROLE_ROUTES`), the
+   twin of `/mismatch/:id`. Both now share **`PassDecisionPanel.tsx`**: Raise It Again, and
+   a destructive button behind an inline confirm. `NotificationBell`'s `DECISION_ROUTE`
+   lookup is what routes each notice type.
+
+**`041` — `gatepass.hod_void_expired_pass(uuid, text)`**, `security definer`, raising HOD
+only, `pending` only, and **it re-checks `expires_at < now()` ON THE SERVER**. That check is
+the load-bearing one: without it the browser could void a live pass by calling the RPC
+directly, which is the HOD cancellation `024` removed, restored by the back door. It has
+**no approve branch by design** — `035` made `hod_review_flagged_pass(approve)` refresh
+`expires_at`, so a function that admitted an expired pass AND could approve would let an HOD
+revive their own dead paperwork with no security involvement. It writes a `verifications`
+row (`cancelled`, authored by the HOD) and reuses existing enum labels only.
+
+**`voidSupersededPass` now picks its RPC from the source pass** — `hod_void_expired_pass`
+for an expired one, `hod_review_flagged_pass(reject)` for a flagged one — because each
+refuses the other's state, and the call happens AFTER `raise_pass` returns, where a failure
+is a warning and never a submit error.
+
+**Verified live 2026-08-17 — `node scripts/verify-041.mjs`, 11/11**, real anon-key JWTs
+(postgres bypasses every guard here). A live pass is refused ("has not expired"); an aged
+pass is refused by `match_pass`, by another HOD and by a guard; the raising HOD voids it, it
+lands `cancelled` with a `verifications` row authored by them, and a second void is refused.
+Probe rows deleted — `gate_passes` back to **45**.
+
+**⚠ FOUND ON THE WAY, NOT FIXED, AND IT AFFECTS `035`:** `touch_updated_at` (001/008/010)
+pins `new.expires_at := old.expires_at` on EVERY update, postgres included. So
+`hod_review_flagged_pass(approve)`'s refresh of `expires_at` **cannot take effect** — the
+trigger reverts it. 035's live probe passed because it overrode a pass raised the same day,
+where the old and new values are identical. An override of a pass raised YESTERDAY keeps
+yesterday's expiry and the gate will still refuse it. The fix is to let the trigger keep
+`expires_at` unless the RPC is deliberately moving it; this probe's own workaround —
+disabling the trigger for one statement inside a transaction — is a probe technique, not a
+pattern to copy.
+
+New tests, watched failing by real mutation: `expiredReview` (6), the expiry half of
+`mismatchNotice` (9 total — removing the derivation fails 8 of 9; routing the notice to
+`/pass/:id` fails 2), the expired-supersede case in `reraisePass` (7), the attention strip
+and Top Items in `gateBoard` (13), and **9 new `sqlInvariants` cases for 041**.
+
+## Current state — 2026-08-17 (earlier): today-only board + the mismatch loop
 
 **Frontend only — no migration, no new dependency, no new RPC.** Full gate:
 **948 tests across 92 files** (`npm run check`, 2026-08-17). `npm run build` clean.
@@ -985,7 +1103,9 @@ with real anon-key JWTs (13/13 behavioural checks, see below).
 | Migration `035` | ✅ **applied + verified live 2026-08-08** — **HOD override = fresh pass** (see below): override refreshes `expires_at` to end of day, `flag_pass` admits `hod_reviewed`, view carries `flagged_at` / `hod_reviewed_at` |
 | Migration `036` | ✅ **applied + verified live 2026-08-10** — **admin-assisted password reset** (see below): `admin_reset_user_password`, `set_my_password`, `my_profile()` carries `must_change_password`. **Requires VMS `064` first** |
 | Migration `039` | ✅ **applied + verified live 2026-08-13** — whitelisting a blacklisted vendor needs a justification and the designated CEO; `remove_blacklist_entry` dropped (see above) |
-| `gatepass.gate_passes` | ~10 rows — real user data as of 2026-08-08. **Not a scratch database any more; do not wipe it.** |
+| Migration `040` | ✅ **applied + verified live 2026-08-17** — `gatepass.user_status`; deactivation is a status, not a role (see above) |
+| Migration `041` | ✅ **applied + verified live 2026-08-17** — `hod_void_expired_pass`: the raising HOD closes a pass that expired unused (see above) |
+| `gatepass.gate_passes` | **45 rows** (verified live 2026-08-17) — real user data. **Not a scratch database; do not wipe it.** |
 | `public.departments` | ✅ **12 rows** (verified live 2026-08-10): FIN, DEV, HT, HR, IT, IS, MR, OPS, SA, OFT, TH, VLG. Real data — do not wipe. |
 
 ### Guard dashboard trimmed to what still needs a guard (2026-08-11, frontend only)

@@ -5,10 +5,15 @@
 // they were not looking. Until 2026-08-17 there was only the first, so a
 // mismatch raised at the gate while the HOD was signed out was announced to
 // nobody and never appeared again — the bell was empty precisely when it had
-// the most to say. Mismatches are now DERIVED FROM THE DATABASE on every mount
-// (`status = 'flagged'`, the reader's own passes), which needs no new table: a
-// flagged pass IS the outstanding notification, and it stops being one the
-// moment the HOD rejects it or raises it again.
+// the most to say. Mismatches AND EXPIRIES are now DERIVED FROM THE DATABASE on
+// every mount (the reader's own passes), which needs no new table: a flagged
+// pass and a void expired one each ARE the outstanding notification, and each
+// stops being one the moment the HOD decides.
+//
+// EXPIRY COULD NEVER HAVE COME FROM REALTIME AT ALL. Nothing is written when a
+// pass expires — `expires_at` simply falls behind `now()` — so there is no row
+// change to subscribe to. The mount-time query is not a fallback there; it is
+// the only mechanism.
 //
 // DISMISSAL IS PERSISTED, for the same reason. With the derivation above, an
 // in-memory dismissal would come straight back on the next page load, so the
@@ -23,7 +28,7 @@ import { gp, supabase } from '../supabaseClient';
 import { factKey, readDismissed, writeDismissed } from './notificationDismissals';
 import type { GatePassView, UserRole } from '../types';
 
-export type NotificationType = 'flagged' | 'matched' | 'new_pass';
+export type NotificationType = 'flagged' | 'expired' | 'matched' | 'new_pass';
 
 export interface AppNotification {
   id: string;
@@ -84,6 +89,13 @@ export function mismatchMessage(passNumber: string, reason: string | null, by: s
   return `${passNumber} was mismatched at the gate${who}. Reason: ${reason || 'No reason recorded'}. Review and either reject it or raise it again.`;
 }
 
+/** The words the HOD reads on an expiry. It says NULL AND VOID rather than
+ *  "expired", because the consequence is what the reader has to act on: this
+ *  pass will never be cleared now, whatever the gate does. */
+export function expiredMessage(passNumber: string): string {
+  return `${passNumber} expired without reaching the gate and is now null and void. Review it: raise it again, or void it permanently.`;
+}
+
 type Props = {
   session: Session;
   role: UserRole | null;
@@ -142,32 +154,72 @@ export function NotificationProvider({ session, role, children }: Props): React.
   const userId = session.user?.id;
 
   // ─── What happened while nobody was looking ────────────────────────────────
-  // HOD only, and mismatches only. A guard's "new pass waiting" is a queue they
-  // are already looking at on the console; a mismatch is a decision that is
-  // waiting on one specific person and has nowhere else to surface.
+  // HOD only, and two kinds of fact only, both of which are a DECISION waiting on
+  // one specific person with nowhere else to surface. A guard's "new pass
+  // waiting" is a queue they are already looking at on the console.
+  //
+  //   MISMATCHED — security stopped it.
+  //   EXPIRED    — nobody presented it before its own expiry. `match_pass`
+  //                refuses it now, so it is null and void; realtime could never
+  //                have announced this one, because NOTHING HAPPENS IN THE
+  //                DATABASE WHEN A PASS EXPIRES. It expires by the clock moving,
+  //                which emits no row change to subscribe to. The mount-time
+  //                query is the ONLY way this notice can ever exist.
   useEffect(() => {
     if (role !== 'hod' || !userId) return undefined;
     let cancelled = false;
 
     void (async () => {
       try {
-        const { data, error } = await gp()
-          .from('v_gate_passes')
-          .select('*')
-          .eq('raised_by', userId)
-          .eq('status', 'flagged')
-          .order('flagged_at', { ascending: false });
-        if (error || cancelled) return;
-        for (const p of (data as GatePassView[] | null) ?? []) {
-          addNotification({
-            id: genId(),
-            type: 'flagged',
-            title: 'Gate Pass Mismatched',
-            message: mismatchMessage(p.pass_number, p.flag_reason, p.verified_by_name),
-            passId: p.id,
-            passNumber: p.pass_number,
-            timestamp: p.flagged_at ?? p.verified_at ?? p.created_at,
-          });
+        const [flaggedRes, expiredRes] = await Promise.all([
+          gp()
+            .from('v_gate_passes')
+            .select('*')
+            .eq('raised_by', userId)
+            .eq('status', 'flagged')
+            .order('flagged_at', { ascending: false }),
+          // Both filters server-side. `is_expired` is the view's own derivation
+          // in `site_tz()` — never re-derive expiry from `expires_at` here, or
+          // the bell and `match_pass` will disagree about every pass raised
+          // after 18:30 IST.
+          gp()
+            .from('v_gate_passes')
+            .select('*')
+            .eq('raised_by', userId)
+            .eq('status', 'pending')
+            .eq('is_expired', true)
+            .order('created_at', { ascending: false }),
+        ]);
+        if (cancelled) return;
+
+        if (!flaggedRes.error) {
+          for (const p of (flaggedRes.data as GatePassView[] | null) ?? []) {
+            addNotification({
+              id: genId(),
+              type: 'flagged',
+              title: 'Gate Pass Mismatched',
+              message: mismatchMessage(p.pass_number, p.flag_reason, p.verified_by_name),
+              passId: p.id,
+              passNumber: p.pass_number,
+              timestamp: p.flagged_at ?? p.verified_at ?? p.created_at,
+            });
+          }
+        }
+
+        if (!expiredRes.error) {
+          for (const p of (expiredRes.data as GatePassView[] | null) ?? []) {
+            addNotification({
+              id: genId(),
+              type: 'expired',
+              title: 'Gate Pass Expired',
+              message: expiredMessage(p.pass_number),
+              passId: p.id,
+              passNumber: p.pass_number,
+              // Dated by the expiry itself, not by the read: "3h ago" must mean
+              // the pass died three hours ago, not that the bell noticed now.
+              timestamp: p.expires_at ?? p.created_at,
+            });
+          }
         }
       } catch {
         // The bell is an aid, never a gate. A failed read leaves it empty rather
@@ -236,6 +288,11 @@ export function NotificationProvider({ session, role, children }: Props): React.
             // another tab, or the gate re-verified it.
             if (status !== 'flagged') {
               setNotifications((prev) => prev.filter((n) => !(n.passId === passId && n.type === 'flagged')));
+            }
+            // Same for an expired pass the HOD has now voided or superseded: it
+            // has left `pending`, so there is nothing left to decide.
+            if (status !== 'pending') {
+              setNotifications((prev) => prev.filter((n) => !(n.passId === passId && n.type === 'expired')));
             }
           },
         );

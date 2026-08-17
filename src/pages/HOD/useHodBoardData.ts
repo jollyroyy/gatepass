@@ -17,13 +17,18 @@
 // are always the same array.
 import { useCallback, useEffect, useState } from 'react';
 import { supabase, gp, pub } from '../../supabaseClient';
-import type { GatePassView } from '../../types';
+import type { GatePassItemView, GatePassView } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
 
 const FLAGGED_LIMIT = 5;
 
 export type HodBoardData = {
   rows: GatePassView[];
+  /** Line rows for the ranked panels. `v_gate_pass_items` has no `raised_by` of
+   *  its own — RLS scopes it to this HOD's DEPARTMENT — so a colleague's line
+   *  can arrive here. Both panels ignore any item whose parent pass is not in
+   *  `rows`, which is already person-scoped, so nothing widens. */
+  items: GatePassItemView[];
   /** UNSCOPED by period on purpose — a mismatch raised yesterday still needs a
    *  decision today, and the board's Today default must not hide it. */
   flagged: GatePassView[];
@@ -39,6 +44,7 @@ export function useHodBoardData(): HodBoardData {
   const [userId, setUserId] = useState<string | null>(null);
   const [noUser, setNoUser] = useState(false);
   const [rows, setRows] = useState<GatePassView[]>([]);
+  const [items, setItems] = useState<GatePassItemView[]>([]);
   const [flagged, setFlagged] = useState<GatePassView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +78,7 @@ export function useHodBoardData(): HodBoardData {
       // banner before it ever rendered (the 2026-08-13 BlacklistTab bug).
       setError(null);
       try {
-        const [passRes, flaggedRes] = await Promise.all([
+        const [passRes, flaggedRes, itemRes] = await Promise.all([
           gp().from('v_gate_passes').select('*').eq('raised_by', userId).order('created_at', { ascending: false }),
           gp()
             .from('v_gate_passes')
@@ -81,6 +87,7 @@ export function useHodBoardData(): HodBoardData {
             .eq('status', 'flagged')
             .order('verified_at', { ascending: false })
             .limit(FLAGGED_LIMIT),
+          gp().from('v_gate_pass_items').select('*'),
         ]);
         if (passRes.error) throw passRes.error;
         setRows((passRes.data as GatePassView[] | null) ?? []);
@@ -88,6 +95,7 @@ export function useHodBoardData(): HodBoardData {
         // worse than a board with one empty panel, so a failed flagged read is
         // not fatal.
         setFlagged(flaggedRes.error ? [] : ((flaggedRes.data as GatePassView[] | null) ?? []));
+        setItems(itemRes.error ? [] : ((itemRes.data as GatePassItemView[] | null) ?? []));
       } catch (err) {
         setError(safeErrorMessage(err));
       } finally {
@@ -133,7 +141,7 @@ export function useHodBoardData(): HodBoardData {
     };
   }, [load]);
 
-  return { rows, flagged, loading, error, reload: () => load() };
+  return { rows, items, flagged, loading, error, reload: () => load() };
 }
 
 /** The HOD's own departments, by name — the page subtitle and nothing else.

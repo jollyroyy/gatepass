@@ -16,6 +16,7 @@ import HodDashboard from './pages/HOD/Dashboard';
 import RaisePass from './pages/HOD/RaisePass';
 import MyPasses from './pages/HOD/MyPasses';
 import MismatchReview from './pages/HOD/MismatchReview';
+import ExpiredReview from './pages/HOD/ExpiredReview';
 import GateConsole from './pages/Security/GateConsole';
 import Verify from './pages/Security/Verify';
 import GuardDashboard from './pages/Security/GuardDashboard';
@@ -200,6 +201,7 @@ export default function App(): React.ReactElement {
           <Route path="/raise" element={<RaisePass />} />
           <Route path="/my-passes" element={<MyPasses />} />
           <Route path="/mismatch/:id" element={<MismatchReview />} />
+          <Route path="/expired/:id" element={<ExpiredReview />} />
 
           {/* Security */}
           <Route path="/guard-dashboard" element={<GuardDashboard />} />

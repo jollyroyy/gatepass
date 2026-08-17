@@ -1,6 +1,7 @@
-// "Raise it again" — the second half of the mismatch review flow.
+// "Raise it again" — the second half of BOTH review flows.
 //
-// The mismatch screen navigates to `/raise` with `state.copyFrom = <pass id>`,
+// The mismatch screen and the expired-pass screen each navigate to `/raise` with
+// `state.copyFrom = <pass id>`,
 // and this hook is what turns that id into a pre-filled form. Router STATE, not
 // a query parameter: it is a one-shot instruction from one screen to another,
 // and a `?copyFrom=` in the address bar would survive a bookmark, a share and a
@@ -8,8 +9,9 @@
 // ago.
 //
 // IT PRE-FILLS FROM THE DATABASE, NEVER FROM WHAT THE OTHER SCREEN WAS HOLDING.
-// The pass and its lines are re-read here, so what the HOD corrects is what the
-// guard actually saw at the barrier.
+// The pass and its lines are re-read here, so what the HOD corrects is what was
+// actually authorised — what the guard saw at the barrier, or what expired
+// before anyone got there.
 //
 // TWO FIELDS ARE DELIBERATELY NOT COPIED:
 //
@@ -27,9 +29,10 @@ import { gp } from '../../supabaseClient';
 import type { GatePassItemView, GatePassView, NewGatePass } from '../../types';
 import { parseCompanyInfo } from '../../lib/companyInfo';
 import { requiresReturnDate } from '../../lib/passTypes';
+import { isExpiredPending } from '../../lib/statusStyles';
 
 export interface ReraiseSource {
-  /** The flagged pass this form is correcting, once it has loaded. */
+  /** The dead pass this form is replacing (flagged or expired), once loaded. */
   source: GatePassView | null;
   /** Fields to merge over the empty form, or null when this is a fresh raise. */
   prefill: Partial<NewGatePass> | null;
@@ -113,17 +116,33 @@ export function useReraisePass(todayStr: string): ReraiseSource & { sourceId: st
  *  stopped for anyone who then closed the tab, and would leave the gate with
  *  nothing at all if the new pass were never submitted.
  *
- *  It reuses `hod_review_flagged_pass(reject)` rather than adding an RPC: the
- *  outcome IS a rejection — this pass is void and will never be verified — and
- *  the RPC already writes the `verifications` row that makes the supersede
- *  auditable. Returns an error message on failure rather than throwing: the new
- *  pass exists either way, and the HOD must be told the old one is still open,
- *  not shown a failure that reads as though nothing was raised. */
-export async function voidSupersededPass(passId: string, newPassNumber: string): Promise<string | null> {
-  const { error } = await gp().rpc('hod_review_flagged_pass', {
-    p_pass_id: passId,
-    p_action: 'reject',
-    p_reason: `Superseded by ${newPassNumber}`,
-  });
+ *  TWO RPCs, PICKED FROM THE SOURCE PASS, because the two screens that lead here
+ *  supersede two different kinds of dead pass and each RPC refuses the other's:
+ *
+ *    flagged  → `hod_review_flagged_pass(reject)`, which refuses anything that
+ *               is not currently flagged.
+ *    expired  → `hod_void_expired_pass` (041), which refuses anything that is
+ *               not pending AND genuinely past its own `expires_at`.
+ *
+ *  Both write the `verifications` row that makes the supersede auditable, and
+ *  both leave the outcome as 'cancelled'. `source` is null only on a fresh
+ *  raise, where nothing is superseded at all.
+ *
+ *  Returns an error message on failure rather than throwing: the new pass exists
+ *  either way, and the HOD must be told the old one is still open, not shown a
+ *  failure that reads as though nothing was raised. */
+export async function voidSupersededPass(
+  passId: string,
+  newPassNumber: string,
+  source: GatePassView | null,
+): Promise<string | null> {
+  const reason = `Superseded by ${newPassNumber}`;
+  const { error } = isExpiredPending(source ?? { status: 'pending', is_expired: false })
+    ? await gp().rpc('hod_void_expired_pass', { p_pass_id: passId, p_reason: reason })
+    : await gp().rpc('hod_review_flagged_pass', {
+        p_pass_id: passId,
+        p_action: 'reject',
+        p_reason: reason,
+      });
   return error ? (error.message ?? 'Unknown error') : null;
 }

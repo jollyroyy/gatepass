@@ -1,12 +1,11 @@
-// THE CATALOGUE of the board's headline figures: RGP Overview (7), NRGP Overview
-// (4) and Quick Summary (5) — the client's reference board, on this system's own
-// data. What each card is CALLED, what it means, and which passes it matches;
-// the plumbing that applies it to an array lives in boardWindows.ts.
+// THE CATALOGUE of the board's headline figures: RGP Overview (6), NRGP Overview
+// (3) and Quick Summary (5) — the client's reference board, box for box, on this
+// system's own data. What each card is CALLED, what it means, and which passes it
+// matches; the plumbing that applies it to an array lives in boardWindows.ts.
 //
-// THE BOARD IS TODAY-ONLY (client, 2026-08-17: "in the dashboard of the admin
-// you only show today's Gate Pass Summary"). There is no period selector any
-// more, so `period` and `returned` scopes both mean "today" and the label says
-// so; `current` still means a running obligation, which is deliberately NOT
+// THE TILE ROWS ARE DAY-SCOPED WHERE THEY SAY "TODAY" AND NOWHERE ELSE. There is
+// no period selector: `period` and `returned` both mean today and the label says
+// so, while `current` means a running obligation and is deliberately NOT
 // day-scoped — a pass that went overdue last week is overdue on today's board.
 //
 // NO CARD CARRIES A DELTA. The "↑ 8 vs yesterday" line is gone from every tile
@@ -47,14 +46,12 @@ export type BoardKpiKey =
   | 'rgpRequests'
   | 'rgpOut'
   | 'rgpReturned'
-  | 'rgpMismatch'
   | 'rgpOutside'
   | 'rgpDueToday'
   | 'rgpOverdue'
   // NRGP Overview
   | 'nrgpOut'
   | 'nrgpCleared'
-  | 'nrgpMismatch'
   | 'nrgpPending'
   // Quick Summary
   | 'totalRaised'
@@ -81,6 +78,18 @@ export interface BoardKpi {
 }
 
 const isRgp = (p: GatePassView): boolean => p.type === 'RGP';
+
+/** WAITING AT THE GATE MEANS IT CAN STILL BE CLEARED THERE.
+ *
+ *  An expired pass is `pending` in the enum — expiry is derived from
+ *  `expires_at`, never a status — but `match_pass` refuses it, so it is null and
+ *  void: nothing the guard does can release that material. Counting it under
+ *  "Requests" / "Pending Approvals" told an admin a queue was longer than it was
+ *  and told the HOD their paperwork was still alive. It is excluded here and
+ *  surfaced instead as a decision for the HOD who raised it (the bell, and
+ *  `/expired/:id`). `is_expired` comes straight off the view — never recompute
+ *  expiry in TypeScript. */
+const isWaiting = (p: GatePassView): boolean => p.status === 'pending' && !p.is_expired;
 const isRgpOut = (p: GatePassView): boolean => categoryKey(p.type, p.direction) === 'RGP-out';
 const isNrgpOut = (p: GatePassView): boolean => categoryKey(p.type, p.direction) === 'NRGP-out';
 
@@ -97,7 +106,7 @@ export const BOARD_KPIS: Record<BoardKpiKey, BoardKpi> = {
     scope: 'current',
     heading: 'RGP passes waiting at the gate',
     empty: 'No RGP pass is waiting at the gate.',
-    match: (p) => isRgp(p) && p.status === 'pending',
+    match: (p) => isRgp(p) && isWaiting(p),
   },
   rgpOut: {
     key: 'rgpOut',
@@ -118,21 +127,6 @@ export const BOARD_KPIS: Record<BoardKpiKey, BoardKpi> = {
     heading: 'Returns received',
     empty: 'No return was recorded in this period.',
     match: (p) => p.return_status === 'returned',
-  },
-  // MISMATCH AT THE GATE GETS ITS OWN CARD IN BOTH SECTIONS (client,
-  // 2026-08-17). Scope is `current`, not `today`: a mismatch is an open decision
-  // for the raising HOD — reject the pass or raise it again — and it does not
-  // stop needing that decision because the calendar rolled over. A today-scoped
-  // mismatch card would read 0 while material sat stopped at the barrier.
-  rgpMismatch: {
-    key: 'rgpMismatch',
-    label: 'RGP Mismatched at Gate',
-    tone: 'flagged',
-    note: 'HOD review required',
-    scope: 'current',
-    heading: 'RGP passes mismatched at the gate',
-    empty: 'No RGP pass was mismatched at the gate.',
-    match: (p) => isRgp(p) && p.status === 'flagged',
   },
   rgpOutside: {
     key: 'rgpOutside',
@@ -187,16 +181,6 @@ export const BOARD_KPIS: Record<BoardKpiKey, BoardKpi> = {
     empty: 'No NRGP pass was cleared in this period.',
     match: (p) => isNrgpOut(p) && p.status === 'matched',
   },
-  nrgpMismatch: {
-    key: 'nrgpMismatch',
-    label: 'NRGP Mismatched at Gate',
-    tone: 'flagged',
-    note: 'HOD review required',
-    scope: 'current',
-    heading: 'NRGP passes mismatched at the gate',
-    empty: 'No NRGP pass was mismatched at the gate.',
-    match: (p) => isNrgpOut(p) && p.status === 'flagged',
-  },
   nrgpPending: {
     key: 'nrgpPending',
     label: 'NRGP Awaiting Clearance',
@@ -205,7 +189,7 @@ export const BOARD_KPIS: Record<BoardKpiKey, BoardKpi> = {
     scope: 'current',
     heading: 'NRGP passes waiting at the gate',
     empty: 'No NRGP pass is waiting at the gate.',
-    match: (p) => isNrgpOut(p) && p.status === 'pending',
+    match: (p) => isNrgpOut(p) && isWaiting(p),
   },
 
   // Quick Summary deliberately RESTATES figures from the two sections above —
@@ -241,7 +225,7 @@ export const BOARD_KPIS: Record<BoardKpiKey, BoardKpi> = {
     scope: 'current',
     heading: 'Waiting on the guard',
     empty: 'Queue clear — nothing is waiting.',
-    match: (p) => p.status === 'pending',
+    match: isWaiting,
   },
   overdueReturns: {
     key: 'overdueReturns',
@@ -265,11 +249,17 @@ export const BOARD_KPIS: Record<BoardKpiKey, BoardKpi> = {
   },
 };
 
+// SIX AND THREE, matching the client's reference board box for box (2026-08-17,
+// second pass: "the exact layout of those individual boxes should remain the
+// same"). The two "Mismatched at Gate" tiles added earlier that day are GONE
+// from the tile rows — a mismatch is not lost with them: it reaches the raising
+// HOD on the notification bell, opens a decision screen, and both boards carry
+// an attention banner above the sections that counts stopped and expired passes.
 export const RGP_SECTION: BoardKpiKey[] = [
-  'rgpRequests', 'rgpOut', 'rgpReturned', 'rgpMismatch', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
+  'rgpRequests', 'rgpOut', 'rgpReturned', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
 ];
 
-export const NRGP_SECTION: BoardKpiKey[] = ['nrgpOut', 'nrgpCleared', 'nrgpMismatch', 'nrgpPending'];
+export const NRGP_SECTION: BoardKpiKey[] = ['nrgpOut', 'nrgpCleared', 'nrgpPending'];
 
 export const SUMMARY_SECTION: BoardKpiKey[] = [
   'totalRaised', 'totalCleared', 'pendingApprovals', 'overdueReturns', 'materialOutside',

@@ -3,6 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useNotifications, notifTime } from '../../lib/notifications';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 
+/** Which notices open a DECISION screen rather than the pass record. A lookup,
+ *  never a string chain: a notification type added without a decision screen
+ *  falls through to the record, which is the safe default. */
+const DECISION_ROUTE: Record<string, string> = { flagged: '/mismatch', expired: '/expired' };
+
 export default function NotificationBell(): React.ReactElement {
   const { notifications, unreadCount, dismiss, dismissAll } = useNotifications();
   const [open, setOpen] = useState(false);
@@ -22,15 +27,15 @@ export default function NotificationBell(): React.ReactElement {
 
   useEscapeKey(() => setOpen(false), open);
 
-  // A MISMATCH GOES TO ITS REVIEW SCREEN, not to the pass detail. The client's
-  // requirement is that clicking the notice shows why the pass was stopped, who
-  // stopped it, and offers the two decisions — reject it outright, or raise it
-  // again — and `/pass/:id` is a record, not a decision. Every other kind of
-  // notice is purely informational and still opens the record.
+  // A NOTICE THAT CARRIES A DECISION GOES TO ITS REVIEW SCREEN, not to the pass
+  // detail. The client's requirement, for both kinds, is that clicking the notice
+  // shows what happened to the pass and offers two decisions — void it outright,
+  // or raise it again — and `/pass/:id` is a record, not a decision. Every other
+  // kind of notice is purely informational and still opens the record.
   //
-  // The row is NOT dismissed on click: a mismatch is dismissed by being decided
+  // A decision row is NOT dismissed on click: it is dismissed by being DECIDED
   // (the review screen calls `dismissPass`), and clearing it on a glance would
-  // let an HOD lose the only pointer to a pending decision by mis-tapping.
+  // let an HOD lose the only pointer to an open decision by mis-tapping.
   const handleNotifClick = useCallback(
     (passId: string | null, notifId: string, type: string) => {
       setOpen(false);
@@ -38,8 +43,9 @@ export default function NotificationBell(): React.ReactElement {
         dismiss(notifId);
         return;
       }
-      if (type === 'flagged') {
-        navigate(`/mismatch/${passId}`);
+      const route = DECISION_ROUTE[type];
+      if (route) {
+        navigate(`${route}/${passId}`);
         return;
       }
       dismiss(notifId);
@@ -114,6 +120,15 @@ export default function NotificationBell(): React.ReactElement {
                         <span className="inline-flex h-6 w-6 rounded-full bg-red-100 dark:bg-red-900/30 items-center justify-center">
                           <svg className="w-3.5 h-3.5 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                          </svg>
+                        </span>
+                      ) : n.type === 'expired' ? (
+                        // Orange, matching EXPIRED_STYLE and the Overdue badge:
+                        // both mean "time ran out", and neither is a mismatch
+                        // the guard found. Deliberately not the red above.
+                        <span className="inline-flex h-6 w-6 rounded-full bg-orange-100 dark:bg-orange-900/30 items-center justify-center">
+                          <svg className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l3.5 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         </span>
                       ) : n.type === 'matched' ? (

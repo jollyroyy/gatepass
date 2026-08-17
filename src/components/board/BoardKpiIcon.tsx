@@ -74,16 +74,6 @@ const GLYPHS = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M8.75 12.25l2.25 2.25 4.25-4.5" />
     </svg>
   ),
-  // Flag on a pole — the guard stopped this one. Deliberately NOT the `alert`
-  // triangle: overdue and mismatched are both red-toned and sit two tiles apart
-  // in the same row, and one drawing for both would make the row unreadable at
-  // a glance, which is the only way anyone reads a KPI row.
-  flag: (
-    <svg {...SVG}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 20.25V3.75" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 4.5h10.5l-2.25 3.75 2.25 3.75H5.25z" />
-    </svg>
-  ),
   // Clock — something is waiting on a person.
   clock: (
     <svg {...SVG}>
@@ -99,13 +89,11 @@ const GLYPH_OF: Record<BoardKpiKey, GlyphName> = {
   rgpRequests: 'doc',
   rgpOut: 'truck',
   rgpReturned: 'returned',
-  rgpMismatch: 'flag',
   rgpOutside: 'box',
   rgpDueToday: 'calendar',
   rgpOverdue: 'alert',
   nrgpOut: 'truck',
   nrgpCleared: 'check',
-  nrgpMismatch: 'flag',
   nrgpPending: 'clock',
   totalRaised: 'doc',
   totalCleared: 'check',

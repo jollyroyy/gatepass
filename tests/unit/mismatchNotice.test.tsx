@@ -40,20 +40,49 @@ const flaggedRows: GatePassView[] = [
   } as any,
 ];
 
-/** Records the filters a read applied, so a test can prove the query is scoped
- *  to this reader's own flagged passes rather than to everything RLS allows. */
+const expiredRows: GatePassView[] = [
+  {
+    id: 'p-expired',
+    pass_number: 'NRGP-OUT-20260816-0004',
+    type: 'NRGP',
+    direction: 'out',
+    status: 'pending',
+    is_expired: true,
+    expires_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
+    created_at: new Date(Date.now() - 26 * 3600_000).toISOString(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any,
+];
+
+/** Records the filters every read applied, so a test can prove each query is
+ *  scoped to this reader's own passes rather than to everything RLS allows.
+ *
+ *  The provider now fires TWO reads in parallel — flagged, and expired-pending —
+ *  so the mock answers PER QUERY from the filters that query applied. A mock
+ *  that returned the same array to both would invent an expiry notice for every
+ *  mismatch and hide the bug where one query's filters went missing. */
 const filters: [string, unknown][] = [];
 
-function thenable(data: unknown) {
+function rowsFor(own: [string, unknown][]): unknown[] {
+  const has = (col: string, val: unknown) => own.some(([c, v]) => c === col && v === val);
+  if (!has('raised_by', 'hod-1')) return [];
+  if (has('status', 'flagged')) return flaggedRows;
+  if (has('status', 'pending') && has('is_expired', true)) return expiredRows;
+  return [];
+}
+
+function thenable() {
+  const own: [string, unknown][] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const obj: any = {
     then: (ok: (v: unknown) => unknown, bad?: (e: unknown) => unknown) =>
-      Promise.resolve({ data, error: null }).then(ok, bad),
+      Promise.resolve({ data: rowsFor(own), error: null }).then(ok, bad),
   };
   obj.select = () => obj;
   obj.order = () => obj;
   obj.limit = () => obj;
   obj.eq = (col: string, val: unknown) => {
+    own.push([col, val]);
     filters.push([col, val]);
     return obj;
   };
@@ -61,7 +90,7 @@ function thenable(data: unknown) {
 }
 
 vi.mock('../../src/supabaseClient', () => ({
-  gp: () => ({ from: () => thenable(flaggedRows) }),
+  gp: () => ({ from: () => thenable() }),
   supabase: {
     channel: () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -110,17 +139,23 @@ describe('the HOD is told about a mismatch even if they were signed out', () => 
     renderBell('hod' as UserRole);
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /Notifications \(1 unread\)/ })).toBeInTheDocument(),
+      expect(screen.getByRole('button', { name: /Notifications \(2 unread\)/ })).toBeInTheDocument(),
     );
     // Scoped SERVER-side on both axes: someone else's flagged pass must not be
     // downloaded in order to be hidden.
     expect(filters).toContainEqual(['raised_by', 'hod-1']);
     expect(filters).toContainEqual(['status', 'flagged']);
+    // The expiry read is scoped server-side on all three axes, and `is_expired`
+    // is the VIEW's derivation — never a client-side comparison against
+    // `expires_at`, which would disagree with `match_pass` about every pass
+    // raised after 18:30 IST.
+    expect(filters).toContainEqual(['status', 'pending']);
+    expect(filters).toContainEqual(['is_expired', true]);
   });
 
   it('names the reason and the guard, because a mismatch with no author is not reviewable', async () => {
     renderBell('hod' as UserRole);
-    await waitFor(() => screen.getByRole('button', { name: /1 unread/ }));
+    await waitFor(() => screen.getByRole('button', { name: /2 unread/ }));
     fireEvent.click(screen.getByRole('button', { name: /Notifications/ }));
 
     const notice = await screen.findByText(/Two ladders loaded, three on the slip/);
@@ -132,7 +167,7 @@ describe('the HOD is told about a mismatch even if they were signed out', () => 
     // `/pass/:id` is a record. The client asked the notice to lead to a
     // decision: reject the pass, or raise it again.
     renderBell('hod' as UserRole);
-    await waitFor(() => screen.getByRole('button', { name: /1 unread/ }));
+    await waitFor(() => screen.getByRole('button', { name: /2 unread/ }));
     fireEvent.click(screen.getByRole('button', { name: /Notifications/ }));
     fireEvent.click(await screen.findByText('Gate Pass Mismatched'));
 
@@ -143,11 +178,11 @@ describe('the HOD is told about a mismatch even if they were signed out', () => 
     // A mismatch is cleared by being DECIDED. Dropping it on a glance would let
     // an HOD lose the only pointer to a pending decision by mis-tapping.
     renderBell('hod' as UserRole);
-    await waitFor(() => screen.getByRole('button', { name: /1 unread/ }));
+    await waitFor(() => screen.getByRole('button', { name: /2 unread/ }));
     fireEvent.click(screen.getByRole('button', { name: /Notifications/ }));
     fireEvent.click(await screen.findByText('Gate Pass Mismatched'));
 
-    expect(screen.getByRole('button', { name: /1 unread/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /2 unread/ })).toBeInTheDocument();
   });
 
   it('a guard gets no mismatch derivation — their bell is the queue in front of them', async () => {
@@ -164,14 +199,51 @@ describe('a dismissed notice stays dismissed', () => {
     // THE BUG THIS EXISTS FOR: the notice is derived on every mount, so an
     // in-memory dismissal comes straight back on the next page load.
     const first = renderBell('hod' as UserRole);
-    await waitFor(() => screen.getByRole('button', { name: /1 unread/ }));
+    await waitFor(() => screen.getByRole('button', { name: /2 unread/ }));
     fireEvent.click(screen.getByRole('button', { name: /Notifications/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
-    await waitFor(() => expect(screen.queryByRole('button', { name: /1 unread/ })).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss all' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: /unread/ })).not.toBeInTheDocument());
     first.unmount();
 
     renderBell('hod' as UserRole);
     await waitFor(() => expect(screen.getByTestId('where')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /unread/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('a pass that expired without reaching the gate', () => {
+  // NOTHING IS WRITTEN TO THE DATABASE WHEN A PASS EXPIRES — `expires_at` simply
+  // falls behind `now()` — so realtime could never have announced this. The
+  // mount-time query is the only mechanism there is, which is exactly why it is
+  // pinned here.
+  it('reaches the HOD as its own notice, saying it is null and void', async () => {
+    renderBell('hod' as UserRole);
+    await waitFor(() => screen.getByRole('button', { name: /2 unread/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Notifications/ }));
+
+    const notice = await screen.findByText(/expired without reaching the gate/);
+    expect(notice.textContent).toMatch(/NRGP-OUT-20260816-0004/);
+    expect(notice.textContent).toMatch(/null and void/);
+    // The two decisions the client asked for, named in the notice itself.
+    expect(notice.textContent).toMatch(/raise it again/i);
+    expect(notice.textContent).toMatch(/void it permanently/i);
+  });
+
+  it('opens the EXPIRED decision screen, not the pass record', async () => {
+    renderBell('hod' as UserRole);
+    await waitFor(() => screen.getByRole('button', { name: /2 unread/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Notifications/ }));
+    fireEvent.click(await screen.findByText('Gate Pass Expired'));
+
+    expect(screen.getByTestId('where').textContent).toBe('/expired/p-expired');
+  });
+
+  it('is not cleared merely because it was looked at', async () => {
+    renderBell('hod' as UserRole);
+    await waitFor(() => screen.getByRole('button', { name: /2 unread/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Notifications/ }));
+    fireEvent.click(await screen.findByText('Gate Pass Expired'));
+
+    expect(screen.getByRole('button', { name: /2 unread/ })).toBeInTheDocument();
   });
 });

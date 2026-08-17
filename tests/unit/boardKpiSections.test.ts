@@ -31,36 +31,48 @@ function pass(over: Partial<GatePassView>): GatePassView {
 }
 
 describe('the board KPI sections', () => {
-  it('RGP Overview carries the seven reference figures, in the reference order', () => {
+  it('RGP Overview carries the six reference figures, in the reference order', () => {
+    // Box for box against the client's reference board (2026-08-17): six RGP,
+    // three NRGP, five summary. A seventh tile here is a layout that no longer
+    // matches the thing it was drawn from.
     expect(RGP_SECTION).toEqual([
-      'rgpRequests', 'rgpOut', 'rgpReturned', 'rgpMismatch', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
+      'rgpRequests', 'rgpOut', 'rgpReturned', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
     ]);
   });
 
-  it('BOTH categories carry a mismatch card of their own', () => {
-    // The client asked for a separate mismatch-at-gate card for RGP and for
-    // NRGP (2026-08-17). One shared card would not tell an admin which kind of
-    // material is stopped, and the two have completely different consequences:
-    // a stopped RGP still owes a return, a stopped NRGP does not.
-    expect(RGP_SECTION).toContain('rgpMismatch');
-    expect(NRGP_SECTION).toContain('nrgpMismatch');
-    expect(BOARD_KPIS.rgpMismatch.match({ ...pass({ type: 'RGP', status: 'flagged' }) })).toBe(true);
-    expect(BOARD_KPIS.rgpMismatch.match({ ...pass({ type: 'NRGP', status: 'flagged' }) })).toBe(false);
-    expect(BOARD_KPIS.nrgpMismatch.match({ ...pass({ type: 'NRGP', status: 'flagged' }) })).toBe(true);
-    expect(BOARD_KPIS.nrgpMismatch.match({ ...pass({ type: 'RGP', status: 'flagged' }) })).toBe(false);
-    // A mismatch is an open decision, not an event of the day it happened: a
-    // day-scoped card would read 0 while material sat stopped at the barrier.
-    expect(BOARD_KPIS.rgpMismatch.scope).toBe('current');
-    expect(BOARD_KPIS.nrgpMismatch.scope).toBe('current');
+  it('a pass that expired at the gate is NOT counted as waiting there', () => {
+    // "Null and void": `match_pass` refuses an expired pass, so nothing the
+    // guard does will clear it. Counting it under Requests / Pending Approvals
+    // reported a queue longer than the one that exists, and told the HOD their
+    // dead paperwork was still alive.
+    const live = pass({ id: 'live', status: 'pending', is_expired: false });
+    const dead = pass({ id: 'dead', status: 'pending', is_expired: true });
+    for (const key of ['rgpRequests', 'pendingApprovals'] as BoardKpiKey[]) {
+      expect(BOARD_KPIS[key].match(live)).toBe(true);
+      expect(BOARD_KPIS[key].match(dead)).toBe(false);
+    }
+    const nrgpLive = pass({ id: 'n1', type: 'NRGP', status: 'pending', is_expired: false });
+    const nrgpDead = pass({ id: 'n2', type: 'NRGP', status: 'pending', is_expired: true });
+    expect(BOARD_KPIS.nrgpPending.match(nrgpLive)).toBe(true);
+    expect(BOARD_KPIS.nrgpPending.match(nrgpDead)).toBe(false);
   });
 
-  it('NRGP Overview carries four figures and NONE of them is a return figure', () => {
+  it('no tile row carries a mismatch card any more', () => {
+    // They were dropped to match the reference layout box for box. A mismatch is
+    // NOT lost with them: it reaches the raising HOD on the notification bell,
+    // opens a decision screen, and both boards carry an attention strip above
+    // the sections. `BoardAttention` is what a test for that reads.
+    const all = [...RGP_SECTION, ...NRGP_SECTION, ...SUMMARY_SECTION];
+    expect(all.filter((k) => /mismatch/i.test(k))).toEqual([]);
+  });
+
+  it('NRGP Overview carries three figures and NONE of them is a return figure', () => {
     // `gate_passes_return_status_rgp_only` (001) pins an NRGP to
     // `not_applicable`, so a "currently outside" / "overdue" NRGP cannot exist
     // in this database. A permanent zero under a heading that cannot move is a
     // wrong reading, not reassurance — the reference's third NRGP card
     // ("Currently Outside") is therefore the one substitution on this board.
-    expect(NRGP_SECTION).toHaveLength(4);
+    expect(NRGP_SECTION).toHaveLength(3);
     for (const key of NRGP_SECTION) {
       expect(BOARD_KPIS[key].scope).not.toBe('returned');
       expect(BOARD_KPIS[key].key).not.toMatch(/outside|overdue|returned/i);
@@ -103,7 +115,6 @@ describe('a card\'s scope matches the words on it', () => {
     expect(BOARD_KPIS.rgpReturned.scope).toBe('returned');
 
     for (const key of ['rgpRequests', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
-      'rgpMismatch', 'nrgpMismatch',
       'pendingApprovals', 'overdueReturns', 'materialOutside', 'nrgpPending'] as BoardKpiKey[]) {
       expect(BOARD_KPIS[key].scope).toBe('current');
     }
@@ -116,7 +127,6 @@ describe('a card\'s scope matches the words on it', () => {
     // Outside Today" would claim a window it does not have.
     expect(kpiLabel(BOARD_KPIS.rgpOutside)).toBe('RGP Currently Outside');
     expect(kpiLabel(BOARD_KPIS.rgpOverdue)).toBe('RGP Overdue');
-    expect(kpiLabel(BOARD_KPIS.rgpMismatch)).toBe('RGP Mismatched at Gate');
   });
 });
 

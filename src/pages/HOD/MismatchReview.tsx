@@ -36,6 +36,7 @@ import { useNotifications } from '../../lib/notifications';
 import { formatDateTime } from '../../lib/formatDate';
 import { categoryFor } from '../../lib/passTypes';
 import PassRow from '../../components/PassRow';
+import PassDecisionPanel from './PassDecisionPanel';
 
 export default function MismatchReview(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
@@ -45,8 +46,6 @@ export default function MismatchReview(): React.ReactElement {
   const [pass, setPass] = useState<GatePassView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState(false);
-  const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -71,7 +70,7 @@ export default function MismatchReview(): React.ReactElement {
     void load();
   }, [load]);
 
-  async function reject() {
+  async function reject(reason: string | null) {
     if (!id) return;
     setBusy(true);
     setError(null);
@@ -79,7 +78,7 @@ export default function MismatchReview(): React.ReactElement {
       const { error: rpcErr } = await gp().rpc('hod_review_flagged_pass', {
         p_pass_id: id,
         p_action: 'reject',
-        p_reason: reason.trim() || null,
+        p_reason: reason,
       });
       if (rpcErr) throw rpcErr;
       dismissPass(id);
@@ -154,69 +153,24 @@ export default function MismatchReview(): React.ReactElement {
         <PassRow pass={pass} onOpen={(passId) => navigate(`/pass/${passId}`)} compact />
       </div>
 
-      {settled ? (
-        <div className="empty-state">
-          This pass is no longer awaiting your decision — nothing further is needed here.{' '}
-          <Link to={`/pass/${pass.id}`} className="text-accent-600 hover:underline font-semibold">
-            View the pass
-          </Link>
-          .
-        </div>
-      ) : confirming ? (
-        <div className="card border border-flagged-500/30 p-5 flex flex-col gap-3">
-          <p className="text-sm font-semibold text-flagged-700">
-            This is final. The pass will be void and the material will not be released.
-          </p>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="reject-reason" className="text-xs font-bold text-navy-500 uppercase tracking-wider">
-              Reason (optional)
-            </label>
-            <textarea
-              id="reject-reason"
-              className="input"
-              rows={3}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              disabled={busy}
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className="btn-danger" onClick={() => void reject()} disabled={busy}>
-              {busy ? 'Rejecting…' : 'Confirm Rejection'}
-            </button>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => {
-                setConfirming(false);
-                setReason('');
-              }}
-              disabled={busy}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="btn-primary px-6"
-              onClick={() => navigate('/raise', { state: { copyFrom: pass.id } })}
-            >
-              Raise It Again
-            </button>
-            <button type="button" className="btn-danger px-6" onClick={() => setConfirming(true)}>
-              Reject Permanently
-            </button>
-          </div>
-          <p className="text-caption text-navy-500">
-            Raising it again opens a new gate pass pre-filled from this one. This pass is voided only
-            once the corrected one is submitted.
-          </p>
-        </div>
-      )}
+      <PassDecisionPanel
+        settled={settled}
+        settledContent={
+          <>
+            This pass is no longer awaiting your decision — nothing further is needed here.{' '}
+            <Link to={`/pass/${pass.id}`} className="text-accent-600 hover:underline font-semibold">
+              View the pass
+            </Link>
+            .
+          </>
+        }
+        voidLabel="Reject Permanently"
+        voidWarning="This is final. The pass will be void and the material will not be released."
+        help="Raising it again opens a new gate pass pre-filled from this one. This pass is voided only once the corrected one is submitted."
+        busy={busy}
+        onRaise={() => navigate('/raise', { state: { copyFrom: pass.id } })}
+        onVoid={(reason) => void reject(reason)}
+      />
     </div>
   );
 }

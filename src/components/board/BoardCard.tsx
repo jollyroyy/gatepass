@@ -13,7 +13,7 @@ type Props = {
   /** A period select, a "View All" link — whatever this panel is controlled by. */
   control?: React.ReactNode;
   /** One line under the title. Use it to state a scope that differs from the
-   *  board's period filter, never to repeat the title in other words. */
+   *  board's day scope, never to repeat the title in other words. */
   subtitle?: string;
   loading?: boolean;
   skeletonHeight?: string;
