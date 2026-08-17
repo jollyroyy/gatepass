@@ -64,11 +64,15 @@ in the database** — `apply_item_returns` only ever ADDS to `returned_qty` (a `
 skipped outright) and `returned_at` is written through `coalesce`, so it can never be moved
 once set. A tick is a decision the guard can take back; a press was not.
 
-**A line already recorded shows a checked, DISABLED box.** Un-ticking it would have to
-decrement a quantity and clear a stamp that no RPC touches, and a control that always failed
-is worse than no control. **If the client wants a real undo, that is a migration** — a new
-`reverse_item_return`-style RPC, security-gated, that decrements and nulls `returned_at`,
-plus a rule for what it does to a parent already rolled up to `returned`.
+**A line already recorded shows a checked, DISABLED box, and that is now a SETTLED RULE, not
+a limitation to be fixed** (user's call, 2026-08-17, asked and answered explicitly): **a
+guard cannot undo a recorded return.** Once material is logged back in, reversing it is not
+the gate's decision to make — it would let the one person standing at the barrier both
+record a return and erase it, with nothing in `verifications` to show a return was ever
+claimed. So do NOT write a `reverse_item_return` RPC, and do not "finish the job" by
+enabling that checkbox. The tick box is undoable up to the Record press; after it, the
+record stands. If a genuine mistake ever has to be corrected, that is an admin/DB action
+with a human deciding it, not a control on the guard's screen.
 
 Ticked lines go in **one** `apply_item_returns` call, not one per line, so a two-line return
 is one row in `verifications` rather than two that read as separate visits. `picked` is
