@@ -12,11 +12,11 @@
 //      not as a silent widening nobody notices.
 //   2. THE FIGURE/DRILL AGREEMENT. Read what a tile prints, click it, count the
 //      list underneath.
-//   3. THE THINGS DELIBERATELY DIFFERENT FROM THE ADMIN BOARD — outstanding
-//      material ranked by MATERIAL rather than by department (one HOD, one
-//      department: a department ranking could only draw one bar at 100% naming the
-//      reader's own), and no link to `/all-passes`, which ROLE_ROUTES closes to an
-//      HOD.
+//   3. THE THINGS DELIBERATELY DIFFERENT FROM THE ADMIN BOARD — a drill row that
+//      does not repeat the reader's own name back at them, the flagged-review
+//      queue at the foot, and no link to `/all-passes`, which ROLE_ROUTES closes
+//      to an HOD. The PANELS are identical: the Quick Summary row and the
+//      outstanding ranking went from both boards on 2026-08-18.
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
@@ -157,7 +157,7 @@ function drill(): HTMLElement {
 }
 
 async function loaded(): Promise<void> {
-  await waitFor(() => expectFigure('Quick Summary', 'Total Gate Passes', 3));
+  await waitFor(() => expectFigure('RGP Overview', 'RGP Raised', 3));
 }
 
 describe('the HOD board is scoped to this HOD', () => {
@@ -165,8 +165,7 @@ describe('the HOD board is scoped to this HOD', () => {
     renderBoard();
     await loaded();
 
-    // The colleague's pending pass would push Pending Approvals to 2.
-    expectFigure('Quick Summary', 'Pending Approvals', 1);
+    // The colleague's pending pass would push the waiting queue to 2.
     expectFigure('RGP Overview', 'RGP Awaiting Clearance', 1);
     expect(screen.queryByText('RGP-OUT-20260817-0099')).not.toBeInTheDocument();
   });
@@ -175,7 +174,7 @@ describe('the HOD board is scoped to this HOD', () => {
     renderBoard();
     await loaded();
 
-    fireEvent.click(tile('Quick Summary', 'Pending Approvals'));
+    fireEvent.click(tile('RGP Overview', 'RGP Awaiting Clearance'));
     expect(within(drill()).getByText('Alice')).toBeInTheDocument();
     expect(within(drill()).queryByText('Zara')).not.toBeInTheDocument();
     expect(within(drill()).getByText('1 pass')).toBeInTheDocument();
@@ -193,10 +192,9 @@ describe('the HOD board\'s figures', () => {
     await loaded();
 
     expectFigure('RGP Overview', 'RGP Raised', 3); // t1 t2 t3
+    expectFigure('RGP Overview', 'RGP Cleared', 1); // t2
     expectFigure('RGP Overview', 'RGP Currently Outside', 2); // t2 o1
     expectFigure('RGP Overview', 'RGP Overdue', 1); // o1
-    expectFigure('Quick Summary', 'Total Cleared', 1); // t2
-    expectFigure('Quick Summary', 'Overdue Returns', 1);
   });
 
   it('the all-time overdue pass is in no period figure but is still on the board', async () => {
@@ -219,23 +217,17 @@ describe('the HOD board\'s figures', () => {
 });
 
 describe('what differs from the admin board', () => {
-  it('ranks outstanding material by MATERIAL, never by department, and never a colleague line', async () => {
-    // One HOD, one department (032), and RLS shows them only that one — a
-    // department ranking here could draw a single bar at 100% naming the reader's
-    // own department. The material ranking is the same panel asking a question
-    // that has an answer.
-    //
-    // `v_gate_pass_items` carries no `raised_by`, so RLS hands over the WHOLE
-    // department's lines including the colleague's Scaffold Tower. Only the
-    // panel's own rule — ignore any item whose parent pass is not in `rows` —
-    // keeps it off the board.
+  it('carries neither the outstanding ranking nor the Quick Summary', async () => {
+    // Both went from BOTH boards (client, 2026-08-18) and were DELETED rather
+    // than flagged off — `BoardOutstanding`, `BarList` and the five summary KPIs
+    // are gone from the tree. Asserted here as well as on the admin board because
+    // the HOD board is where they survived a round longer.
     renderBoard();
     await loaded();
 
-    const panel = screen.getByText('Material Wise Outstanding RGP').closest('section') as HTMLElement;
-    expect(within(panel).getByText('Hydraulic Pump')).toBeInTheDocument();
-    expect(within(panel).queryByText('Scaffold Tower')).not.toBeInTheDocument();
+    expect(screen.queryByText('Material Wise Outstanding RGP')).not.toBeInTheDocument();
     expect(screen.queryByText('Department Wise Outstanding RGP')).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Quick Summary figures' })).not.toBeInTheDocument();
   });
 
   it('links only to routes an HOD may open', async () => {

@@ -1,8 +1,8 @@
 // THE BOARD'S HEADING LADDER — admin (`/admin-dashboard`) and HOD (`/dashboard`)
 // alike, since both render the same `GateBoard`.
 //
-// WHAT WENT WRONG AND WHY THIS FILE EXISTS. The three KPI band headings — "RGP
-// Overview", "NRGP Overview", "Quick Summary" — were `text-micro text-navy-500
+// WHAT WENT WRONG AND WHY THIS FILE EXISTS. The KPI band headings — "RGP
+// Overview" and "NRGP Overview" — were `text-micro text-navy-500
 // uppercase`: 11px, grey, and LIGHTER than the tile labels sitting directly
 // underneath them. That inverts the ladder the type scale in tailwind.config.ts
 // is written to enforce ("a heading sits at least two steps above, and 200 weight
@@ -59,7 +59,6 @@ function renderBoard(): void {
         loading={false}
         error={null}
         registerTo="/all-passes"
-        outstandingMode="department"
       />
     </MemoryRouter>,
   );
@@ -72,12 +71,11 @@ function blockOf(heading: HTMLElement): HTMLElement {
   return block as HTMLElement;
 }
 
-const SECTIONS = ['RGP Overview', 'NRGP Overview', 'Quick Summary'];
+const SECTIONS = ['RGP Overview', 'NRGP Overview'];
 const PANELS = [
   'Daily Movement Trend',
   'RGP Status Breakdown',
   'RGP Return Watch',
-  'Department Wise Outstanding RGP',
   'Top Items Today',
 ];
 

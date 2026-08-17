@@ -5,7 +5,7 @@
 // impossible rather than merely unlikely.
 import { describe, it, expect } from 'vitest';
 import type { GatePassView, GatePassItemView } from '../../src/types';
-import { departmentSlices, topMaterials } from '../../src/lib/boardAnalytics';
+import { topMaterials } from '../../src/lib/boardAnalytics';
 
 const DAY = 24 * 60 * 60 * 1000;
 // Fixed "now" so a test can never straddle local midnight and fail at 23:59.
@@ -28,30 +28,6 @@ function pass(over: Partial<GatePassView>): GatePassView {
     ...over,
   } as GatePassView;
 }
-
-describe('departmentSlices', () => {
-  it('ranks departments by volume, busiest first', () => {
-    const rows = [
-      pass({ id: '1', department_id: 'a', department_name: 'Engineering' }),
-      pass({ id: '2', department_id: 'b', department_name: 'Housekeeping' }),
-      pass({ id: '3', department_id: 'b', department_name: 'Housekeeping' }),
-      pass({ id: '4', department_id: 'b', department_name: 'Housekeeping' }),
-      pass({ id: '5', department_id: 'a', department_name: 'Engineering' }),
-    ];
-    expect(departmentSlices(rows).map((s) => [s.label, s.value])).toEqual([
-      ['Housekeeping', 3],
-      ['Engineering', 2],
-    ]);
-  });
-
-  it('never invents a department name for a pass whose join came back null', () => {
-    // v_gate_passes LEFT JOINs public.departments on purpose (VMS owns that
-    // table and can narrow its policies without notice), so a null name is a
-    // state this board must render honestly rather than crash on.
-    const slices = departmentSlices([pass({ department_id: 'z', department_name: null as unknown as string })]);
-    expect(slices[0].label).toBe('Unassigned');
-  });
-});
 
 describe('topMaterials', () => {
   function item(over: Partial<GatePassItemView>): GatePassItemView {

@@ -9,7 +9,7 @@
 // The second case is the pre-existing rule that a long label WRAPS rather than
 // truncating ("make sure all the texts are properly fitted inside the box"): a
 // grid row stretches to its tallest item, so a two-line label costs one line of
-// height, where `truncate` hides half of "Material Currently Outside" behind an
+// height, where `truncate` hides half of "RGP Currently Outside" behind an
 // ellipsis and a `title` nobody hovers.
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
@@ -19,7 +19,7 @@ import { resolve } from 'node:path';
 import BoardKpiTile from '../../src/components/board/BoardKpiTile';
 import { BOARD_KPIS } from '../../src/lib/boardKpis';
 
-function renderTile(key: 'rgpRaised' | 'materialOutside' | 'rgpOverdue', value = 8) {
+function renderTile(key: 'rgpRaised' | 'rgpOutside' | 'rgpOverdue', value = 8) {
   render(
     <BoardKpiTile
       kpi={BOARD_KPIS[key]}
@@ -76,9 +76,9 @@ describe('a KPI tile', () => {
   });
 
   it('lets a long label wrap instead of truncating it', () => {
-    const tile = renderTile('materialOutside');
+    const tile = renderTile('rgpOutside');
     const label = tile.querySelector('span.break-words');
-    expect(label?.textContent).toBe('Material Currently Outside');
+    expect(label?.textContent).toBe('RGP Currently Outside');
     expect(label?.className).not.toContain('truncate');
   });
 });

@@ -47,10 +47,6 @@ export default function Dashboard(): React.ReactElement {
       loading={loading}
       error={error}
       registerTo={REGISTER}
-      // One HOD, one department (032), and RLS shows them only that one — a
-      // department ranking here could only ever draw a single bar at 100% naming
-      // the reader's own department. Same panel, a question that has an answer.
-      outstandingMode="material"
       showDepartment={false}
       showRaisedBy={false}
       onRefresh={() => void reload()}

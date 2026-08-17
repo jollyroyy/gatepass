@@ -59,12 +59,6 @@ export default function AdminDashboard(): React.ReactElement {
       loading={loading}
       error={error}
       registerTo="/all-passes"
-      // NO `outstandingMode` AND NO QUICK SUMMARY (client, 2026-08-18). Omitting
-      // the mode is what drops the "material still out — top 5" ranking; the
-      // summary row was five restatements of the two category rows above it.
-      // Neither fact is lost: Return Watch still breaks the open obligations
-      // down, and RGP Currently Outside is a tile.
-      showSummary={false}
       onRefresh={() => void load()}
     />
   );

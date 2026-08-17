@@ -7,10 +7,10 @@
 // TWO LOOKUPS, BOTH `Record`s, NEVER STRING CHAINS. `GLYPH_OF` maps every KPI to
 // one of a small set of drawings, so a new card without an icon is a TYPE
 // ERROR rather than a blank square nobody notices until it is on the client's
-// screen. Several cards share a glyph on purpose: "Pending Approvals" and "NRGP
-// Awaiting Clearance" are the same clock because they are the same kind of fact,
-// and inventing a distinct drawing for each would make the row harder to scan,
-// not easier.
+// screen. Several cards share a glyph on purpose: "RGP Awaiting Clearance" and
+// "NRGP Awaiting Clearance" are the same clock because they are the same kind of
+// fact, and inventing a distinct drawing for each would make the row harder to
+// scan, not easier.
 import React from 'react';
 import type { BoardKpiKey } from '../../lib/boardKpis';
 import type { Tone } from '../KpiCard';
@@ -96,11 +96,6 @@ const GLYPH_OF: Record<BoardKpiKey, GlyphName> = {
   nrgpRaised: 'truck',
   nrgpAwaiting: 'clock',
   nrgpCleared: 'check',
-  totalRaised: 'doc',
-  totalCleared: 'check',
-  pendingApprovals: 'clock',
-  overdueReturns: 'alert',
-  materialOutside: 'box',
 };
 
 /** Tinted plate behind the glyph. Tint + dark ink, never a solid saturated fill:

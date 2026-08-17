@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-18
 
-Full gate: **1059 tests across 98 files** (`npm run check`), `npm run build` clean.
+Full gate: **1053 tests across 98 files** (`npm run check`), `npm run build` clean.
 Migrations **`001`–`041` are all applied to the live DB**; `039`, `040`, `041` were each
 verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 
@@ -63,10 +63,14 @@ category rows made to mirror each other.** Frontend only — no migration, no RP
   `nrgpRaised`, `nrgpAwaiting`, `nrgpCleared` in the same order. `rgpRequests` is **gone** —
   its matcher is `rgpAwaiting`. Old keys `rgpOut`/`nrgpOut`/`nrgpPending` were renamed, so any
   stale reference is a type error.
-- **The admin board omits the Quick Summary row and the outstanding ranking.** Both are props
-  on the shared `GateBoard`, not a fork: `showSummary={false}`, and `outstandingMode` is
-  **optional** — omitting it drops the panel. The HOD board still has both, so `SUMMARY_SECTION`
-  and `BoardOutstanding` are live code. Return Watch widens to 8/12 when the ranking is absent.
+- **The Quick Summary row and the outstanding ranking are gone from BOTH boards** — deleted,
+  not flagged off. `src/components/board/BoardOutstanding.tsx`, `src/components/charts/BarList.tsx`,
+  `boardAnalytics.departmentSlices` and the five summary KPIs (`totalRaised`, `totalCleared`,
+  `pendingApprovals`, `overdueReturns`, `materialOutside`) with `SUMMARY_SECTION` no longer
+  exist, so neither panel can come back by flipping a prop. `GateBoard` lost `outstandingMode`
+  and `showSummary`; Return Watch is now 8/12 and Top Items 4/12. Nothing is lost that has no
+  other home: every summary tile restated one of the two category rows, and Return Watch breaks
+  the same open obligations down by how late they are.
 
 **Previous change (2026-08-18): the gate can search by the mobile number of the person who
 took the material.** Frontend only — no migration, no new RPC.

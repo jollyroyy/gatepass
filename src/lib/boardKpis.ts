@@ -1,7 +1,13 @@
-// THE CATALOGUE of the board's headline figures: RGP Overview (7), NRGP Overview
-// (3) and Quick Summary (5). What each card is CALLED, what it means, and which
-// passes it matches; the plumbing that applies it to an array lives in
-// boardWindows.ts.
+// THE CATALOGUE of the board's headline figures: RGP Overview (7) and NRGP
+// Overview (3). What each card is CALLED, what it means, and which passes it
+// matches; the plumbing that applies it to an array lives in boardWindows.ts.
+//
+// THERE IS NO QUICK SUMMARY ROW. Its five tiles — Total Gate Passes, Total
+// Cleared, Pending Approvals, Overdue Returns, Material Currently Outside — were
+// removed from BOTH boards by the client (2026-08-18) and deleted rather than
+// hidden, because every one of them restated a tile in the two rows below: an
+// admin who wants the site-wide waiting queue adds RGP Awaiting Clearance to NRGP
+// Awaiting Clearance, and both drill.
 //
 // NO CARD SAYS "TODAY" ANY MORE (client, 2026-08-18). The word is on the board
 // ONCE, in the header chip beside the date, because it was on fourteen tiles and
@@ -61,19 +67,13 @@ export type BoardKpiKey =
   // NRGP Overview
   | 'nrgpRaised'
   | 'nrgpAwaiting'
-  | 'nrgpCleared'
-  // Quick Summary
-  | 'totalRaised'
-  | 'totalCleared'
-  | 'pendingApprovals'
-  | 'overdueReturns'
-  | 'materialOutside';
+  | 'nrgpCleared';
 
 export type KpiScope = 'period' | 'returned' | 'current';
 
 export interface BoardKpi {
   key: BoardKpiKey;
-  /** Without any period word — `kpiLabel` adds that, and only where it is true. */
+  /** Exactly the words on the tile. Nothing appends to it — see boardWindows.ts. */
   label: string;
   tone: Tone;
   /** The line under the number. Its job is to say what the figure IS or what to
@@ -210,66 +210,6 @@ export const BOARD_KPIS: Record<BoardKpiKey, BoardKpi> = {
     empty: 'No NRGP pass was cleared in this period.',
     match: (p) => isNrgpOut(p) && p.status === 'matched',
   },
-
-  // Quick Summary deliberately RESTATES figures from the two sections above
-  // (Pending Approvals is RGP Awaiting Clearance plus NRGP Awaiting Clearance).
-  // It is the one row that answers "how did the whole site do", across both
-  // categories, and a reader who scrolled past the sections should not have to
-  // add two cards together to get it.
-  //
-  // THE ADMIN BOARD NO LONGER SHOWS THIS ROW (client, 2026-08-18) — with the two
-  // category rows now mirrored and complete it was five restatements. The HOD
-  // board keeps it; see `showSummary` in GateBoard.tsx.
-  totalRaised: {
-    key: 'totalRaised',
-    label: 'Total Gate Passes',
-    tone: 'neutral',
-    note: 'Every category',
-    scope: 'period',
-    heading: 'All passes raised',
-    empty: 'No pass was raised in this period.',
-    match: () => true,
-  },
-  totalCleared: {
-    key: 'totalCleared',
-    label: 'Total Cleared',
-    tone: 'matched',
-    note: 'Verified by security',
-    scope: 'period',
-    heading: 'Cleared through the gate',
-    empty: 'Nothing was cleared in this period.',
-    match: (p) => p.status === 'matched',
-  },
-  pendingApprovals: {
-    key: 'pendingApprovals',
-    label: 'Pending Approvals',
-    tone: 'pending',
-    note: 'Waiting at the gate',
-    scope: 'current',
-    heading: 'Waiting on the guard',
-    empty: 'Queue clear — nothing is waiting.',
-    match: isWaiting,
-  },
-  overdueReturns: {
-    key: 'overdueReturns',
-    label: 'Overdue Returns',
-    tone: 'overdue',
-    note: 'Requires action',
-    scope: 'current',
-    heading: 'Past their return date',
-    empty: 'Nothing is overdue.',
-    match: (p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue,
-  },
-  materialOutside: {
-    key: 'materialOutside',
-    label: 'Material Currently Outside',
-    tone: 'accent',
-    note: 'Not yet returned',
-    scope: 'current',
-    heading: 'Material out and not yet returned',
-    empty: 'Nothing is still out.',
-    match: (p) => IS_OPEN_RETURN[p.return_status],
-  },
 };
 
 // SEVEN AND THREE, and the first three of each row are the same three facts in
@@ -284,7 +224,3 @@ export const RGP_SECTION: BoardKpiKey[] = [
 ];
 
 export const NRGP_SECTION: BoardKpiKey[] = ['nrgpRaised', 'nrgpAwaiting', 'nrgpCleared'];
-
-export const SUMMARY_SECTION: BoardKpiKey[] = [
-  'totalRaised', 'totalCleared', 'pendingApprovals', 'overdueReturns', 'materialOutside',
-];

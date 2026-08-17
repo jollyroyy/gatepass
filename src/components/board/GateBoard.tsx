@@ -22,18 +22,23 @@
 // TWO KINDS OF SCOPE LIVE ON THIS PAGE, and mixing them up is the mistake this
 // layout is arranged to prevent:
 //
-//   TODAY — the "raised" / "cleared" / "returned" tiles and the Quick Summary's
-//           volume tiles. The word "Today" is on the HEADER CHIP, once, and on no
-//           tile (client, 2026-08-18); each tile's `note` says what it is.
+//   TODAY — the "raised" / "cleared" / "returned" tiles. The word "Today" is on
+//           the HEADER CHIP, once, and on no tile (client, 2026-08-18); each
+//           tile's `note` says what it is.
 //   RUNNING — everything about open obligations: outside, due, overdue, the
-//           status ring, the return watch, the outstanding ranking and the
-//           attention strip. They are NOT day-scoped, because an obligation does
-//           not stop being open because the calendar rolled over.
+//           status ring, the return watch and the attention strip. They are NOT
+//           day-scoped, because an obligation does not stop being open because
+//           the calendar rolled over.
 //
-// THE ADMIN BOARD IS THE SHORTER OF THE TWO (client, 2026-08-18): it omits the
-// Quick Summary row and the outstanding ranking. Both are OPTIONAL PROPS rather
-// than a second component — `showSummary`, and `outstandingMode` which the admin
-// simply does not pass — so the two boards still share one layout.
+// TWO PANELS WERE REMOVED FROM BOTH BOARDS ON 2026-08-18, by the client, by name:
+// the QUICK SUMMARY row ("Total Gate Passes / Total Cleared / Pending Approvals /
+// Overdue Returns / Material Currently Outside") and the OUTSTANDING RANKING
+// ("Passes with material still out — top 5"). Deleted, not hidden behind a flag:
+// `BoardOutstanding`, `BarList`, `departmentSlices` and the five summary KPIs are
+// gone from the tree, so neither can come back by flipping a prop. Nothing is
+// lost that has no other home — every summary figure restated a tile in the two
+// category rows, and Return Watch breaks the same open obligations down by how
+// late they are.
 //
 // THE INVARIANT, UNCHANGED THROUGH EVERY REBUILD: every clickable figure on this
 // page — tile, ring segment, bar, tab, day on the trend line, attention count —
@@ -46,9 +51,9 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView, GatePassItemView } from '../../types';
 import DrillList from '../DrillList';
-import { RGP_SECTION, NRGP_SECTION, SUMMARY_SECTION } from '../../lib/boardKpis';
+import { RGP_SECTION, NRGP_SECTION } from '../../lib/boardKpis';
 import type { BoardWindows } from '../../lib/boardWindows';
-import { drillDefOf, IS_OPEN_RETURN, type BoardDrill } from '../../lib/boardDrills';
+import { drillDefOf, type BoardDrill } from '../../lib/boardDrills';
 import { dayStart, DAY_MS } from '../../lib/localDay';
 import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 import BoardHeader from './BoardHeader';
@@ -57,7 +62,6 @@ import BoardAttention from './BoardAttention';
 import BoardMovementTrend from './BoardMovementTrend';
 import BoardStatusBreakdown from './BoardStatusBreakdown';
 import BoardReturnWatch from './BoardReturnWatch';
-import BoardOutstanding, { type OutstandingMode } from './BoardOutstanding';
 import BoardTopItems from './BoardTopItems';
 
 type Props = {
@@ -65,17 +69,12 @@ type Props = {
   subtitle: string;
   /** Every pass the reader may see. Day-scoping happens here, once. */
   rows: GatePassView[];
-  /** Line rows for those passes — the Top Items ring and the material ranking. */
+  /** Line rows for those passes — what the Top Items ring is built from. */
   items: GatePassItemView[];
   loading: boolean;
   error: string | null;
   /** The register this reader is allowed to open — `/all-passes` is admin-only. */
   registerTo: string;
-  /** Rank outstanding material by department or by material. OMITTED drops the
-   *  panel entirely — the admin board does not carry it. */
-  outstandingMode?: OutstandingMode;
-  /** The Quick Summary row. Off on the admin board. */
-  showSummary?: boolean;
   /** Off on a single-department board, where the column is one repeated word. */
   showDepartment?: boolean;
   /** Whose name a drill row shows. False on the HOD board — the reader raised
@@ -89,9 +88,8 @@ type Props = {
 };
 
 export default function GateBoard({
-  title, subtitle, rows, items, loading, error, registerTo, outstandingMode,
-  showSummary = true, showDepartment = true, showRaisedBy = true,
-  onRefresh, banner, footer,
+  title, subtitle, rows, items, loading, error, registerTo,
+  showDepartment = true, showRaisedBy = true, onRefresh, banner, footer,
 }: Props): React.ReactElement {
   const [drill, setDrill] = useState<BoardDrill | null>(null);
 
@@ -114,9 +112,6 @@ export default function GateBoard({
       all: rows,
     };
   }, [rows]);
-
-  /** Still-out material, all time — the ranked bars read this one array. */
-  const outstanding = useMemo(() => rows.filter((p) => IS_OPEN_RETURN[p.return_status]), [rows]);
 
   // Toggling: clicking the thing already open closes it. Compared by `key`, not by
   // object identity — every render builds fresh drill objects.
@@ -177,13 +172,11 @@ export default function GateBoard({
         </div>
       </div>
 
-      {/* Return Watch gets 6 of 12 on purpose: it has eight columns, and any
-          narrower the table scrolls sideways on every laptop. The rings beside it
-          are 150px each plus a legend, which is what 3 columns holds. With the
-          outstanding ranking dropped it widens to 8 and the ring takes 4 rather
-          than leaving a third of the row blank. */}
+      {/* Return Watch gets 8 of 12 on purpose: it has eight columns, and any
+          narrower the table scrolls sideways on every laptop. The ring beside it
+          is 150px plus a legend, which is what 4 columns holds. */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mt-4">
-        <div className={`min-w-0 ${outstandingMode ? 'xl:col-span-6' : 'xl:col-span-8'}`}>
+        <div className="xl:col-span-8 min-w-0">
           <BoardReturnWatch
             rows={rows}
             loading={loading}
@@ -192,19 +185,7 @@ export default function GateBoard({
             showDepartment={showDepartment}
           />
         </div>
-        {outstandingMode && (
-          <div className="xl:col-span-3 min-w-0">
-            <BoardOutstanding
-              rows={outstanding}
-              items={items}
-              mode={outstandingMode}
-              loading={loading}
-              activeKey={activeKey}
-              onSelect={select}
-            />
-          </div>
-        )}
-        <div className={`min-w-0 ${outstandingMode ? 'xl:col-span-3' : 'xl:col-span-4'}`}>
+        <div className="xl:col-span-4 min-w-0">
           <BoardTopItems
             rows={windows.raised}
             items={items}
@@ -214,20 +195,6 @@ export default function GateBoard({
           />
         </div>
       </div>
-
-      {showSummary && (
-        <div className="mt-4">
-          <BoardKpiSection
-            title="Quick Summary"
-            hint="Both categories together"
-            keys={SUMMARY_SECTION}
-            windows={windows}
-            loading={loading}
-            activeKey={activeKey}
-            onSelect={select}
-          />
-        </div>
-      )}
 
       {footer}
 

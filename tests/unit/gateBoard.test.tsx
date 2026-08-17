@@ -4,9 +4,9 @@
 // Breakdown ring, the Return Watch and Top Items Today — with NO "vs yesterday"
 // anywhere, NO gate activity timeline, NO Quick Summary row and NO outstanding
 // ranking. Every one of those absences is the client removing something by name,
-// so each is asserted rather than merely not looked for. The HOD board still
-// carries the Quick Summary and the ranking; tests/unit/hodDashboardBoard.test.tsx
-// is what pins that.
+// so each is asserted rather than merely not looked for. The HOD board is the
+// same layout with the same removals; tests/unit/hodDashboardBoard.test.tsx
+// pins what genuinely differs there.
 //
 // WHAT THIS FILE IS ACTUALLY FOR. Every figure on the board is clickable, and the
 // risk that grows with that is not "a panel looks wrong": it is a panel whose
@@ -183,7 +183,7 @@ describe('the board renders the reference sections', () => {
     expect(screen.getByRole('group', { name: 'RGP Overview figures' })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'NRGP Overview figures' })).toBeInTheDocument();
     // Client, 2026-08-18: the summary row restated five figures the two rows
-    // above it already carry. Gone from the ADMIN board only — `showSummary`.
+    // above it already carry. Gone from BOTH boards, and its five KPIs deleted.
     expect(screen.queryByRole('group', { name: 'Quick Summary figures' })).not.toBeInTheDocument();
 
     // The toggle the sections replaced. Its whole job was to let a reader see the
@@ -206,9 +206,9 @@ describe('the board renders the reference sections', () => {
     // items by their frequency as a pie chart" (client, 2026-08-17).
     expect(screen.queryByText(/Gate Activity/i)).not.toBeInTheDocument();
     // Removed by name too (client, 2026-08-18): "remove Passes with material
-    // still out — top 5". The admin simply does not pass `outstandingMode`, so
-    // the panel is not rendered rather than rendered empty. Return Watch still
-    // breaks the same obligations down by how late they are.
+    // still out — top 5". `BoardOutstanding` and `BarList` were deleted, not
+    // flagged off, so neither board can grow it back. Return Watch still breaks
+    // the same obligations down by how late they are.
     expect(screen.queryByText('Department Wise Outstanding RGP')).not.toBeInTheDocument();
     expect(screen.queryByText(/Passes with material still out/i)).not.toBeInTheDocument();
   });

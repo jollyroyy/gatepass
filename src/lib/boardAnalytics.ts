@@ -1,5 +1,5 @@
-// Every aggregate the board draws — the daily movement series and the ranked
-// bar lists.
+// Every aggregate the board draws — the daily movement series and the Top Items
+// ranking.
 //
 // ONE RULE GOVERNS THIS WHOLE FILE: an aggregate carries the rows it counted.
 // Not the count and a predicate that a caller re-applies somewhere else — the
@@ -20,29 +20,6 @@ export interface Slice {
   label: string;
   value: number;
   rows: GatePassView[];
-}
-
-// ─── Department Activity / Department-wise outstanding ────────────────────────
-/** Departments ranked by volume, busiest first.
- *
- *  `department_name` can legitimately be null: `v_gate_passes` LEFT JOINs
- *  `public.departments` on purpose, because VMS owns that table and may narrow
- *  its policies without notice — a left join degrades to a missing name, where
- *  an inner join would make the pass row vanish entirely. Visibly wrong beats
- *  invisibly wrong, so a nameless department is labelled, not dropped. */
-export function departmentSlices(rows: GatePassView[]): Slice[] {
-  const byId = new Map<string, Slice>();
-  for (const p of rows) {
-    const key = p.department_id ?? 'unassigned';
-    let slice = byId.get(key);
-    if (!slice) {
-      slice = { key, label: p.department_name || 'Unassigned', value: 0, rows: [] };
-      byId.set(key, slice);
-    }
-    slice.rows.push(p);
-    slice.value += 1;
-  }
-  return [...byId.values()].sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
 }
 
 // ─── Top Materials (by movement) ─────────────────────────────────────────────

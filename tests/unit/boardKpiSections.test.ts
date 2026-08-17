@@ -1,5 +1,9 @@
-// The three KPI sections of the rebuilt board (2026-08-17): RGP Overview,
-// NRGP Overview and Quick Summary.
+// The two KPI sections of the board: RGP Overview and NRGP Overview.
+//
+// THERE IS NO THIRD SECTION. The Quick Summary row was removed from both boards
+// by the client (2026-08-18) and its five KPIs deleted, so a test below asserts
+// the record holds nothing but the two rows — a re-added roll-up with no section
+// to live in would otherwise sit in the catalogue unnoticed.
 //
 // WHAT THIS FILE EXISTS TO PIN is the thing a reference-driven rebuild gets
 // wrong most easily: a card whose LABEL says one thing and whose SCOPE counts
@@ -17,7 +21,6 @@ import {
   BOARD_KPIS,
   RGP_SECTION,
   NRGP_SECTION,
-  SUMMARY_SECTION,
   type BoardKpiKey,
 } from '../../src/lib/boardKpis';
 import { rowsFor, kpiDrill, type BoardWindows } from '../../src/lib/boardWindows';
@@ -55,10 +58,8 @@ describe('the board KPI sections', () => {
     // dead paperwork was still alive.
     const live = pass({ id: 'live', status: 'pending', is_expired: false });
     const dead = pass({ id: 'dead', status: 'pending', is_expired: true });
-    for (const key of ['rgpAwaiting', 'pendingApprovals'] as BoardKpiKey[]) {
-      expect(BOARD_KPIS[key].match(live)).toBe(true);
-      expect(BOARD_KPIS[key].match(dead)).toBe(false);
-    }
+    expect(BOARD_KPIS.rgpAwaiting.match(live)).toBe(true);
+    expect(BOARD_KPIS.rgpAwaiting.match(dead)).toBe(false);
     const nrgpLive = pass({ id: 'n1', type: 'NRGP', status: 'pending', is_expired: false });
     const nrgpDead = pass({ id: 'n2', type: 'NRGP', status: 'pending', is_expired: true });
     expect(BOARD_KPIS.nrgpAwaiting.match(nrgpLive)).toBe(true);
@@ -70,7 +71,7 @@ describe('the board KPI sections', () => {
     // NOT lost with them: it reaches the raising HOD on the notification bell,
     // opens a decision screen, and both boards carry an attention strip above
     // the sections. `BoardAttention` is what a test for that reads.
-    const all = [...RGP_SECTION, ...NRGP_SECTION, ...SUMMARY_SECTION];
+    const all = [...RGP_SECTION, ...NRGP_SECTION];
     expect(all.filter((k) => /mismatch/i.test(k))).toEqual([]);
   });
 
@@ -87,23 +88,28 @@ describe('the board KPI sections', () => {
     }
   });
 
-  it('Quick Summary carries the five reference roll-ups', () => {
-    expect(SUMMARY_SECTION).toEqual([
-      'totalRaised', 'totalCleared', 'pendingApprovals', 'overdueReturns', 'materialOutside',
-    ]);
+  it('carries no site-wide roll-up card at all', () => {
+    // Client, 2026-08-18: the Quick Summary row went from BOTH boards. Every one
+    // of its five tiles restated a figure in the two rows above it, and each was
+    // DELETED rather than left in the catalogue unreferenced — an unused KPI is
+    // one section array away from reappearing.
+    for (const key of ['totalRaised', 'totalCleared', 'pendingApprovals',
+      'overdueReturns', 'materialOutside']) {
+      expect(Object.keys(BOARD_KPIS)).not.toContain(key);
+    }
   });
 
   it('no headline card takes the brand gold tone', () => {
     // Gold is this system's primary FILL (sidebar active link, primary button,
     // wordmark) and reads at ~2:1 as ink on a card — the same defect the
     // notification panel had.
-    for (const key of [...RGP_SECTION, ...NRGP_SECTION, ...SUMMARY_SECTION]) {
+    for (const key of [...RGP_SECTION, ...NRGP_SECTION]) {
       expect(BOARD_KPIS[key].tone).not.toBe('brand');
     }
   });
 
   it('every key in the record belongs to exactly one section', () => {
-    const all = [...RGP_SECTION, ...NRGP_SECTION, ...SUMMARY_SECTION];
+    const all = [...RGP_SECTION, ...NRGP_SECTION];
     expect(new Set(all).size).toBe(all.length);
     expect(new Set(all)).toEqual(new Set(Object.keys(BOARD_KPIS) as BoardKpiKey[]));
   });
@@ -115,8 +121,6 @@ describe('a card\'s scope matches the words on it', () => {
     expect(BOARD_KPIS.rgpCleared.scope).toBe('period');
     expect(BOARD_KPIS.nrgpRaised.scope).toBe('period');
     expect(BOARD_KPIS.nrgpCleared.scope).toBe('period');
-    expect(BOARD_KPIS.totalRaised.scope).toBe('period');
-    expect(BOARD_KPIS.totalCleared.scope).toBe('period');
 
     // A return is a MOVEMENT, dated by when the material came back — not by
     // when the pass was raised. Scoping it on `created_at` would drop today's
@@ -124,7 +128,7 @@ describe('a card\'s scope matches the words on it', () => {
     expect(BOARD_KPIS.rgpReturned.scope).toBe('returned');
 
     for (const key of ['rgpAwaiting', 'rgpOutside', 'rgpDueToday', 'rgpOverdue',
-      'pendingApprovals', 'overdueReturns', 'materialOutside', 'nrgpAwaiting'] as BoardKpiKey[]) {
+      'nrgpAwaiting'] as BoardKpiKey[]) {
       expect(BOARD_KPIS[key].scope).toBe('current');
     }
   });
@@ -169,7 +173,7 @@ describe('which array a card counts', () => {
   });
 
   it('a period card reads the period window and a return card reads the return window', () => {
-    expect(rowsFor(BOARD_KPIS.totalRaised, windows).map((p) => p.id)).toEqual(['a']);
+    expect(rowsFor(BOARD_KPIS.rgpRaised, windows).map((p) => p.id)).toEqual(['a']);
     expect(rowsFor(BOARD_KPIS.rgpReturned, windows).map((p) => p.id)).toEqual(['c']);
   });
 
