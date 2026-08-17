@@ -36,6 +36,43 @@ re-concatenated is a fix that never reaches the database.
 
 ## Current state — 2026-08-17 (latest)
 
+### The notification popup was unreadable — badly in dark, in three places in light
+
+`NotificationBell` was the only content surface in `src/` carrying an opaque **`bg-white`**
+(everything else is `bg-white/<alpha>` overlays on the fixed-dark shell, or a token). It
+paired that literal with `text-navy-*` / `border-surface-*`, which **invert** under `.dark`
+— the shipped default — so the whole panel rendered `rgb(240 237 231)` title text on a white
+card. Panel and bell button are now **`bg-surface-50`**, which follows the theme.
+
+Three separate LIGHT-mode contrast failures, measured against the panel surface using the
+`:root` values in `src/index.css`:
+
+| Control | Was | Ratio | Now |
+|---|---|---|---|
+| "Dismiss all" | `text-brand-600` (#C6A15B) | **2.2:1** | `text-accent-600 dark:text-accent-300` |
+| Per-row dismiss × | `text-navy-300` (213 209 201) | **1.4:1** | `text-navy-500 hover:text-navy-900` |
+| New-pass icon | `text-brand-600` on `bg-brand-100` | **1.9:1** | `text-brand-800 dark:text-brand-300` |
+
+Gold is this system's primary **fill**; as ink on a light surface it is barely there, which
+is why the house link colour is `accent-600` and every other link in `src/` already uses it.
+The flagged and matched icons were always fine (red-600 / emerald-600 on their own 100-tints
+clear 3:1) — the gold one was the odd one out. Row hover went `hover:bg-surface-50` →
+`hover:bg-surface-100`, which was a **no-op** once the panel itself became surface-50.
+
+Pinned by 5 new tests, all watched failing first: `tests/unit/themeAudit.test.ts` gains the
+mirror of its existing rule — **no opaque `bg-white` paired with an inverting neutral token**
+(alpha overlays deliberately excluded by the `(?![/\w-])` guard; `PassPrint` exempt, it is
+black-on-white for a mono laser printer) — and `tests/unit/notificationBell.test.tsx` gains
+four source pins for the specific colours above. Full gate: **873 tests across 81 files**
+(`npm run check`, 2026-08-17). Frontend only; no migration.
+
+**Known, NOT fixed here (out of the notification scope, but the same `text-navy-300` ≈1.4:1
+defect in light mode):** `AppShell.tsx:38` (the 11px footer line — real text),
+`DepartmentsTab.tsx` 337/347/375 (the edit/delete icon buttons). `GateConsole.tsx:181` and
+`VerifyItemsTable.tsx:64` also use it but only for a `/` and a `·` separator glyph, where low
+contrast is intentional. Banning `text-navy-300` app-wide the way `text-navy-400` already is
+would be the tidy fix, once those two separators are given something else.
+
 **The HOD got the admin board, narrowed to one person. AI Analytics is gone.**
 Frontend only — no migration, no new dependency. Full gate: **868 tests across 81
 files** (`npm run check`, 2026-08-17). `npm run build` also clean.

@@ -120,6 +120,39 @@ describe('theme audit — text on brand gold is always charcoal, never white', (
   });
 });
 
+describe('theme audit — no hardcoded bg-white surface paired with inverting neutral tokens', () => {
+  const files = listFiles(SRC, ['.tsx']);
+
+  // The mirror image of the rule below, and the shape that made the whole
+  // NotificationBell popup unreadable in dark mode: an OPAQUE `bg-white`
+  // (a literal that never inverts) carrying `text-navy-*` / `border-surface-*`
+  // text, which DOES invert. In light mode that reads fine — near-black ink on
+  // white. Under `.dark` (the shipped default) navy-900 becomes rgb(240 237 231)
+  // and the panel is near-white text on a white card.
+  //
+  // Alpha overlays (`bg-white/5`, `bg-white/[0.06]`) are NOT this bug — they
+  // tint whatever is underneath rather than establishing a surface — so the
+  // pattern deliberately requires the bare class.
+  const BG_WHITE_EXEMPT = [
+    // Black-on-white by design, for a mono laser printer. Uses text-black.
+    'src/pages/Shared/PassPrint.tsx',
+  ];
+
+  it('no .tsx pairs an opaque bg-white with text-navy-* or border-surface-*', () => {
+    const offenders: string[] = [];
+    for (const file of files) {
+      const rel = relative(join(__dirname, '../..'), file).split('\\').join('/');
+      if (BG_WHITE_EXEMPT.includes(rel)) continue;
+      const content = readFileSync(file, 'utf-8');
+      if (!/\bbg-white(?![/\w-])/.test(content)) continue;
+      if (/\btext-navy-\d/.test(content) || /\bborder-surface-\d/.test(content)) {
+        offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe('theme audit — no token-based surface paired with a hardcoded text-white/text-black', () => {
   const files = listFiles(SRC, ['.tsx']);
 
