@@ -51,8 +51,15 @@ export default function BoardKpiSection({
 }: Props): React.ReactElement {
   return (
     <section aria-label={title} className="border border-surface-200 rounded-2xl p-4">
-      <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h2 className="text-micro text-navy-500 uppercase">{title}</h2>
+      {/* THE HEADING IS A REAL HEADING, not a micro eyebrow. It was 11px grey
+          uppercase — lighter than the tile labels underneath it — which is how a
+          reader loses the boundary between two bands on a board this dense. See
+          `.board-section-title` in index.css for the whole ladder. */}
+      <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-surface-200">
+        <div className="flex items-stretch gap-2.5 min-w-0">
+          <span className="board-accent" aria-hidden="true" />
+          <h2 className="board-section-title">{title}</h2>
+        </div>
         {hint && <span className="text-caption text-navy-500 shrink-0">{hint}</span>}
       </div>
 

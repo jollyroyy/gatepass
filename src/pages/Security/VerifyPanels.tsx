@@ -49,7 +49,7 @@ export function MatchPanel({ pass, items, submitting, error, onCancel, onConfirm
 
   return (
     <ModalShell onClose={onCancel} labelledBy="match-panel-title">
-        <h2 id="match-panel-title" className="text-h2 text-navy-950 mb-1">Confirm Match</h2>
+        <h2 id="match-panel-title" className="modal-title mb-1">Confirm Match</h2>
         <p className="text-sm text-navy-500 mb-5">Verify each item's quantity at the gate, then confirm.</p>
 
         <div className="flex flex-col gap-4 mb-5">
@@ -125,7 +125,7 @@ export function FlagPanel({ submitting, error, onCancel, onConfirm }: FlagPanelP
 
   return (
     <ModalShell onClose={onCancel} labelledBy="flag-panel-title">
-        <h2 id="flag-panel-title" className="text-h2 text-navy-950 mb-1">Report Mismatch</h2>
+        <h2 id="flag-panel-title" className="modal-title mb-1">Report Mismatch</h2>
         <p className="text-sm text-navy-500 mb-5">Describe what doesn&apos;t match. This is required.</p>
 
         <div className="mb-5">

@@ -36,12 +36,21 @@ describe('design system — shared tokens (src/index.css)', () => {
     expect(block).not.toMatch(/text-h1|text-h2|text-h3|text-kpi/);
   });
 
-  it('section-title is a real Inter heading (text-h2), not a tiny brand-coloured eyebrow', () => {
+  // SUPERSEDED RULE, kept visible so it is not "restored" by someone reading an
+  // old comment: this used to assert that a section heading was Inter and NEVER
+  // brand gold. The client asked (2026-08-17) for headings to differ from body
+  // text in both face and colour, in the theme's own gold, so the whole ladder
+  // is now the display serif in `brand-800 / dark:brand-300`. The rule that
+  // replaced it is stricter, not looser — see tests/unit/headingIdentity.test.ts,
+  // which computes the contrast ratios from the real tokens.
+  it('section-title is a real heading at the h2 SIZE, and never a tiny eyebrow', () => {
     const block = css.match(/\.section-title\s*{[^}]*}/)?.[0] ?? '';
-    expect(block).toMatch(/text-h2/);
-    // Colour is status, never decoration — a section heading must not be
-    // painted the brand gold.
-    expect(block).not.toMatch(/text-brand-/);
+    expect(block).toMatch(/font-size:\s*1\.375rem/);
+    expect(block).not.toMatch(/text-micro|text-caption/);
+    // The size token carries font-weight 700, which the single-weight display
+    // serif can only synthesise. Size longhand, weight normal.
+    expect(block).toMatch(/font-normal/);
+    expect(block).not.toMatch(/font-bold/);
   });
 
   it('kpi-value uses the kpi token (36px/800/tabular) and never the display serif', () => {

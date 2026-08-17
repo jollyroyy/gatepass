@@ -263,6 +263,20 @@
     overflow: visible !important;
   }
 
+  /* THE HEADINGS PRINT NEAR-BLACK, whatever the screen shows. They are set in
+     the brass gold, which a cheap mono laser renders as pale grey — and the
+     register and the slip must read on exactly that printer. `body { color:
+     #111 }` above does NOT reach them: an element that sets its own colour does
+     not inherit one, so the selector list has to name them. Keep it in step with
+     the heading block in @layer components. */
+  .page-title,
+  .section-title,
+  .modal-title,
+  .card-title,
+  .board-section-title {
+    color: #111 !important;
+  }
+
   /* --- Letterhead --- */
   .report-print-header {
     display: flex;
@@ -563,33 +577,114 @@
      `text-h1` utility directly (its fontSize entry carries font-weight: 700 —
      see tailwind.config.ts) but repeats the same size/leading/tracking at
      font-normal. */
+  /* --- THE HEADING IDENTITY: one face, one colour, every view ---
+     (client, 2026-08-17: headings must differ from ordinary text in BOTH
+     typeface and colour, and be "consistent with the theme".)
+
+     FACE — Antic Didone, the display serif, on every rung. Body text is Inter,
+     so the two never blur into one another.
+     COLOUR — the Quest brass gold, `brand-800` on light and `brand-300` on dark.
+
+     THREE THINGS HERE ARE LOAD-BEARING:
+
+     1. `font-normal` EVERYWHERE. Antic Didone ships weight 400 only, and the
+        text-h1/h2/h3 tokens each carry a fontWeight (700/700/600) — so applying
+        one alongside the display face would synthesise a bold and smear the
+        didone hairlines. That is why every size below is written longhand
+        instead of using its size token. Never add a weight to these.
+     2. THE `dark:` HALF IS NOT POLISH. brand-200…950 are literal hex in
+        tailwind.config.ts; unlike navy/surface they do NOT invert with the
+        theme. `text-brand-800` alone would be #866A31 on the near-black `.dark`
+        surface — the shipped default — at about 1.9:1, i.e. no heading at all.
+     3. INK GOLD IS NOT FILL GOLD. brand-600 (#C6A15B) is the primary FILL —
+        buttons, active nav, focus rings — and reads ~2.2:1 as ink on a light
+        card. It has already shipped once as an unreadable control (the
+        notification panel). brand-800 is ~4.8:1 light, brand-300 ~11.5:1 dark.
+        `tests/unit/headingIdentity.test.ts` computes those ratios from the real
+        tokens and fails if a later change brightens them.
+
+     The ladder itself is unchanged — page 28 > section 22 > card 18 > body 14 —
+     and the rungs must stay distinct. Do not use `.section-title` inside a card. */
   .page-title {
-    @apply font-display font-normal text-navy-950;
-    font-size: 1.75rem; /* text-h1: 28px */
+    @apply font-display font-normal text-brand-800 dark:text-brand-300;
+    font-size: 1.75rem; /* 28px — the h1 SIZE, without the token's 700 weight */
     line-height: 2.125rem;
     letter-spacing: -0.02em;
   }
+  /* The subtitle stays Inter and neutral ON PURPOSE. It is a sentence of prose,
+     not a rung of the ladder: setting a full line of explanation in gold serif
+     is what turns a heading treatment into wallpaper, and it would leave the
+     title with nothing to contrast against. */
   .page-subtitle {
     @apply text-body text-navy-500 mt-2;
   }
-  /* A real Inter heading (text-h2: 22px/700), not a tiny brand-coloured
-     eyebrow — every consumer (Pass Details, Departments, Material Items…) uses
-     this as the section's actual heading, not a label above one. Colour is
-     status, never decoration, so it stays neutral, not gold. */
-  /* PAGE-level section heading — the heading of a region of the page.
-     22px/700. Sits one step under .page-title (28px). */
+  /* PAGE-level section heading — the heading of a REGION of a page, and every
+     consumer (Pass Details, Departments, Material Items…) uses it as the actual
+     heading rather than as a label above one. 22px, one step under .page-title. */
   .section-title {
-    @apply text-h2 text-navy-900 pb-2 border-b border-surface-200;
+    @apply font-display font-normal text-brand-800 dark:text-brand-300
+           pb-2 border-b border-surface-200;
+    font-size: 1.375rem; /* 22px — the h2 SIZE, without the token's 700 weight */
+    line-height: 1.75rem;
+    letter-spacing: -0.01em;
   }
 
-  /* CARD-level heading — the title of one card WITHIN a section. 18px/600.
+  /* A DIALOG's own title. Same rung as .section-title and deliberately without
+     the rule under it: a modal is already a bounded box, and a second horizontal
+     line an inch inside its border reads as a divider that separates nothing.
+     A DESTRUCTIVE dialog overrides the colour with `text-flagged-600` at the
+     call site — that is status, and status outranks the house gold. Tailwind
+     emits utilities after components, so the override needs no `!`. */
+  .modal-title {
+    @apply font-display font-normal text-brand-800 dark:text-brand-300;
+    font-size: 1.375rem;
+    line-height: 1.75rem;
+    letter-spacing: -0.01em;
+  }
+
+  /* CARD-level heading — the title of one card WITHIN a section. 18px.
      This exists because .section-title was being used for both, which made a
      heading inside a card the same size as the heading of the whole region and
      flattened the ladder we are trying to build. The rungs must stay distinct:
        page 28  >  section 22  >  card 18  >  body 14
      Do not use .section-title inside a card. */
   .card-title {
-    @apply text-h3 text-navy-900 pb-2 border-b border-surface-200;
+    @apply font-display font-normal text-brand-800 dark:text-brand-300
+           pb-2 border-b border-surface-200;
+    font-size: 1.125rem; /* 18px — the h3 SIZE, without the token's 600 weight */
+    line-height: 1.5rem;
+    letter-spacing: -0.005em;
+  }
+
+  /* --- Board headings (the admin and HOD dashboards) ---
+     Both boards render one `GateBoard`, so their heading treatment lives once,
+     here, rather than being retyped on each of the eight panels.
+
+     WHY THIS EXISTS. The KPI band headings — "RGP Overview", "NRGP Overview",
+     "Quick Summary" — used to be `text-micro text-navy-500 uppercase`: 11px,
+     grey, and LIGHTER than the tile labels directly beneath them. That inverts
+     the ladder the type scale is built to enforce, and on a board this dense the
+     reader loses where one section ends and the next begins.
+
+     They now sit at the h3 rung (18px/600), the SAME rung as `.card-title` —
+     deliberately, because a KPI band and a chart panel are peers in the grid and
+     must read as peers. The page title stays two steps above at 28px.
+
+     .board-accent is the gold rule to the left of the words: the same marker
+     device `BoardAttention` uses with a status hue two inches above. Gold here
+     is not "saturated colour as decoration" — gold is this system's structural
+     FILL (sidebar active link, primary button, ordinal badge), and keeping the
+     status hues off ordinary headings is exactly what lets the red rule on the
+     attention strip still mean something. It is `aria-hidden` at every call
+     site: it is a marker, not content. */
+  .board-section-title {
+    @apply font-display font-normal text-brand-800 dark:text-brand-300;
+    font-size: 1.125rem;
+    line-height: 1.5rem;
+    letter-spacing: -0.005em;
+  }
+  .board-accent {
+    @apply w-1 self-stretch min-h-[1.375rem] rounded-full bg-brand-500 shrink-0;
   }
 
   /* --- KPI card --- */

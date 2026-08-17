@@ -353,7 +353,7 @@ export default function UsersTab(): React.ReactElement {
       {/* ── Create User Modal ── */}
       {showCreate && (
         <ModalShell onClose={() => { setShowCreate(false); resetCreate(); }} labelledBy="create-user-title">
-            <h2 id="create-user-title" className="text-h2 text-navy-950 mb-1">Add User</h2>
+            <h2 id="create-user-title" className="modal-title mb-1">Add User</h2>
             <p className="text-sm text-navy-500 mb-5">Provision a new guard or HOD account.</p>
             <form onSubmit={handleCreate} className="flex flex-col gap-4">
               <div>
@@ -410,7 +410,7 @@ export default function UsersTab(): React.ReactElement {
       {/* Closing (×, Escape, backdrop) all route to Cancel — never Deactivate. */}
       {deactivateTarget && (
         <ModalShell onClose={() => setDeactivateTarget(null)} className="max-w-sm" labelledBy="deactivate-user-title">
-            <h2 id="deactivate-user-title" className="text-h2 text-navy-950 mb-1">Deactivate User?</h2>
+            <h2 id="deactivate-user-title" className="modal-title mb-1">Deactivate User?</h2>
             <p className="text-sm text-navy-600 mb-2">
               <strong>{deactivateTarget.full_name}</strong> ({deactivateTarget.email}) will lose all app access.
             </p>
@@ -427,7 +427,7 @@ export default function UsersTab(): React.ReactElement {
       {/* ── Edit User Modal ── */}
       {editProfile && (
         <ModalShell onClose={closeEdit} labelledBy="edit-user-title">
-            <h2 id="edit-user-title" className="text-h2 text-navy-950 mb-1">Edit User</h2>
+            <h2 id="edit-user-title" className="modal-title mb-1">Edit User</h2>
             <p className="text-sm text-navy-500 mb-5">{editProfile.email}</p>
             <div className="flex flex-col gap-4">
               <div>

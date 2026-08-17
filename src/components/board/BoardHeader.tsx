@@ -30,10 +30,18 @@ export default function BoardHeader({
   title, subtitle, onRefresh, refreshing,
 }: Props): React.ReactElement {
   return (
-    <div className="page-header flex flex-wrap items-end justify-between gap-4">
-      <div className="min-w-0">
-        <h1 className="page-title">{title}</h1>
-        <p className="page-subtitle">{subtitle}</p>
+    <div className="page-header flex flex-wrap items-end justify-between gap-4 border-b border-surface-200 pb-5">
+      {/* The gold rule marks the board's own heading the way `.board-accent`
+          marks every section heading below it — one family, top to bottom. The
+          bottom hairline is what separates the heading from the attention strip,
+          which is itself a coloured band and would otherwise read as part of the
+          header. */}
+      <div className="flex items-stretch gap-3 min-w-0">
+        <span className="board-accent" aria-hidden="true" />
+        <div className="min-w-0">
+          <h1 className="page-title">{title}</h1>
+          <p className="page-subtitle">{subtitle}</p>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

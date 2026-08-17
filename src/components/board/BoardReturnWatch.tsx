@@ -65,8 +65,14 @@ export default function BoardReturnWatch({
 
   return (
     <section className="card p-5 flex flex-col min-w-0">
+      {/* This panel builds its own frame rather than using BoardCard (it owns a
+          tab strip), so the board's heading marker is repeated here by hand.
+          `tests/unit/boardHeadings.test.tsx` fails if it goes missing. */}
       <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h2 className="card-title border-0 pb-0">RGP Return Watch</h2>
+        <div className="flex items-stretch gap-2.5 min-w-0">
+          <span className="board-accent" aria-hidden="true" />
+          <h2 className="card-title border-0 pb-0">RGP Return Watch</h2>
+        </div>
         <span className="text-caption text-navy-500 shrink-0">
           {loading ? '—' : `${buckets.reduce((s, b) => s + b.value, 0)} still out`}
         </span>

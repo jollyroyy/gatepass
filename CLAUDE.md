@@ -46,7 +46,103 @@ authoritative gate run.
 re-concatenated is a fix that never reaches the database.
 `tests/security/applyAllIntegrity.test.ts` is the backstop that catches the drift.
 
-## Current state — 2026-08-17 (LATEST): the reference board is back, and expiry is a decision
+## Current state — 2026-08-17 (LATEST): the README is the front door, and headings are gold
+
+**Frontend + docs only — no migration, no new dependency, no new RPC.** Full gate:
+**1048 tests across 96 files** (`npm run check`, 2026-08-17). `npm run build` clean.
+**Not seen signed-in in a real browser** — the suite and a production build only.
+
+### `README.md` was rewritten around the architecture, the workflows and the deploy
+
+It was stale in ways that would mislead a new reader: migrations "001–011" (they run to
+`041`), the **Slate + Cyan** design system (rebranded to Quest Gold + Charcoal months ago),
+an HOD who can "void or delete their own pending ones" (`024` removed cancellation
+entirely), a guard landing on `/console` (it is `/guard-dashboard`), and a layout listing
+`BulkRaise` / `History`, both deleted.
+
+It is now **visual first** — four **Mermaid** diagrams, which GitHub renders natively so no
+image assets are checked in: a layered architecture flowchart (browser → PostgREST → the two
+schemas), the outward-trip `stateDiagram`, the return-leg `stateDiagram` (the second axis —
+`status` freezes at `matched`, `return_status` is what moves), a `sequenceDiagram` for the
+mismatch/expiry decision loop, and a role flowchart. Everything else is a table: the pass
+model, roles and landing pages, **the whole RPC catalogue as "every writer, in one table"**,
+the deploy steps, and the error-code → layer map.
+
+**Facts were re-read from the repo, not from this file** — `roleRoutes.ts`, `Sidebar.tsx`,
+`package.json`, `vercel.json`, `ls supabase/migrations`, and a grep of every `.rpc('…')` call
+site — because several of the stale claims above originally came from here.
+
+### Headings are the display serif in brass gold, in every view
+
+Client, in four messages: highlight the dashboard's heading and subheadings, change their
+colour "across all views", "consistent with the theme", "put them in golden theme colour
+which goes with the brand theme", and make the face different from normal text.
+
+**One ladder, one face, one colour** (`src/index.css`, `@layer components`):
+
+| Class | Size | Where |
+|---|---|---|
+| `.page-title` | 28 | every page's h1 |
+| `.section-title` | 22 | a region of a page (keeps its rule) |
+| **`.modal-title`** (new) | 22 | a dialog's own title — **deliberately no rule**: a modal is already a bounded box |
+| `.card-title` | 18 | one card inside a region |
+| `.board-section-title` (new) | 18 | a KPI band on the dashboard |
+
+All five are `font-display font-normal text-brand-800 dark:text-brand-300`. Three things are
+load-bearing and all three are pinned by **`tests/unit/headingIdentity.test.ts` (29)**:
+
+1. **`font-normal` everywhere, and the sizes written LONGHAND.** Antic Didone is weight 400
+   only, and `text-h1/h2/h3` each carry a fontWeight (700/700/600) — applying one beside the
+   display face synthesises a bold and smears the didone hairlines. The test fails on any
+   `text-h[123]` inside these blocks.
+2. **The `dark:` half is not polish.** `brand-200…950` are literal hex in
+   `tailwind.config.ts`; unlike `navy`/`surface` they do NOT invert. `text-brand-800` alone
+   is #866A31 on the near-black `.dark` surface — the shipped default — at ~1.9:1.
+3. **Ink gold is not fill gold.** The test **computes WCAG ratios from the real tokens**
+   (parsing the hex out of `tailwind.config.ts` and `--c-surface-50` out of `index.css`) and
+   fails below 4.5:1: brand-800 on light is ~4.8, brand-300 on dark ~11.5, and it separately
+   asserts `brand-600` — the primary FILL — is under 3:1 and therefore never a heading.
+
+**The print block names all five and forces `#111 !important`.** `body { color: #111 }` does
+NOT reach an element that sets its own colour, so without that selector list the register and
+the slip would print gold headings as pale grey on a mono laser.
+
+**`.page-subtitle` stays Inter and neutral, on purpose** — it is a sentence of prose, not a
+rung. A full line of explanation in gold serif is wallpaper, and it would leave the title
+with nothing to contrast against.
+
+Dialog titles moved onto `.modal-title` (`DepartmentsTab` ×4, `UsersTab` ×3, `VerifyPanels`
+×2, `SessionTimeout`). **"Delete Department?" keeps `text-flagged-600`** — status outranks
+the house gold, and Tailwind emits utilities after components so the override needs no `!`.
+
+**Two older tests encoded the OPPOSITE rule and were deliberately rewritten, not deleted:**
+`designSystem`'s "section-title … never brand gold" and `boardHeadings`' "neutral ink, never
+the brand gold". Both now assert the new contract and point at `headingIdentity`. The
+superseded rule is left as a comment in `designSystem.test.ts` so nobody restores it from
+memory.
+
+### The dashboard's headings are marked, and its bands are real headings
+
+`BoardKpiSection`'s heading was `text-micro text-navy-500 uppercase` — 11px grey, **lighter
+than the tile labels underneath it**, which inverts the ladder the type scale exists to
+enforce and is why the bands did not read as sections at all. It is `.board-section-title`
+now, at the same rung as the chart panels beside it (a KPI band and a chart panel are peers
+in the grid), with a hairline under the header row.
+
+**`.board-accent`** — a 4px gold rule, `aria-hidden`, on **every** heading of the board:
+`BoardHeader`, all three `BoardKpiSection`s, every `BoardCard` panel, and `BoardReturnWatch`
+(which builds its own frame rather than using `BoardCard`, so it repeats the marker by hand).
+It is the same device `BoardAttention` uses with a status hue directly above — gold there is
+structural fill, which is exactly what keeps the red rule meaning something.
+**`tests/unit/boardHeadings.test.tsx` (20)** renders the board and fails if any of the nine
+headings loses its marker, if a marker gains text or loses `aria-hidden`, or if the micro
+eyebrow comes back.
+
+**Not changed, and worth knowing:** `DepartmentsTab`'s department-name `h3` and
+`PassDetail`'s pass-number `h1` stay neutral — they are DATA styled as headings, and gold
+names would read as links. `PassPrint`'s own `h1` is untouched black-on-white.
+
+## Current state — 2026-08-17 (earlier): the reference board is back, and expiry is a decision
 
 **One migration (`041`, applied + verified live, 11/11) and a board rebuild.** Full gate:
 **999 tests across 94 files** (`npm run check`, 2026-08-17). `npm run build` clean.

@@ -397,7 +397,7 @@ export default function DepartmentsTab(): React.ReactElement {
           className="max-w-md"
           labelledBy="create-dept-title"
         >
-            <h2 id="create-dept-title" className="text-h2 text-navy-950 mb-1">Add Department</h2>
+            <h2 id="create-dept-title" className="modal-title mb-1">Add Department</h2>
             <p className="text-sm text-navy-500 mb-5">Create a new department visible to both GatePass and VMS.</p>
             <form onSubmit={handleCreate} className="flex flex-col gap-4">
               <DepartmentNameCodeFields
@@ -420,7 +420,7 @@ export default function DepartmentsTab(): React.ReactElement {
       {/* ── Assign HOD Modal ── */}
       {showAssign && (
         <ModalShell onClose={() => { setShowAssign(false); setAssignError(null); }} className="max-w-md" labelledBy="assign-hod-title">
-            <h2 id="assign-hod-title" className="text-h2 text-navy-950 mb-1">Assign HOD</h2>
+            <h2 id="assign-hod-title" className="modal-title mb-1">Assign HOD</h2>
             <p className="text-sm text-navy-500 mb-5">Link an HOD to a department. A person can belong to at most one — assigning someone already assigned elsewhere moves them.</p>
             <form onSubmit={handleAssign} className="flex flex-col gap-4">
               <div>
@@ -455,7 +455,7 @@ export default function DepartmentsTab(): React.ReactElement {
       {/* ── Edit Department Modal ── */}
       {editDept && (
         <ModalShell onClose={() => { setEditDept(null); setEditError(null); }} className="max-w-md" labelledBy="edit-dept-title">
-            <h2 id="edit-dept-title" className="text-h2 text-navy-950 mb-1">Edit Department</h2>
+            <h2 id="edit-dept-title" className="modal-title mb-1">Edit Department</h2>
             <p className="text-sm text-navy-500 mb-5">Update details for <strong>{editDept.name}</strong>.</p>
             <form onSubmit={handleEdit} className="flex flex-col gap-4">
               <DepartmentNameCodeFields
@@ -479,7 +479,7 @@ export default function DepartmentsTab(): React.ReactElement {
       {/* Closing (×, Escape, backdrop) all route to Cancel — never Delete. */}
       {deleteTarget && (
         <ModalShell onClose={() => { setDeleteTarget(null); setDeleteError(null); }} className="max-w-md" labelledBy="delete-dept-title">
-            <h2 id="delete-dept-title" className="text-h2 text-flagged-600 mb-1">Delete Department?</h2>
+            <h2 id="delete-dept-title" className="modal-title text-flagged-600 mb-1">Delete Department?</h2>
             <p className="text-sm text-navy-600 mt-4">
               This will permanently delete &ldquo;{deleteTarget.dept.name}&rdquo; ({deleteTarget.dept.code}). This cannot be undone.
             </p>

@@ -93,7 +93,7 @@ export default function SessionTimeout(): React.ReactElement | null {
             </svg>
           </div>
           <div>
-            <h3 id="session-timeout-title" className="text-xl font-normal text-navy-950 font-display tracking-tight">Session Timeout</h3>
+            <h3 id="session-timeout-title" className="modal-title">Session Timeout</h3>
             <p className="text-sm text-navy-500 mt-1">
               Your session has been idle for 5 minutes. Do you want to stay signed in?
             </p>

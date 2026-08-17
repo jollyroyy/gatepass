@@ -30,8 +30,14 @@ export default function BoardCard({
 }: Props): React.ReactElement {
   return (
     <section className="card p-5 flex flex-col h-full min-w-0">
+      {/* The same gold marker every heading on this board carries, so a chart
+          panel and a KPI band read as the peers they are in the grid. Decorative
+          only — `aria-hidden`, so the accessible heading is the words alone. */}
       <div className="flex items-start justify-between gap-3 mb-1">
-        <h2 className="card-title border-0 pb-0 min-w-0">{title}</h2>
+        <div className="flex items-stretch gap-2.5 min-w-0">
+          <span className="board-accent" aria-hidden="true" />
+          <h2 className="card-title border-0 pb-0 min-w-0">{title}</h2>
+        </div>
         {control && <div className="shrink-0">{control}</div>}
       </div>
       {subtitle && <p className="text-caption text-navy-500 mb-3">{subtitle}</p>}
