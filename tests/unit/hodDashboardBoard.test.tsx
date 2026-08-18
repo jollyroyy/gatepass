@@ -224,14 +224,16 @@ describe('what differs from the admin board', () => {
   it('carries no outstanding ranking, but does carry Today\'s Summary', async () => {
     // The ranking went from BOTH boards (client, 2026-08-18) and was DELETED
     // rather than flagged off — `BoardOutstanding` and `BarList` are gone from
-    // the tree. The roll-up row is on BOTH boards, scoped here to this HOD's own
-    // passes by the same rows every other figure reads.
+    // the tree. Today's Summary went from the HOD board alone (client, same
+    // day): an HOD reads their own two rows, and a roll-up of a handful of
+    // passes only restated them. The admin board still opens on it.
     renderBoard();
     await loaded();
 
     expect(screen.queryByText('Material Wise Outstanding RGP')).not.toBeInTheDocument();
     expect(screen.queryByText('Department Wise Outstanding RGP')).not.toBeInTheDocument();
-    expect(screen.getByRole('group', { name: "Today's Summary figures" })).toBeInTheDocument();
+    expect(screen.queryByText("Today's Summary")).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: "Today's Summary figures" })).not.toBeInTheDocument();
   });
 
   it('links only to routes an HOD may open', async () => {

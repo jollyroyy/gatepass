@@ -1,4 +1,4 @@
-// The three KPI sections of the board: Today's Summary, RGP Overview and NRGP
+// The two KPI sections of the board: RGP Overview and NRGP
 // Overview.
 //
 // TODAY'S SUMMARY IS THE ROLL-UP ROW, and it leads the board (client,
@@ -23,7 +23,6 @@ import {
   BOARD_KPIS,
   RGP_SECTION,
   NRGP_SECTION,
-  SUMMARY_SECTION,
   type BoardKpiKey,
 } from '../../src/lib/boardKpis';
 import { rowsFor, kpiDrill, type BoardWindows } from '../../src/lib/boardWindows';
@@ -91,44 +90,26 @@ describe('the board KPI sections', () => {
     }
   });
 
-  it('the summary row is the five site-wide roll-ups, both categories together', () => {
-    // Client, 2026-08-18: the roll-up row is back, above both category rows.
-    // Order is volume first, then the two things somebody has to act on.
-    expect(SUMMARY_SECTION).toEqual([
-      'totalRaised', 'totalCleared', 'pendingApprovals', 'overdueReturns', 'materialOutside',
-    ]);
-    // NOT category-filtered — that is the whole point of the row. Every matcher
-    // must admit an NRGP as readily as an RGP.
-    const nrgp = pass({ id: 'n', type: 'NRGP', direction: 'out', status: 'pending' });
-    expect(BOARD_KPIS.totalRaised.match(nrgp)).toBe(true);
-    expect(BOARD_KPIS.pendingApprovals.match(nrgp)).toBe(true);
-  });
-
-  it('a roll-up counts what its own words say, not what the row above it says', () => {
-    // The two figures that are NOT day-scoped: an approval still waiting and a
-    // return already late are open obligations, and a Today-scoped version of
-    // either would print 0 on a board with a real backlog.
-    expect(BOARD_KPIS.totalRaised.scope).toBe('period');
-    expect(BOARD_KPIS.totalCleared.scope).toBe('period');
-    for (const key of ['pendingApprovals', 'overdueReturns', 'materialOutside'] as BoardKpiKey[]) {
-      expect(BOARD_KPIS[key].scope).toBe('current');
+  it('carries NO summary row — the five roll-up keys are deleted', () => {
+    // Client, 2026-08-18: off the HOD board, then off the admin board too. The
+    // keys are gone from BOARD_KPIS rather than merely unlisted, so a stale
+    // reference is a type error and no orphan tile can survive.
+    for (const dead of ['totalRaised', 'totalCleared', 'pendingApprovals', 'overdueReturns', 'materialOutside']) {
+      expect(Object.keys(BOARD_KPIS)).not.toContain(dead);
     }
-    // Pending Approvals is RGP Awaiting Clearance plus NRGP Awaiting Clearance,
-    // and it must inherit the same expiry rule — a void pass is not a queue.
-    expect(BOARD_KPIS.pendingApprovals.match(pass({ status: 'pending', is_expired: true }))).toBe(false);
   });
 
   it('no headline card takes the brand gold tone', () => {
     // Gold is this system's primary FILL (sidebar active link, primary button,
     // wordmark) and reads at ~2:1 as ink on a card — the same defect the
     // notification panel had.
-    for (const key of [...SUMMARY_SECTION, ...RGP_SECTION, ...NRGP_SECTION]) {
+    for (const key of [...RGP_SECTION, ...NRGP_SECTION]) {
       expect(BOARD_KPIS[key].tone).not.toBe('brand');
     }
   });
 
   it('every key in the record belongs to exactly one section', () => {
-    const all = [...SUMMARY_SECTION, ...RGP_SECTION, ...NRGP_SECTION];
+    const all = [...RGP_SECTION, ...NRGP_SECTION];
     expect(new Set(all).size).toBe(all.length);
     expect(new Set(all)).toEqual(new Set(Object.keys(BOARD_KPIS) as BoardKpiKey[]));
   });

@@ -45,11 +45,12 @@ export default function MyPassesTable({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      {filtered.map((p) => (
+    <div className="flex flex-col gap-2">
+      {filtered.map((p, i) => (
         <MyPassCard
           key={p.id}
           pass={p}
+          index={i + 1}
           badge={
             p.item_count > 1 ? (
               <>

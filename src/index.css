@@ -739,8 +739,15 @@
   .table-base {
     @apply w-full text-sm;
   }
+  /* Column headings are GOLD INK, one size up from the old 11px micro
+     (client, 2026-08-18: "the colouring of all the column headings in the
+     golden format and make them a little bit bigger in font size, across all
+     views"). brand-800 / brand-300 — the heading pairing — never brand-600,
+     which is the primary FILL and under 3:1 as text. The `dark:` half is
+     load-bearing: brand-* are literal hex and do not invert with the theme. */
   .table-base thead th {
-    @apply text-micro text-navy-500 uppercase text-left px-4 py-3.5
+    @apply text-caption font-semibold tracking-wider text-brand-800 dark:text-brand-300
+           uppercase text-left px-4 py-3.5
            border-b border-surface-200 whitespace-nowrap;
   }
   .table-base tbody td {

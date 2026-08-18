@@ -19,12 +19,14 @@ import PassRow from './PassRow';
 
 type Props = {
   pass: GatePassView;
+  /** 1-based position in the stack — see PassOrdinal. */
+  index?: number;
   /** The HOD board passes false — they raised the pass, so their own name back
    *  at them is noise. The admin board oversees every department and keeps it. */
   showRaisedBy?: boolean;
 };
 
-export default function DrillPassCard({ pass, showRaisedBy = true }: Props): React.ReactElement {
+export default function DrillPassCard({ pass, showRaisedBy = true, index }: Props): React.ReactElement {
   // The footer is a single route to the record. A drill card is for reading a
   // list at a glance; anything that MUTATES the pass lives on the pass itself.
   const detail = (
@@ -48,6 +50,7 @@ export default function DrillPassCard({ pass, showRaisedBy = true }: Props): Rea
         variant="drill"
         defaultOpen
         dense
+        index={index}
         showRaisedBy={showRaisedBy}
         detail={detail}
       />

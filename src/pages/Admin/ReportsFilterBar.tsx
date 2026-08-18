@@ -23,6 +23,11 @@ type Props = {
   deptFilter: string;
   onDeptChange: (id: string) => void;
   deptOptions: DeptOption[];
+  /** Show only passes whose material is out and past its return date (client,
+   *  2026-08-18). A toggle rather than a fourth segment on the type control:
+   *  overdue is a different axis from RGP/NRGP and combines with it. */
+  overdueOnly: boolean;
+  onOverdueChange: (on: boolean) => void;
   onClear: () => void;
 };
 
@@ -37,9 +42,11 @@ export default function ReportsFilterBar({
   deptFilter,
   onDeptChange,
   deptOptions,
+  overdueOnly,
+  onOverdueChange,
   onClear,
 }: Props): React.ReactElement {
-  const active = typeFilter !== 'all' || deptFilter !== 'all';
+  const active = typeFilter !== 'all' || deptFilter !== 'all' || overdueOnly;
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-2 no-print">
@@ -71,6 +78,21 @@ export default function ReportsFilterBar({
           </option>
         ))}
       </select>
+
+      {/* Orange when on, matching every Overdue badge and tile in the app — a
+          filter named after a status must wear that status's colour. */}
+      <button
+        type="button"
+        aria-pressed={overdueOnly}
+        onClick={() => onOverdueChange(!overdueOnly)}
+        className={
+          overdueOnly
+            ? 'btn-secondary text-xs px-4 py-1.5 bg-overdue-50 text-overdue-700 border-overdue-300'
+            : 'btn-secondary text-xs px-4 py-1.5'
+        }
+      >
+        Overdue
+      </button>
 
       {active && (
         <button type="button" className="btn-secondary text-xs px-4 py-1.5" onClick={onClear}>

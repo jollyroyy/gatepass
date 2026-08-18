@@ -45,14 +45,16 @@ export default function PhoneSearchResults({ query, rows, onClear, onOpen }: Pro
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {rows.map((p) => {
+          {rows.map((p, i) => {
             const verifiable = canVerifyAtGate(p);
             const to = verifiable ? `/verify/${p.id}` : `/pass/${p.id}`;
             const phone = parseCompanyInfo(p.visitor_company).phone;
             return (
               <div key={p.id} className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <div className="flex-1 min-w-0">
-                  {onOpen ? <PassRow pass={p} onOpen={onOpen} /> : <PassRow pass={p} to={to} />}
+                  {onOpen
+                    ? <PassRow pass={p} index={i + 1} onOpen={onOpen} />
+                    : <PassRow pass={p} index={i + 1} to={to} />}
                 </div>
                 <Link
                   to={to}

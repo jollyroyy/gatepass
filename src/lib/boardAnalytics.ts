@@ -157,3 +157,33 @@ export function movementBuckets(rows: GatePassView[], days: number, now: number 
 
   return buckets;
 }
+
+// ─── Departments (by passes raised) ──────────────────────────────────────────
+/**
+ * Which departments raise the most passes, biggest first — the admin board's
+ * column chart (client, 2026-08-18: "make a vertical bar chart showing the
+ * departments who are raising the most number of passes").
+ *
+ * A DEPARTMENT IS A BUCKET OF ROWS, like every other aggregate here: the bar
+ * carries the passes it counted, so its height and the list its click opens
+ * are the same array.
+ *
+ * `department_name` comes off `v_gate_passes` through a LEFT JOIN to VMS's
+ * `public.departments`, so it can be null when VMS narrows a policy. Such a
+ * pass is bucketed as 'Unassigned' rather than dropped: a chart that silently
+ * loses rows disagrees with every figure above it.
+ */
+export function departmentSlices(rows: GatePassView[], limit: number): Slice[] {
+  const buckets = new Map<string, Slice>();
+  for (const p of rows) {
+    const label = p.department_name ?? 'Unassigned';
+    const key = p.department_id ?? 'unassigned';
+    const slice = buckets.get(key) ?? { key, label, value: 0, rows: [] };
+    slice.value += 1;
+    slice.rows.push(p);
+    buckets.set(key, slice);
+  }
+  return [...buckets.values()]
+    .sort((a, b) => (b.value - a.value) || (a.label < b.label ? -1 : 1))
+    .slice(0, limit);
+}

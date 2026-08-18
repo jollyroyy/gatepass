@@ -35,6 +35,7 @@ import OverdueStats from './OverdueStats';
 import OverdueFilters from './OverdueFilters';
 import OverdueTable from './OverdueTable';
 import OverdueTrendPanel from './OverdueTrendPanel';
+import OverdueDeptChart from './OverdueDeptChart';
 
 /** Five rows above the fold on the tablet at the gate — the same page size the
  *  Scheduled Returns table uses. */
@@ -51,10 +52,14 @@ type Props = {
   /** A return landed — the page's own query must re-run, since the database may
    *  have just closed a pass. */
   onRecorded: () => void;
+  /** The department ranking — admin only. An HOD's page is one department by
+   *  construction, and the guard's is today's shift. */
+  showDepartments?: boolean;
 };
 
 export default function OverdueBoard({
   subtitle, passes, items, scope, canRecord, loading, error, onRecorded,
+  showDepartments = false,
 }: Props): React.ReactElement {
   const [filters, setFilters] = useState<OverdueFilterState>(EMPTY_FILTERS);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -210,7 +215,8 @@ export default function OverdueBoard({
             )}
           </div>
 
-          <div className="xl:col-span-4 min-w-0">
+          <div className="xl:col-span-4 min-w-0 flex flex-col gap-4">
+            {showDepartments && <OverdueDeptChart rows={rows} />}
             <OverdueTrendPanel
               bars={bars}
               critical={stats.critical}

@@ -51,6 +51,11 @@ function row(over: Partial<GatePassView>): GatePassView {
 const ROWS: GatePassView[] = [
   row({ id: 'a', pass_number: 'RGP-OUT-20260804-0001', type: 'RGP', department_id: 'd1', department_name: 'Engineering', visitor_name: 'Ravi' }),
   row({ id: 'b', pass_number: 'NRGP-OUT-20260804-0002', type: 'NRGP', department_id: 'd2', department_name: 'Housekeeping', visitor_name: 'Sunil' }),
+  // Late: an RGP still out, past its date. `is_overdue` and `return_status`
+  // both come off v_gate_passes — nothing recomputes lateness in TypeScript.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  { ...row({ id: 'c', pass_number: 'RGP-20260804-0003', type: 'RGP', visitor_name: 'Late Larry' }),
+    status: 'matched', return_status: 'awaiting_return', is_overdue: true, due_state: 'overdue' } as any,
 ];
 
 function thenable(result: { data: unknown; error: unknown }) {
@@ -185,5 +190,33 @@ describe('Reports — department and pass-type filters', () => {
     // The lifted bar owns these; the register keeps only search + Export CSV.
     expect(screen.queryByRole('option', { name: /All Types/ })).not.toBeInTheDocument();
     expect(screen.getAllByLabelText('Department')).toHaveLength(1);
+  });
+});
+
+describe('Reports — the overdue-only button', () => {
+  // Client, 2026-08-18: "the Reports tab in admin — make a button for overdue,
+  // so it would show only the overdue items." It is a filter on the same loaded
+  // rows, applied with the department and type filters before any view sees a
+  // row, so the printed sheet says so too.
+  it('narrows the register to passes that are late, and back again', async () => {
+    renderReports();
+    await waitFor(() => expect(screen.getByText('RGP-20260804-0003')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Overdue' }));
+    await waitFor(() => expect(screen.queryByText('RGP-OUT-20260804-0001')).not.toBeInTheDocument());
+    expect(screen.getByText('RGP-20260804-0003')).toBeInTheDocument();
+    expect(screen.queryByText('NRGP-OUT-20260804-0002')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Overdue' }));
+    await waitFor(() => expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument());
+  });
+
+  it('counts as an active filter, so Clear resets it', async () => {
+    renderReports();
+    await waitFor(() => expect(screen.getByText('RGP-20260804-0003')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Overdue' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear' }));
+    await waitFor(() => expect(screen.getByText('NRGP-OUT-20260804-0002')).toBeInTheDocument());
   });
 });

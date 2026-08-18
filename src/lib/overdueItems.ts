@@ -17,6 +17,7 @@
 import type { GatePassItemView, GatePassView } from '../types';
 import type { StatusStyle } from './statusStyles';
 import { itemReturnStage } from './passRecordView';
+import type { Slice } from './boardAnalytics';
 import { dayStart, daysBetween, parseLocalDay, DAY_MS } from './localDay';
 
 /** Days late at which a line stops being a chase and becomes an escalation.
@@ -217,6 +218,30 @@ export function departmentsOf(rows: OverdueRow[]): { id: string; name: string }[
   return [...map.entries()]
     .map(([id, name]) => ({ id, name }))
     .sort((a, b) => (a.name < b.name ? -1 : 1));
+}
+
+/**
+ * Overdue LINES per department, biggest first — the bar chart on the admin's
+ * Overdue tab (client, 2026-08-18: "a bar chart of which department has the
+ * department-wise overdue items").
+ *
+ * Counts ROWS, which on this page are material lines, not passes: a pass with
+ * three lines still out is three things to chase, and the table beside the
+ * chart is counted the same way. Returns an empty array when nothing is
+ * overdue — a chart of zeroes says less than a sentence does.
+ */
+export function overdueByDepartment(rows: OverdueRow[]): Slice[] {
+  const buckets = new Map<string, Slice>();
+  for (const r of rows) {
+    const key = r.pass.department_id ?? 'unassigned';
+    const slice = buckets.get(key)
+      ?? { key, label: r.pass.department_name ?? 'Unassigned', value: 0, rows: [] };
+    slice.value += 1;
+    slice.rows.push(r.pass);
+    buckets.set(key, slice);
+  }
+  return [...buckets.values()]
+    .sort((a, b) => (b.value - a.value) || (a.label < b.label ? -1 : 1));
 }
 
 /**

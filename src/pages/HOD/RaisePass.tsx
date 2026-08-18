@@ -216,7 +216,11 @@ export default function RaisePass(): React.ReactElement {
     }
   }
 
-  const passNumberPrefix = `${form.type}-OUT-${todayStr().replace(/-/g, '')}`;
+  // TYPE-YYYYMMDD, mirroring `gatepass.set_pass_number` since migration 042.
+  // The direction is NOT in the number any more (client, 2026-08-18) — it is
+  // still on the pass, in `direction`. If this ever disagrees with the trigger
+  // the HOD is shown a number the database will not issue.
+  const passNumberPrefix = `${form.type}-${todayStr().replace(/-/g, '')}`;
 
   return (
     <div>

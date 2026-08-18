@@ -18,6 +18,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView } from '../types';
 import { TypeChip } from './Badge';
+import PassOrdinal from './PassOrdinal';
 import PassRowBody from './PassRowBody';
 import PassRowCompact from './PassRowCompact';
 import { formatDateOnly } from '../lib/formatDate';
@@ -75,6 +76,10 @@ type Props = {
   subtitle?: React.ReactNode;
   /** Drill variant only: the trimmed fact set — see PassRowBody. */
   slim?: boolean;
+  /** 1-based position in the stack, shown as a small ordinal beside the pass
+   *  number (client, 2026-08-18). The LIST assigns it — the same pass is #3 in
+   *  one drill and #1 in another. Omitted for a card that stands alone. */
+  index?: number;
 };
 
 export default function PassRow({
@@ -91,6 +96,7 @@ export default function PassRow({
   showRaisedBy = true,
   subtitle,
   slim = false,
+  index,
 }: Props): React.ReactElement {
   const [open, setOpen] = useState(defaultOpen);
   const company = parseCompanyInfo(p.visitor_company);
@@ -114,7 +120,7 @@ export default function PassRow({
     const header = (
       <div
         className={`flex items-center justify-between gap-3 cursor-pointer ${
-          dense ? 'px-4 pt-3.5' : 'px-5 pt-5'
+          dense ? 'px-3.5 pt-2.5' : 'px-5 pt-5'
         }`}
         data-testid="pass-card-header"
         onClick={() => setOpen(!open)}
@@ -129,7 +135,8 @@ export default function PassRow({
         aria-expanded={open}
       >
         <div className="flex flex-col gap-1 min-w-0">
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            {index !== undefined && <PassOrdinal index={index} />}
             <span
               className={`font-semibold tabular-nums tracking-tight text-navy-900 truncate ${
                 dense ? 'text-base' : 'text-h3'
@@ -148,14 +155,14 @@ export default function PassRow({
     const content = open ? (
       <div>
         {/* CardContent */}
-        <div className={dense ? 'px-4 pb-4 pt-3' : 'px-5 pb-5 pt-4'} data-testid="pass-card-body">
+        <div className={dense ? 'px-3.5 pb-3 pt-2.5' : 'px-5 pb-5 pt-4'} data-testid="pass-card-body">
           <PassRowBody pass={p} dense={dense} showRaisedBy={showRaisedBy} slim={slim} />
         </div>
         {/* CardFooter — a distinct muted band, never the same surface as the
             body, or the card flattens back into an unstructured box. */}
         {detail && (
           <div
-            className={`bg-surface-100/60 border-t border-surface-200 ${dense ? 'px-4 py-2.5' : 'px-5 py-4'}`}
+            className={`bg-surface-100/60 border-t border-surface-200 ${dense ? 'px-3.5 py-2' : 'px-5 py-4'}`}
             data-testid="pass-card-footer"
           >
             {detail}
@@ -175,6 +182,7 @@ export default function PassRow({
   const content = (
     <>
       {/* Steady-state row: the main details, one line. */}
+      {index !== undefined && <PassOrdinal index={index} />}
       <span className="font-normal text-navy-950 text-base font-display tracking-tight truncate shrink-0">
         {p.pass_number}
       </span>
@@ -228,7 +236,7 @@ export default function PassRow({
   );
 
   const rootClass =
-    'flex flex-row flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3 rounded-xl border transition-all duration-200 ' +
+    'flex flex-row flex-wrap items-center gap-x-3 gap-y-1 px-3.5 py-2.5 rounded-xl border transition-all duration-200 ' +
     (isOldest ? 'ring-1 ring-brand-500/40 ' : '') +
     (p.is_overdue ? 'ring-1 ring-overdue-500/40 ' : '') +
     (expandable ? ' cursor-pointer' : '');
@@ -248,6 +256,7 @@ export default function PassRow({
   if (compact) {
     return (
       <div onClick={() => setOpen(!open)} className={rootClass}>
+        {index !== undefined && <PassOrdinal index={index} />}
         <PassRowCompact
           pass={p}
           open={open}

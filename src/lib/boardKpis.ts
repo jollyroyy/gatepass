@@ -61,12 +61,6 @@ import { categoryKey } from './passTypes';
 import { IS_OPEN_RETURN } from './boardDrills';
 
 export type BoardKpiKey =
-  // Today's Summary — both categories together
-  | 'totalRaised'
-  | 'totalCleared'
-  | 'pendingApprovals'
-  | 'overdueReturns'
-  | 'materialOutside'
   // RGP Overview
   | 'rgpRaised'
   | 'rgpAwaiting'
@@ -119,55 +113,6 @@ const isNrgpOut = (p: GatePassView): boolean => categoryKey(p.type, p.direction)
  *  card it measures about 2:1, the same defect the notification panel had.
  *  Pinned by tests/unit/boardKpiSections.test.ts. */
 export const BOARD_KPIS: Record<BoardKpiKey, BoardKpi> = {
-  // The roll-up row. Two volume figures for the day, then the three standing
-  // obligations — and the last three are `current` on purpose: an approval still
-  // waiting and material still out do not reset at midnight.
-  totalRaised: {
-    key: 'totalRaised',
-    label: 'Total Passes',
-    tone: 'neutral',
-    scope: 'period',
-    heading: 'All passes raised',
-    empty: 'No pass was raised in this period.',
-    match: () => true,
-  },
-  totalCleared: {
-    key: 'totalCleared',
-    label: 'Cleared',
-    tone: 'matched',
-    scope: 'period',
-    heading: 'Cleared through the gate',
-    empty: 'Nothing was cleared in this period.',
-    match: (p) => p.status === 'matched',
-  },
-  pendingApprovals: {
-    key: 'pendingApprovals',
-    label: 'Pending Approvals',
-    tone: 'pending',
-    scope: 'current',
-    heading: 'Waiting on the guard',
-    empty: 'Queue clear — nothing is waiting.',
-    match: isWaiting,
-  },
-  overdueReturns: {
-    key: 'overdueReturns',
-    label: 'Overdue Returns',
-    tone: 'overdue',
-    scope: 'current',
-    heading: 'Past their return date',
-    empty: 'Nothing is overdue.',
-    match: (p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue,
-  },
-  materialOutside: {
-    key: 'materialOutside',
-    label: 'Material Outside',
-    tone: 'accent',
-    scope: 'current',
-    heading: 'Material out and not yet returned',
-    empty: 'Nothing is still out.',
-    match: (p) => IS_OPEN_RETURN[p.return_status],
-  },
-
   rgpRaised: {
     key: 'rgpRaised',
     label: 'RGP Raised',
@@ -286,15 +231,17 @@ export const RGP_SECTION: BoardKpiKey[] = [
 
 export const NRGP_SECTION: BoardKpiKey[] = ['nrgpRaised', 'nrgpAwaiting', 'nrgpCleared'];
 
-// FIVE, and they sum ACROSS the two rows below — volume first, then the two
-// things somebody has to act on. Nothing here is category-filtered; that is the
-// only reason the row earns its place above a breakdown that is.
-export const SUMMARY_SECTION: BoardKpiKey[] = [
-  'totalRaised', 'totalCleared', 'pendingApprovals', 'overdueReturns', 'materialOutside',
-];
+// THERE IS NO TODAY'S SUMMARY ROW ANY MORE (client, 2026-08-18, on both
+// boards): five roll-up figures above two rows that break the same passes down
+// by category restated them, and the client asked for it off the HOD board and
+// then off the admin board. DELETED, not flagged off — the five keys it needed
+// (`totalRaised`, `totalCleared`, `pendingApprovals`, `overdueReturns`,
+// `materialOutside`) are gone from `BoardKpiKey`, so a stale reference is a
+// type error rather than a blank tile. `/overdue` is still one click away: it
+// is the admin's second sidebar tab and the target of `rgpOverdue`.
 
 /**
- * THE THREE FIGURES THAT OPEN A PAGE INSTEAD OF A DRILL (client, 2026-08-18).
+ * THE TWO FIGURES THAT OPEN A PAGE INSTEAD OF A DRILL (client, 2026-08-18).
  *
  * Overdue and Due Today are the two lists every role acts on, so each has its
  * own route — `/overdue` and `/returns` — scoped to the reader inside the page
@@ -305,7 +252,6 @@ export const SUMMARY_SECTION: BoardKpiKey[] = [
  * Every OTHER tile still drills in place, with the rows it counted.
  */
 export const BOARD_KPI_LINKS: Partial<Record<BoardKpiKey, string>> = {
-  overdueReturns: '/overdue',
   rgpOverdue: '/overdue',
   rgpDueToday: '/returns',
 };

@@ -32,12 +32,14 @@ import PassRow from '../../components/PassRow';
 import { formatCurrency } from '../../lib/formatCurrency';
 
 type Props = {
+  /** 1-based position in the register's stack — see PassOrdinal. */
+  index?: number;
   pass: GatePassView;
   /** Extra chips beside the subtitle (e.g. the item-count pill). */
   badge?: React.ReactNode;
 };
 
-export default function MyPassCard({ pass, badge }: Props): React.ReactElement {
+export default function MyPassCard({ pass, badge, index }: Props): React.ReactElement {
   // Always visible, because the body is not. Material first — it is what the
   // HOD is looking for — then value, which they asked to read as primary.
   const subtitle = (
@@ -72,7 +74,7 @@ export default function MyPassCard({ pass, badge }: Props): React.ReactElement {
                   transition-all duration-200 hover:-translate-y-px
                   hover:ring-black/[0.10] dark:hover:ring-white/[0.12]`}
     >
-      <PassRow pass={pass} variant="drill" dense slim showRaisedBy={false} subtitle={subtitle} detail={detail} />
+      <PassRow pass={pass} variant="drill" dense slim index={index} showRaisedBy={false} subtitle={subtitle} detail={detail} />
     </div>
   );
 }

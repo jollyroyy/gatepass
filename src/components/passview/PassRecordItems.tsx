@@ -6,10 +6,12 @@
 // slots carry DESCRIPTION and VALUE — real fields, same layout. Inventing a
 // column of em-dashes would look like data loss.
 //
-// The action link is decided by the line's own stage, never by the pass: a
-// line still owing material sends the guard to Pending Returns, which is the
-// only screen that can record one (`apply_item_returns`). A settled line just
-// opens the pass. A button that always fails is worse than no button.
+// The Action column carries exactly ONE thing — the return marking — and it is
+// decided by the line's own stage, never by the pass: a line still owing
+// material links to the desk that can record it (`apply_item_returns`).
+// Anything settled reads NA: an NRGP line never owed a return at all, and a
+// fully returned RGP line has nothing left to record. The old "View" link is
+// gone — it pointed at the page the reader is already on (client, 2026-08-18).
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassItemView, GatePassView } from '../../types';
@@ -91,13 +93,17 @@ export default function PassRecordItems({ pass, items }: Props): React.ReactElem
                     <td>{item.approx_value != null ? formatCurrency(item.approx_value) : '—'}</td>
                     <td><Badge style={ITEM_RETURN_STYLES[stage]} /></td>
                     <td>
-                      <Link
-                        to={owes ? returnDeskFor(pass) : `/pass/${pass.id}`}
-                        className="text-accent-600 hover:underline font-medium text-sm whitespace-nowrap"
-                        aria-label={`${owes ? 'Mark return' : 'View'} — ${item.name}`}
-                      >
-                        {owes ? 'Mark return' : 'View'}
-                      </Link>
+                      {owes ? (
+                        <Link
+                          to={returnDeskFor(pass)}
+                          className="text-accent-600 hover:underline font-medium text-sm whitespace-nowrap"
+                          aria-label={`Mark return — ${item.name}`}
+                        >
+                          Mark return
+                        </Link>
+                      ) : (
+                        <span className="text-navy-500 text-sm">NA</span>
+                      )}
                     </td>
                   </tr>
                 );

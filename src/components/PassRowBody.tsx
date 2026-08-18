@@ -48,13 +48,13 @@ export default function PassRowBody({
   const isRgp = p.type === 'RGP';
 
   return (
-    <div className={`flex flex-col ${dense ? 'gap-2.5' : 'gap-4'}`}>
+    <div className={`flex flex-col ${dense ? 'gap-2' : 'gap-4'}`}>
       {/* Stacked label/value pairs below md (375px is the guard's phone at the
           barrier — nothing here may force horizontal scroll), a horizontal
           strip of aligned columns from md up. */}
       <div
         className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 ${
-          dense ? 'lg:grid-cols-6 gap-x-3 gap-y-2.5' : 'lg:grid-cols-5 gap-x-4 gap-y-4'
+          dense ? 'lg:grid-cols-6 gap-x-3 gap-y-2' : 'lg:grid-cols-5 gap-x-4 gap-y-4'
         }`}
       >
         <PassField label="Vendor" value={company.name || '—'} emphasize />
@@ -75,10 +75,11 @@ export default function PassRowBody({
         {!slim && p.verified_by_name && <PassField label="Verified By" value={p.verified_by_name} />}
       </div>
 
-      {/* Raised → Mismatch → Override → Cleared Out → Returned. The card's
-          badge names only the LATEST state now, so this is where a reader
-          finds that the pass was matched on the way out. */}
-      <PassTimelineStrip pass={p} />
+      {/* Raised → Mismatch → Override → Cleared Out → Returned, DOWN the card:
+          an opened card is where the history is read in order (client,
+          2026-08-18). The card's badge names only the LATEST state, so this is
+          where a reader finds that the pass was matched on the way out. */}
+      <PassTimelineStrip pass={p} orientation="vertical" />
 
       {p.flag_reason && (
         <div className="flex items-start gap-2 text-caption text-flagged-600 font-medium">

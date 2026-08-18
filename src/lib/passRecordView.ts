@@ -13,18 +13,20 @@ import type { GatePassItemView, GatePassView, PassType } from '../types';
 import type { StatusStyle } from './statusStyles';
 import type { TimelineMoment } from './passTimeline';
 
-export type ItemReturnStage = 'not_applicable' | 'pending' | 'partial' | 'returned';
+export type ItemReturnStage = 'closed' | 'pending' | 'partial' | 'returned';
 
 /** Where one material line stands on the return leg.
  *
  *  NRGP has no return leg at all — the check constraint pins the parent's
- *  `return_status` to 'not_applicable' — so its lines are 'not_applicable'
- *  rather than a "pending" that would never clear. */
+ *  `return_status` to 'not_applicable' — so its lines are 'closed': the
+ *  material left for good and the line is finished the moment the gate
+ *  cleared it. Not "pending" (it would never clear) and not "N/A" (the line
+ *  HAS an outcome; N/A read as missing data). Client, 2026-08-18. */
 export function itemReturnStage(
   item: Pick<GatePassItemView, 'quantity' | 'returned_qty'>,
   passType: PassType,
 ): ItemReturnStage {
-  if (passType !== 'RGP') return 'not_applicable';
+  if (passType !== 'RGP') return 'closed';
   if (item.returned_qty <= 0) return 'pending';
   if (item.returned_qty >= item.quantity) return 'returned';
   return 'partial';
@@ -34,7 +36,9 @@ export function itemReturnStage(
  *  pass badges use (statusStyles.ts / rgpLifecycle.ts), so a line that reads
  *  "Returned" green cannot sit under a pass badge of a different green. */
 export const ITEM_RETURN_STYLES: Record<ItemReturnStage, StatusStyle> = {
-  not_applicable: { bg: 'bg-surface-100', text: 'text-navy-500', dot: 'bg-navy-400', label: 'N/A' },
+  // Green, the same hue RGP_STAGE_STYLES.closed uses — an NRGP line that is
+  // out of the gate is as finished as an RGP whose material came back.
+  closed: { bg: 'bg-matched-50', text: 'text-matched-700', dot: 'bg-matched-500', label: 'Closed' },
   pending: { bg: 'bg-pending-50', text: 'text-pending-700', dot: 'bg-pending-500', label: 'Pending' },
   partial: {
     bg: 'bg-accent-50', text: 'text-accent-700', dot: 'bg-accent-500', label: 'Partially Returned',
@@ -74,7 +78,12 @@ export function passRecordStages(pass: GatePassView): TimelineMoment[] {
     { label: 'Issued', at: pass.created_at },
     pass.flag_reason ? { label: 'Mismatched', at: pass.flagged_at ?? pass.verified_at ?? pass.created_at } : null,
     pass.hod_reviewed_at ? { label: 'HOD Approved', at: pass.hod_reviewed_at } : null,
-    pass.status === 'matched' && pass.verified_at ? { label: 'In Use', at: pass.verified_at } : null,
+    // An NRGP is CLOSED once it is through the gate — it is not coming back,
+    // so "In Use" claimed an obligation that does not exist (client). Only an
+    // RGP is genuinely out and owed back.
+    pass.status === 'matched' && pass.verified_at
+      ? { label: pass.type === 'RGP' ? 'In Use' : 'Closed', at: pass.verified_at }
+      : null,
     pass.return_status === 'partially_returned' ? { label: 'Partially Returned', at: pass.updated_at } : null,
     pass.return_status === 'returned' && pass.actual_return_date
       ? { label: 'Returned', at: pass.actual_return_date }

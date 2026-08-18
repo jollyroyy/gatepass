@@ -83,11 +83,15 @@ describe('itemReturnStage', () => {
     expect(itemReturnStage(line({ quantity: 2, returned_qty: 2 }), 'RGP')).toBe('returned');
   });
 
-  it('has no return leg at all for an NRGP line', () => {
-    expect(itemReturnStage(line({ quantity: 2, returned_qty: 0 }), 'NRGP')).toBe('not_applicable');
+  it('closes an NRGP line — it has no return leg at all', () => {
+    // Client, 2026-08-18: "once it is out of the gate it should be marked ...
+    // closed for NRGP." Not 'pending' (it would never clear) and no longer
+    // 'N/A' (the line HAS an outcome).
+    expect(itemReturnStage(line({ quantity: 2, returned_qty: 0 }), 'NRGP')).toBe('closed');
   });
 
   it('names every stage', () => {
+    expect(ITEM_RETURN_STYLES.closed.label).toBe('Closed');
     expect(ITEM_RETURN_STYLES.pending.label).toBe('Pending');
     expect(ITEM_RETURN_STYLES.partial.label).toBe('Partially Returned');
     expect(ITEM_RETURN_STYLES.returned.label).toBe('Returned');

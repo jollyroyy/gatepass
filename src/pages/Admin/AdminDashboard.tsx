@@ -15,6 +15,7 @@ import { gp } from '../../supabaseClient';
 import type { GatePassItemView, GatePassView } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
 import GateBoard from '../../components/board/GateBoard';
+import BoardDepartments from '../../components/board/BoardDepartments';
 
 export default function AdminDashboard(): React.ReactElement {
   const [rows, setRows] = useState<GatePassView[]>([]);
@@ -62,6 +63,9 @@ export default function AdminDashboard(): React.ReactElement {
       error={error}
       registerTo="/all-passes"
       onRefresh={() => void load()}
+      /* Admin only (client, 2026-08-18): an HOD's board is one department, so
+         the same ranking there would be one column. */
+      footer={<div className="mt-6"><BoardDepartments rows={rows} loading={loading} /></div>}
     />
   );
 }

@@ -76,20 +76,22 @@ describe('a KPI tile', () => {
   });
 
   it('drops the meaning line entirely when a card carries no note', () => {
-    // The summary row is deliberately note-less (client, 2026-08-18: "minimal
-    // yet aesthetic"). An empty `<span>` in its place would still cost the tile
-    // a line of height and leave the row uneven against the two below it.
+    // `note` is optional. An empty `<span>` in its place would still cost the
+    // tile a line of height and leave a row uneven against its neighbours.
+    // Built by hand: every SHIPPING kpi carries a note now that the note-less
+    // summary row is gone (client, 2026-08-18), and the guard is worth keeping
+    // for the next one that does not.
+    const bare = { ...BOARD_KPIS.rgpRaised, note: undefined };
     render(
       <BoardKpiTile
-        kpi={BOARD_KPIS.totalRaised}
-        label={BOARD_KPIS.totalRaised.label}
+        kpi={bare}
+        label={bare.label}
         value={5}
         loading={false}
         active={false}
         onClick={vi.fn()}
       />,
     );
-    expect(BOARD_KPIS.totalRaised.note).toBeUndefined();
     expect(screen.getByRole('button').querySelector('.text-caption')).toBeNull();
   });
 

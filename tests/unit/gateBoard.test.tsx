@@ -178,46 +178,25 @@ async function loaded(): Promise<void> {
 }
 
 describe('the board renders the reference sections', () => {
-  it('leads with Today\'s Summary, then RGP and NRGP Overview, and no category toggle', async () => {
+  it('leads with RGP Overview, then NRGP Overview, and carries no summary row', async () => {
     renderBoard();
     await loaded();
 
-    const summary = screen.getByRole('group', { name: "Today's Summary figures" });
     const rgp = screen.getByRole('group', { name: 'RGP Overview figures' });
-    expect(screen.getByRole('group', { name: 'NRGP Overview figures' })).toBeInTheDocument();
-    // Client, 2026-08-18: the roll-up row reads FIRST. A reader wanting the
-    // site-wide picture should not have to scroll past the breakdown to get it.
-    expect(summary.compareDocumentPosition(rgp) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const nrgp = screen.getByRole('group', { name: 'NRGP Overview figures' });
+    // Today's Summary is gone from BOTH boards (client, 2026-08-18): it restated
+    // the two rows below it, figure for figure.
+    expect(screen.queryByRole('group', { name: "Today's Summary figures" })).not.toBeInTheDocument();
+    expect(rgp.compareDocumentPosition(nrgp) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     // The toggle the sections replaced. Its whole job was to let a reader see the
     // other category; two sections do that without a button press.
     expect(screen.queryByRole('group', { name: 'Pass category' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Gate Pass Management Dashboard' })).toBeInTheDocument();
-    // The strapline under it is GONE (client, 2026-08-18): the summary row says
-    // what the board holds, and a sentence describing the page describes nothing
-    // the reader cannot already see.
+    // The strapline under it is GONE (client, 2026-08-18): a sentence describing
+    // the page describes nothing the figures do not already show.
     expect(screen.queryByText(/Real-time overview/i)).not.toBeInTheDocument();
     expect(document.querySelector('.page-subtitle')).toBeNull();
-  });
-
-  it('the summary row sums BOTH categories, and each figure opens the rows it counted', async () => {
-    renderBoard();
-    await loaded();
-
-    // 5 raised today (p1 p2 p5 p6 p8) — RGP and NRGP alike. 2 cleared (p2 p5).
-    expectFigure("Today's Summary", 'Total Passes', 5);
-    expectFigure("Today's Summary", 'Cleared', 2);
-    // Waiting NOW, not raised today: p1 and p6. p9 expired, so nothing the guard
-    // does can clear it and it is not a queue.
-    expectFigure("Today's Summary", 'Pending Approvals', 2);
-    expectFigure("Today's Summary", 'Overdue Returns', 1);
-    expectFigure("Today's Summary", 'Material Outside', 2);
-
-    fireEvent.click(tile("Today's Summary", 'Pending Approvals'));
-    expect(within(drill()).getByText('Alice')).toBeInTheDocument();
-    expect(within(drill()).getByText('Fay')).toBeInTheDocument();
-    expect(within(drill()).queryByText('Ila')).not.toBeInTheDocument();
-    expect(within(drill()).getByText('2 passes')).toBeInTheDocument();
   });
 
   it('carries every panel of the reference board, and neither of the two the client removed', async () => {
@@ -317,11 +296,10 @@ describe('the headline figures', () => {
     expect(within(drill()).getByText('Bob')).toBeInTheDocument();
   });
 
-  // The three figures every role acts on from one screen (client, 2026-08-18).
+  // The two figures every role acts on from one screen (client, 2026-08-18).
   it('sends Overdue and Due Today to their own pages, scoped by the reader\'s role', async () => {
     renderBoard();
     await loaded();
-    expect(tile("Today's Summary", 'Overdue Returns')).toHaveAttribute('href', '/overdue');
     expect(tile('RGP Overview', 'RGP Overdue')).toHaveAttribute('href', '/overdue');
     expect(tile('RGP Overview', 'RGP Due Today')).toHaveAttribute('href', '/returns');
   });

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import type { UserRole } from '../../types';
-import { isNavActive } from '../../lib/roleRoutes';
+import { isNavActive, ROLE_ROUTES } from '../../lib/roleRoutes';
 import { fetchDisplayName } from '../../lib/profiles';
 import { useTheme } from '../../lib/theme';
 import SidebarProfile from './SidebarProfile';
@@ -69,7 +69,21 @@ export default function Sidebar({ session, role, collapsed: collapsedProp, onCol
   const loc = useLocation();
   const { theme, toggleTheme } = useTheme();
   const email = session.user.email ?? 'User';
-  const links = ALL_LINKS.filter((l) => role && l.roles.includes(role));
+  // ORDER COMES FROM ROLE_ROUTES, not from the order of ALL_LINKS: `/overdue`
+  // is one entry shared by three roles and cannot sit in the right place for
+  // all of them at once. Sorting by the role's own route list puts each tab
+  // where that role expects it — admin: Dashboard, Overdue Items, Departments
+  // & Users, Reports (client, 2026-08-18). A link the list does not name sorts
+  // last rather than first, so an unlisted tab can never displace the home
+  // screen at the top.
+  const order = role ? ROLE_ROUTES[role] : [];
+  const rank = (to: string): number => {
+    const i = order.indexOf(to);
+    return i === -1 ? order.length : i;
+  };
+  const links = ALL_LINKS
+    .filter((l) => role && l.roles.includes(role))
+    .sort((a, b) => rank(a.to) - rank(b.to));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileName, setProfileName] = useState<string>('');
   const [collapsedInternal, setCollapsedInternal] = useState<boolean>(() => {

@@ -39,42 +39,71 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-18
 
-Full gate: **1143 tests across 105 files** (`npm run check`), `npm run build` clean.
-Migrations **`001`–`041` are all applied to the live DB**; `039`, `040`, `041` were each
-verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
+Full gate: **1165 tests across 109 files** (`npm run check`), `npm run build` clean.
+Migrations **`001`–`042` are all applied to the live DB**; `039`, `040`, `041` were each
+verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`), and `042` with a
+rolled-back `psql` insert that returned `RGP-20260818-0001`.
 
 | Thing | State |
 |---|---|
-| `gatepass.gate_passes` | **45 rows** — real user data. **Not a scratch DB; do not wipe it.** |
+| `gatepass.gate_passes` | **49 rows** — real user data. **Not a scratch DB; do not wipe it.** |
 | `public.departments` | **12 rows** (VMS-owned, shared) — do not wipe |
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 
-**Latest change (2026-08-18, tenth pass): there is now ONE gate-pass record format. `/pass/:id`
-renders the same `PassRecordView` the gate search resolves to.** Frontend only, no migration.
+**Latest change (2026-08-18, eleventh pass): a batch of client trims — NRGP lines read
+Closed, the pass number lost its direction (migration `042`, APPLIED), stacked cards are
+numbered and compact with a VERTICAL timeline, Today's Summary is gone from BOTH boards, the
+admin gets two department bar charts and an Overdue button on Reports, and column headings are
+gold.**
 
-- **`src/pages/Shared/PassDetail.tsx` was rewritten around `useGatePassRecord` + `PassRecordView`.**
-  Every stacked list in the app already routed to `/pass/:id` — the guard's KPI drills
-  (`GuardDrillCard`), the board drills (`DrillPassCard`), Return Watch, Overdue Items, Scheduled
-  Returns, My Passes, All Passes, the notification bell — so swapping this one page's body made
-  every drill-down identical, on every role, in one place. Client, 2026-08-18: "it should show
-  exactly in the same format as when we are searching with that gate pass … in the guard's view
-  make it the same across all the views."
-- **The old second format is DELETED, not flagged off:** `src/pages/Shared/DetailRow.tsx` and
-  `PassDetailItems.tsx` are gone, and nothing else imported them.
-- **What the page keeps, above the record:** the "pass raised" banner (`?created=1`), the flagged
-  banner with `FlaggedReviewActions` (raising HOD only), and the HOD-approved / rejected notices.
-  They sit above `PassRecordView` so the record itself is byte-for-byte what the gate sees.
-  `useGatePassRecord` gained an optional **`reloadKey`** so an override re-reads the three views.
-- **`PassRecordSummary` absorbed the facts the old page carried** — Contact, Vendor, Vendor
-  address, Vehicle number — because a drill-down must not lose data the detail page had. Fact 1
-  is labelled **"Authorized Person's Name"** (the app-wide vocabulary; it was "Employee"), and
-  `Fact` now takes `string | null | undefined`. **Expected return is RGP-only**, omitted rather
-  than dashed for an NRGP; Contact is its own row on every type now.
-- **The rail is headed "Activity timeline"**, not "Return activity" — it always carried every
-  gate event (matched, flagged, HOD override, void), and it is now the detail page's timeline too.
-- Pinned by `tests/unit/passRecordEverywhere.test.tsx` (3) plus rewritten cases in
-  `passDetailHeader.test.tsx` (the timeline wording is `PassRecordActivity`'s map now).
+- **An NRGP is CLOSED, never "In Use".** `ItemReturnStage`'s `not_applicable` is renamed
+  **`closed`** (label "Closed", matched-green), and `passRecordStages` names the gate moment
+  `pass.type === 'RGP' ? 'In Use' : 'Closed'`. **The item table's Action column carries ONLY the
+  return marking**: `Mark return` on an RGP line that still owes material, plain **`NA`** on
+  everything else — the old "View" link pointed at the page the reader was already on.
+  Pinned by `tests/unit/nrgpItemAction.test.tsx` (6).
+- **Migration `042` — `pass_number` is `RGP-20260818-0001`, no `-OUT-`.** Applied to the live DB
+  and probed inside a rolled-back transaction (`RGP-20260818-0001`; 49 rows, unchanged). The
+  counter is now per (type, day) — `'RGP-20260818-%'` cannot match a legacy `RGP-OUT-…`, so the
+  two coexist and an RGP-in would take the next number rather than colliding. **The 45+ existing
+  rows keep their numbers**: a pass number is an audit anchor on printed paper. `RaisePass`'s
+  preview prefix mirrors the trigger. Pinned by six cases in `sqlInvariants.test.ts`.
+- **Stacked cards, in every list: numbered, compact, timeline reads DOWN.** `PassOrdinal`
+  ("1", "2"…, `data-testid="pass-ordinal"`, `aria-hidden`) is rendered by `PassRow` in all three
+  variants from an `index` the LIST assigns — DrillList, GuardDashboard, MyPassesTable,
+  FlaggedReviewCard, PhoneSearchResults. **`GuardDrillCard` is `dense` now** (it was the roomy
+  variant and crowded the guard's screen), dense paddings dropped a step, and list gaps are 2.
+  `PassTimelineStrip` gained `orientation="vertical"` — a dot-on-a-rail rung per moment — which
+  is what `PassRowBody` (every opened card) uses. Pinned by `stackedCards.test.tsx` (4).
+- **Today's Summary is DELETED from both boards.** The five keys (`totalRaised`, `totalCleared`,
+  `pendingApprovals`, `overdueReturns`, `materialOutside`) are gone from `BoardKpiKey`,
+  `BOARD_KPIS`, `BoardKpiIcon` and `BOARD_KPI_LINKS`, so a stale reference is a type error. The
+  board opens on RGP Overview. `/overdue` is still one click away — admin sidebar tab 2, and
+  `rgpOverdue`.
+- **Two department column charts, admin only.** `src/components/charts/ColumnChart.tsx` (vertical
+  bars over `Slice[]`, `data-testid="column-bar"`, scrolls sideways past ~6 columns) driven by
+  **`departmentSlices(rows, limit)`** in `boardAnalytics` (`BoardDepartments`, in the admin
+  board's `footer`) and **`overdueByDepartment(rows)`** in `overdueItems` (`OverdueDeptChart`, on
+  `/overdue` when `showDepartments`). Both bucket by `department_id`, label a null department
+  "Unassigned", and count what the list beside them counts. `BoardDepartments` is deliberately
+  NOT a drill — it sits outside GateBoard's drill machinery, so it offers no click.
+  Pinned by `departmentCharts.test.tsx` (7).
+- **The admin sidebar is Dashboard · Overdue Items · Departments & Users · Reports.** Sidebar
+  order now comes from `ROLE_ROUTES[role]` (`Sidebar` sorts by it), because `/overdue` is one
+  shared entry that cannot sit in the right slot for three roles at once. Guard and HOD orders
+  are unchanged. Pinned by `sidebarOrder.test.tsx` (2).
+- **Reports has an Overdue button** — `ReportsFilterBar`'s `overdueOnly` toggle, applied in
+  `ReportsPage` beside type/department (`IS_OPEN_RETURN[return_status] && is_overdue`, never
+  recomputed), counted by Clear and named on the printed sheet's scope line.
+  Pinned by two cases in `reportsFilters.test.tsx`.
+- **Column headings are gold and one size up**: `.table-base thead th` is
+  `text-caption font-semibold tracking-wider text-brand-800 dark:text-brand-300 uppercase`.
+  Ink gold, not the `brand-600` fill; the `dark:` half is load-bearing.
+  Pinned by a rewritten case in `designSystem.test.ts`.
+
+**Earlier (2026-08-18, tenth pass): there is ONE gate-pass record format. `/pass/:id`
+renders the same `PassRecordView` the gate search resolves to.** Frontend only, no migration.
 
 **Earlier (2026-08-18, ninth pass): four trims the client asked for, all frontend, no
 migration.**
@@ -653,5 +682,5 @@ GateLookup, Verify, GuardDashboard), `Shared/` also holding the two role-scoped 
 (PassDetail, PassPrint, Profile). `src/components/passview/` is the Gate Pass Details record — the ONE record format,
 rendered both by Search Pass and by `/pass/:id`; `src/components/overdue/` is Overdue Items and `src/components/returns/` is the
 line-level returns table, each one component serving all three roles; `src/components/board/` is the dashboard both the admin and the HOD get — one component, the HOD's scoped to one person server-side. `src/lib/` holds the
-lookup maps, derivations and formatters; `supabase/migrations/` runs `001` → `041`, with
+lookup maps, derivations and formatters; `supabase/migrations/` runs `001` → `042`, with
 `005` an **optional demo seed** to skip in a real deployment.

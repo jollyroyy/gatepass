@@ -30,11 +30,11 @@
 //           day-scoped, because an obligation does not stop being open because
 //           the calendar rolled over.
 //
-// THE BOARD OPENS ON TODAY'S SUMMARY (client, 2026-08-18): five roll-up figures
-// across both categories, above the two rows that break them down. It is on BOTH
-// boards, and it is deliberately the barest row on the page — no notes under the
-// numbers, no hint beside the heading — because it is read at a glance and the
-// detail is one section further down.
+// NEITHER BOARD CARRIES A TODAY'S SUMMARY ROW (client, 2026-08-18, HOD first
+// and then admin). Five roll-up figures sitting above two rows that break the
+// same passes down by category said the same thing twice; the board opens on
+// RGP Overview now. Deleted, not flagged off — the keys are out of
+// `BoardKpiKey`.
 //
 // THE ADMIN BOARD HAS NO STRAPLINE. "Real-time overview of all material gate pass
 // activity" was removed in the same instruction: a sentence describing the page
@@ -58,7 +58,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView, GatePassItemView } from '../../types';
 import DrillList from '../DrillList';
-import { RGP_SECTION, NRGP_SECTION, SUMMARY_SECTION } from '../../lib/boardKpis';
+import { RGP_SECTION, NRGP_SECTION } from '../../lib/boardKpis';
 import type { BoardWindows } from '../../lib/boardWindows';
 import { drillDefOf, type BoardDrill } from '../../lib/boardDrills';
 import { dayStart, DAY_MS } from '../../lib/localDay';
@@ -140,16 +140,6 @@ export default function GateBoard({
       {banner}
 
       <div className="flex flex-col gap-4">
-        {/* No hint beside this heading, and no note under any of its five tiles:
-            the row is a glance, and the two rows below it are the explanation. */}
-        <BoardKpiSection
-          title="Today's Summary"
-          keys={SUMMARY_SECTION}
-          windows={windows}
-          loading={loading}
-          activeKey={activeKey}
-          onSelect={select}
-        />
         <BoardKpiSection
           title="RGP Overview"
           hint="Returnable material"

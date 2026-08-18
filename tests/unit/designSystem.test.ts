@@ -66,10 +66,19 @@ describe('design system — shared tokens (src/index.css)', () => {
     expect(block).toMatch(/uppercase/);
   });
 
-  it('table headers use text-micro uppercase, not an ad hoc small size', () => {
+  it('table headers are gold ink at caption size — bigger than the old 11px micro', () => {
+    // Client, 2026-08-18: "the colouring of all the column headings in the
+    // golden format, and make them a little bit bigger in font size, across
+    // all views." INK gold is brand-800 / brand-300 in the dark half, never
+    // brand-600 — that is the FILL gold and is under 3:1 as text. The `dark:`
+    // half is not polish: `brand-*` are literal hex and do not invert.
     const block = css.match(/\.table-base thead th\s*{[^}]*}/)?.[0] ?? '';
-    expect(block).toMatch(/text-micro/);
+    expect(block).toMatch(/text-caption/);
+    expect(block).toMatch(/font-semibold/);
+    expect(block).toMatch(/text-brand-800/);
+    expect(block).toMatch(/dark:text-brand-300/);
     expect(block).toMatch(/uppercase/);
+    expect(block).not.toMatch(/text-micro/);
   });
 
   it('card carries the two-layer premium shadow token', () => {

@@ -999,3 +999,50 @@ describe('041 — the HOD decides what happens to an expired pass', () => {
     expect(bare).toMatch(/set search_path = ''/i);
   });
 });
+
+describe('042 — the pass number drops the direction', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('042'))!.sql;
+  const bare = stripSqlComments(sql);
+
+  /** The final deployed body of a gatepass function, across all migrations. */
+  function finalBody(fn: string): string {
+    const all = extractFunctions(allMigrationsText()).filter((f) => f.name === `gatepass.${fn}`);
+    expect(all.length, `${fn} is not defined in any migration`).toBeGreaterThan(0);
+    return all[all.length - 1].body;
+  }
+
+  it('the deployed generator builds TYPE-YYYYMMDD, with no direction in it', () => {
+    const body = finalBody('set_pass_number');
+    expect(body).toMatch(/prefix\s*:=\s*new\.type::text \|\| '-' \|\| date_str/i);
+    expect(/upper\(new\.direction/i.test(body), 'the direction is out of the label').toBe(false);
+  });
+
+  it('keeps the advisory lock — a plain max()+1 collides under concurrency', () => {
+    const body = finalBody('set_pass_number');
+    expect(body).toMatch(/pg_advisory_xact_lock/i);
+    expect(body).toMatch(/pass_number like prefix \|\| '-%'/i);
+  });
+
+  it('still owns the columns a client must never choose', () => {
+    const body = finalBody('set_pass_number');
+    for (const col of ['created_at', 'updated_at', 'qr_token', 'expires_at']) {
+      expect(body).toContain(`new.${col}`);
+    }
+  });
+
+  it('renames no existing row — a pass number is an audit anchor', () => {
+    expect(/update\s+gatepass\.gate_passes/i.test(bare)).toBe(false);
+  });
+
+  it('touches no column, constraint or enum', () => {
+    expect(/alter table/i.test(bare)).toBe(false);
+    expect(/alter type/i.test(bare)).toBe(false);
+  });
+
+  it('is SECURITY DEFINER with a pinned search_path, and grants nothing new', () => {
+    expect(bare).toMatch(/security definer/i);
+    expect(bare).toMatch(/set search_path = ''/i);
+    expect(/^\s*grant\b/im.test(bare)).toBe(false);
+  });
+});

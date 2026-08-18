@@ -190,9 +190,9 @@ export default function GuardDashboard(): React.ReactElement {
         ) : (
           // Full-width stacked rows, never a 2/3-up grid — the client asked
           // for a KPI drill to scan top-to-bottom like a list, not a mosaic.
-          <div className="flex flex-col gap-4 w-full">
-            {list.map((p) => (
-              <GuardDrillCard key={p.id} pass={p} />
+          <div className="flex flex-col gap-2 w-full">
+            {list.map((p, i) => (
+              <GuardDrillCard key={p.id} pass={p} index={i + 1} />
             ))}
           </div>
         )}

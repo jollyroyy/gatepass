@@ -86,11 +86,6 @@ const GLYPHS = {
 type GlyphName = keyof typeof GLYPHS;
 
 const GLYPH_OF: Record<BoardKpiKey, GlyphName> = {
-  totalRaised: 'doc',
-  totalCleared: 'check',
-  pendingApprovals: 'clock',
-  overdueReturns: 'alert',
-  materialOutside: 'box',
   rgpRaised: 'truck',
   rgpAwaiting: 'clock',
   rgpCleared: 'check',

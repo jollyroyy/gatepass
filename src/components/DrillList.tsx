@@ -46,9 +46,9 @@ export default function DrillList({
       ) : rows.length === 0 ? (
         <div className="table-wrap empty-state">{def.empty}</div>
       ) : (
-        <div className="flex flex-col gap-3 w-full">
-          {rows.map((p) => (
-            <DrillPassCard key={p.id} pass={p} showRaisedBy={showRaisedBy} />
+        <div className="flex flex-col gap-2 w-full">
+          {rows.map((p, i) => (
+            <DrillPassCard key={p.id} pass={p} index={i + 1} showRaisedBy={showRaisedBy} />
           ))}
         </div>
       )}
