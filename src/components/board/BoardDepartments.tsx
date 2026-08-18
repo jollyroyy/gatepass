@@ -11,9 +11,10 @@
 // drill machinery, so it states a ranking and offers no click that would open
 // a list the board cannot render. Reports (`/all-passes`) is where those rows
 // are read one by one.
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { GatePassView } from '../../types';
 import { departmentSlices } from '../../lib/boardAnalytics';
+import { dayStart, DAY_MS } from '../../lib/localDay';
 import ColumnChart from '../charts/ColumnChart';
 import BoardCard from './BoardCard';
 
@@ -24,17 +25,31 @@ const TOP = 8;
 type Props = { rows: GatePassView[]; loading: boolean };
 
 export default function BoardDepartments({ rows, loading }: Props): React.ReactElement {
+  // TODAY ONLY (client, 2026-08-18). Scoped on `created_at` in LOCAL time, the
+  // same cut `GateBoard` makes for its `raised` window — the ranking answers
+  // "who is raising passes today", not "who has ever raised the most", which no
+  // longer moves once a year's history is in the array.
+  const today = useMemo(() => {
+    const start = dayStart(Date.now());
+    const end = start + DAY_MS;
+    return rows.filter((p) => {
+      if (!p.created_at) return false;
+      const t = new Date(p.created_at).getTime();
+      return t >= start && t < end;
+    });
+  }, [rows]);
+
   return (
     <BoardCard
       title="Passes by department"
-      subtitle={`Which departments raise the most gate passes — top ${TOP}, all passes in view.`}
+      subtitle={`Which departments raised the most gate passes today — top ${TOP}.`}
       loading={loading}
       skeletonHeight="h-56"
     >
       <ColumnChart
-        slices={departmentSlices(rows, TOP)}
+        slices={departmentSlices(today, TOP)}
         valueLabel="passes"
-        empty="No pass has been raised yet."
+        empty="No pass has been raised today."
       />
     </BoardCard>
   );

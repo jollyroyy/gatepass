@@ -104,3 +104,49 @@ describe('ColumnChart', () => {
     expect(screen.getByText('Nothing to show.')).toBeInTheDocument();
   });
 });
+
+// ─── The baseline (client, 2026-08-18) ──────────────────────────────────────
+// The columns used to stand on different lines: the shell was one flex column
+// and the LABEL was inside it, so a department whose name wrapped to two lines
+// stole a line's height from the plot above it and that bar started lower. The
+// plot is a fixed box now and the label sits under it in a fixed box of its own.
+describe('ColumnChart — one baseline for every column', () => {
+  it('gives every column a plot area of the same fixed height', () => {
+    render(<ColumnChart
+      slices={[
+        { key: 'a', label: 'Engineering', value: 4, rows: [] },
+        { key: 'b', label: 'Housekeeping and Facilities Management', value: 1, rows: [] },
+      ]}
+      valueLabel="passes"
+    />);
+    const plots = screen.getAllByTestId('column-plot');
+    expect(plots).toHaveLength(2);
+    expect(plots[0].style.height).toBe(plots[1].style.height);
+    expect(plots[0].style.height).not.toBe('');
+  });
+
+  it('boxes the label so a long department name cannot move the baseline', () => {
+    render(<ColumnChart
+      slices={[{ key: 'a', label: 'Housekeeping and Facilities Management', value: 4, rows: [] }]}
+      valueLabel="passes"
+    />);
+    const label = screen.getByText('Housekeeping and Facilities Management');
+    expect(label.className).toMatch(/\bh-8\b/);
+    expect(label.className).toMatch(/overflow-hidden/);
+  });
+});
+
+// ─── Today only (client, 2026-08-18) ────────────────────────────────────────
+describe('BoardDepartments — today, not all time', () => {
+  it('counts only passes raised today', async () => {
+    const BoardDepartments = (await import('../../src/components/board/BoardDepartments')).default;
+    const today = new Date(); today.setHours(9, 0, 0, 0);
+    const rows = [
+      pass({ id: 'a', department_id: 'd1', department_name: 'Engineering', created_at: today.toISOString() }),
+      pass({ id: 'b', department_id: 'd2', department_name: 'Housekeeping', created_at: '2026-01-02T04:00:00Z' }),
+    ];
+    render(<BoardDepartments rows={rows} loading={false} />);
+    expect(screen.getByText('Engineering')).toBeInTheDocument();
+    expect(screen.queryByText('Housekeeping')).not.toBeInTheDocument();
+  });
+});

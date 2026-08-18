@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-18
 
-Full gate: **1165 tests across 109 files** (`npm run check`), `npm run build` clean.
+Full gate: **1168 tests across 109 files** (`npm run check`), `npm run build` clean.
 Migrations **`001`–`042` are all applied to the live DB**; `039`, `040`, `041` were each
 verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`), and `042` with a
 rolled-back `psql` insert that returned `RGP-20260818-0001`.
@@ -88,7 +88,13 @@ gold.**
   `/overdue` when `showDepartments`). Both bucket by `department_id`, label a null department
   "Unassigned", and count what the list beside them counts. `BoardDepartments` is deliberately
   NOT a drill — it sits outside GateBoard's drill machinery, so it offers no click.
-  Pinned by `departmentCharts.test.tsx` (7).
+  **`BoardDepartments` counts TODAY only** (client, 2026-08-18): it filters `rows` on
+  `created_at` inside the local day, the same cut `GateBoard` makes for its `raised` window.
+  `OverdueDeptChart` is unscoped by date on purpose — a backlog is not a day figure.
+  **Every column stands on one baseline**: the plot is a fixed `PLOT_H` box and the label sits
+  under it in a fixed `h-8 overflow-hidden` box (`data-testid="column-plot"`). The label used to
+  size itself inside the flex column, so a department whose name wrapped to two lines started its
+  bar a line lower than its neighbours. Pinned by `departmentCharts.test.tsx` (10).
 - **The admin sidebar is Dashboard · Overdue Items · Departments & Users · Reports.** Sidebar
   order now comes from `ROLE_ROUTES[role]` (`Sidebar` sorts by it), because `/overdue` is one
   shared entry that cannot sit in the right slot for three roles at once. Guard and HOD orders

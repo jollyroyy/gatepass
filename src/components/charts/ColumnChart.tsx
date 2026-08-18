@@ -30,6 +30,12 @@ type Props = {
  *  between two visits. */
 const PLOT_H = 176;
 
+/** The label's box, in Tailwind. FIXED (two lines at `leading-tight`, 11px), and
+ *  that is the whole reason every column stands on one line: the label used to
+ *  size itself, so a department whose name wrapped stole a line's height from
+ *  the plot above it and started its bar lower than its neighbours. */
+const LABEL_BOX = 'h-8 overflow-hidden';
+
 export default function ColumnChart({
   slices, valueLabel, empty = 'Nothing to plot yet.', activeKey, onSelect,
 }: Props): React.ReactElement {
@@ -40,14 +46,18 @@ export default function ColumnChart({
     // Scrolls sideways rather than crushing the columns: past six departments a
     // fixed-width chart turns every label into an ellipsis.
     <div className="overflow-x-auto">
-      <div className="flex items-end gap-3 min-w-fit" style={{ height: PLOT_H }}>
+      <div className="flex items-start gap-3 min-w-fit">
         {slices.map((s, i) => {
           const pct = max === 0 ? 0 : Math.round((s.value / max) * 100);
           const active = activeKey === s.key;
           const column = (
             <>
               <span className="text-caption font-semibold text-navy-800 tabular-nums">{s.value}</span>
-              <span className="flex-1 flex items-end w-full">
+              <span
+                data-testid="column-plot"
+                className="flex items-end w-full"
+                style={{ height: PLOT_H }}
+              >
                 <span
                   data-testid="column-bar"
                   className="w-full rounded-t-md transition-[height] duration-300"
@@ -57,11 +67,13 @@ export default function ColumnChart({
             </>
           );
           const label = (
-            <span className="text-[11px] font-medium text-navy-600 text-center leading-tight break-words">
+            <span
+              className={`${LABEL_BOX} w-full text-[11px] font-medium text-navy-600 text-center leading-tight break-words`}
+            >
               {s.label}
             </span>
           );
-          const shell = 'flex flex-col items-center gap-1 w-16 shrink-0 h-full';
+          const shell = 'flex flex-col items-center gap-1 w-16 shrink-0';
           return onSelect ? (
             <button
               key={s.key}
