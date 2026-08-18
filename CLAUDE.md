@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-18
 
-Full gate: **1140 tests across 104 files** (`npm run check`), `npm run build` clean.
+Full gate: **1143 tests across 105 files** (`npm run check`), `npm run build` clean.
 Migrations **`001`–`041` are all applied to the live DB**; `039`, `040`, `041` were each
 verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 
@@ -50,7 +50,33 @@ verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 
-**Latest change (2026-08-18, ninth pass): four trims the client asked for, all frontend, no
+**Latest change (2026-08-18, tenth pass): there is now ONE gate-pass record format. `/pass/:id`
+renders the same `PassRecordView` the gate search resolves to.** Frontend only, no migration.
+
+- **`src/pages/Shared/PassDetail.tsx` was rewritten around `useGatePassRecord` + `PassRecordView`.**
+  Every stacked list in the app already routed to `/pass/:id` — the guard's KPI drills
+  (`GuardDrillCard`), the board drills (`DrillPassCard`), Return Watch, Overdue Items, Scheduled
+  Returns, My Passes, All Passes, the notification bell — so swapping this one page's body made
+  every drill-down identical, on every role, in one place. Client, 2026-08-18: "it should show
+  exactly in the same format as when we are searching with that gate pass … in the guard's view
+  make it the same across all the views."
+- **The old second format is DELETED, not flagged off:** `src/pages/Shared/DetailRow.tsx` and
+  `PassDetailItems.tsx` are gone, and nothing else imported them.
+- **What the page keeps, above the record:** the "pass raised" banner (`?created=1`), the flagged
+  banner with `FlaggedReviewActions` (raising HOD only), and the HOD-approved / rejected notices.
+  They sit above `PassRecordView` so the record itself is byte-for-byte what the gate sees.
+  `useGatePassRecord` gained an optional **`reloadKey`** so an override re-reads the three views.
+- **`PassRecordSummary` absorbed the facts the old page carried** — Contact, Vendor, Vendor
+  address, Vehicle number — because a drill-down must not lose data the detail page had. Fact 1
+  is labelled **"Authorized Person's Name"** (the app-wide vocabulary; it was "Employee"), and
+  `Fact` now takes `string | null | undefined`. **Expected return is RGP-only**, omitted rather
+  than dashed for an NRGP; Contact is its own row on every type now.
+- **The rail is headed "Activity timeline"**, not "Return activity" — it always carried every
+  gate event (matched, flagged, HOD override, void), and it is now the detail page's timeline too.
+- Pinned by `tests/unit/passRecordEverywhere.test.tsx` (3) plus rewritten cases in
+  `passDetailHeader.test.tsx` (the timeline wording is `PassRecordActivity`'s map now).
+
+**Earlier (2026-08-18, ninth pass): four trims the client asked for, all frontend, no
 migration.**
 
 - **The guard's board is titled "Today at a glance"** and carries NO subtitle — the paragraph
@@ -624,8 +650,8 @@ Office**: material moves through the mall's service gate, HODs are department he
 MismatchReview, ExpiredReview), `Security/` (GateConsole — the **Search Pass** screen —
 GateLookup, Verify, GuardDashboard), `Shared/` also holding the two role-scoped return pages
 (OverdueItemsPage, ReturnsDueTodayPage), `Admin/` (AdminPanel and its tabs, AdminDashboard, ReportsPage), `Shared/`
-(PassDetail, PassPrint, Profile). `src/components/passview/` is the Gate Pass Details record Search Pass
-resolves to; `src/components/overdue/` is Overdue Items and `src/components/returns/` is the
+(PassDetail, PassPrint, Profile). `src/components/passview/` is the Gate Pass Details record — the ONE record format,
+rendered both by Search Pass and by `/pass/:id`; `src/components/overdue/` is Overdue Items and `src/components/returns/` is the
 line-level returns table, each one component serving all three roles; `src/components/board/` is the dashboard both the admin and the HOD get — one component, the HOD's scoped to one person server-side. `src/lib/` holds the
 lookup maps, derivations and formatters; `supabase/migrations/` runs `001` → `041`, with
 `005` an **optional demo seed** to skip in a real deployment.

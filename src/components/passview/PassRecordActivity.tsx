@@ -1,5 +1,9 @@
-// The "Return activity" rail beside a searched pass — the verification trail,
+// The activity rail beside a gate-pass record — the verification trail,
 // newest first, exactly as `gatepass.v_verifications` recorded it.
+//
+// It is headed "Activity timeline", not "Return activity": the rail carries
+// every gate event (matched, flagged, HOD override, void), not just returns,
+// and since 2026-08-18 it is also the timeline `/pass/:id` shows.
 //
 // Wording comes from a Record<VerifyAction, …>, never a string match, so a new
 // label on the Postgres enum is a type error rather than a blank line.
@@ -39,7 +43,7 @@ export default function PassRecordActivity({ entries }: Props): React.ReactEleme
 
   return (
     <aside className="card p-5">
-      <h2 className="card-title mb-4">Return activity</h2>
+      <h2 className="card-title mb-4">Activity timeline</h2>
 
       {newestFirst.length === 0 ? (
         <p className="empty-state !py-6">Nothing recorded at the gate yet.</p>

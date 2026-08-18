@@ -1,9 +1,15 @@
-// The summary card at the top of a Search Pass record: who took what, when it
+// The summary card at the top of a gate-pass record: who took what, when it
 // was issued, where the pass stands, and the QR that reopens it.
+//
+// This is the ONE record format in the app (2026-08-18). `/pass/:id` — where
+// every stacked list, KPI drill and notification lands — renders the same
+// component the gate search resolves to, so a pass never reads two ways. That
+// is why the fact columns carry the vendor block and the vehicle number: they
+// were on the old detail page, and a drill-down must not lose them.
 //
 // Four columns on a wide screen — facts, more facts, the stage strip, the QR —
 // collapsing to one on a phone. Presentation only; every value is read from
-// the row the search already loaded.
+// the row the caller already loaded.
 import React from 'react';
 import type { GatePassView } from '../../types';
 import { formatDateTime, formatDateOnly } from '../../lib/formatDate';
@@ -18,10 +24,12 @@ const BUILDING = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="roun
 const PIN = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M12 21s6.5-5.4 6.5-10.1A6.5 6.5 0 005.5 10.9C5.5 15.6 12 21 12 21z" /><circle cx="12" cy="10.75" r="2.25" /></svg>;
 const CALENDAR = <svg {...ICON}><rect x="3.75" y="5.25" width="16.5" height="15" rx="2" /><path strokeLinecap="round" d="M3.75 9.75h16.5M8.25 3.75v3M15.75 3.75v3" /></svg>;
 const CLOCK = <svg {...ICON}><circle cx="12" cy="12" r="8.25" /><path strokeLinecap="round" d="M12 7.75V12l2.75 1.75" /></svg>;
+const PHONE = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3.75h3l1.5 4.5-2.25 1.5a12 12 0 005.25 5.25l1.5-2.25 4.5 1.5v3a1.5 1.5 0 01-1.5 1.5A15.75 15.75 0 015.25 5.25a1.5 1.5 0 011.5-1.5z" /></svg>;
+const TRUCK = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 7.5h9v9h-9v-9zM12.75 10.5h3.75l2.25 2.25v3.75h-6V10.5z" /><circle cx="7" cy="18" r="1.5" /><circle cx="16.5" cy="18" r="1.5" /></svg>;
 
 /** One labelled fact. Icon, caption, value — the caption is a caption, never a
  *  heading, so it stays Inter and neutral. */
-function Fact({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }): React.ReactElement {
+function Fact({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | null | undefined }): React.ReactElement {
   return (
     <div className="flex items-start gap-2.5">
       <span className="mt-0.5">{icon}</span>
@@ -56,19 +64,23 @@ export default function PassRecordSummary({ pass }: { pass: GatePassView }): Rea
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 xl:gap-5">
         <div className="flex flex-col gap-5">
-          <Fact icon={PERSON} label="Employee" value={pass.visitor_name} />
-          <Fact icon={BUILDING} label="Department" value={pass.department_name} />
-          <Fact icon={PIN} label="Destination" value={pass.purpose} />
+          <Fact icon={PERSON} label="Authorized Person's Name" value={pass.visitor_name} />
+          <Fact icon={PHONE} label="Contact" value={company.phone} />
+          <Fact icon={BUILDING} label="Vendor" value={company.name} />
+          <Fact icon={PIN} label="Vendor address" value={company.address} />
+          <Fact icon={TRUCK} label="Vehicle number" value={pass.vehicle_number} />
         </div>
 
         <div className="flex flex-col gap-5">
+          <Fact icon={BUILDING} label="Department" value={pass.department_name} />
+          <Fact icon={PIN} label="Destination" value={pass.purpose} />
           <Fact icon={PERSON} label="Issued by" value={pass.raised_by_name} />
           <Fact icon={CALENDAR} label="Issue date" value={formatDateTime(pass.created_at)} />
-          <Fact
-            icon={CLOCK}
-            label={pass.type === 'RGP' ? 'Expected return' : 'Contact'}
-            value={pass.type === 'RGP' ? formatDateOnly(pass.expected_return_date) : company.phone || '—'}
-          />
+          {/* RGP only — an NRGP never comes back, so the row is omitted rather
+              than shown as a dash that reads like missing data. */}
+          {pass.type === 'RGP' && (
+            <Fact icon={CLOCK} label="Expected return" value={formatDateOnly(pass.expected_return_date)} />
+          )}
         </div>
 
         {/* The stage strip. Dots and a connecting rule, not a chart — the

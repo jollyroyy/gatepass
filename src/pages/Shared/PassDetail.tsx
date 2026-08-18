@@ -1,53 +1,34 @@
-// Shared pass-detail page — readable by HOD (own departments), security, and
-// admin. RLS scopes what `v_gate_passes` returns; this component just renders
-// whatever comes back, and treats "nothing came back" as "no access / not found".
+// `/pass/:id` — the one gate-pass record, readable by the HOD (own
+// departments), security and admin. RLS scopes what `v_gate_passes` returns;
+// this component renders whatever comes back and treats "nothing came back"
+// as "no access / not found".
+//
+// IT RENDERS THE SEARCH PASS RECORD (client, 2026-08-18: "whenever we are
+// clicking to check the details of our gate pass, it should show exactly in
+// the same format as when we are searching with that gate pass"). Every
+// stacked list in the app — the guard's KPI drills, the board drills, Overdue
+// Items, Scheduled Returns, My Passes, the notification bell — routes here, so
+// swapping this page's body for `PassRecordView` makes every drill-down
+// identical in one place. There is no second detail format left; `DetailRow`
+// and `PassDetailItems` were deleted with it.
+//
+// What this page adds, and the search screen does not have: the "pass raised"
+// banner, and the raising HOD's decision panels (the flagged override, and the
+// notices for an approved or rejected pass). They sit ABOVE the record, so the
+// record itself is byte-for-byte what the gate sees.
 import React, { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { gp, supabase } from '../../supabaseClient';
-import type { GatePassView, GatePassItemView, Verification, VerifyAction } from '../../types';
-import { PASS_TYPES } from '../../lib/passTypes';
-import { OVERDUE_STYLE } from '../../lib/statusStyles';
-import { passStageStyle } from '../../lib/passStage';
-import { formatDateTime, formatDateOnly } from '../../lib/formatDate';
-import { safeErrorMessage } from '../../lib/errors';
-import { parseCompanyInfo } from '../../lib/companyInfo';
-import Badge, { TypeChip } from '../../components/Badge';
-import QrPass from '../../components/QrPass';
+import { supabase } from '../../supabaseClient';
+import { useGatePassRecord } from '../../lib/useGatePassRecord';
+import PassRecordView from '../../components/passview/PassRecordView';
+import { formatDateTime } from '../../lib/formatDate';
 import FlaggedReviewActions from './FlaggedReviewActions';
-import DetailRow from './DetailRow';
-import PassDetailItems from './PassDetailItems';
-
-/** `gatepass.v_verifications` — the table plus the security officer's name. */
-interface VerificationView extends Verification {
-  security_name: string;
-}
-
-const ACTION_DOT: Record<VerifyAction, string> = {
-  matched: 'bg-matched-500',
-  flagged: 'bg-flagged-500',
-  returned: 'bg-brand-600',
-  held: 'bg-pending-500',
-  hod_reviewed: 'bg-accent-500',
-  cancelled: 'bg-navy-400',
-};
-
-const ACTION_LABEL: Record<VerifyAction, string> = {
-  matched: 'Matched at gate',
-  flagged: 'Mismatched at gate',
-  returned: 'Returned',
-  held: 'Held at gate',
-  hod_reviewed: 'HOD approved override',
-  cancelled: 'Voided by HOD',
-};
 
 export default function PassDetail(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [pass, setPass] = useState<GatePassView | null | undefined>(undefined);
-  const [items, setItems] = useState<GatePassItemView[]>([]);
-  const [verifications, setVerifications] = useState<VerificationView[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [showCreated, setShowCreated] = useState(searchParams.get('created') === '1');
+  const [error, setError] = useState<string | null>(null);
 
   // Raised passes are permanent — there is no cancellation (migration 024).
   const [userId, setUserId] = useState<string | null>(null);
@@ -57,43 +38,7 @@ export default function PassDetail(): React.ReactElement {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setPass(undefined);
-      setError(null);
-      try {
-        const { data, error: passErr } = await gp().from('v_gate_passes').select('*').eq('id', id).maybeSingle();
-        if (passErr) throw passErr;
-        if (cancelled) return;
-        setPass((data as GatePassView | null) ?? null);
-
-        if (data) {
-          const { data: itemRows, error: itemErr } = await gp()
-            .from('v_gate_pass_items')
-            .select('*')
-            .eq('gate_pass_id', id)
-            .order('line_no');
-          if (itemErr) throw itemErr;
-          if (!cancelled) setItems((itemRows as GatePassItemView[] | null) ?? []);
-
-          const { data: verifs, error: verifErr } = await gp()
-            .from('v_verifications')
-            .select('*')
-            .eq('gate_pass_id', id)
-            .order('created_at');
-          if (verifErr) throw verifErr;
-          if (!cancelled) setVerifications((verifs as VerificationView[] | null) ?? []);
-        }
-      } catch (err) {
-        if (!cancelled) setError(safeErrorMessage(err));
-      }
-    }
-    if (id) load();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, reloadKey]);
+  const { record, error: loadError } = useGatePassRecord(id ?? null, reloadKey);
 
   function dismissCreated() {
     setShowCreated(false);
@@ -102,9 +47,9 @@ export default function PassDetail(): React.ReactElement {
     setSearchParams(next, { replace: true });
   }
 
-  if (pass === undefined) {
+  if (record === undefined) {
     return (
-      <div className="flex flex-col gap-4 max-w-4xl">
+      <div className="flex flex-col gap-4">
         <div className="skeleton h-10 w-64" />
         <div className="skeleton h-40 w-full" />
         <div className="skeleton h-64 w-full" />
@@ -112,11 +57,11 @@ export default function PassDetail(): React.ReactElement {
     );
   }
 
-  if (pass === null) {
+  if (record === null) {
     return (
       <div className="empty-state card p-10">
         <p className="text-navy-700 font-medium">Pass not found, or you don't have access to it.</p>
-        {error && <p className="text-sm text-flagged-700 mt-2">{error}</p>}
+        {loadError && <p className="text-sm text-flagged-700 mt-2">{loadError}</p>}
         <Link to="/" className="btn-secondary inline-block mt-4">
           Back to dashboard
         </Link>
@@ -124,10 +69,10 @@ export default function PassDetail(): React.ReactElement {
     );
   }
 
-  const companyInfo = parseCompanyInfo(pass.visitor_company);
+  const { pass } = record;
 
   return (
-    <div className="flex flex-col gap-6 max-w-4xl">
+    <div className="flex flex-col gap-5">
       {showCreated && (
         <div className="alert-success justify-between">
           <span>
@@ -143,32 +88,7 @@ export default function PassDetail(): React.ReactElement {
         </div>
       )}
 
-      {error && <div className="alert-error">{error}</div>}
-
-      <div className="card p-6 flex items-start justify-between flex-wrap gap-4">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-extrabold tracking-tight font-mono text-navy-950">{pass.pass_number}</h1>
-            <TypeChip type={pass.type} />
-            {/* The SAME single badge every card shows, so a pass that read
-                "Closed" in the list cannot read "Matched" at the top of its
-                own record. `status` freezes at 'matched' after the outward
-                trip — only `return_status` moves — which is why the raw
-                status map was wrong here (client, 2026-08-11). */}
-            <Badge style={passStageStyle(pass)} />
-            {pass.is_overdue && <Badge style={OVERDUE_STYLE} />}
-          </div>
-          <p className="text-sm text-navy-500">{PASS_TYPES[pass.type].label}</p>
-          <div className="flex flex-wrap gap-2 mt-1">
-            <Link to={`/pass/${pass.id}/print`} className="btn-secondary w-fit">
-              Print Pass
-            </Link>
-          </div>
-        </div>
-        {/* Encodes qr_token, NOT pass_number: the number is sequential, so a QR
-            built from it could be forged for a pass nobody ever held. */}
-        <QrPass value={pass.qr_token} size={110} />
-      </div>
+      {(error || loadError) && <div className="alert-error">{error ?? loadError}</div>}
 
       {pass.status === 'flagged' && (
         <div className="alert-error flex-col items-start gap-3">
@@ -200,9 +120,7 @@ export default function PassDetail(): React.ReactElement {
 
       {pass.status === 'hod_reviewed' && (
         <div className="alert-success flex-col items-start gap-1">
-          <p className="font-semibold">
-            HOD approved — awaiting dispatch at the gate
-          </p>
+          <p className="font-semibold">HOD approved — awaiting dispatch at the gate</p>
           {pass.flag_reason && (
             <p className="text-sm text-navy-500 whitespace-pre-wrap break-words">
               Originally flagged for: {pass.flag_reason}
@@ -224,60 +142,7 @@ export default function PassDetail(): React.ReactElement {
         </div>
       )}
 
-      <div className="card p-6">
-        <h2 className="card-title mb-4">Pass Details</h2>
-        <dl className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <DetailRow label="Authorized Person's Name" value={pass.visitor_name} />
-          <DetailRow label="Contact No" value={companyInfo.phone || '—'} />
-          <DetailRow label="Vendor" value={companyInfo.name || '—'} emphasize />
-          <DetailRow label="Vendor Address" value={companyInfo.address || '—'} />
-          <DetailRow label="Vehicle Number" value={pass.vehicle_number} />
-          <DetailRow label="Department" value={pass.department_name} />
-          <DetailRow label="Raised By" value={pass.raised_by_name} emphasize />
-          <DetailRow label="Raised At" value={formatDateTime(pass.created_at)} />
-          {/* RGP only — an NRGP never comes back, so omit rather than show a
-              misleading "—" that reads as missing data. */}
-          {pass.type === 'RGP' && pass.expected_return_date && (
-            <DetailRow label="Expected Return" value={formatDateOnly(pass.expected_return_date)} emphasize />
-          )}
-        </dl>
-      </div>
-
-      <PassDetailItems items={items} itemCount={pass.item_count} passType={pass.type} />
-
-      <div className="card p-6">
-        <h2 className="card-title mb-4">Verification Timeline</h2>
-        {verifications.length === 0 ? (
-          <p className="empty-state !py-6">Not yet verified at the gate.</p>
-        ) : (
-          <ol className="flex flex-col gap-5">
-            {verifications.map((v) => {
-              const qtyMismatch =
-                v.verified_quantity !== null && v.verified_quantity !== pass.total_quantity;
-              return (
-                <li key={v.id} className="flex gap-3">
-                  <span className={`mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 ${ACTION_DOT[v.action]}`} />
-                  <div className="flex flex-col gap-0.5">
-                    <p className="text-sm font-semibold text-navy-900">
-                      {ACTION_LABEL[v.action]} — {v.security_name}
-                    </p>
-                    <p className="text-xs text-navy-500">{formatDateTime(v.created_at)}</p>
-                    {qtyMismatch && (
-                      <p className="text-sm font-semibold text-flagged-700">
-                        Counted {v.verified_quantity} — declared {pass.total_quantity}
-                      </p>
-                    )}
-                    {v.verified_vehicle && (
-                      <p className="text-sm text-navy-700">Vehicle checked: {v.verified_vehicle}</p>
-                    )}
-                    {v.remarks && <p className="text-sm text-navy-700">{v.remarks}</p>}
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        )}
-      </div>
+      <PassRecordView record={record} />
     </div>
   );
 }

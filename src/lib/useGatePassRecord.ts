@@ -19,7 +19,9 @@ export interface GatePassRecord {
   activity: ActivityEntry[];
 }
 
-export function useGatePassRecord(passId: string | null): {
+/** `reloadKey` re-runs the three reads without changing the pass: the detail
+ *  page bumps it after an HOD override, which rewrites `status` server-side. */
+export function useGatePassRecord(passId: string | null, reloadKey = 0): {
   record: GatePassRecord | null | undefined;
   error: string | null;
 } {
@@ -78,7 +80,7 @@ export function useGatePassRecord(passId: string | null): {
     return () => {
       cancelled = true;
     };
-  }, [passId]);
+  }, [passId, reloadKey]);
 
   return { record, error };
 }

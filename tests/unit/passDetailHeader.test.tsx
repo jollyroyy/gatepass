@@ -96,6 +96,8 @@ describe('PassDetail header badge', () => {
 
   // The whole point of dropping "Matched" from the badge: the moment has to be
   // legible somewhere, and the detail page is where the client asked for it.
+  // Since 2026-08-18 the page renders the Search Pass record, so the wording is
+  // that rail's — `PassRecordActivity`'s Record<VerifyAction, string>.
   it('shows both gate events in the timeline', async () => {
     row = pass({ status: 'matched', return_status: 'returned' });
     verifications = [
@@ -103,7 +105,7 @@ describe('PassDetail header badge', () => {
       { id: 'v2', gate_pass_id: 'p1', action: 'returned', security_name: 'Guard Two', created_at: '2026-08-03T07:00:00Z', verified_quantity: null, verified_vehicle: null, remarks: null },
     ];
     renderDetail();
-    await waitFor(() => expect(screen.getByText(/Matched at gate/)).toBeInTheDocument());
-    expect(screen.getByText(/Returned/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Cleared out at the gate')).toBeInTheDocument());
+    expect(screen.getByText('Material marked returned')).toBeInTheDocument();
   });
 });
