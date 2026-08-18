@@ -53,7 +53,7 @@ export function csvReturnStatus(p: { return_status: ReturnStatus }): string {
   return p.return_status === 'not_applicable' ? '' : RETURN_STYLES[p.return_status].label;
 }
 
-/** "RGP Out" / "RGP In" / "NRGP Out" — the category, not the bare type. The
+/** "RGP Out" / "RGP In" / "NRGP" — the category, not the bare type. The
  *  direction is half of what a pass IS, and a column headed Type that reads
  *  "RGP" for both legs cannot be filtered on in the spreadsheet. */
 export function csvCategory(p: { type: PassType; direction: PassDirection }): string {

@@ -70,7 +70,7 @@ describe('cell formatters — the label, not the stored key', () => {
   it('names the category, so RGP In is not filed as RGP Out', () => {
     expect(csvCategory({ type: 'RGP', direction: 'out' })).toBe('RGP Out');
     expect(csvCategory({ type: 'RGP', direction: 'in' })).toBe('RGP In');
-    expect(csvCategory({ type: 'NRGP', direction: 'out' })).toBe('NRGP Out');
+    expect(csvCategory({ type: 'NRGP', direction: 'out' })).toBe('NRGP');
   });
 
   it('spells the unit out, and exports no dash for a missing one', () => {

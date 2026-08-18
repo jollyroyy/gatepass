@@ -60,7 +60,11 @@ export const PASS_CATEGORIES: Record<PassCategoryKey, PassCategory> = {
     key: 'NRGP-out',
     type: 'NRGP',
     direction: 'out',
-    label: 'NRGP Out',
+    // Labelled 'NRGP' with no direction, everywhere it is shown (client,
+    // 2026-08-18): NRGP is outward-only by constraint, so "Out" adds nothing
+    // and no KPI on either board says it. The KEY keeps the direction — it
+    // mirrors `gate_passes_nrgp_is_outward` and the pass_number prefix.
+    label: 'NRGP',
     description: 'Material leaving for good. Nothing to track afterwards.',
   },
 };

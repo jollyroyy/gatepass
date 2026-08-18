@@ -1,13 +1,22 @@
-// The gate's working screen: the pending queue as premium cards, oldest first,
-// with the pass lookup anchored to the right of the header. Every gate FIGURE
-// moved to the guard dashboard (/guard-dashboard), which owns both the count and
-// the list behind it — this page is the queue and nothing else.
+// Search Pass — the gate's working screen. The search bar sits alone at the top
+// centre, because finding a pass is what this page is FOR; the pending queue is
+// what fills the space while nobody is searching.
+//
+// A search that resolves to one pass (an exact pass number, or a mobile number
+// that only one pass carries) renders the full Gate Pass Details record in
+// place — summary, item table, return activity — instead of jumping to the
+// verify screen. A mobile number held by several people renders the list, and
+// clicking a row opens that record in the same place.
+//
+// Every gate FIGURE moved to the guard dashboard (/guard-dashboard), which owns
+// both the count and the list behind it.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase, gp } from '../../supabaseClient';
 import type { GatePassView } from '../../types';
-import { PASS_CATEGORY_LIST, PASS_CATEGORIES, categoryKey, type PassCategoryKey } from '../../lib/passTypes';
 import { safeErrorMessage } from '../../lib/errors';
+import { useGatePassRecord } from '../../lib/useGatePassRecord';
+import PassRecordView from '../../components/passview/PassRecordView';
 import GateLookup from './GateLookup';
 import PhoneSearchResults from './PhoneSearchResults';
 import QueueCard from './QueueCard';
@@ -44,7 +53,10 @@ export default function GateConsole(): React.ReactElement {
   // collapse into the same state.
   const [phoneSearch, setPhoneSearch] = useState<{ query: string; rows: GatePassView[] } | null>(null);
 
-  const [categoryFilter, setCategoryFilter] = useState<PassCategoryKey | 'all'>('all');
+  // The pass whose full record is open under the search bar. Null = none.
+  const [recordId, setRecordId] = useState<string | null>(null);
+  const { record, error: recordError } = useGatePassRecord(recordId);
+
   const [deptFilter, setDeptFilter] = useState<string>('all');
 
   const load = useCallback(async (silent = false) => {
@@ -120,57 +132,84 @@ export default function GateConsole(): React.ReactElement {
     new Map(queue.map((p) => [p.department_id, { id: p.department_id, name: p.department_name }])).values()
   );
 
-  const filteredQueue = queue.filter((p) => {
-    if (categoryFilter !== 'all' && categoryKey(p.type, p.direction) !== categoryFilter) return false;
-    if (deptFilter !== 'all' && p.department_id !== deptFilter) return false;
-    return true;
-  });
+  const filteredQueue = queue.filter((p) => deptFilter === 'all' || p.department_id === deptFilter);
+
+  // One match is an answer, not a list: a mobile number that only one pass
+  // carries opens that record straight away, exactly as a pass number does.
+  function handlePhoneResults(query: string, rows: GatePassView[]) {
+    if (rows.length === 1) {
+      setPhoneSearch(null);
+      setRecordId(rows[0].id);
+      return;
+    }
+    setRecordId(null);
+    setPhoneSearch({ query, rows });
+  }
+
+  function clearSearch() {
+    setRecordId(null);
+    setPhoneSearch(null);
+  }
 
   return (
     <div>
-      {/* Title left, lookup right — the lookup is a tool, not the page, so it
-          gets a fixed column rather than the full width it used to span. */}
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
-        <div className="page-header !mb-0">
-          <h1 className="page-title">Gate Console</h1>
-          <p className="page-subtitle">Work the pending queue, or look up a pass.</p>
-        </div>
-        <GateLookup onPhoneResults={(query, rows) => setPhoneSearch({ query, rows })} />
+      {/* The search bar is the page, so it is centred and alone at the top. */}
+      <div className="page-header text-center">
+        <h1 className="page-title">Search Pass</h1>
+        <p className="page-subtitle">Find a pass by its number or by the mobile number of the person carrying it.</p>
+      </div>
+
+      <div className="mb-6">
+        <GateLookup
+          onPhoneResults={handlePhoneResults}
+          onPassResolved={(passId) => {
+            setPhoneSearch(null);
+            setRecordId(passId);
+          }}
+        />
       </div>
 
       {flash && <div className="alert-success mb-6">{flash}</div>}
 
       {error && <div className="alert-error mb-6">{error}</div>}
 
+      {recordError && <div className="alert-error mb-6">{recordError}</div>}
+
+      {recordId && record === undefined && (
+        <div className="flex flex-col gap-4 mb-8">
+          <div className="skeleton h-10 w-64" />
+          <div className="skeleton h-52 w-full" />
+          <div className="skeleton h-64 w-full" />
+        </div>
+      )}
+
+      {record && (
+        <div className="mb-8">
+          <PassRecordView record={record} onClear={clearSearch} />
+        </div>
+      )}
+
       {phoneSearch && (
         <PhoneSearchResults
           query={phoneSearch.query}
           rows={phoneSearch.rows}
-          onClear={() => setPhoneSearch(null)}
+          onClear={clearSearch}
+          onOpen={(id) => {
+            setPhoneSearch(null);
+            setRecordId(id);
+          }}
         />
       )}
+
+      {/* Named now that a searched record can sit above it — otherwise the
+          queue reads as a continuation of the search result. */}
+      <h2 className="section-title">Pending Queue</h2>
 
       <div ref={queueRef} id="queue" className="mb-5">
         <div className="inline-flex items-center gap-2 bg-surface-100/60 border border-surface-200 rounded-xl px-3 py-2 backdrop-blur-sm">
           <svg className="w-4 h-4 text-navy-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
           </svg>
-          <select
-            className="text-sm font-medium bg-transparent border-0 p-0 pr-6 text-navy-700 cursor-pointer focus:ring-0 appearance-none"
-            style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right center" }}
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value as PassCategoryKey | 'all')}
-          >
-            <option value="all">All Types</option>
-            {PASS_CATEGORY_LIST.map((k) => (
-              <option key={k} value={k}>
-                {PASS_CATEGORIES[k].label}
-              </option>
-            ))}
-          </select>
-
-          <span className="w-px h-5 bg-surface-300" />
-
           {deptOptions.length > 1 ? (
             <select
               className="text-sm font-medium bg-transparent border-0 p-0 pr-6 text-navy-700 cursor-pointer focus:ring-0 appearance-none"

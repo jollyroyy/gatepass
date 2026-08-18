@@ -91,7 +91,7 @@ describe('App — deactivated account gate', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'Account Deactivated' })).toBeInTheDocument()
     );
-    expect(screen.queryByRole('heading', { name: 'Gate Console' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Search Pass' })).not.toBeInTheDocument();
   });
 
   it('is not escapable by URL', async () => {
@@ -117,7 +117,7 @@ describe('App — deactivated account gate', () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Gate Console' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Search Pass' })).toBeInTheDocument());
   });
 
   // 040 writes a user_status row only for someone actually suspended, and a
@@ -132,7 +132,7 @@ describe('App — deactivated account gate', () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Gate Console' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Search Pass' })).toBeInTheDocument());
   });
 
   it('the forced password change still outranks it', async () => {

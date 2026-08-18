@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-18
 
-Full gate: **1079 tests across 99 files** (`npm run check`), `npm run build` clean.
+Full gate: **1095 tests across 101 files** (`npm run check`), `npm run build` clean.
 Migrations **`001`–`041` are all applied to the live DB**; `039`, `040`, `041` were each
 verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 
@@ -50,7 +50,53 @@ verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 
-**Latest change (2026-08-18, fifth pass): the guard board's Awaiting Return is now TODAY's
+**Latest change (2026-08-18, sixth pass): Gate Console is now "Search Pass", second in the
+guard's sidebar, and an exact search renders the whole Gate Pass Details record in place.**
+Frontend only — no migration, no new RPC.
+
+- **The tab is renamed and moved.** `ALL_LINKS` for `guard` is now Dashboard · Search Pass ·
+  Pending Returns; `ROLE_ROUTES.guard` mirrors that order. The route is still `/console` —
+  renaming it would break the `flash` redirect out of `Verify`, which still says "Back to
+  Search Pass". `ROLE_HOME.guard` is unchanged (`/guard-dashboard`).
+- **The search bar is alone at the top centre** (`max-w-2xl mx-auto`, pill-rounded), no longer
+  a 380px card pinned to the right of the title. The "Find a Pass" caption is gone — the input
+  is labelled `sr-only` "Find a pass by number or mobile", which is what tests query by.
+- **The queue's pass-TYPE filter is deleted.** The department filter and the `n/total` counter
+  stay in the same chip, under a new `Pending Queue` section title (the queue now sits below a
+  possible record and needed naming).
+- **An exact query opens the record, it does not jump to `/verify`.** `GateLookup` gained
+  `onPassResolved(passId, outcome)`; when given, it fires instead of navigating. **A pass
+  number still goes through `lookup_pass`** — the scan attempt is still logged and the
+  blacklist alert still stops the guard first — and the callback fires for EVERY outcome that
+  carries a `pass_id`, so an expired or already-matched pass still shows its record with the
+  outcome message above it. A mobile number that **exactly one** pass carries opens that record
+  too; two or more still render `PhoneSearchResults`, whose rows now call `onOpen` (in place)
+  while the ACTION button still navigates (Verify at Gate / View Details).
+- **The record is `src/components/passview/`** — `PassRecordView` (breadcrumb, title, the one
+  `passStageStyle` badge, Print Pass, the attention banner) composing `PassRecordSummary`
+  (identity, facts, stage strip, QR + "last updated"), `PassRecordItems` (the table + progress
+  bar) and `PassRecordActivity` (verifications, newest first). Loaded by
+  `src/lib/useGatePassRecord.ts` — three reads of `v_gate_passes` / `v_gate_pass_items` /
+  `v_verifications`, `undefined` = loading and `null` = no access, deliberately different.
+- **The item table's columns are this app's, not the mock-up's.** There is no `category` and
+  no `condition` column anywhere in `gate_pass_items`, so those two slots carry **DESCRIPTION**
+  and **VALUE** — real fields, same seven-column layout. A column of em-dashes would read as
+  data loss. `SERIAL / ID` renders `serial_no`, which is write-dead today and shows `—`.
+- Every figure comes from `src/lib/passRecordView.ts` and nowhere else: `itemReturnStage`
+  grades a line on **quantities, not `returned_at`** (that column is written only when a line
+  goes FULLY back, so a half-returned line would read "pending"), `returnProgress` counts
+  LINES fully back out of all lines, `pendingItemCount` counts pending **and** partial.
+- Pinned by `tests/unit/passRecordView.test.ts` (11) and `tests/unit/gateConsoleSearch.test.tsx`
+  (4). `gateLookupPhone.test.tsx` now searches numbers that TWO passes carry — one match no
+  longer produces a list.
+
+**Also 2026-08-18: the NRGP category is labelled "NRGP" everywhere, never "NRGP Out"** (client:
+no KPI on either board says "out" for it). Changed in `PASS_CATEGORIES['NRGP-out'].label`,
+`boardAnalytics` (`nrgpOut` slice) and `guardDrills` (label + heading); `csvCategory` follows
+from the same map. **The KEY `NRGP-out` is unchanged** — it mirrors
+`gate_passes_nrgp_is_outward` and the `NRGP-OUT-…` pass_number prefix, neither of which moved.
+
+**Previous change (2026-08-18, fifth pass): the guard board's Awaiting Return is now TODAY's
 expected returns only, and Overdue takes every earlier missed date.** Frontend only — no
 migration.
 
@@ -76,7 +122,7 @@ migration.
 - Pinned by `tests/unit/awaitingReturnDueToday.test.ts` (11) plus three rewritten cases in
   `guardDashboard.test.tsx`.
 
-**Previous change (2026-08-18, fourth pass): scope controls moved into the page header, top
+**Earlier change (2026-08-18, fourth pass): scope controls moved into the page header, top
 right, on Reports and My Passes; My Passes gained a calendar.** Frontend only — no migration.
 
 - **Reports**: `ReportsFilterBar` is no longer a card — it renders inline in the `.page-header`
@@ -480,9 +526,9 @@ Office**: material moves through the mall's service gate, HODs are department he
 "factory"/"plant"/"manufacturing".
 
 `src/pages/` is grouped by who uses it: `HOD/` (Dashboard, RaisePass, MyPasses,
-MismatchReview, ExpiredReview), `Security/` (GateConsole, GateLookup, Verify, GuardDashboard,
-PendingReturns), `Admin/` (AdminPanel and its tabs, AdminDashboard, ReportsPage), `Shared/`
-(PassDetail, PassPrint, Profile). `src/components/board/` is the dashboard both the admin and
-the HOD get — one component, the HOD's scoped to one person server-side. `src/lib/` holds the
+MismatchReview, ExpiredReview), `Security/` (GateConsole — the **Search Pass** screen —
+GateLookup, Verify, GuardDashboard, PendingReturns), `Admin/` (AdminPanel and its tabs, AdminDashboard, ReportsPage), `Shared/`
+(PassDetail, PassPrint, Profile). `src/components/passview/` is the Gate Pass Details record Search Pass
+resolves to; `src/components/board/` is the dashboard both the admin and the HOD get — one component, the HOD's scoped to one person server-side. `src/lib/` holds the
 lookup maps, derivations and formatters; `supabase/migrations/` runs `001` → `041`, with
 `005` an **optional demo seed** to skip in a real deployment.

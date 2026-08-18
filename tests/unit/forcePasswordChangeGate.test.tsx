@@ -89,7 +89,7 @@ describe('App — admin-reset password gate', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: /set your password/i })).toBeInTheDocument()
     );
-    expect(screen.queryByRole('heading', { name: 'Gate Console' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Search Pass' })).not.toBeInTheDocument();
   });
 
   it('is not escapable by URL — a deep link still lands on the gate', async () => {
@@ -115,7 +115,7 @@ describe('App — admin-reset password gate', () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Gate Console' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Search Pass' })).toBeInTheDocument());
     expect(screen.queryByRole('heading', { name: /set your password/i })).not.toBeInTheDocument();
   });
 
@@ -128,6 +128,6 @@ describe('App — admin-reset password gate', () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Gate Console' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Search Pass' })).toBeInTheDocument());
   });
 });

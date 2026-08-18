@@ -121,10 +121,10 @@ describe('Pending Returns navigation', () => {
     expect(guardLinks).toContain('Pending Returns');
   });
 
-  it('sits on the left-hand sidebar between Dashboard and Gate Console', () => {
+  it('sits on the left-hand sidebar below Search Pass', () => {
     const guardLinks = ALL_LINKS.filter((n) => n.roles.includes('guard'));
     const labels = guardLinks.map((n) => n.label);
-    expect(labels).toEqual(['Dashboard', 'Pending Returns', 'Gate Console']);
+    expect(labels).toEqual(['Dashboard', 'Search Pass', 'Pending Returns']);
   });
 
   it('lists /returns in the guard route list', () => {

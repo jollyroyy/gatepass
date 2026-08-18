@@ -136,11 +136,14 @@ beforeEach(() => {
 });
 
 describe('Guard navigation', () => {
-  it('lists Dashboard first, then Pending Returns, then Gate Console', () => {
+  // Search Pass sits directly under Dashboard (client, 2026-08-18): finding a
+  // pass is the errand a guard runs dozens of times a shift.
+  it('lists Dashboard first, then Search Pass, then Pending Returns', () => {
     const guardLinks = ALL_LINKS.filter((n) => n.roles.includes('guard')).map((n) => n.label);
     expect(guardLinks[0]).toBe('Dashboard');
-    expect(guardLinks[1]).toBe('Pending Returns');
-    expect(guardLinks[2]).toBe('Gate Console');
+    expect(guardLinks[1]).toBe('Search Pass');
+    expect(guardLinks[2]).toBe('Pending Returns');
+    expect(guardLinks).not.toContain('Gate Console');
   });
 
   it('offers a dedicated Pending Returns tab again (2026-08-08)', () => {
@@ -181,7 +184,10 @@ describe('GuardDashboard — KPI drills', () => {
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('RGP Out')).toBeInTheDocument());
     expect(screen.getByText('RGP In')).toBeInTheDocument();
-    expect(screen.getByText('NRGP Out')).toBeInTheDocument();
+    // 'NRGP' with no direction (client, 2026-08-18). getAllByText because the
+    // type chip on a queued NRGP pass now reads identically — which is the
+    // point: the drill and the chip name the same thing the same way.
+    expect(screen.getAllByText('NRGP').length).toBeGreaterThan(0);
   });
 
   it('says out loud that the board is today-only', async () => {
@@ -302,19 +308,26 @@ describe('GuardDashboard — KPI drills', () => {
   });
 });
 
-describe('GateConsole — queue only, with the lookup on the right', () => {
+describe('Search Pass — the search bar on top, the queue below', () => {
   it('no longer renders the KPI cards', async () => {
     renderAt(<GateConsole />);
-    await waitFor(() => expect(screen.getByText('Gate Console')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Search Pass')).toBeInTheDocument());
     expect(screen.queryByText('Pending for Gate Approval')).not.toBeInTheDocument();
     expect(screen.queryByText('Mismatch at Gate')).not.toBeInTheDocument();
   });
 
-  it('still renders the pass lookup, constrained rather than full width', async () => {
+  it('centres the search bar at the top of the page', async () => {
     const { container } = renderAt(<GateConsole />);
-    await waitFor(() => expect(screen.getByLabelText('Find a Pass')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByLabelText('Find a pass by number or mobile')).toBeInTheDocument());
     const lookup = container.querySelector('[data-testid="gate-lookup"]');
     expect(lookup).not.toBeNull();
+    expect(lookup?.className).toMatch(/mx-auto/);
     expect(lookup?.className).toMatch(/max-w-/);
+  });
+
+  it('has no pass-type filter on the queue any more', async () => {
+    renderAt(<GateConsole />);
+    await waitFor(() => expect(screen.getByText('Search Pass')).toBeInTheDocument());
+    expect(screen.queryByText('All Types')).not.toBeInTheDocument();
   });
 });

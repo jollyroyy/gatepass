@@ -141,9 +141,9 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
   },
   nrgpOut: {
     key: 'nrgpOut',
-    label: 'NRGP Out',
+    label: 'NRGP',
     tone: 'neutral',
-    heading: 'NRGP Out raised today',
+    heading: 'NRGP raised today',
     empty: 'No non-returnable material has gone out today.',
     returnable: false,
     source: 'raisedToday',

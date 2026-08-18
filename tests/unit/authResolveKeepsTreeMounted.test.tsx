@@ -79,7 +79,7 @@ describe('App auth resolution', () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Gate Console' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Search Pass' })).toBeInTheDocument());
     expect(authCallbacks.length).toBeGreaterThan(0);
 
     // Hold the role lookup open. The regression is a TRANSIENT unmount while
@@ -95,13 +95,13 @@ describe('App auth resolution', () => {
 
     // If this regresses, the tree flips to the full-page loader and every
     // mounted timer — SessionTimeout's included — restarts from zero.
-    expect(screen.getByRole('heading', { name: 'Gate Console' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Search Pass' })).toBeInTheDocument();
 
     await act(async () => {
       release('guard');
       await Promise.resolve();
     });
-    expect(screen.getByRole('heading', { name: 'Gate Console' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Search Pass' })).toBeInTheDocument();
   });
 
   it('still tears down to the login route when the session actually ends', async () => {
@@ -110,7 +110,7 @@ describe('App auth resolution', () => {
         <App />
       </MemoryRouter>
     );
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Gate Console' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Search Pass' })).toBeInTheDocument());
 
     getUserRole.mockResolvedValue(null);
     await act(async () => {
@@ -118,6 +118,6 @@ describe('App auth resolution', () => {
       await Promise.resolve();
     });
 
-    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Gate Console' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Search Pass' })).not.toBeInTheDocument());
   });
 });

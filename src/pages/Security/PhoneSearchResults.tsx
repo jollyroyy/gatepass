@@ -18,9 +18,13 @@ type Props = {
   query: string;
   rows: GatePassView[];
   onClear: () => void;
+  /** Clicking the row body opens the full record in place on Search Pass,
+   *  rather than navigating away. The per-row ACTION button is unchanged —
+   *  reading the record and acting at the gate are two different intents. */
+  onOpen?: (id: string) => void;
 };
 
-export default function PhoneSearchResults({ query, rows, onClear }: Props): React.ReactElement {
+export default function PhoneSearchResults({ query, rows, onClear, onOpen }: Props): React.ReactElement {
   return (
     <div className="card p-4 mb-6" data-testid="phone-search-results">
       <div className="flex items-center justify-between gap-3 mb-3">
@@ -48,7 +52,7 @@ export default function PhoneSearchResults({ query, rows, onClear }: Props): Rea
             return (
               <div key={p.id} className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <div className="flex-1 min-w-0">
-                  <PassRow pass={p} to={to} />
+                  {onOpen ? <PassRow pass={p} onOpen={onOpen} /> : <PassRow pass={p} to={to} />}
                 </div>
                 <Link
                   to={to}

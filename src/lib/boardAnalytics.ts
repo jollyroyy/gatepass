@@ -81,7 +81,7 @@ export type MovementKey = 'rgpOut' | 'rgpReturn' | 'nrgpOut';
 export const MOVEMENT_SERIES: readonly { key: MovementKey; label: string }[] = [
   { key: 'rgpOut', label: 'RGP Out' },
   { key: 'rgpReturn', label: 'RGP Return' },
-  { key: 'nrgpOut', label: 'NRGP Out' },
+  { key: 'nrgpOut', label: 'NRGP' },
 ];
 
 export interface MovementBucket {

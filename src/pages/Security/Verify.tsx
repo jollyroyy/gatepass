@@ -145,7 +145,7 @@ export default function Verify(): React.ReactElement {
       <div className="max-w-2xl">
         <div className="alert-error">{loadError ?? 'Gate pass not found.'}</div>
         <Link to="/console" className="btn-secondary inline-block mt-4">
-          Back to Gate Console
+          Back to Search Pass
         </Link>
       </div>
     );

@@ -43,12 +43,23 @@ interface Outcome {
 }
 
 type Props = {
-  /** A mobile-number search resolves to a LIST, which is too wide for this
-   *  380px card — GateConsole renders it full width above the queue. */
+  /** A mobile-number search resolves to a LIST — Search Pass renders it full
+   *  width under the search bar. */
   onPhoneResults?: (query: string, rows: GatePassView[]) => void;
+  /**
+   * A pass-number search resolved to a row. When this is given, the page shows
+   * the full Gate Pass Details record IN PLACE instead of jumping to /verify.
+   *
+   * It fires for EVERY outcome that carries a pass_id, not just `ok`: a guard
+   * who typed the number of an expired or already-matched pass still wants to
+   * read the record — the outcome message rides above it. `lookup_pass` is
+   * still what decides, so the scan attempt is logged and the blacklist alert
+   * still fires exactly as before.
+   */
+  onPassResolved?: (passId: string, outcome: ScanOutcome) => void;
 };
 
-export default function GateLookup({ onPhoneResults }: Props = {}): React.ReactElement {
+export default function GateLookup({ onPhoneResults, onPassResolved }: Props = {}): React.ReactElement {
   const navigate = useNavigate();
 
   const [value, setValue] = useState('');
@@ -99,10 +110,17 @@ export default function GateLookup({ onPhoneResults }: Props = {}): React.ReactE
           return;
         }
 
+        if (row.blacklist_match) setBlacklistMatch(row.blacklist_match);
+
         if (row.outcome === 'ok' && row.pass_id) {
+          // A blacklist hit still stops here: the guard must acknowledge it
+          // before the pass opens for verification.
           if (row.blacklist_match) {
-            setBlacklistMatch(row.blacklist_match);
             setPendingPassId(row.pass_id);
+            return;
+          }
+          if (onPassResolved) {
+            onPassResolved(row.pass_id, row.outcome);
             return;
           }
           navigate(`/verify/${row.pass_id}`);
@@ -112,16 +130,14 @@ export default function GateLookup({ onPhoneResults }: Props = {}): React.ReactE
           outcome: row.outcome as Exclude<ScanOutcome, 'ok'>,
           passId: row.pass_id,
         });
-        if (row.blacklist_match) {
-          setBlacklistMatch(row.blacklist_match);
-        }
+        if (row.pass_id && onPassResolved) onPassResolved(row.pass_id, row.outcome);
       } catch (err) {
         setError(safeErrorMessage(err));
       } finally {
         setBusy(false);
       }
     },
-    [navigate, onPhoneResults]
+    [navigate, onPhoneResults, onPassResolved]
   );
 
   // Close the viewfinder before resolving so the camera light goes out while the
@@ -138,12 +154,9 @@ export default function GateLookup({ onPhoneResults }: Props = {}): React.ReactE
   const message = outcome ? OUTCOME_MESSAGES[outcome.outcome] : null;
 
   return (
-    <div
-      data-testid="gate-lookup"
-      className="card p-4 flex flex-col gap-3 w-full lg:w-auto lg:min-w-[380px] max-w-md shrink-0"
-    >
-      <label className="text-[11px] font-semibold uppercase tracking-widest text-navy-500" htmlFor="gate-lookup">
-        Find a Pass
+    <div data-testid="gate-lookup" className="w-full max-w-2xl mx-auto flex flex-col gap-3">
+      <label className="sr-only" htmlFor="gate-lookup">
+        Find a pass by number or mobile
       </label>
 
       {/* Always mounted, never behind the scanner. A damaged code, a denied
@@ -157,7 +170,7 @@ export default function GateLookup({ onPhoneResults }: Props = {}): React.ReactE
       >
         <div className="relative flex-1 min-w-0">
           <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-navy-500 pointer-events-none"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-navy-500 pointer-events-none"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -168,18 +181,18 @@ export default function GateLookup({ onPhoneResults }: Props = {}): React.ReactE
           </svg>
           <input
             id="gate-lookup"
-            className="input !pl-9 !py-2 text-sm w-full"
-            placeholder="Pass number or mobile — e.g. RGP-OUT-20260726-0001 / 9876543210"
+            className="input !pl-11 !py-2.5 !rounded-full text-sm w-full"
+            placeholder="Search a pass number or a mobile number…"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             autoFocus
           />
         </div>
 
-        {/* Icon-only so the two actions fit one line at 380px. */}
+        {/* Icon-only so the two actions sit on one line at every width. */}
         <button
           type="button"
-          className="btn-secondary !px-3 !py-2 shrink-0"
+          className="btn-secondary !px-3 !py-2.5 !rounded-full shrink-0"
           onClick={() => setScanning((s) => !s)}
           aria-label={scanning ? 'Close QR scanner' : 'Scan QR code'}
           title={scanning ? 'Close QR scanner' : 'Scan QR code'}
@@ -190,7 +203,7 @@ export default function GateLookup({ onPhoneResults }: Props = {}): React.ReactE
           </svg>
         </button>
 
-        <button type="submit" className="btn-primary !px-4 !py-2 text-sm shrink-0" disabled={busy || !value.trim()}>
+        <button type="submit" className="btn-primary !px-5 !py-2.5 !rounded-full text-sm shrink-0" disabled={busy || !value.trim()}>
           {busy ? '…' : 'Find'}
         </button>
       </form>

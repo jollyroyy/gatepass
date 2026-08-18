@@ -10,7 +10,7 @@ export const ROLE_ROUTES: Record<UserRole, string[]> = {
   // Security at the gate
   // `/history` retired. Pending Returns is its own tab again (2026-08-08):
   // everything still out, all-time, with per-line and Return All actions.
-  guard: ['/guard-dashboard', '/returns', '/console', '/verify', '/pass', '/profile'],
+  guard: ['/guard-dashboard', '/console', '/returns', '/verify', '/pass', '/profile'],
   // Department heads raise passes for their own departments
   // `/mismatch/:id` and `/expired/:id` are where the bell's two decision notices
   // land — the review screens that offer "void it" or "raise it again". HOD-only:

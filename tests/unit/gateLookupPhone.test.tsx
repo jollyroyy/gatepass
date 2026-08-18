@@ -88,7 +88,7 @@ async function renderConsole() {
 }
 
 async function search(text: string) {
-  fireEvent.change(screen.getByLabelText('Find a Pass'), { target: { value: text } });
+  fireEvent.change(screen.getByLabelText('Find a pass by number or mobile'), { target: { value: text } });
   fireEvent.click(screen.getByRole('button', { name: 'Find' }));
 }
 
@@ -101,8 +101,14 @@ describe('gate lookup by mobile number', () => {
     vi.clearAllMocks();
   });
 
+  // Two rows on purpose: ONE match opens the full record in place instead of
+  // a list (that path is pinned in gateConsoleSearch.test.tsx), so the list
+  // itself can only be asserted on a number two passes carry.
   it('searches the register instead of calling lookup_pass', async () => {
-    searchRows = [pass({ id: 'a', pass_number: 'RGP-OUT-20260818-0009' })];
+    searchRows = [
+      pass({ id: 'a', pass_number: 'RGP-OUT-20260818-0009' }),
+      pass({ id: 'b', pass_number: 'RGP-OUT-20260818-0010' }),
+    ];
     await renderConsole();
     await search('9876543210');
 
@@ -124,6 +130,7 @@ describe('gate lookup by mobile number', () => {
   it('drops a row the ilike over-matched on some other field', async () => {
     searchRows = [
       pass({ id: 'a', pass_number: 'KEEP-0001' }),
+      pass({ id: 'c', pass_number: 'KEEP-0002' }),
       pass({
         id: 'b',
         pass_number: 'DROP-0001',
