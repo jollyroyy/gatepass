@@ -9,23 +9,37 @@
 //   verifiedToday — the GUARD acted today (verified_at). Used by Matched and
 //                   Mismatch, which describe this shift's work, not the pass's age.
 //
-// AWAITING RETURN AND OVERDUE ARE THE DELIBERATE EXCEPTION — they are NOT
-// today-scoped, and that is a considered decision, not an oversight:
+// AWAITING RETURN AND OVERDUE ARE THE RETURN TIMELINE, CUT IN TWO AT TODAY
+// (client, 2026-08-18) — and neither is scoped by the day the pass was RAISED:
 //
-//   Pending / Matched / Mismatch describe an EVENT that happened today (a
-//   pass was raised, or the guard verified it), so "today only" is simply
-//   correct for them. Awaiting Return and Overdue describe an ONGOING
-//   OBLIGATION — material that is still outside the gate — which does not
-//   stop being true just because the calendar rolled over. An RGP raised
-//   last week whose material never came back is *more* urgent today than
-//   one raised an hour ago, not less, and it must not silently vanish from
-//   the board at midnight. Worse, `mark_returned` is reachable ONLY from
-//   the Awaiting Return drill card (GuardDrillCard) — today-scoping it would
-//   make a pass raised on an earlier day permanently unreturnable through
-//   the UI. So these two use the `openObligations` source: every pass
-//   currently `awaiting_return`, full stop, no date filter. They are marked
-//   `allTime: true` so the card visibly says so instead of looking like an
-//   inconsistency nobody noticed.
+//   Awaiting Return — expected back TODAY. What a guard should be watching the
+//                     barrier for on this shift.
+//   Overdue         — expected back on ANY EARLIER DAY and still not back. All
+//                     time, every missed day, however old.
+//
+// Both read the view's `due_state`, so the two are disjoint by construction and
+// each pass lands in exactly one. Awaiting Return used to be every open
+// obligation regardless of date, which counted an overdue pass twice and put
+// material due next month under a card implying somebody was expecting it now.
+//
+// LATENESS IS STILL NOT DECIDED HERE. `due_state` is computed in
+// `gatepass.v_gate_passes` against `site_tz()` (Asia/Kolkata); comparing
+// `expected_return_date` to the browser clock would make the guard's screen
+// disagree with the database for every pass after 18:30 IST.
+//
+// `due_state` rather than `is_overdue` on purpose: the view pins `is_overdue` to
+// `awaiting_return` alone, so a pass with one line back and two still outside
+// read as not-overdue indefinitely. `due_state` grades both open states.
+//
+// The source is still `openObligations` — an unfiltered read of every open
+// return — because Overdue needs passes of any age and the predicates, not the
+// query, do the cutting. Only Overdue is marked `allTime` now.
+//
+// WHAT THIS LEAVES OUT, KNOWINGLY: material due later than today, and a legacy
+// row with no expected date at all, appear in NEITHER drill. They are not lost
+// and `mark_returned` is not stranded — Pending Returns (`/returns`) lists every
+// open return of any date as the same returnable card. That tab is what makes
+// this narrowing safe; do not delete it without widening this back.
 //
 // THERE IS DELIBERATELY NO "SUCCESSFUL GATE PASSES" (matched) DRILL — removed
 // at the client's request, 2026-08-11. A cleared pass is finished work, and
@@ -72,7 +86,9 @@ export type DrillKey =
   | 'awaiting' | 'overdue' | 'closed';
 
 /** Which row set a drill filters: the two day-scoped sets, or the
- *  never-date-filtered set of open (still awaiting_return) passes. */
+ *  never-date-filtered set of open returns. `openObligations` stays unfiltered
+ *  even though Awaiting Return is now day-scoped — Overdue reads the same array
+ *  and needs every age in it. */
 export type DrillSource = 'raisedToday' | 'verifiedToday' | 'openObligations';
 
 export interface DrillDef {
@@ -86,15 +102,17 @@ export interface DrillDef {
   /** Only material that has actually left the gate can be marked returned. */
   returnable: boolean;
   source: DrillSource;
-  /** True for the two drills that are intentionally NOT today-scoped. */
+  /** True only for Overdue, the one drill that reaches back past today. The
+   *  card prints "all time" so a reader is not left guessing which figures
+   *  reset at midnight. */
   allTime: boolean;
   match: (p: GatePassView) => boolean;
 }
 
 /** Still owes material — the pass went out and has not fully come back.
  *  `partially_returned` counts: one line back out of three is not closure, and
- *  omitting it once made a part-returned pass unreachable from the only screen
- *  that can record the rest (see GuardDashboard's openObligations query). */
+ *  omitting it once made a part-returned pass unreachable from the drill that
+ *  records the rest (see GuardDashboard's openObligations query). */
 const isAwaiting = (p: GatePassView): boolean =>
   p.return_status === 'awaiting_return' || p.return_status === 'partially_returned';
 
@@ -174,26 +192,26 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     key: 'awaiting',
     label: 'Awaiting Return',
     tone: 'brand',
-    // Deliberately NOT today-scoped — see the module comment. An obligation
-    // that started last week is still open today.
-    heading: 'Still out (all time)',
-    empty: 'Nothing is currently out.',
+    // TODAY'S expected returns only — see the module comment. A pass due next
+    // week is not something anyone is waiting at the barrier for.
+    heading: 'Expected back today',
+    empty: 'Nothing is expected back today.',
     returnable: true,
     source: 'openObligations',
-    allTime: true,
-    match: isAwaiting,
+    allTime: false,
+    match: (p) => isAwaiting(p) && p.due_state === 'due_today',
   },
   overdue: {
     key: 'overdue',
     label: 'Overdue',
     tone: 'overdue',
-    // Deliberately NOT today-scoped — see the module comment.
+    // Every day that was missed, however long ago — see the module comment.
     heading: 'Past its return date (all time)',
     empty: 'Nothing is overdue.',
     returnable: true,
     source: 'openObligations',
     allTime: true,
-    match: (p) => isAwaiting(p) && p.is_overdue,
+    match: (p) => isAwaiting(p) && p.due_state === 'overdue',
   },
   // The far end of the RGP loop. Client complaint, 2026-08-11: a returnable
   // pass cleared OUTWARD reads as "Matched" and looks finished, when half its

@@ -51,15 +51,22 @@ const VERIFIED_TODAY: GatePassView[] = [
          verified_at: new Date().toISOString() }),
 ];
 
-// Open obligations — NOT date-filtered at all. Includes one raised days ago
-// that is still out, and one raised days ago that is overdue. These are the
-// regression guard: today-scoping this set would strand `mark_returned`.
+// Open obligations — the QUERY is NOT date-filtered at all; the two drills cut
+// this one array at today's date (guardDrills.ts). All three were raised days
+// ago, which is the point: neither drill is scoped by when the pass was raised.
+//   AWAIT-0001 — due back today      → Awaiting Return
+//   OVER-0001  — due back in July    → Overdue (all time)
+//   LATER-0001 — due back in October → neither card; it lives on /returns
 const OPEN_OBLIGATIONS: GatePassView[] = [
   pass({ id: 'a1', pass_number: 'AWAIT-0001', status: 'matched', type: 'RGP', direction: 'out',
-         return_status: 'awaiting_return', expected_return_date: '2026-09-01', created_at: DAYS_AGO }),
+         return_status: 'awaiting_return', expected_return_date: '2026-08-18',
+         due_state: 'due_today', created_at: DAYS_AGO }),
   pass({ id: 'o1', pass_number: 'OVER-0001', status: 'matched', type: 'RGP', direction: 'out',
          return_status: 'awaiting_return', expected_return_date: '2026-07-01', is_overdue: true,
-         created_at: DAYS_AGO }),
+         due_state: 'overdue', created_at: DAYS_AGO }),
+  pass({ id: 'l1', pass_number: 'LATER-0001', status: 'matched', type: 'RGP', direction: 'out',
+         return_status: 'awaiting_return', expected_return_date: '2026-10-01',
+         due_state: 'ok', created_at: DAYS_AGO }),
 ];
 
 /** Query builder mock: the dashboard issues three queries —
@@ -227,10 +234,10 @@ describe('GuardDashboard — KPI drills', () => {
     fireEvent.click(screen.getByText('Awaiting Return'));
     await waitFor(() => expect(screen.getByText('AWAIT-0001')).toBeInTheDocument());
 
-    // Both the outstanding and the overdue RGP are awaiting return, so there
-    // is a Record Returns button per card — act on the first. Per-line returns
-    // live inside that panel (ItemReturnList); this is the close-everything
-    // path, which must survive alongside them for the single-move common case.
+    // Every card in a returnable drill carries a Record Returns button — act on
+    // the first. Per-line returns live inside that panel (ItemReturnList); this
+    // is the close-everything path, which must survive alongside them for the
+    // single-move common case.
     fireEvent.click(screen.getAllByRole('button', { name: /record returns/i })[0]);
     fireEvent.click(await screen.findByRole('button', { name: /return all/i }));
 
@@ -252,29 +259,38 @@ describe('GuardDashboard — KPI drills', () => {
     expect(screen.queryByText('OVER-0001')).not.toBeInTheDocument();
   });
 
-  it('keeps a days-old pass that is still awaiting_return visible on Awaiting Return and Overdue — the mark_returned regression guard', async () => {
+  it('shows on Awaiting Return only what is expected back TODAY, whenever it was raised', async () => {
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: /Awaiting Return/i }));
     await waitFor(() => expect(screen.getByText('AWAIT-0001')).toBeInTheDocument());
-    expect(screen.getByText('OVER-0001')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Awaiting Return/i })).toHaveTextContent('2');
+    // A days-old pass still qualifies — the cut is the RETURN date, not the
+    // raise date. The overdue one and the one due in October do not.
+    expect(screen.queryByText('OVER-0001')).not.toBeInTheDocument();
+    expect(screen.queryByText('LATER-0001')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Awaiting Return/i })).toHaveTextContent('1');
+  });
+
+  it('sweeps every missed return date into Overdue, for all time', async () => {
+    renderAt(<GuardDashboard />);
+    await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: /^Overdue/i }));
     await waitFor(() => expect(screen.getByText('OVER-0001')).toBeInTheDocument());
     expect(screen.queryByText('AWAIT-0001')).not.toBeInTheDocument();
+    expect(screen.queryByText('LATER-0001')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Overdue/i })).toHaveTextContent('1');
   });
 
-  it('marks Awaiting Return and Overdue as all-time on the card', async () => {
+  it('marks only Overdue as all-time — Awaiting Return is a today figure now', async () => {
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('Awaiting Return')).toBeInTheDocument());
     const awaitingCard = screen.getByRole('button', { name: /Awaiting Return/i });
     const overdueCard = screen.getByRole('button', { name: /^Overdue/i });
     const pendingCard = screen.getByRole('button', { name: /Pending for Gate Approval/i });
-    expect(awaitingCard).toHaveTextContent(/all time/i);
     expect(overdueCard).toHaveTextContent(/all time/i);
+    expect(awaitingCard).not.toHaveTextContent(/all time/i);
     expect(pendingCard).not.toHaveTextContent(/all time/i);
   });
 

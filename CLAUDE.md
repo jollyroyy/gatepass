@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-18
 
-Full gate: **1067 tests across 98 files** (`npm run check`), `npm run build` clean.
+Full gate: **1079 tests across 99 files** (`npm run check`), `npm run build` clean.
 Migrations **`001`–`041` are all applied to the live DB**; `039`, `040`, `041` were each
 verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 
@@ -50,7 +50,33 @@ verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 
-**Latest change (2026-08-18, fourth pass): scope controls moved into the page header, top
+**Latest change (2026-08-18, fifth pass): the guard board's Awaiting Return is now TODAY's
+expected returns only, and Overdue takes every earlier missed date.** Frontend only — no
+migration.
+
+- `DRILL_DEFS.awaiting` matches `isAwaiting(p) && p.due_state === 'due_today'`;
+  `DRILL_DEFS.overdue` matches `isAwaiting(p) && p.due_state === 'overdue'`. The two are one
+  timeline cut at today and are **disjoint by construction** — an overdue pass used to be
+  counted under both. `allTime` is now true for **Overdue only**, so the "all time" chip drops
+  off the Awaiting Return card and the page subtitle says so.
+- **Both read `due_state`, not `is_overdue`.** The view pins `is_overdue` to `awaiting_return`
+  alone, so a `partially_returned` pass months past its date read as not overdue; `due_state`
+  grades both open states. Neither value is recomputed in TypeScript — both come off
+  `v_gate_passes` in `site_tz()`.
+- The `openObligations` query is still **unfiltered by date** — Overdue reads the same array
+  and needs every age in it. The predicates do the cutting, not the query.
+- **Knowingly out of both drills:** material due later than today, and a legacy row with no
+  expected date. `mark_returned` is not stranded — **Pending Returns (`/returns`)** lists every
+  open return of any date as the same returnable `GuardDrillCard`. That tab is what makes the
+  narrowing safe; the old "reachable ONLY from the Awaiting Return drill" comment in
+  `guardDrills.ts` was stale and is corrected.
+- Untouched on purpose: the board's `rgpDueToday` already read `due_state === 'due_today'`;
+  `returnWatch.ts` already buckets Overdue / Due Today / Due in 7 / Due Later; MyPasses'
+  "awaiting return" chip is a user-driven filter on `return_status`, not a day figure.
+- Pinned by `tests/unit/awaitingReturnDueToday.test.ts` (11) plus three rewritten cases in
+  `guardDashboard.test.tsx`.
+
+**Previous change (2026-08-18, fourth pass): scope controls moved into the page header, top
 right, on Reports and My Passes; My Passes gained a calendar.** Frontend only — no migration.
 
 - **Reports**: `ReportsFilterBar` is no longer a card — it renders inline in the `.page-header`
@@ -67,7 +93,7 @@ right, on Reports and My Passes; My Passes gained a calendar.** Frontend only �
   register. The CSV export needed no wiring — it already writes `filtered`.
   Six new cases in `tests/unit/myPasses.test.tsx`.
 
-**Previous change (2026-08-18, third pass): both boards now OPEN on "Today's Summary", and the
+**Earlier change (2026-08-18, third pass): both boards now OPEN on "Today's Summary", and the
 admin board's strapline is gone.** Frontend only — no migration, no RPC.
 
 - **`SUMMARY_SECTION` is back, above both category rows, on the admin AND the HOD board** —
@@ -99,7 +125,7 @@ admin board's strapline is gone.** Frontend only — no migration, no RPC.
   its matcher is `rgpAwaiting`. Old keys `rgpOut`/`nrgpOut`/`nrgpPending` were renamed, so any
   stale reference is a type error.
 
-**Earlier change (2026-08-18): the gate can search by the mobile number of the person who
+**Earlier still (2026-08-18): the gate can search by the mobile number of the person who
 took the material.** Frontend only — no migration, no new RPC.
 `src/lib/phoneSearch.ts` + `src/pages/Security/PhoneSearchResults.tsx`; `GateLookup` routes
 the query and `GateConsole` renders the results full width above the queue.

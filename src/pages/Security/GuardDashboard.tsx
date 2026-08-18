@@ -47,10 +47,10 @@ export default function GuardDashboard(): React.ReactElement {
     if (!silent) setLoading(true);
     try {
       // Three queries, not eight. Every drill is a client-side filter of one
-      // of them, so the board resets at local midnight by construction — with
-      // the deliberate exception of `openObligations`, which carries no date
-      // filter at all (see guardDrills.ts for why Awaiting Return / Overdue
-      // must not be today-scoped).
+      // of them, so the board resets at local midnight by construction. The
+      // third carries no date filter at all: Awaiting Return cuts it to what is
+      // due back today and Overdue takes everything earlier, so the array has
+      // to hold both (see guardDrills.ts).
       const { start, end } = todayBounds();
       const startIso = new Date(start).toISOString();
       const endIso = new Date(end).toISOString();
@@ -149,9 +149,10 @@ export default function GuardDashboard(): React.ReactElement {
         <h1 className="page-title">Dashboard</h1>
         <p className="page-subtitle">
           <span className="font-semibold text-navy-700">Showing today</span> — every figure
-          resets at midnight, except Awaiting Return and Overdue, which stay open until the
-          material actually comes back. Tap one to see the passes behind it. Historical
-          passes of any date live in Reports.
+          resets at midnight, including Awaiting Return, which is what is expected back
+          today. Overdue is the exception: it carries every missed return, however old.
+          Tap one to see the passes behind it. Everything still out, of any date, is on
+          Pending Returns; historical passes live in Reports.
         </p>
       </div>
 
