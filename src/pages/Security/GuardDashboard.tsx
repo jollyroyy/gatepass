@@ -137,15 +137,7 @@ export default function GuardDashboard(): React.ReactElement {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Dashboard</h1>
-        <p className="page-subtitle">
-          <span className="font-semibold text-navy-700">Showing today</span> — every figure
-          resets at midnight, including Awaiting Return, which is what is expected back
-          today. Overdue is the exception: it carries every missed return, however old.
-          Tap a figure to see the passes behind it — Awaiting Return and Overdue open
-          their own pages, where returns are recorded line by line. Historical passes
-          live in Reports.
-        </p>
+        <h1 className="page-title">Today at a glance</h1>
       </div>
 
       {error && <div className="alert-error mb-6">{error}</div>}

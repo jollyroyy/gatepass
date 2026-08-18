@@ -3,7 +3,7 @@
 // rows arrive and in `scopeOverdue` — nothing else on the page knows the role.
 import { describe, it, expect } from 'vitest';
 import {
-  buildOverdueRows, dueTodayCount, overdueStats, overdueTrend, filterOverdue,
+  buildOverdueRows, overdueStats, overdueTrend, filterOverdue,
   scopeOverdue, departmentsOf, hasActiveFilters, formatDelay, CRITICAL_DAYS,
   EMPTY_FILTERS,
 } from '../../src/lib/overdueItems';
@@ -111,16 +111,9 @@ describe('the stat tiles', () => {
   const passes = [pass({}), pass({ id: 'p2', expected_return_date: '2026-08-10' })];
   const items = [item({}), item({ id: 'i2', gate_pass_id: 'p2' })];
 
-  it('counts due-today lines separately — they are not late yet', () => {
-    expect(dueTodayCount([pass({ expected_return_date: '2026-08-18' })], [item({})], NOW)).toBe(1);
-    expect(dueTodayCount(passes, items, NOW)).toBe(0);
-  });
-
-  it('averages the delay to one decimal and never returns NaN', () => {
-    const stats = overdueStats(buildOverdueRows(passes, items, NOW), 4);
-    expect(stats).toMatchObject({ total: 2, critical: 1, dueToday: 4 });
-    expect(stats.averageDelay).toBe(4.5);
-    expect(overdueStats([], 0).averageDelay).toBe(0);
+  it('counts the rows and grades the critical ones', () => {
+    expect(overdueStats(buildOverdueRows(passes, items, NOW))).toEqual({ total: 2, critical: 1 });
+    expect(overdueStats([])).toEqual({ total: 0, critical: 0 });
   });
 
   it('names a delay in days, singular and plural', () => {

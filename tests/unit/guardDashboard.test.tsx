@@ -204,30 +204,35 @@ describe('GuardDashboard — KPI drills', () => {
     expect(screen.queryByText('MTCH-0001')).not.toBeInTheDocument();
   });
 
-  it("shows today's movement counters for all three legal categories", async () => {
+  // ONE RGP COUNTER, NOT TWO (client, 2026-08-18): direction is a property of
+  // the pass, not a figure a guard acts on differently, and RGP-in cannot even
+  // be raised today.
+  it("shows today's movement counters as RGP Raised and NRGP", async () => {
     renderAt(<GuardDashboard />);
-    await waitFor(() => expect(screen.getByText('RGP Out')).toBeInTheDocument());
-    expect(screen.getByText('RGP In')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('RGP Raised')).toBeInTheDocument());
+    expect(screen.queryByText('RGP Out')).not.toBeInTheDocument();
+    expect(screen.queryByText('RGP In')).not.toBeInTheDocument();
     // 'NRGP' with no direction (client, 2026-08-18). getAllByText because the
     // type chip on a queued NRGP pass now reads identically — which is the
     // point: the drill and the chip name the same thing the same way.
     expect(screen.getAllByText('NRGP').length).toBeGreaterThan(0);
   });
 
-  it('says out loud that the board is today-only', async () => {
+  it('titles the board Today at a glance and explains nothing further', async () => {
     renderAt(<GuardDashboard />);
-    await waitFor(() => expect(screen.getByText(/resets at midnight/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Today at a glance')).toBeInTheDocument());
+    expect(screen.queryByText(/resets at midnight/i)).not.toBeInTheDocument();
   });
 
-  it('drills into RGP In and shows only the inbound returnable pass', async () => {
+  it('drills into RGP Raised and shows both directions, never the NRGP', async () => {
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByText('RGP In'));
+    fireEvent.click(screen.getByText('RGP Raised'));
 
     await waitFor(() => expect(screen.getByText('RGPIN-0001')).toBeInTheDocument());
+    expect(screen.getByText('PEND-0001')).toBeInTheDocument();
     expect(screen.queryByText('NRGP-0001')).not.toBeInTheDocument();
-    expect(screen.queryByText('PEND-0001')).not.toBeInTheDocument();
   });
 
   it('shows the pending passes below by default', async () => {

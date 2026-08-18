@@ -99,41 +99,19 @@ export function buildOverdueRows(
   });
 }
 
-/** Outstanding lines expected back TODAY — not overdue yet, and the honest
- *  reading of the reference board's "Due within 24h". */
-export function dueTodayCount(
-  passes: GatePassView[],
-  items: GatePassItemView[],
-  now: number = Date.now(),
-): number {
-  const today = dayStart(now);
-  const byPass = new Map(passes.map((p) => [p.id, p]));
-  let count = 0;
-  for (const item of items) {
-    const pass = byPass.get(item.gate_pass_id);
-    if (!pass || !isOutstanding(item, pass)) continue;
-    const day = parseLocalDay(expectedOf(item, pass));
-    if (day !== null && day === today) count += 1;
-  }
-  return count;
-}
-
+/** The page's two counts. `total` is the one FIGURE on screen; `critical` is
+ *  not a tile any more (client, 2026-08-18) but is still what the escalation
+ *  panel and the delay filter read, so it stays. Both are `rows.length` of an
+ *  array the page also holds — the board's invariant. */
 export interface OverdueStats {
   total: number;
   critical: number;
-  dueToday: number;
-  /** Mean days late across `rows`, one decimal. 0 on an empty set — never NaN. */
-  averageDelay: number;
 }
 
-export function overdueStats(rows: OverdueRow[], dueToday: number): OverdueStats {
-  const total = rows.length;
-  const sum = rows.reduce((acc, r) => acc + r.daysLate, 0);
+export function overdueStats(rows: OverdueRow[]): OverdueStats {
   return {
-    total,
+    total: rows.length,
     critical: rows.filter((r) => r.severity === 'critical').length,
-    dueToday,
-    averageDelay: total === 0 ? 0 : Math.round((sum / total) * 10) / 10,
   };
 }
 

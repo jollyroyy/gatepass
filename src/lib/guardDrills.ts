@@ -4,7 +4,7 @@
 // midnight — it is a shift board, not a backlog. Two day axes, because "today"
 // means different things for a pass and for a gate action:
 //
-//   raisedToday   — the pass was RAISED today (created_at). Used by the three
+//   raisedToday   — the pass was RAISED today (created_at). Used by the two
 //                   movement counters and by the pending queue.
 //   verifiedToday — the GUARD acted today (verified_at). Used by Matched and
 //                   Mismatch, which describe this shift's work, not the pass's age.
@@ -87,7 +87,7 @@ import { categoryKey } from './passTypes';
 import { isExpiredPending } from './statusStyles';
 
 export type DrillKey =
-  | 'rgpOut' | 'rgpIn' | 'nrgpOut'
+  | 'rgpRaised' | 'nrgpOut'
   | 'pending' | 'expired' | 'flagged'
   | 'awaiting' | 'overdue' | 'closed';
 
@@ -127,25 +127,20 @@ const isAwaiting = (p: GatePassView): boolean =>
   p.return_status === 'awaiting_return' || p.return_status === 'partially_returned';
 
 export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
-  rgpOut: {
-    key: 'rgpOut',
-    label: 'RGP Out',
+  // ONE RGP FIGURE, BOTH DIRECTIONS (client, 2026-08-18). Out and In were two
+  // cards for a distinction the gate does not act on differently — and In is
+  // unraisable today anyway (RaisePass hardcodes `p_direction: 'out'`), so one
+  // of the two counters was permanently zero. Matching on `type` alone, not on
+  // categoryKey, is what keeps a future RGP-in inside the figure.
+  rgpRaised: {
+    key: 'rgpRaised',
+    label: 'RGP Raised',
     tone: 'brand',
-    heading: 'RGP Out raised today',
-    empty: 'No returnable material has gone out today.',
+    heading: 'RGP raised today',
+    empty: 'No returnable material has been raised today.',
     source: 'raisedToday',
     allTime: false,
-    match: (p) => categoryKey(p.type, p.direction) === 'RGP-out',
-  },
-  rgpIn: {
-    key: 'rgpIn',
-    label: 'RGP In',
-    tone: 'accent',
-    heading: 'RGP In raised today',
-    empty: 'No inbound returnable material today.',
-    source: 'raisedToday',
-    allTime: false,
-    match: (p) => categoryKey(p.type, p.direction) === 'RGP-in',
+    match: (p) => p.type === 'RGP',
   },
   nrgpOut: {
     key: 'nrgpOut',
@@ -247,7 +242,7 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
 /** Movement counters first — what physically crossed the gate today — then the
  *  status of that work, then what is still open. */
 export const DRILL_ORDER: DrillKey[] = [
-  'rgpOut', 'rgpIn', 'nrgpOut',
+  'rgpRaised', 'nrgpOut',
   'pending', 'expired', 'flagged',
   'awaiting', 'overdue', 'closed',
 ];

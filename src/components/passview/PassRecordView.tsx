@@ -70,7 +70,7 @@ export default function PassRecordView({ record, onClear }: Props): React.ReactE
           )}
         </div>
 
-        <PassRecordActivity passId={pass.id} entries={activity} />
+        <PassRecordActivity entries={activity} />
       </div>
     </section>
   );

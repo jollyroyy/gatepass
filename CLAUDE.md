@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-18
 
-Full gate: **1141 tests across 104 files** (`npm run check`), `npm run build` clean.
+Full gate: **1140 tests across 104 files** (`npm run check`), `npm run build` clean.
 Migrations **`001`–`041` are all applied to the live DB**; `039`, `040`, `041` were each
 verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 
@@ -50,7 +50,29 @@ verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 
-**Latest change (2026-08-18, eighth pass): Overdue Items is a page all three roles get, the
+**Latest change (2026-08-18, ninth pass): four trims the client asked for, all frontend, no
+migration.**
+
+- **The guard's board is titled "Today at a glance"** and carries NO subtitle — the paragraph
+  explaining which figures reset at midnight is deleted. `GuardDashboard` renders the title
+  alone; the per-card "all time" chip on Overdue is still what marks the exception.
+- **Two RGP movement counters became one.** `DRILL_DEFS.rgpOut` and `rgpIn` are replaced by
+  **`rgpRaised` ("RGP Raised")**, matching on **`p.type === 'RGP'`**, not `categoryKey` — so a
+  future RGP-in stays inside the figure. `DRILL_ORDER` is `rgpRaised, nrgpOut, …`. The old keys
+  are gone, so any stale reference is a type error. (`boardAnalytics`'s unrelated `MovementKey`
+  `rgpOut` is a different map and is untouched.)
+- **Overdue Items has ONE tile, "Total overdue".** Critical overdue, Due back today and Average
+  delay are deleted — the table already grades each row Critical/Overdue, and nothing acted on
+  the other two. `OverdueStats` (the interface) is now `{ total, critical }` and
+  `overdueStats(rows)` takes no second argument; **`critical` survives because the escalation
+  panel and the delay filter read it**. **`dueTodayCount` is deleted** — it had no other caller.
+- **The searched pass's Return activity rail has no "View full activity" link.**
+  `PassRecordActivity` no longer takes `passId` and imports no `Link`; the full timeline is
+  still at `/pass/:id`, reachable from every list.
+- Pinned by rewritten cases in `overdueBoard.test.tsx`, `overdueItems.test.ts` and
+  `guardDashboard.test.tsx` (17 overdue-lib cases now, one fewer than before — two merged).
+
+**Earlier (2026-08-18, eighth pass): Overdue Items is a page all three roles get, the
 guard's Pending Returns tab is gone, Search Pass lost its Pending Queue, and the boards' Overdue
 / Due Today figures NAVIGATE instead of drilling.** Frontend only — no migration, no new RPC.
 

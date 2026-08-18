@@ -22,7 +22,7 @@
 import React, { useMemo, useState } from 'react';
 import type { GatePassItemView, GatePassView } from '../../types';
 import {
-  buildOverdueRows, dueTodayCount, overdueStats, overdueTrend, filterOverdue,
+  buildOverdueRows, overdueStats, overdueTrend, filterOverdue,
   scopeOverdue, departmentsOf, formatDelay, EMPTY_FILTERS,
   type OverdueFilterState, type OverdueScope,
 } from '../../lib/overdueItems';
@@ -67,8 +67,7 @@ export default function OverdueBoard({
     () => scopeOverdue(buildOverdueRows(passes, items), scope),
     [passes, items, scope],
   );
-  const dueToday = useMemo(() => dueTodayCount(passes, items), [passes, items]);
-  const stats = overdueStats(rows, dueToday);
+  const stats = overdueStats(rows);
   const bars = useMemo(() => overdueTrend(rows), [rows]);
 
   const shown = useMemo(() => filterOverdue(rows, filters), [rows, filters]);

@@ -77,15 +77,14 @@ function renderBoard(props: Partial<React.ComponentProps<typeof OverdueBoard>> =
 beforeEach(() => vi.clearAllMocks());
 
 describe('Overdue Items — the figures', () => {
-  it('counts the overdue lines, the critical ones, and what is merely due today', () => {
+  it('shows Total overdue and nothing else', () => {
     renderBoard();
     const tiles = screen.getByRole('group', { name: 'Overdue figures' });
     expect(within(tiles).getByText('Total overdue').parentElement).toHaveTextContent('2');
-    expect(within(tiles).getByText('Critical overdue').parentElement).toHaveTextContent('1');
-    // Due today is NOT overdue — it is the one figure that is not in the table.
-    expect(within(tiles).getByText('Due back today').parentElement).toHaveTextContent('1');
-    // (1 + 6) / 2 days.
-    expect(within(tiles).getByText('Average delay').parentElement).toHaveTextContent('3.5d');
+    // The other three tiles are gone, not hidden.
+    expect(within(tiles).queryByText('Critical overdue')).not.toBeInTheDocument();
+    expect(within(tiles).queryByText('Due back today')).not.toBeInTheDocument();
+    expect(within(tiles).queryByText('Average delay')).not.toBeInTheDocument();
   });
 
   it('lists the longest delay first and names each line, never the pass alone', () => {

@@ -4,7 +4,6 @@
 // Wording comes from a Record<VerifyAction, …>, never a string match, so a new
 // label on the Postgres enum is a type error rather than a blank line.
 import React from 'react';
-import { Link } from 'react-router-dom';
 import type { VerifyAction, Verification } from '../../types';
 import { formatTime, formatDateOnly } from '../../lib/formatDate';
 
@@ -30,9 +29,9 @@ const ACTION_TITLE: Record<VerifyAction, string> = {
   cancelled: 'Voided by the HOD',
 };
 
-type Props = { passId: string; entries: ActivityEntry[] };
+type Props = { entries: ActivityEntry[] };
 
-export default function PassRecordActivity({ passId, entries }: Props): React.ReactElement {
+export default function PassRecordActivity({ entries }: Props): React.ReactElement {
   // `v_verifications` is read oldest-first for the detail timeline; this rail
   // reads the other way — the last thing that happened is the thing a guard
   // standing at the barrier needs first.
@@ -61,10 +60,6 @@ export default function PassRecordActivity({ passId, entries }: Props): React.Re
           ))}
         </ol>
       )}
-
-      <Link to={`/pass/${passId}`} className="inline-block mt-4 text-sm text-accent-600 hover:underline font-medium">
-        View full activity
-      </Link>
     </aside>
   );
 }
