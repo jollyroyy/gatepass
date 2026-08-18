@@ -7,9 +7,11 @@ import { ALL_LINKS } from '../../src/components/layout/Sidebar';
 import { ROLE_ROUTES, isForbidden } from '../../src/lib/roleRoutes';
 
 describe('HOD sidebar navigation', () => {
-  it('shows exactly Dashboard, Raise Gate Pass, and My Passes, in that order', () => {
+  // Overdue Items joined the list on 2026-08-18 — the same page the guard and
+  // the admin get, narrowed to this HOD's own passes.
+  it('shows exactly Dashboard, Raise Gate Pass, My Passes and Overdue Items, in that order', () => {
     const hodLabels = ALL_LINKS.filter((n) => n.roles.includes('hod')).map((n) => n.label);
-    expect(hodLabels).toEqual(['Dashboard', 'Raise Gate Pass', 'My Passes']);
+    expect(hodLabels).toEqual(['Dashboard', 'Raise Gate Pass', 'My Passes', 'Overdue Items']);
   });
 
   it('has no HOD nav link pointing at /vendors', () => {

@@ -35,11 +35,17 @@
 // return — because Overdue needs passes of any age and the predicates, not the
 // query, do the cutting. Only Overdue is marked `allTime` now.
 //
+// NEITHER OF THE TWO IS AN IN-PLACE DRILL ANY MORE (client, 2026-08-18).
+// Both KPI cards NAVIGATE — Awaiting Return to `/returns`, Overdue to
+// `/overdue` — because the same two lists are what the HOD's and the admin's
+// boards open too, and one screen per figure is what keeps the three roles
+// showing the same thing at different scopes. See DRILL_LINKS below.
+//
 // WHAT THIS LEAVES OUT, KNOWINGLY: material due later than today, and a legacy
-// row with no expected date at all, appear in NEITHER drill. They are not lost
-// and `mark_returned` is not stranded — Pending Returns (`/returns`) lists every
-// open return of any date as the same returnable card. That tab is what makes
-// this narrowing safe; do not delete it without widening this back.
+// row with no expected date at all, appear in NEITHER figure. Recording their
+// return has to wait until the day they come due, when they land on
+// `/returns`. That is the accepted cost of the two-figure split; widening it
+// means widening `awaiting`, not adding a third card.
 //
 // THERE IS DELIBERATELY NO "SUCCESSFUL GATE PASSES" (matched) DRILL — removed
 // at the client's request, 2026-08-11. A cleared pass is finished work, and
@@ -85,11 +91,17 @@ export type DrillKey =
   | 'pending' | 'expired' | 'flagged'
   | 'awaiting' | 'overdue' | 'closed';
 
-/** Which row set a drill filters: the two day-scoped sets, or the
- *  never-date-filtered set of open returns. `openObligations` stays unfiltered
+/** Which row set a drill filters: the two day-scoped sets, the
+ *  never-date-filtered set of open returns, or the live gate queue.
+ *
+ *  `gateQueue` is the list that used to sit on the Search Pass screen and moved
+ *  here when that page became search-only (2026-08-18). It is NOT day-scoped
+ *  and must not be: a pass an HOD override-approved is waiting on exactly one
+ *  action — the gate — whatever day it was raised, and hiding it strands a
+ *  truck that has already been cleared by its department head. `openObligations` stays unfiltered
  *  even though Awaiting Return is now day-scoped — Overdue reads the same array
  *  and needs every age in it. */
-export type DrillSource = 'raisedToday' | 'verifiedToday' | 'openObligations';
+export type DrillSource = 'raisedToday' | 'verifiedToday' | 'openObligations' | 'gateQueue';
 
 export interface DrillDef {
   key: DrillKey;
@@ -99,8 +111,6 @@ export interface DrillDef {
   heading: string;
   /** Shown instead of cards when the drill is empty. */
   empty: string;
-  /** Only material that has actually left the gate can be marked returned. */
-  returnable: boolean;
   source: DrillSource;
   /** True only for Overdue, the one drill that reaches back past today. The
    *  card prints "all time" so a reader is not left guessing which figures
@@ -123,7 +133,6 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     tone: 'brand',
     heading: 'RGP Out raised today',
     empty: 'No returnable material has gone out today.',
-    returnable: false,
     source: 'raisedToday',
     allTime: false,
     match: (p) => categoryKey(p.type, p.direction) === 'RGP-out',
@@ -134,7 +143,6 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     tone: 'accent',
     heading: 'RGP In raised today',
     empty: 'No inbound returnable material today.',
-    returnable: false,
     source: 'raisedToday',
     allTime: false,
     match: (p) => categoryKey(p.type, p.direction) === 'RGP-in',
@@ -145,21 +153,27 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     tone: 'neutral',
     heading: 'NRGP raised today',
     empty: 'No non-returnable material has gone out today.',
-    returnable: false,
     source: 'raisedToday',
     allTime: false,
     match: (p) => categoryKey(p.type, p.direction) === 'NRGP-out',
   },
+  // THE GATE QUEUE ITSELF, moved here from Search Pass (2026-08-18). Its source
+  // is already filtered to live passes (`expires_at >= now`) by the query, so
+  // this predicate only has to name the two states the gate can still act on.
+  //
+  // 'hod_reviewed' rides along with 'pending' and that is load-bearing: an
+  // HOD-approved pass is waiting on the gate alone, and for two months every
+  // guard surface refused to show one. `tests/unit/hodReviewGateFlow.test.tsx`
+  // pins it here now that this is the only list a guard picks from.
   pending: {
     key: 'pending',
     label: 'Pending for Gate Approval',
     tone: 'pending',
     heading: 'Waiting at the gate',
-    empty: 'Queue clear — nothing raised today is waiting.',
-    returnable: false,
-    source: 'raisedToday',
-    allTime: false,
-    match: (p) => p.status === 'pending',
+    empty: 'Queue clear — nothing is waiting at the gate.',
+    source: 'gateQueue',
+    allTime: true,
+    match: (p) => p.status === 'pending' || p.status === 'hod_reviewed',
   },
   // Same today-scoping as `pending` — this is about today's gate activity:
   // passes raised today whose paperwork went stale before anyone showed up.
@@ -172,7 +186,6 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     tone: 'flagged',
     heading: 'Expired without reaching the gate',
     empty: 'Nothing has expired today.',
-    returnable: false,
     source: 'raisedToday',
     allTime: false,
     match: isExpiredPending,
@@ -183,7 +196,6 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     tone: 'flagged',
     heading: 'Mismatched today',
     empty: 'No mismatches recorded today.',
-    returnable: false,
     source: 'verifiedToday',
     allTime: false,
     match: (p) => p.status === 'flagged',
@@ -196,7 +208,6 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     // week is not something anyone is waiting at the barrier for.
     heading: 'Expected back today',
     empty: 'Nothing is expected back today.',
-    returnable: true,
     source: 'openObligations',
     allTime: false,
     match: (p) => isAwaiting(p) && p.due_state === 'due_today',
@@ -208,7 +219,6 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     // Every day that was missed, however long ago — see the module comment.
     heading: 'Past its return date (all time)',
     empty: 'Nothing is overdue.',
-    returnable: true,
     source: 'openObligations',
     allTime: true,
     match: (p) => isAwaiting(p) && p.due_state === 'overdue',
@@ -228,7 +238,6 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     tone: 'matched',
     heading: 'Came back and closed today',
     empty: 'Nothing has been closed today.',
-    returnable: false,
     source: 'verifiedToday',
     allTime: false,
     match: (p) => p.return_status === 'returned',
@@ -243,3 +252,15 @@ export const DRILL_ORDER: DrillKey[] = [
   'awaiting', 'overdue', 'closed',
 ];
 
+/**
+ * The two figures that open a PAGE instead of a card list.
+ *
+ * A guard, an HOD and an admin all read the same two lists — what is due back
+ * today and what is late — so they live on their own routes rather than as an
+ * in-place drill on one board (client, 2026-08-18). Scope is decided by the
+ * page from the reader's role; this map only says where to go.
+ */
+export const DRILL_LINKS: Partial<Record<DrillKey, string>> = {
+  awaiting: '/returns',
+  overdue: '/overdue',
+};

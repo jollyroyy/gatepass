@@ -9,6 +9,11 @@
 //
 // These tests pin the three links of the chain: the queue shows such a pass,
 // Verify offers a working Match for it, and the dashboard has a drill for it.
+//
+// THE QUEUE MOVED (2026-08-18). Search Pass became search-only and the list is
+// now the guard dashboard's "Pending for Gate Approval" figure — its own query,
+// deliberately not day-scoped. That is where this test looks for the approved
+// pass, because it is the only list a guard picks one from.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -38,6 +43,9 @@ const APPROVED = pass({
   pass_number: 'APPROVED-0001',
   status: 'hod_reviewed',
   flag_reason: 'Qty short',
+  // 035 refreshes expiry on approval: an override makes a FRESH pass, and the
+  // gate controls are gated on the pass's own expiry.
+  expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
 });
 
 // Mutable slot the hoisted mock reads. The screen under test decides which
@@ -85,13 +93,13 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
     vi.clearAllMocks();
   });
 
-  describe('GateConsole queue', () => {
+  describe('the gate queue, on the guard dashboard', () => {
     it('includes hod_reviewed passes in the queue, not just pending', async () => {
       queueRows = [APPROVED];
-      const GateConsole = (await import('../../src/pages/Security/GateConsole')).default;
+      const GuardDashboard = (await import('../../src/pages/Security/GuardDashboard')).default;
       render(
         <MemoryRouter>
-          <GateConsole />
+          <GuardDashboard />
         </MemoryRouter>
       );
 
@@ -99,6 +107,9 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
       const statusIn = queueInCalls.find((c) => c.col === 'status');
       expect(statusIn).toBeDefined();
       expect(statusIn!.values).toEqual(expect.arrayContaining(['pending', 'hod_reviewed']));
+      // And the card reaches the gate screen — otherwise the pass is visible
+      // and still unclearable, which is the original bug in a new place.
+      expect(screen.getByRole('link', { name: /verify at gate/i })).toHaveAttribute('href', '/verify/h1');
     });
   });
 
@@ -164,7 +175,11 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
       );
 
       await waitFor(() => expect(screen.getByText('Pending for Gate Approval')).toBeInTheDocument());
-      expect(screen.queryByText('HOD Approved')).not.toBeInTheDocument();
+      // The KPI, not the words: an hod_reviewed pass in the queue below wears an
+      // "HOD Approved" status badge, which is correct and is not a drill. A KPI
+      // is identified by its own label class, so this cannot pass by accident.
+      const kpiLabels = screen.queryAllByText('HOD Approved').filter((el) => el.classList.contains('kpi-label'));
+      expect(kpiLabels).toHaveLength(0);
     });
   });
 });

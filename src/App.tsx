@@ -20,7 +20,6 @@ import ExpiredReview from './pages/HOD/ExpiredReview';
 import GateConsole from './pages/Security/GateConsole';
 import Verify from './pages/Security/Verify';
 import GuardDashboard from './pages/Security/GuardDashboard';
-import PendingReturns from './pages/Security/PendingReturns';
 import AdminPanel from './pages/Admin/AdminPanel';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import ReportsPage from './pages/Admin/ReportsPage';
@@ -28,6 +27,8 @@ import ReportsPage from './pages/Admin/ReportsPage';
 import PassDetail from './pages/Shared/PassDetail';
 import PassPrint from './pages/Shared/PassPrint';
 import ProfilePage from './pages/Shared/Profile';
+import OverdueItemsPage from './pages/Shared/OverdueItemsPage';
+import ReturnsDueTodayPage from './pages/Shared/ReturnsDueTodayPage';
 
 /**
  * Blocks a signed-in user from a route their role has no business on.
@@ -205,7 +206,6 @@ export default function App(): React.ReactElement {
 
           {/* Security */}
           <Route path="/guard-dashboard" element={<GuardDashboard />} />
-          <Route path="/returns" element={<PendingReturns />} />
           <Route path="/console" element={<GateConsole />} />
           <Route path="/verify/:id" element={<Verify />} />
 
@@ -213,6 +213,12 @@ export default function App(): React.ReactElement {
           <Route path="/admin" element={<AdminPanel />} />
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
           <Route path="/all-passes" element={<ReportsPage />} />
+
+          {/* Overdue Items and Returns Due Today are ONE page each, scoped by
+              role inside — see OverdueItemsPage.tsx. Both are where a board's
+              Overdue / Due Today figure navigates, on every board. */}
+          <Route path="/overdue" element={<OverdueItemsPage role={role} />} />
+          <Route path="/returns" element={<ReturnsDueTodayPage role={role} />} />
 
           {/* Shared */}
           <Route path="/pass/:id" element={<PassDetail />} />

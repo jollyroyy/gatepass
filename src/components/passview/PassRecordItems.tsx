@@ -17,6 +17,7 @@ import { formatCurrency } from '../../lib/formatCurrency';
 import { ITEM_RETURN_STYLES, itemReturnStage, returnProgress } from '../../lib/passRecordView';
 import { quantityCell, quantityHeading } from '../../lib/units';
 import Badge from '../Badge';
+import { returnDeskFor } from '../../lib/overdueItems';
 
 type Props = { pass: GatePassView; items: GatePassItemView[] };
 
@@ -91,7 +92,7 @@ export default function PassRecordItems({ pass, items }: Props): React.ReactElem
                     <td><Badge style={ITEM_RETURN_STYLES[stage]} /></td>
                     <td>
                       <Link
-                        to={owes ? '/returns' : `/pass/${pass.id}`}
+                        to={owes ? returnDeskFor(pass) : `/pass/${pass.id}`}
                         className="text-accent-600 hover:underline font-medium text-sm whitespace-nowrap"
                         aria-label={`${owes ? 'Mark return' : 'View'} — ${item.name}`}
                       >

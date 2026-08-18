@@ -292,3 +292,20 @@ export const NRGP_SECTION: BoardKpiKey[] = ['nrgpRaised', 'nrgpAwaiting', 'nrgpC
 export const SUMMARY_SECTION: BoardKpiKey[] = [
   'totalRaised', 'totalCleared', 'pendingApprovals', 'overdueReturns', 'materialOutside',
 ];
+
+/**
+ * THE THREE FIGURES THAT OPEN A PAGE INSTEAD OF A DRILL (client, 2026-08-18).
+ *
+ * Overdue and Due Today are the two lists every role acts on, so each has its
+ * own route — `/overdue` and `/returns` — scoped to the reader inside the page
+ * (guard: today's; HOD: own passes; admin: everything). A drill panel could
+ * only ever show this board's own rows, and only the gate can record a return
+ * from them.
+ *
+ * Every OTHER tile still drills in place, with the rows it counted.
+ */
+export const BOARD_KPI_LINKS: Partial<Record<BoardKpiKey, string>> = {
+  overdueReturns: '/overdue',
+  rgpOverdue: '/overdue',
+  rgpDueToday: '/returns',
+};

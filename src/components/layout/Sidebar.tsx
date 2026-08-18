@@ -42,7 +42,10 @@ export const ALL_LINKS: NavLink[] = [
     icon: <svg {...ICON_PROPS}><circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="M20 20l-4.2-4.2" /></svg>,
   },
   {
-    to: '/returns', label: 'Pending Returns', roles: ['guard'],
+    // Overdue Items, not Pending Returns (client, 2026-08-18). Everything still
+    // out is on the boards; this tab is what is LATE, which is what needs a
+    // person. All three roles get it — scope differs, layout does not.
+    to: '/overdue', label: 'Overdue Items', roles: ['guard', 'hod', 'admin', 'super_admin'],
     icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>,
   },
   {

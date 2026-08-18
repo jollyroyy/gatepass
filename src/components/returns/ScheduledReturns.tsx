@@ -1,23 +1,26 @@
-// "Scheduled returns" — what the Awaiting Return drill opens. It loads the
-// MATERIAL LINES of the passes the drill counted and lists them one per row,
-// because a guard at the barrier is handed items, not passes.
+// "Scheduled returns" — the material lines expected back, one row per LINE,
+// because whoever is at the barrier is handed items, not passes.
 //
-// NOTHING IS SAVED BY A TAP. "Mark returned" only ticks the row; the guard
-// presses Record for it to reach the database. That is the settled rule for
-// every return control in this app (see ItemReturnList) and it is not a style
-// choice: `apply_item_returns` has no undo — `returned_qty` only ever grows and
-// `returned_at` is written through `coalesce` — so a one-tap commit at a gate
-// is a mistake nobody can take back.
+// SHARED BY THREE ROLES (2026-08-18). It began as the guard dashboard's
+// Awaiting Return drill; the drill is now a link to `/returns`, and this renders
+// that page for the guard, the HOD and the admin alike. Only the rows differ —
+// scope is the page's, never this component's — and only the gate can record.
+//
+// NOTHING IS SAVED BY A TAP. "Mark returned" only ticks the row; Record is what
+// reaches the database. That is the settled rule for every return control in
+// this app and it is not a style choice: `apply_item_returns` has no undo —
+// `returned_qty` only ever grows and `returned_at` is written through
+// `coalesce` — so a one-tap commit at a gate is a mistake nobody can take back.
 //
 // THE PASS CLOSES ITSELF. The RPC rolls the lines up in the same statement, so
-// after Record this component re-reads and tells the dashboard to re-read too;
-// it never decides "all lines are back" on its own.
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { gp } from '../../supabaseClient';
+// after Record this asks its page to re-read; it never decides "all lines are
+// back" on its own.
+import React, { useMemo, useState } from 'react';
 import type { GatePassItemView, GatePassView } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
 import { buildScheduledReturns, pageOf } from '../../lib/scheduledReturns';
 import { returnProgress } from '../../lib/passRecordView';
+import { recordItemReturns } from '../../lib/recordReturns';
 import ScheduledReturnsTable from './ScheduledReturnsTable';
 
 /** The mock-up's page size, and roughly what fits above the fold on the tablet
@@ -25,50 +28,29 @@ import ScheduledReturnsTable from './ScheduledReturnsTable';
 const PAGE_SIZE = 5;
 
 type Props = {
-  /** The drill's passes — this component never decides which are in scope. */
+  /** The passes in scope — this component never decides which those are. */
   passes: GatePassView[];
-  /** A return landed; the dashboard must re-read, since the database may have
-   *  just closed a pass. */
+  /** Their lines. A line whose parent is not in `passes` is dropped by
+   *  `buildScheduledReturns`, so nothing can widen here. */
+  items: GatePassItemView[];
+  /** Only the gate records a return; `apply_item_returns` refuses anyone else. */
+  canRecord: boolean;
+  /** A return landed; the page must re-read, since the database may have just
+   *  closed a pass. */
   onRecorded: () => void;
+  /** Shown instead of the table when there is nothing in scope. */
+  empty: string;
 };
 
-export default function ScheduledReturns({ passes, onRecorded }: Props): React.ReactElement {
-  const [items, setItems] = useState<GatePassItemView[] | null>(null);
+export default function ScheduledReturns({
+  passes, items, canRecord, onRecorded, empty,
+}: Props): React.ReactElement {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const ids = passes.map((p) => p.id).join(',');
-
-  const load = useCallback(async () => {
-    const passIds = ids ? ids.split(',') : [];
-    if (passIds.length === 0) {
-      setItems([]);
-      return;
-    }
-    try {
-      const { data, error: err } = await gp()
-        .from('v_gate_pass_items')
-        .select('*')
-        .in('gate_pass_id', passIds)
-        .order('line_no');
-      if (err) throw err;
-      setItems((data ?? []) as GatePassItemView[]);
-      // Driven by the database's answer from here on, never by the old ticks.
-      setPicked(new Set());
-      setError(null);
-    } catch (err) {
-      setError(safeErrorMessage(err));
-      setItems([]);
-    }
-  }, [ids]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const rows = useMemo(() => buildScheduledReturns(passes, items ?? []), [passes, items]);
+  const rows = useMemo(() => buildScheduledReturns(passes, items), [passes, items]);
   const progress = returnProgress(rows.map((r) => r.item), 'RGP');
   const view = pageOf(rows, page, PAGE_SIZE);
   const chosen = rows.filter((r) => picked.has(r.item.id));
@@ -86,33 +68,15 @@ export default function ScheduledReturns({ passes, onRecorded }: Props): React.R
     setBusy(true);
     setError(null);
     try {
-      // One call per pass: `apply_item_returns` takes a pass and its own lines,
-      // and a drill's ticks can span several passes.
-      const byPass = new Map<string, typeof chosen>();
-      for (const row of chosen) {
-        byPass.set(row.pass.id, [...(byPass.get(row.pass.id) ?? []), row]);
-      }
-      for (const [passId, lines] of byPass) {
-        const { error: err } = await gp().rpc('apply_item_returns', {
-          p_pass_id: passId,
-          p_lines: lines.map((l) => ({ item_id: l.item.id, qty: l.item.outstanding_qty })),
-          p_remarks: `Returned ${lines.length} ${lines.length === 1 ? 'line' : 'lines'}: ${lines
-            .map((l) => `#${l.item.line_no} ${l.item.name}`)
-            .join(', ')}`,
-        });
-        if (err) throw err;
-      }
-      await load();
+      await recordItemReturns(chosen);
+      // Driven by the database's answer from here on, never by the old ticks.
+      setPicked(new Set());
       onRecorded();
     } catch (err) {
       setError(safeErrorMessage(err));
     } finally {
       setBusy(false);
     }
-  }
-
-  if (items === null) {
-    return <div className="skeleton h-64 w-full" />;
   }
 
   return (
@@ -137,7 +101,7 @@ export default function ScheduledReturns({ passes, onRecorded }: Props): React.R
 
       {rows.length === 0 ? (
         <div className="card empty-state">
-          <p>Nothing is expected back today.</p>
+          <p>{empty}</p>
         </div>
       ) : (
         <>
@@ -148,6 +112,7 @@ export default function ScheduledReturns({ passes, onRecorded }: Props): React.R
             onToggle={toggle}
             onPage={setPage}
             busy={busy}
+            readOnly={!canRecord}
           />
 
           {/* Appears only once something is ticked — the commit step the tap

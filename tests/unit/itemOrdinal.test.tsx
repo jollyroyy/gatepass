@@ -50,17 +50,7 @@ const ITEMS: GatePassItemView[] = [
 
 const ONE_ITEM: GatePassItemView[] = [item({ id: 'l1', line_no: 1, name: 'Drill' })];
 
-import ItemReturnList from '../../src/pages/Security/ItemReturnList';
 import VerifyItemsTable from '../../src/pages/Security/VerifyItemsTable';
-
-describe('ItemReturnList — numbered lines', () => {
-  it('shows visible ordinals 1, 2 and 3 for a three-item pass', async () => {
-    render(<ItemReturnList passId="p1" onReturned={() => {}} />);
-    expect(await screen.findByLabelText('Item 1')).toBeInTheDocument();
-    expect(screen.getByLabelText('Item 2')).toBeInTheDocument();
-    expect(screen.getByLabelText('Item 3')).toBeInTheDocument();
-  });
-});
 
 describe('VerifyItemsTable — numbered lines', () => {
   it('shows visible ordinals 1, 2 and 3 for a three-item pass', () => {

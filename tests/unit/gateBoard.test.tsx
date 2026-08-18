@@ -153,8 +153,10 @@ function renderBoard() {
  *  because the two category rows now carry the same three words as each other. */
 function tile(section: string, label: string): HTMLElement {
   const group = screen.getByRole('group', { name: `${section} figures` });
-  const found = within(group)
-    .getAllByRole('button')
+  // Buttons AND links: Overdue Returns, RGP Overdue and RGP Due Today NAVIGATE
+  // to /overdue and /returns instead of drilling in place (client, 2026-08-18),
+  // so those three tiles are anchors. Every other tile is still a button.
+  const found = [...within(group).queryAllByRole('button'), ...within(group).queryAllByRole('link')]
     .find((b) => (b.textContent ?? '').startsWith(label));
   if (!found) throw new Error(`no "${label}" tile in ${section}`);
   return found;
@@ -300,17 +302,28 @@ describe('the headline figures', () => {
   it('a current-state figure counts a pass raised outside the period; a period figure does not', async () => {
     // THE REGRESSION THIS EXISTS FOR: p3 was raised five days ago and never came
     // back. On a Today-scoped board it is in no "raised" figure at all — and it is
-    // exactly the pass "RGP Overdue" is there to surface.
+    // exactly the pass "RGP Overdue" is there to surface. That figure now opens
+    // the Overdue Items page instead of a drill, so the count is what is asserted
+    // here and the rows behind it are pinned by tests/unit/overdueItems.test.ts.
     renderBoard();
     await loaded();
 
-    fireEvent.click(tile('RGP Overview', 'RGP Overdue'));
-    expect(within(drill()).getByText('Carol')).toBeInTheDocument();
+    expectFigure('RGP Overview', 'RGP Overdue', 1);
+    expect(tile('RGP Overview', 'RGP Overdue')).toHaveAttribute('href', '/overdue');
 
     fireEvent.click(tile('RGP Overview', 'RGP Raised'));
     expect(within(drill()).queryByText('Carol')).not.toBeInTheDocument();
     expect(within(drill()).getByText('Alice')).toBeInTheDocument();
     expect(within(drill()).getByText('Bob')).toBeInTheDocument();
+  });
+
+  // The three figures every role acts on from one screen (client, 2026-08-18).
+  it('sends Overdue and Due Today to their own pages, scoped by the reader\'s role', async () => {
+    renderBoard();
+    await loaded();
+    expect(tile("Today's Summary", 'Overdue Returns')).toHaveAttribute('href', '/overdue');
+    expect(tile('RGP Overview', 'RGP Overdue')).toHaveAttribute('href', '/overdue');
+    expect(tile('RGP Overview', 'RGP Due Today')).toHaveAttribute('href', '/returns');
   });
 
   it('opens exactly the rows it counted, and toggles shut on a second click', async () => {

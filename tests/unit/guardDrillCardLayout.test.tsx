@@ -51,7 +51,7 @@ function pass(over: Partial<GatePassView> = {}): GatePassView {
 function renderCard(over: Partial<GatePassView> = {}) {
   return render(
     <MemoryRouter>
-      <GuardDrillCard pass={pass(over)} returnable onMarkReturned={vi.fn()} />
+      <GuardDrillCard pass={pass(over)} />
     </MemoryRouter>,
   );
 }
@@ -99,13 +99,25 @@ describe('GuardDrillCard — the four emphasised fields', () => {
   });
 });
 
-describe('GuardDrillCard — Record Returns keeps working', () => {
-  it('opens the return panel from the footer', async () => {
+describe('GuardDrillCard — the footer after returns moved off the board', () => {
+  // Awaiting Return and Overdue stopped being in-place drills on 2026-08-18:
+  // returns are recorded on /returns and /overdue, line by line. Nothing on a
+  // drill card records one any more.
+  it('offers no return control at all', () => {
     renderCard();
-    fireEvent.click(screen.getByText('Record Returns'));
-    expect(screen.getByText('Return items individually')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /return all/i })).toBeInTheDocument();
-    // Let ItemReturnList's own async load settle before the test tears down.
-    await screen.findByText('No material lines on this pass.');
+    expect(screen.queryByRole('button', { name: /record returns/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /return all/i })).not.toBeInTheDocument();
+  });
+
+  // The Pending Queue left Search Pass the same day, so this card is where a
+  // guard picks a waiting pass off a list — it must still reach the gate screen.
+  it('links a still-clearable pass straight to the verify screen', () => {
+    renderCard({ status: 'pending', expires_at: new Date(Date.now() + 86400000).toISOString() });
+    expect(screen.getByRole('link', { name: /verify at gate/i })).toHaveAttribute('href', '/verify/x');
+  });
+
+  it('offers no Verify at Gate on a pass the gate can no longer clear', () => {
+    renderCard({ status: 'matched' });
+    expect(screen.queryByRole('link', { name: /verify at gate/i })).not.toBeInTheDocument();
   });
 });

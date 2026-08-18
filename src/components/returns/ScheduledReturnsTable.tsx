@@ -16,7 +16,8 @@ import type { ReturnsPage, ScheduledReturnRow } from '../../lib/scheduledReturns
 import { ITEM_RETURN_STYLES } from '../../lib/passRecordView';
 import { formatDateOnly } from '../../lib/formatDate';
 import { quantityCell, quantityHeading } from '../../lib/units';
-import Badge from '../../components/Badge';
+import Badge from '../Badge';
+import TablePager from '../TablePager';
 
 type Props = {
   page: ReturnsPage<ScheduledReturnRow>;
@@ -27,10 +28,14 @@ type Props = {
   onToggle: (itemId: string) => void;
   onPage: (page: number) => void;
   busy: boolean;
+  /** An HOD and an admin READ this table; only the gate records a return.
+   *  `apply_item_returns` would refuse them anyway, and a button that always
+   *  fails is worse than no button. */
+  readOnly?: boolean;
 };
 
 export default function ScheduledReturnsTable({
-  page, units, picked, onToggle, onPage, busy,
+  page, units, picked, onToggle, onPage, busy, readOnly = false,
 }: Props): React.ReactElement {
   return (
     <div className="card overflow-hidden" data-testid="scheduled-returns-table">
@@ -50,7 +55,7 @@ export default function ScheduledReturnsTable({
           </thead>
           <tbody>
             {page.rows.map(({ item, pass, stage, expectedReturn }) => {
-              const owes = item.outstanding_qty > 0;
+              const owes = item.outstanding_qty > 0 && !readOnly;
               const ticked = picked.has(item.id);
               return (
                 <tr key={item.id}>
@@ -110,55 +115,7 @@ export default function ScheduledReturnsTable({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-t border-surface-200/60">
-        <span className="text-sm text-navy-500">
-          Showing {page.from}–{page.to} of {page.total}
-        </span>
-        {page.pages > 1 && (
-          <div className="flex items-center gap-1">
-            <PagerButton label="Previous page" disabled={page.page === 1} onClick={() => onPage(page.page - 1)}>
-              ‹
-            </PagerButton>
-            {Array.from({ length: page.pages }, (_, i) => i + 1).map((n) => (
-              <button
-                key={n}
-                type="button"
-                aria-current={n === page.page ? 'page' : undefined}
-                onClick={() => onPage(n)}
-                className={`min-w-[2rem] h-8 px-2 rounded-lg text-sm font-medium border transition-colors ${
-                  n === page.page
-                    ? 'border-brand-600 text-brand-800 dark:text-brand-300 bg-brand-600/10'
-                    : 'border-surface-200 text-navy-600 hover:border-surface-300'
-                }`}
-              >
-                {n}
-              </button>
-            ))}
-            <PagerButton label="Next page" disabled={page.page === page.pages} onClick={() => onPage(page.page + 1)}>
-              ›
-            </PagerButton>
-          </div>
-        )}
-      </div>
+      <TablePager page={page} onPage={onPage} />
     </div>
-  );
-}
-
-function PagerButton({
-  label, disabled, onClick, children,
-}: {
-  label: string; disabled: boolean; onClick: () => void; children: React.ReactNode;
-}): React.ReactElement {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
-      className="min-w-[2rem] h-8 px-2 rounded-lg text-sm border border-surface-200 text-navy-600
-                 hover:border-surface-300 disabled:opacity-40 disabled:cursor-default"
-    >
-      {children}
-    </button>
   );
 }

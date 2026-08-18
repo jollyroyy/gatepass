@@ -31,14 +31,23 @@ const RAISED_TODAY: GatePassView[] = [
 ];
 
 function builder() {
-  let axis: 'created_at' | 'verified_at' | 'return_status' | null = null;
+  let axis: 'created_at' | 'verified_at' | 'return_status' | 'status' | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const obj: any = {};
-  for (const m of ['select', 'order', 'limit', 'in', 'lte', 'lt']) obj[m] = () => obj;
-  obj.gte = (col: string) => { axis = col as typeof axis; return obj; };
+  for (const m of ['select', 'order', 'limit', 'lte', 'lt']) obj[m] = () => obj;
+  // `expires_at` rides along with the gate queue's `.in('status', …)` — only a
+  // day axis selects a set, so it must not overwrite one.
+  obj.gte = (col: string) => { if (col !== 'expires_at') axis = col as typeof axis; return obj; };
   obj.eq = (col: string) => { if (col === 'return_status') axis = 'return_status'; return obj; };
+  obj.in = (col: string) => {
+    if (col === 'return_status') axis = 'return_status';
+    if (col === 'status') axis = 'status';
+    return obj;
+  };
   obj.then = (onOk: (v: unknown) => unknown, onErr?: (e: unknown) => unknown) => {
-    const data = axis === 'created_at' ? RAISED_TODAY : [];
+    // The pending drill reads the gate queue now (its own query), not the
+    // day-scoped raises.
+    const data = axis === 'created_at' || axis === 'status' ? RAISED_TODAY : [];
     return Promise.resolve({ data, error: null }).then(onOk, onErr);
   };
   return obj;

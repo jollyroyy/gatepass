@@ -12,6 +12,7 @@ import { passStageStyle } from '../../lib/passStage';
 import { OVERDUE_STYLE } from '../../lib/statusStyles';
 import { pendingItemCount } from '../../lib/passRecordView';
 import Badge, { TypeChip } from '../Badge';
+import { returnDeskFor } from '../../lib/overdueItems';
 import PassRecordSummary from './PassRecordSummary';
 import PassRecordItems from './PassRecordItems';
 import PassRecordActivity from './PassRecordActivity';
@@ -62,7 +63,7 @@ export default function PassRecordView({ record, onClear }: Props): React.ReactE
                 {outstanding} {outstanding === 1 ? 'item still needs' : 'items still need'} attention before this
                 pass can be closed
               </span>
-              <Link to="/returns" className="btn-primary shrink-0">
+              <Link to={returnDeskFor(pass)} className="btn-primary shrink-0">
                 Review pending items
               </Link>
             </div>

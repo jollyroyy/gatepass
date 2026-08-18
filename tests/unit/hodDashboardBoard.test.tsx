@@ -141,8 +141,10 @@ function renderBoard() {
 
 function tile(section: string, label: string): HTMLElement {
   const group = screen.getByRole('group', { name: `${section} figures` });
-  const found = within(group)
-    .getAllByRole('button')
+  // Buttons AND links: Overdue Returns, RGP Overdue and RGP Due Today NAVIGATE
+  // to /overdue and /returns instead of drilling in place (client, 2026-08-18),
+  // so those three tiles are anchors. Every other tile is still a button.
+  const found = [...within(group).queryAllByRole('button'), ...within(group).queryAllByRole('link')]
     .find((b) => (b.textContent ?? '').startsWith(label));
   if (!found) throw new Error(`no "${label}" tile in ${section}`);
   return found;
@@ -197,15 +199,17 @@ describe('the HOD board\'s figures', () => {
     expectFigure('RGP Overview', 'RGP Overdue', 1); // o1
   });
 
-  it('the all-time overdue pass is in no period figure but is still on the board', async () => {
+  it('the all-time overdue pass is in no period figure but is still counted', async () => {
     renderBoard();
     await loaded();
 
     fireEvent.click(tile('RGP Overview', 'RGP Raised'));
     expect(within(drill()).queryByText('Gus')).not.toBeInTheDocument();
 
-    fireEvent.click(tile('RGP Overview', 'RGP Overdue'));
-    expect(within(drill()).getByText('Gus')).toBeInTheDocument();
+    // RGP Overdue opens the HOD's own Overdue Items page now — same scope, one
+    // screen, and the figure is still the count of what is on it.
+    expectFigure('RGP Overview', 'RGP Overdue', 1);
+    expect(tile('RGP Overview', 'RGP Overdue')).toHaveAttribute('href', '/overdue');
   });
 
   it('a drill row does not repeat the reader\'s own name back at them', async () => {

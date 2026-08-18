@@ -1,12 +1,12 @@
-// The guard view was one screen doing two jobs: a KPI board and the working
-// queue, with a full-width lookup form wedged between them. Now:
-//   * Dashboard (first sidebar tab) owns every number, and each KPI is a drill —
-//     clicking it lists the matching passes as premium cards on the SAME page.
-//   * Gate Console is purely the queue, with a compact lookup on the right.
-//   * Pending Returns is gone as a tab. Its two numbers are drills on the
-//     dashboard, and — critically — the Mark Returned action moved onto the
-//     drill cards. Deleting the tab without moving that action would have left
-//     a guard no way to close an RGP at all.
+// The guard's three screens, as they stand after 2026-08-18:
+//   * Dashboard owns every number. Seven of the nine figures drill in place;
+//     Awaiting Return and Overdue NAVIGATE — to /returns and /overdue, the
+//     line-level pages the HOD and the admin get too. No card on the board
+//     records a return any more.
+//   * Search Pass is search and nothing else — the Pending Queue moved to this
+//     board's "Pending for Gate Approval" figure, which is why that figure is
+//     the live queue (any date, not expired) rather than today's raises.
+//   * Overdue Items replaced the Pending Returns tab.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -69,8 +69,12 @@ const OPEN_OBLIGATIONS: GatePassView[] = [
          due_state: 'ok', created_at: DAYS_AGO }),
 ];
 
-// Material lines, for the Scheduled Returns table the Awaiting Return drill
-// opens. Two lines on the pass due today, one on the overdue pass.
+// THE GATE QUEUE — its own query now (pending or hod_reviewed, not expired,
+// any date), because the list moved here from Search Pass.
+const GATE_QUEUE: GatePassView[] = RAISED_TODAY;
+
+// Material lines. The board no longer renders them, but the same fixture keeps
+// the items query honest.
 const ITEMS = [
   { id: 'it1', gate_pass_id: 'a1', line_no: 1, name: 'Bosch Drill', quantity: 1, unit: 'nos',
     returned_qty: 0, outstanding_qty: 1, expected_return_date: null },
@@ -92,18 +96,25 @@ const ITEMS = [
  *  the pass-through list silently routed the open-obligations query to
  *  RAISED_TODAY instead. */
 function builder(table = 'v_gate_passes') {
-  let axis: 'created_at' | 'verified_at' | 'return_status' | null = null;
+  let axis: 'created_at' | 'verified_at' | 'return_status' | 'status' | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const obj: any = {};
   for (const m of ['select', 'order', 'limit', 'lte', 'lt']) obj[m] = () => obj;
-  obj.gte = (col: string) => { axis = col as typeof axis; return obj; };
+  // `expires_at` rides along with the queue's `.in('status', …)`; only the two
+  // day axes select a set, so it must not overwrite one.
+  obj.gte = (col: string) => { if (col !== 'expires_at') axis = col as typeof axis; return obj; };
   obj.eq = (col: string) => { if (col === 'return_status') axis = 'return_status'; return obj; };
-  obj.in = (col: string) => { if (col === 'return_status') axis = 'return_status'; return obj; };
+  obj.in = (col: string) => {
+    if (col === 'return_status') axis = 'return_status';
+    if (col === 'status') axis = 'status';
+    return obj;
+  };
   obj.then = (onOk: (v: unknown) => unknown, onErr?: (e: unknown) => unknown) => {
     const data =
       table === 'v_gate_pass_items' ? ITEMS :
       axis === 'verified_at' ? VERIFIED_TODAY :
       axis === 'return_status' ? OPEN_OBLIGATIONS :
+      axis === 'status' ? GATE_QUEUE :
       RAISED_TODAY;
     return Promise.resolve({ data, error: null, count: data.length }).then(onOk, onErr);
   };
@@ -153,20 +164,18 @@ beforeEach(() => {
 describe('Guard navigation', () => {
   // Search Pass sits directly under Dashboard (client, 2026-08-18): finding a
   // pass is the errand a guard runs dozens of times a shift.
-  it('lists Dashboard first, then Search Pass, then Pending Returns', () => {
+  it('lists Dashboard first, then Search Pass, then Overdue Items', () => {
     const guardLinks = ALL_LINKS.filter((n) => n.roles.includes('guard')).map((n) => n.label);
     expect(guardLinks[0]).toBe('Dashboard');
     expect(guardLinks[1]).toBe('Search Pass');
-    expect(guardLinks[2]).toBe('Pending Returns');
+    expect(guardLinks[2]).toBe('Overdue Items');
     expect(guardLinks).not.toContain('Gate Console');
+    // Replaced, not merely renamed (client, 2026-08-18).
+    expect(guardLinks).not.toContain('Pending Returns');
   });
 
-  it('offers a dedicated Pending Returns tab again (2026-08-08)', () => {
-    const guardLinks = ALL_LINKS.filter((n) => n.roles.includes('guard')).map((n) => n.label);
-    expect(guardLinks).toContain('Pending Returns');
-  });
-
-  it('keeps /returns in the guard route list alongside the dashboard', () => {
+  it('keeps both return pages in the guard route list alongside the dashboard', () => {
+    expect(ROLE_ROUTES.guard).toContain('/overdue');
     expect(ROLE_ROUTES.guard).toContain('/returns');
     expect(ROLE_ROUTES.guard).toContain('/guard-dashboard');
   });
@@ -248,25 +257,19 @@ describe('GuardDashboard — KPI drills', () => {
     expect(screen.getAllByText('Drill, Ladder').length).toBeGreaterThan(0);
   });
 
-  it('offers Return All on the Awaiting Return drill and calls the RPC', async () => {
+  it('sends the two return figures to their own pages instead of drilling', async () => {
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
 
-    // Overdue is the drill that still shows CARDS — Awaiting Return is the
-    // line-level Scheduled Returns table now, whose Record path is
-    // apply_item_returns, not mark_returned.
-    fireEvent.click(screen.getByText('Overdue'));
-    await waitFor(() => expect(screen.getByText('OVER-0001')).toBeInTheDocument());
+    const awaiting = screen.getByRole('link', { name: /Awaiting Return/i });
+    const overdue = screen.getByRole('link', { name: /^Overdue/i });
+    expect(awaiting).toHaveAttribute('href', '/returns');
+    expect(overdue).toHaveAttribute('href', '/overdue');
 
-    // Every card in a returnable drill carries a Record Returns button — act on
-    // the first. Per-line returns live inside that panel (ItemReturnList); this
-    // is the close-everything path, which must survive alongside them for the
-    // single-move common case.
-    fireEvent.click(screen.getAllByRole('button', { name: /record returns/i })[0]);
-    fireEvent.click(await screen.findByRole('button', { name: /return all/i }));
-
-    await waitFor(() => expect(markReturned).toHaveBeenCalled());
-    expect(markReturned.mock.calls[0][0]).toBe('mark_returned');
+    // And nothing on the board records a return any more — that moved to the
+    // two pages, line by line.
+    expect(screen.queryByRole('button', { name: /record returns/i })).not.toBeInTheDocument();
+    expect(markReturned).not.toHaveBeenCalled();
   });
 
   it('excludes a pass raised days ago from Pending and Mismatch — and their counts', async () => {
@@ -283,63 +286,31 @@ describe('GuardDashboard — KPI drills', () => {
     expect(screen.queryByText('OVER-0001')).not.toBeInTheDocument();
   });
 
-  it('shows on Awaiting Return only what is expected back TODAY, whenever it was raised', async () => {
+  it('counts on Awaiting Return only what is expected back TODAY, whenever it was raised', async () => {
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
-
-    fireEvent.click(screen.getByRole('button', { name: /Awaiting Return/i }));
-    // The drill opens the Scheduled Returns table: rows are material LINES, and
-    // only the lines of the pass due back today.
-    await waitFor(() => expect(screen.getByTestId('scheduled-returns-table')).toBeInTheDocument());
-    expect(screen.getByText('Bosch Drill')).toBeInTheDocument();
-    expect(screen.getByText('Alu Ladder')).toBeInTheDocument();
     // A days-old pass still qualifies — the cut is the RETURN date, not the
     // raise date. The overdue one and the one due in October do not.
-    expect(screen.queryByText('Cable Coil')).not.toBeInTheDocument();
-    expect(screen.queryByText('LATER-0001')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Awaiting Return/i })).toHaveTextContent('1');
-  });
-
-  it('records a ticked line through apply_item_returns, not before', async () => {
-    renderAt(<GuardDashboard />);
-    await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
-
-    fireEvent.click(screen.getByRole('button', { name: /Awaiting Return/i }));
-    await waitFor(() => expect(screen.getByTestId('scheduled-returns-table')).toBeInTheDocument());
-
-    // One line is already back: it offers View, never a tick.
-    expect(screen.getAllByRole('button', { name: 'Mark returned' })).toHaveLength(1);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Mark returned' }));
-    // A tap saves nothing — the commit is a second, deliberate press.
+    expect(screen.getByRole('link', { name: /Awaiting Return/i })).toHaveTextContent('1');
     expect(itemReturns).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByTestId('record-scheduled-returns'));
-    await waitFor(() => expect(itemReturns).toHaveBeenCalled());
-    expect(itemReturns.mock.calls[0][1].p_pass_id).toBe('a1');
-    expect(itemReturns.mock.calls[0][1].p_lines).toEqual([{ item_id: 'it1', qty: 1 }]);
   });
 
   it('sweeps every missed return date into Overdue, for all time', async () => {
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: /^Overdue/i }));
-    await waitFor(() => expect(screen.getByText('OVER-0001')).toBeInTheDocument());
-    expect(screen.queryByText('AWAIT-0001')).not.toBeInTheDocument();
-    expect(screen.queryByText('LATER-0001')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Overdue/i })).toHaveTextContent('1');
+    // OVER-0001 is the only pass past its date; the one due today and the one
+    // due in October are not in this figure.
+    expect(screen.getByRole('link', { name: /^Overdue/i })).toHaveTextContent('1');
   });
 
   it('marks only Overdue as all-time — Awaiting Return is a today figure now', async () => {
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('Awaiting Return')).toBeInTheDocument());
-    const awaitingCard = screen.getByRole('button', { name: /Awaiting Return/i });
-    const overdueCard = screen.getByRole('button', { name: /^Overdue/i });
-    const pendingCard = screen.getByRole('button', { name: /Pending for Gate Approval/i });
+    const awaitingCard = screen.getByRole('link', { name: /Awaiting Return/i });
+    const overdueCard = screen.getByRole('link', { name: /^Overdue/i });
     expect(overdueCard).toHaveTextContent(/all time/i);
     expect(awaitingCard).not.toHaveTextContent(/all time/i);
-    expect(pendingCard).not.toHaveTextContent(/all time/i);
   });
 
   it('does not offer returns on the pending drill — nothing has left yet', async () => {
@@ -350,7 +321,7 @@ describe('GuardDashboard — KPI drills', () => {
   });
 });
 
-describe('Search Pass — the search bar on top, the queue below', () => {
+describe('Search Pass — the search bar, and nothing else', () => {
   it('no longer renders the KPI cards', async () => {
     renderAt(<GateConsole />);
     await waitFor(() => expect(screen.getByText('Search Pass')).toBeInTheDocument());
@@ -367,9 +338,13 @@ describe('Search Pass — the search bar on top, the queue below', () => {
     expect(lookup?.className).toMatch(/max-w-/);
   });
 
-  it('has no pass-type filter on the queue any more', async () => {
+  it('no longer renders the Pending Queue at all (client, 2026-08-18)', async () => {
     renderAt(<GateConsole />);
     await waitFor(() => expect(screen.getByText('Search Pass')).toBeInTheDocument());
+    expect(screen.queryByText('Pending Queue')).not.toBeInTheDocument();
+    expect(screen.queryByText('All Departments')).not.toBeInTheDocument();
     expect(screen.queryByText('All Types')).not.toBeInTheDocument();
+    // The queue's passes are not on this page in any other shape either.
+    expect(screen.queryByText('PEND-0001')).not.toBeInTheDocument();
   });
 });

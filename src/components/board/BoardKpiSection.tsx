@@ -12,7 +12,7 @@
 // is no `count: 'exact'` query on this board and no predicate re-applied against
 // a second array. Do not "optimise" this into aggregate queries.
 import React from 'react';
-import { BOARD_KPIS, type BoardKpiKey } from '../../lib/boardKpis';
+import { BOARD_KPIS, BOARD_KPI_LINKS, type BoardKpiKey } from '../../lib/boardKpis';
 import { rowsFor, kpiDrill, type BoardWindows } from '../../lib/boardWindows';
 import type { BoardDrill } from '../../lib/boardDrills';
 import BoardKpiTile from './BoardKpiTile';
@@ -84,6 +84,7 @@ export default function BoardKpiSection({
               loading={loading}
               active={activeKey === drill.key}
               onClick={() => onSelect(drill)}
+              to={BOARD_KPI_LINKS[key]}
             />
           );
         })}

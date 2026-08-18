@@ -83,6 +83,11 @@ describe('every permitted route is reachable without typing a URL', () => {
     // strip already drills into the same passes.
     '/mismatch',
     '/expired',
+    // Returns Due Today, on every role: opened from a board figure — the
+    // guard's Awaiting Return tile and the admin's / HOD's RGP Due Today tile
+    // both navigate here. A sidebar link would be a second door to a list that
+    // already has one, and the figure is what says how many are on it.
+    '/returns',
   ]);
 
   const linked = new Set(ALL_LINKS.map((l) => l.to));

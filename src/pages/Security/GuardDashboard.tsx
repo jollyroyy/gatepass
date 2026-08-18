@@ -2,23 +2,20 @@
 // drill: click a KPI and the passes behind it open as premium cards below,
 // on this same page. No navigation, because a guard is standing at a barrier.
 //
-// It absorbed the old Pending Returns page (Awaiting Return + Overdue), so the
-// Mark Returned action lives on the drill cards now — see GuardDrillCard.
-//
-// AWAITING RETURN IS THE ONE DRILL THAT IS NOT CARDS. It opens the Scheduled
-// Returns table (client, 2026-08-18): a row per material LINE, because a guard
-// taking material back at the barrier is handed items, not passes. Overdue and
+// TWO OF THE NINE FIGURES ARE LINKS, NOT DRILLS (client, 2026-08-18): Awaiting
+// Return opens `/returns` and Overdue opens `/overdue`. Both are line-level
+// pages the HOD and the admin get too, at their own scope, and both are where
+// a return is recorded now — so no card on this board is actionable. Overdue and
 // the rest stay cards — they are read pass by pass.
 import React, { useCallback, useEffect, useState } from 'react';
 import { gp, supabase } from '../../supabaseClient';
 import type { GatePassView } from '../../types';
 import KpiCard from '../../components/KpiCard';
 import { safeErrorMessage } from '../../lib/errors';
-import { DRILL_DEFS, DRILL_ORDER, type DrillKey } from '../../lib/guardDrills';
+import { DRILL_DEFS, DRILL_LINKS, DRILL_ORDER, type DrillKey } from '../../lib/guardDrills';
 import { todayBounds } from '../../lib/hodKpis';
 import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 import GuardDrillCard from './GuardDrillCard';
-import ScheduledReturns from './ScheduledReturns';
 
 type DrillRows = Record<DrillKey, GatePassView[]>;
 type DaySets = {
@@ -27,9 +24,13 @@ type DaySets = {
   /** Every pass currently awaiting_return, with NO date filter — see the
    *  reasoning in guardDrills.ts. Powers Awaiting Return and Overdue. */
   openObligations: GatePassView[];
+  /** THE GATE QUEUE — pending or HOD-approved, not yet expired, any date. It
+   *  moved here when Search Pass became search-only (2026-08-18) and is the
+   *  only list a guard picks a waiting pass from. */
+  gateQueue: GatePassView[];
 };
 
-const EMPTY_SETS: DaySets = { raisedToday: [], verifiedToday: [], openObligations: [] };
+const EMPTY_SETS: DaySets = { raisedToday: [], verifiedToday: [], openObligations: [], gateQueue: [] };
 
 /** One pass through each day set, filtered by each drill's own predicate. The
  *  card's number and the card list it opens are therefore the same array. */
@@ -47,12 +48,11 @@ export default function GuardDashboard(): React.ReactElement {
   const [selected, setSelected] = useState<DrillKey>('pending');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      // Three queries, not eight. Every drill is a client-side filter of one
+      // Four queries, not nine. Every drill is a client-side filter of one
       // of them, so the board resets at local midnight by construction. The
       // third carries no date filter at all: Awaiting Return cuts it to what is
       // due back today and Overdue takes everything earlier, so the array has
@@ -61,7 +61,8 @@ export default function GuardDashboard(): React.ReactElement {
       const startIso = new Date(start).toISOString();
       const endIso = new Date(end).toISOString();
       const base = () => gp().from('v_gate_passes').select('*');
-      const [raised, verified, open] = await Promise.all([
+      const nowIso = new Date().toISOString();
+      const [raised, verified, open, queue] = await Promise.all([
         base().gte('created_at', startIso).lt('created_at', endIso).order('created_at', { ascending: true }),
         base().gte('verified_at', startIso).lt('verified_at', endIso).order('verified_at', { ascending: false }),
         // BOTH open return states. `partially_returned` was missing here, and
@@ -74,9 +75,17 @@ export default function GuardDashboard(): React.ReactElement {
         base()
           .in('return_status', ['awaiting_return', 'partially_returned'])
           .order('created_at', { ascending: true }),
+        // The queue, exactly as Search Pass used to ask for it: both states the
+        // gate can still act on, and only while the pass's own expiry has not
+        // passed. `is_expired` covers `pending` alone; filtering `expires_at`
+        // covers both states uniformly and never needs recomputing here.
+        base()
+          .in('status', ['pending', 'hod_reviewed'])
+          .gte('expires_at', nowIso)
+          .order('created_at', { ascending: true }),
       ]);
 
-      for (const res of [raised, verified, open]) {
+      for (const res of [raised, verified, open, queue]) {
         if (res.error) throw res.error;
       }
 
@@ -84,6 +93,7 @@ export default function GuardDashboard(): React.ReactElement {
         raisedToday: (raised.data as GatePassView[] | null) ?? [],
         verifiedToday: (verified.data as GatePassView[] | null) ?? [],
         openObligations: (open.data as GatePassView[] | null) ?? [],
+        gateQueue: (queue.data as GatePassView[] | null) ?? [],
       });
       setError(null);
     } catch (err) {
@@ -119,31 +129,6 @@ export default function GuardDashboard(): React.ReactElement {
     };
   }, [load]);
 
-  const handleMarkReturned = useCallback(
-    async (pass: GatePassView, remarks: string) => {
-      setActionError(null);
-      try {
-        const { error: rpcErr } = await gp().rpc('mark_returned', {
-          p_pass_id: pass.id,
-          p_remarks: remarks.trim() || null,
-        });
-        if (rpcErr) throw rpcErr;
-        await load(true);
-      } catch (err) {
-        setActionError(safeErrorMessage(err));
-      }
-    },
-    [load],
-  );
-
-  // One line came back. `apply_item_returns` may have closed the whole pass in
-  // the same statement — re-read rather than infer it here, so the KPI counts
-  // and the pass's own status come from the database's decision, not ours.
-  // Silent: a guard mid-return must not see the list flash out from under them.
-  const handleItemReturned = useCallback(() => {
-    void load(true);
-  }, [load]);
-
   const rows = buildRows(sets);
   const def = DRILL_DEFS[selected];
   const list = rows[selected];
@@ -157,8 +142,9 @@ export default function GuardDashboard(): React.ReactElement {
           <span className="font-semibold text-navy-700">Showing today</span> — every figure
           resets at midnight, including Awaiting Return, which is what is expected back
           today. Overdue is the exception: it carries every missed return, however old.
-          Tap one to see the passes behind it. Everything still out, of any date, is on
-          Pending Returns; historical passes live in Reports.
+          Tap a figure to see the passes behind it — Awaiting Return and Overdue open
+          their own pages, where returns are recorded line by line. Historical passes
+          live in Reports.
         </p>
       </div>
 
@@ -184,25 +170,20 @@ export default function GuardDashboard(): React.ReactElement {
             tone={DRILL_DEFS[key].tone}
             delta={DRILL_DEFS[key].allTime ? 'all time' : undefined}
             loading={loading}
+            to={DRILL_LINKS[key]}
             active={key === selected}
-            onClick={() => setSelected(key)}
+            onClick={DRILL_LINKS[key] ? undefined : () => setSelected(key)}
           />
         ))}
       </div>
 
       <div ref={resultsRef}>
-        {/* Scheduled Returns names and counts itself, in lines rather than
-            passes — two headings would disagree about what is being counted. */}
-        {selected !== 'awaiting' && (
-          <div className="flex items-baseline gap-3 mb-4">
-            <h2 className="section-title mb-0">{def.heading}</h2>
-            <span className="text-xs font-medium text-navy-500 tabular">
-              {list.length} {list.length === 1 ? 'pass' : 'passes'}
-            </span>
-          </div>
-        )}
-
-        {actionError && <div className="alert-error mb-4">{actionError}</div>}
+        <div className="flex items-baseline gap-3 mb-4">
+          <h2 className="section-title mb-0">{def.heading}</h2>
+          <span className="text-xs font-medium text-navy-500 tabular">
+            {list.length} {list.length === 1 ? 'pass' : 'passes'}
+          </span>
+        </div>
 
         {loading ? (
           <div className="flex flex-col gap-4">
@@ -210,8 +191,6 @@ export default function GuardDashboard(): React.ReactElement {
               <div key={i} className="skeleton h-40 w-full" />
             ))}
           </div>
-        ) : selected === 'awaiting' ? (
-          <ScheduledReturns passes={list} onRecorded={handleItemReturned} />
         ) : list.length === 0 ? (
           <div className="card empty-state">
             <p>{def.empty}</p>
@@ -221,13 +200,7 @@ export default function GuardDashboard(): React.ReactElement {
           // for a KPI drill to scan top-to-bottom like a list, not a mosaic.
           <div className="flex flex-col gap-4 w-full">
             {list.map((p) => (
-              <GuardDrillCard
-                key={p.id}
-                pass={p}
-                returnable={def.returnable}
-                onMarkReturned={handleMarkReturned}
-                onItemReturned={handleItemReturned}
-              />
+              <GuardDrillCard key={p.id} pass={p} />
             ))}
           </div>
         )}

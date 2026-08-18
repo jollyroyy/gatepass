@@ -19,6 +19,7 @@
 //   * `min-w-0` at every level, so a long word can shrink its column rather than
 //     forcing the grid — and hence the page — to scroll sideways.
 import React from 'react';
+import { Link } from 'react-router-dom';
 import type { BoardKpi } from '../../lib/boardKpis';
 import BoardKpiIcon from './BoardKpiIcon';
 import { TONE_TEXT } from '../KpiCard';
@@ -31,20 +32,21 @@ type Props = {
   loading: boolean;
   active: boolean;
   onClick: () => void;
+  /** Set on the figures that own a page — Overdue and Due Today. A tile with a
+   *  destination NAVIGATES and never drills: two ways to open the same list,
+   *  one of them narrower than the other, is how they drift apart. */
+  to?: string;
 };
 
 export default function BoardKpiTile({
-  kpi, label, value, loading, active, onClick,
+  kpi, label, value, loading, active, onClick, to,
 }: Props): React.ReactElement {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`card card-hover p-4 flex flex-col gap-2.5 text-left w-full min-w-0 cursor-pointer${
-        active ? ' ring-2 ring-brand-500/60' : ''
-      }`}
-    >
+  const className = `card card-hover p-4 flex flex-col gap-2.5 text-left w-full min-w-0 cursor-pointer${
+    active && !to ? ' ring-2 ring-brand-500/60' : ''
+  }`;
+
+  const body = (
+    <>
       <span className="flex items-start gap-2.5 min-w-0">
         <BoardKpiIcon kpi={kpi.key} tone={kpi.tone} />
         <span className="text-[11px] font-semibold uppercase tracking-[0.05em] leading-[1.25] text-navy-600 min-w-0 break-words">
@@ -62,6 +64,20 @@ export default function BoardKpiTile({
           summary row is deliberately note-less, and a blank span would still
           cost it a line of height and leave the row uneven. */}
       {kpi.note && <span className="text-caption text-navy-500 leading-tight">{kpi.note}</span>}
+    </>
+  );
+
+  if (to) {
+    return (
+      <Link to={to} className={className}>
+        {body}
+      </Link>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onClick} aria-pressed={active} className={className}>
+      {body}
     </button>
   );
 }

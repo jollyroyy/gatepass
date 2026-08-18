@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-18
 
-Full gate: **1109 tests across 103 files** (`npm run check`), `npm run build` clean.
+Full gate: **1141 tests across 104 files** (`npm run check`), `npm run build` clean.
 Migrations **`001`–`041` are all applied to the live DB**; `039`, `040`, `041` were each
 verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 
@@ -50,7 +50,50 @@ verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 
-**Latest change (2026-08-18, seventh pass): units moved into the quantity heading, the
+**Latest change (2026-08-18, eighth pass): Overdue Items is a page all three roles get, the
+guard's Pending Returns tab is gone, Search Pass lost its Pending Queue, and the boards' Overdue
+/ Due Today figures NAVIGATE instead of drilling.** Frontend only — no migration, no new RPC.
+
+- **`/overdue` — Overdue Items, one component, three scopes.** `src/components/overdue/`
+  (`OverdueBoard` + `OverdueStats` + `OverdueFilters` + `OverdueTable` + `OverdueTrendPanel`),
+  data in `src/lib/overdueItems.ts`, loaded by `src/lib/useOpenReturns.ts`, rendered by
+  `src/pages/Shared/OverdueItemsPage.tsx` which decides scope from the role:
+  **guard = lines that went overdue TODAY** (`daysLate === 1`), **HOD = all time, own passes**
+  (`.eq('raised_by', …)`, server-side), **admin = all time, site-wide**. Only the guard can
+  record — `apply_item_returns` refuses anyone else.
+  - **A ROW IS A MATERIAL LINE**, graded by `itemReturnStage` — the same function Search Pass
+    uses. **`daysLate` is whole CALENDAR DAYS**: `expected_return_date` is a `date`, so the
+    reference's "1d 7h" is a figure nothing supports. An undated legacy line is not overdue.
+  - Columns are ITEM · GATE PASS · CARRIED BY · DEPARTMENT · EXPECTED RETURN · QUANTITY ·
+    DELAY · STATUS · ACTION. The reference's EMPLOYEE is CARRIED BY (`visitor_name`), and its
+    "Contact employee" / "Escalate" buttons have no mechanism here, so ACTION is **Mark
+    returned** (gate) or **View pass**. Same no-em-dash-columns rule as the record view.
+  - `CRITICAL_DAYS = 3` is the ONE threshold: the Critical badge, the Critical tile, the delay
+    filter and the escalation card all read it. **A tap saves nothing** — the Record bar is the
+    commit, because `apply_item_returns` has no undo.
+  - The trend bars are **the current backlog's age**, not an archive of past lateness: nothing
+    records "how many were overdue last Tuesday". Said in `overdueTrend`'s own comment.
+  - Pinned by `tests/unit/overdueItems.test.ts` (18) and `overdueBoard.test.tsx` (11).
+- **`/returns` is Returns Due Today** (`src/pages/Shared/ReturnsDueTodayPage.tsx`), not a tab on
+  anybody's sidebar — it is where a board's due-today figure lands, on every role. It filters on
+  **`due_state === 'due_today'`**, the database's grading in `site_tz()`; never the browser
+  clock. `ScheduledReturns` moved to `src/components/returns/` and now takes `passes` + `items`
+  + `canRecord` (read-only for HOD/admin). Pinned by `returnsDueToday.test.tsx` (4).
+- **Three board figures navigate instead of drilling** — `BOARD_KPI_LINKS` in `boardKpis.ts`:
+  `overdueReturns` and `rgpOverdue` → `/overdue`, `rgpDueToday` → `/returns`. `BoardKpiTile`
+  renders a `<Link>` when given `to`. On the guard board the same two are `DRILL_LINKS` in
+  `guardDrills.ts` (`awaiting` → `/returns`, `overdue` → `/overdue`).
+- **Search Pass has no Pending Queue** (client). The list moved to the guard board's **Pending
+  for Gate Approval** figure, which is now its OWN query — `status in (pending, hod_reviewed)`
+  and `expires_at >= now`, **any date** (`DrillSource` gained `gateQueue`). That is load-bearing:
+  an HOD-approved pass is waiting on the gate alone, and `hodReviewGateFlow.test.tsx` now pins
+  it there. **`GuardDrillCard` carries Verify at Gate** (`canVerifyAtGate`) so the board can
+  still send a guard to `/verify/:id` — otherwise the queue would be visible and unclearable.
+- **Deleted, not flagged off:** `PendingReturns.tsx`, `QueueCard.tsx`, `ItemReturnList.tsx`, and
+  `GuardDrillCard`'s whole return panel. No card on any board records a return now.
+  `DrillDef.returnable` is gone with them.
+
+**Earlier (2026-08-18, seventh pass): units moved into the quantity heading, the
 Awaiting Return drill became a line-level table, and the search stopped narrating outcomes.**
 Frontend only — no migration, no new RPC.
 
@@ -223,6 +266,12 @@ the query and `GateConsole` renders the results full width above the queue.
   it. Fix: let the trigger keep `expires_at` unless an RPC is deliberately moving it.
 - **`UsersTab.tsx` is 478 lines**, over the 300-line cap (pre-existing). The honest fix is
   extracting the Add-User and Edit-User modals.
+- **Pass-level `mark_returned` now has NO caller in `src/`** (2026-08-18): every return is
+  recorded line by line through `apply_item_returns` on `/returns` and `/overdue`. The RPC is
+  still granted and still part of the state machine — decide deliberately whether to drop it.
+- **Material due LATER than today, and dateless legacy lines, can no longer be returned early.**
+  Pending Returns was the only all-dates screen and it is gone; such a line becomes recordable
+  the day it comes due (`/returns`) or the day after (`/overdue`). Accepted with the client.
 - **`gatepass.kpis()` and `bulk_create_passes` have no caller in `src/`.** Both want a
   migration that drops them (see "never leave unused schema").
 - **`gate_pass_items.serial_no` is write-dead**; dropping it needs the view rebuilt.
@@ -551,8 +600,10 @@ Office**: material moves through the mall's service gate, HODs are department he
 
 `src/pages/` is grouped by who uses it: `HOD/` (Dashboard, RaisePass, MyPasses,
 MismatchReview, ExpiredReview), `Security/` (GateConsole — the **Search Pass** screen —
-GateLookup, Verify, GuardDashboard, PendingReturns), `Admin/` (AdminPanel and its tabs, AdminDashboard, ReportsPage), `Shared/`
+GateLookup, Verify, GuardDashboard), `Shared/` also holding the two role-scoped return pages
+(OverdueItemsPage, ReturnsDueTodayPage), `Admin/` (AdminPanel and its tabs, AdminDashboard, ReportsPage), `Shared/`
 (PassDetail, PassPrint, Profile). `src/components/passview/` is the Gate Pass Details record Search Pass
-resolves to; `src/components/board/` is the dashboard both the admin and the HOD get — one component, the HOD's scoped to one person server-side. `src/lib/` holds the
+resolves to; `src/components/overdue/` is Overdue Items and `src/components/returns/` is the
+line-level returns table, each one component serving all three roles; `src/components/board/` is the dashboard both the admin and the HOD get — one component, the HOD's scoped to one person server-side. `src/lib/` holds the
 lookup maps, derivations and formatters; `supabase/migrations/` runs `001` → `041`, with
 `005` an **optional demo seed** to skip in a real deployment.
