@@ -20,7 +20,8 @@
 //   * a formatter never re-derives a fact. `is_expired` and `is_overdue` come
 //     off `v_gate_passes`; this module only chooses words for them.
 import type { GatePassView, PassDirection, PassType, ReturnStatus } from '../types';
-import { EXPIRED_STYLE, RETURN_STYLES, STATUS_STYLES, isExpiredPending } from './statusStyles';
+import { RETURN_STYLES } from './statusStyles';
+import { passStageStyle } from './passStage';
 import { categoryFor } from './passTypes';
 import { formatDateOnly, formatDateTime } from './formatDate';
 import { unitLabel } from './units';
@@ -40,11 +41,15 @@ export function csvDate(iso: string | null | undefined): string {
   return iso ? formatDateOnly(iso) : '';
 }
 
-/** The badge's own words, including the derived "Expired" — which is not an
- *  enum label at all (expiry is `status = 'pending'` plus `is_expired`), so an
- *  export of the raw column would silently call an expired pass "Pending". */
-export function csvStatus(p: Pick<GatePassView, 'status' | 'is_expired'>): string {
-  return isExpiredPending(p) ? EXPIRED_STYLE.label : STATUS_STYLES[p.status].label;
+/** The badge's own words — `passStageStyle`, the SAME function every card and
+ *  the register's own Status column render, so the CSV can never disagree with
+ *  the screen it was exported from. That is why it is not the raw enum: an
+ *  expired pass is `pending` in the column and would export as "Pending", and a
+ *  `matched` one says nothing about whether the material ever came back. */
+export function csvStatus(
+  p: Pick<GatePassView, 'status' | 'return_status' | 'is_expired' | 'is_overdue'>,
+): string {
+  return passStageStyle(p).label;
 }
 
 /** Blank for a pass with no return loop — an NRGP, or an RGP the gate has not

@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-18
 
-Full gate: **1168 tests across 109 files** (`npm run check`), `npm run build` clean.
+Full gate: **1175 tests across 110 files** (`npm run check`), `npm run build` clean.
 Migrations **`001`–`042` are all applied to the live DB**; `039`, `040`, `041` were each
 verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`), and `042` with a
 rolled-back `psql` insert that returned `RGP-20260818-0001`.
@@ -51,7 +51,44 @@ rolled-back `psql` insert that returned `RGP-20260818-0001`.
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 
-**Latest change (2026-08-18, eleventh pass): a batch of client trims — NRGP lines read
+**Latest change (2026-08-18, twelfth pass): no surface says "Matched" or "In Use", expired
+passes are off both dashboards and tracked in Reports instead, and the Return Watch looks
+forward only.** Frontend only — no migration.
+
+- **A pass never reads "Matched".** `passStageStyle` gains a fourth arm: `matched` with no
+  return loop at all is an NRGP through the gate, and that is the END of it, so it reads
+  **Closed** (`RGP_STAGE_STYLES.closed`). `rgpStageStyle` now **RENAMES** a late open pass to
+  **Overdue** rather than only re-toning it orange — the fact was carried by colour alone, which
+  is nothing at all on the mono laser the register prints on or in a CSV. So the ladder is
+  Expired · Mismatched/Held/Voided · Overdue · Partly Returned · Out — Not Returned · Closed.
+  `STATUS_STYLES.matched` still exists (the `Record<PassStatus, …>` is exhaustive by design) but
+  nothing reaches it. **`csvStatus` is now just `passStageStyle(p).label`**, so an export can
+  never disagree with the screen it came from, and `AllPassesReport`'s badge calls the same
+  function. MyPasses' status tab is **"Cleared at Gate"**, not "Matched". Pinned by
+  `tests/unit/reportStatusStage.test.ts` (7) plus rewritten cases in `passStage`,
+  `rgpLifecycle`, `rgpStageBadge` and `passDetailHeader`.
+- **The record timeline's RGP gate moment is "Cleared at Gate"** (`passRecordStages`), the
+  client's own words for the event; "In Use" described the material, and nothing here observes
+  use. An NRGP is still "Closed" at the same moment.
+- **Expired is off BOTH dashboards.** `DRILL_DEFS.expired` and the `expired` `DrillKey` are
+  deleted (a stale reference is a type error), with `GuardDashboard`'s red expiry callout; the
+  orange half of `BoardAttention` is gone too, so that strip is mismatches alone. An expired
+  pass is dead paperwork — `match_pass` refuses it forever — and no board figure is acted on by
+  reading it. **It is still tracked**: the raising HOD gets the bell notice that opens
+  `/expired/:id` (untouched), and **Reports has an `Expired` button** beside Overdue
+  (`isExpiredPending`, counted by Clear, named "Expired only" on the printed scope line).
+  Pinned by `guardBoardNoExpired.test.tsx` (2, renamed from `guardDashboardExpiredDrill`), a new
+  case in `gateBoard.test.tsx`, and three in `reportsFilters.test.tsx`.
+- **Return Watch is three buckets, forward only: Due Today · Due in Next 7 Days · Due After 7
+  Days.** `ReturnWatchKey` loses `overdue`, and `returnWatchKeyOf` returns **null** for a late
+  pass — the `is_overdue` line must stay FIRST, because a past date makes `daysBetween` negative
+  and every predicate below would file the pass under "Due in Next 7 Days". The donut follows
+  from the same function. `BoardReturnWatch` opens on `dueToday` and **its "Days Overdue" column
+  is gone** (every row is inside its date now), so `daysOverdue` was deleted with its only
+  caller, and `RETURN_WATCH_COLORS.overdue` with the bucket. The backlog is still `/overdue`,
+  graded line by line.
+
+**Earlier (2026-08-18, eleventh pass): a batch of client trims — NRGP lines read
 Closed, the pass number lost its direction (migration `042`, APPLIED), stacked cards are
 numbered and compact with a VERTICAL timeline, Today's Summary is gone from BOTH boards, the
 admin gets two department bar charts and an Overdue button on Reports, and column headings are
@@ -59,7 +96,8 @@ gold.**
 
 - **An NRGP is CLOSED, never "In Use".** `ItemReturnStage`'s `not_applicable` is renamed
   **`closed`** (label "Closed", matched-green), and `passRecordStages` names the gate moment
-  `pass.type === 'RGP' ? 'In Use' : 'Closed'`. **The item table's Action column carries ONLY the
+  `pass.type === 'RGP' ? 'Cleared at Gate' : 'Closed'` (the RGP half was "In Use" until the
+  twelfth pass). **The item table's Action column carries ONLY the
   return marking**: `Mark return` on an RGP line that still owes material, plain **`NA`** on
   everything else — the old "View" link pointed at the page the reader was already on.
   Pinned by `tests/unit/nrgpItemAction.test.tsx` (6).
@@ -267,7 +305,7 @@ migration.
   narrowing safe; the old "reachable ONLY from the Awaiting Return drill" comment in
   `guardDrills.ts` was stale and is corrected.
 - Untouched on purpose: the board's `rgpDueToday` already read `due_state === 'due_today'`;
-  `returnWatch.ts` already buckets Overdue / Due Today / Due in 7 / Due Later; MyPasses'
+  `returnWatch.ts` buckets the return schedule (Overdue was dropped from it in the twelfth pass); MyPasses'
   "awaiting return" chip is a user-driven filter on `return_status`, not a day figure.
 - Pinned by `tests/unit/awaitingReturnDueToday.test.ts` (11) plus three rewritten cases in
   `guardDashboard.test.tsx`.

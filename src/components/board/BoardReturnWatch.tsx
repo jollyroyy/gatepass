@@ -1,11 +1,17 @@
-// "RGP Return Watch" — the four buckets of still-out material as a tabbed
-// register: Overdue, Due Today, Due in Next 7 Days, Due After 7 Days.
+// "RGP Return Watch" — the three buckets of still-out material as a tabbed
+// register: Due Today, Due in Next 7 Days, Due After 7 Days.
 //
-// THE TABS ARE THE SAME FOUR BUCKETS AS THE DONUT BESIDE IT, from the same
+// IT LOOKS FORWARD ONLY. The Overdue tab was removed 2026-08-18 on the client's
+// call: the backlog is `/overdue`, line by line, and a pass-level copy of it here
+// was a second place to read one number. An overdue pass is in no bucket at all
+// (see returnWatch.ts) — which is also why there is no "Days Overdue" column any
+// more: every row in this table is still inside its date.
+//
+// THE TABS ARE THE SAME THREE BUCKETS AS THE DONUT BESIDE IT, from the same
 // `returnWatchBuckets` call shape, so a reader who reads 2 off the ring and clicks
-// the Overdue tab sees exactly those two passes.
+// that tab sees exactly those two passes.
 //
-// ALL FOUR TABS ALWAYS EXIST, even at zero. A tab that disappears when it empties
+// ALL THREE TABS ALWAYS EXIST, even at zero. A tab that disappears when it empties
 // reads as "this system has no such state", which is a stronger and wronger claim
 // than "none right now" — and it moves the other tabs under the reader's finger.
 //
@@ -21,7 +27,6 @@ import type { GatePassView } from '../../types';
 import {
   returnWatchBuckets,
   returnWatchKeyOf,
-  daysOverdue,
   RETURN_WATCH_LABEL,
   RETURN_WATCH_PILL,
   type ReturnWatchKey,
@@ -36,7 +41,6 @@ const SHOWN = 5;
 /** Tinted pill, dark ink — the same idiom as every other status badge in the app.
  *  A `Record`, so a fifth bucket without a pill style is a type error. */
 const PILL: Record<ReturnWatchKey, string> = {
-  overdue: 'bg-flagged-50 text-flagged-700',
   dueToday: 'bg-overdue-50 text-overdue-700',
   dueIn7: 'bg-pending-50 text-pending-700',
   dueLater: 'bg-accent-50 text-accent-600',
@@ -56,7 +60,7 @@ type Props = {
 export default function BoardReturnWatch({
   rows, loading, activeKey, onSelect, showDepartment = true,
 }: Props): React.ReactElement {
-  const [tab, setTab] = useState<ReturnWatchKey>('overdue');
+  const [tab, setTab] = useState<ReturnWatchKey>('dueToday');
   const buckets = useMemo(() => returnWatchBuckets(rows), [rows]);
   const current = buckets.find((b) => b.key === tab);
   const listed = (current?.rows ?? []).slice(0, SHOWN);
@@ -118,7 +122,6 @@ export default function BoardReturnWatch({
                 <th>Sent To</th>
                 <th>Out Date</th>
                 <th>Due Date</th>
-                <th className="text-right">Days Overdue</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -128,7 +131,6 @@ export default function BoardReturnWatch({
                 // row can never carry a pill that disagrees with the tab it is
                 // sitting under.
                 const key = returnWatchKeyOf(p) ?? tab;
-                const late = daysOverdue(p);
                 return (
                   <tr key={p.id}>
                     <td className="font-semibold text-navy-900 whitespace-nowrap">
@@ -143,7 +145,6 @@ export default function BoardReturnWatch({
                     <td className="max-w-[9rem] truncate">{parseCompanyInfo(p.visitor_company).name || '—'}</td>
                     <td className="whitespace-nowrap text-navy-500">{formatDateOnly(p.verified_at)}</td>
                     <td className="whitespace-nowrap">{formatDateOnly(p.expected_return_date)}</td>
-                    <td className="text-right tabular">{late > 0 ? late : '—'}</td>
                     <td>
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md whitespace-nowrap ${PILL[key]}`}>
                         {RETURN_WATCH_PILL[key]}

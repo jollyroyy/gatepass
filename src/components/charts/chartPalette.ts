@@ -62,7 +62,6 @@ export const STATUS_COLORS = {
  *  accent blue — a return a fortnight away is information, not a warning, and
  *  drawing it in a warm hue would make a healthy board look like a busy one. */
 export const RETURN_WATCH_COLORS: Record<string, string> = {
-  overdue: STATUS_COLORS.flagged,
   dueToday: STATUS_COLORS.overdue,
   dueIn7: STATUS_COLORS.pending,
   dueLater: SERIES_COLORS.blue,

@@ -63,11 +63,14 @@ export const RGP_STAGE_STYLES: Record<RgpStage, StatusStyle> = {
   },
 };
 
-/** Overdue re-TONES the open stages; it never renames them. Several KPI cards
- *  and drills are named "Overdue" and exact-text lookups of those must stay
- *  unambiguous — the same rule PassRow already follows for the status badge,
- *  where an overdue pass gets the orange ring and never an 'Overdue' label. */
-const OVERDUE_TONE = { bg: 'bg-overdue-50', text: 'text-overdue-700', dot: 'bg-overdue-500' };
+/** Overdue RENAMES the open stages as well as re-toning them (client,
+ *  2026-08-18: a report must say "overdue", not "Out — Not Returned" in
+ *  orange). It used to re-tone only, which meant the fact was carried by colour
+ *  alone — invisible on the mono laser the register is printed on, and invisible
+ *  to anyone reading the CSV. */
+const OVERDUE_STAGE: StatusStyle = {
+  bg: 'bg-overdue-50', text: 'text-overdue-700', dot: 'bg-overdue-500', label: 'Overdue',
+};
 
 /** The pill to render beside the status badge, or null if there is none.
  *
@@ -82,5 +85,5 @@ export function rgpStageStyle(
   // A closed pass cannot be overdue any more — whatever `is_overdue` says,
   // the material is back and the obligation is discharged.
   if (stage === 'closed' || !p.is_overdue) return base;
-  return { ...base, ...OVERDUE_TONE };
+  return OVERDUE_STAGE;
 }

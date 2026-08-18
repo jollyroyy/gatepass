@@ -68,16 +68,16 @@ describe('an NRGP line is closed, not "not applicable"', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
-  it('closes an NRGP at the gate instead of putting it "In Use"', () => {
+  it('closes an NRGP at the gate instead of putting it "Cleared at Gate"', () => {
     expect(passRecordStages(pass()).map((s) => s.label)).toEqual(['Issued', 'Closed']);
   });
 
-  it('still calls a cleared RGP In Use — it is out and owed back', () => {
+  it('still calls a cleared RGP Cleared at Gate — it is out and owed back', () => {
     const rgp = pass({
       type: 'RGP', pass_number: 'RGP-OUT-20260818-0001', return_status: 'awaiting_return',
       expected_return_date: '2026-08-25', due_state: 'ok',
     });
-    expect(passRecordStages(rgp).map((s) => s.label)).toEqual(['Issued', 'In Use']);
+    expect(passRecordStages(rgp).map((s) => s.label)).toEqual(['Issued', 'Cleared at Gate']);
   });
 });
 

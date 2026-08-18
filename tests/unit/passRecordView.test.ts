@@ -128,9 +128,9 @@ describe('pendingItemCount', () => {
 });
 
 describe('passRecordStages', () => {
-  it('runs Issued → In Use → the current return stage', () => {
+  it('runs Issued → Cleared at Gate → the current return stage', () => {
     const stages = passRecordStages(pass({ return_status: 'partially_returned' }));
-    expect(stages.map((s) => s.label)).toEqual(['Issued', 'In Use', 'Partially Returned']);
+    expect(stages.map((s) => s.label)).toEqual(['Issued', 'Cleared at Gate', 'Partially Returned']);
     expect(stages[0].at).toBe('2026-08-18T04:12:00.000Z');
     expect(stages[2].at).toBe('2026-08-18T10:50:00.000Z');
   });
@@ -139,7 +139,7 @@ describe('passRecordStages', () => {
     const stages = passRecordStages(
       pass({ return_status: 'returned', actual_return_date: '2026-08-18T12:00:00.000Z' }),
     );
-    expect(stages.map((s) => s.label)).toEqual(['Issued', 'In Use', 'Returned']);
+    expect(stages.map((s) => s.label)).toEqual(['Issued', 'Cleared at Gate', 'Returned']);
   });
 
   it('is a single moment for a pass still waiting at the gate', () => {

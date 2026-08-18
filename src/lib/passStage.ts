@@ -33,12 +33,13 @@
 //                     outward. `return_status` is pinned to 'not_applicable'
 //                     for every NRGP and for anything still at the gate, so
 //                     this arm simply does not fire for them.
-//   4. status       — everything else: pending, hod_reviewed, and an NRGP's
-//                     matched (which IS its final state — it never comes back).
+//   4. Closed       — `matched` with no return loop is an NRGP through the
+//                     gate: finished. It reads "Closed", never "Matched".
+//   5. status       — everything else: pending, hod_reviewed.
 import type { GatePassView, PassStatus } from '../types';
 import type { StatusStyle } from './statusStyles';
 import { EXPIRED_STYLE, STATUS_STYLES, isExpiredPending } from './statusStyles';
-import { rgpStageStyle } from './rgpLifecycle';
+import { RGP_STAGE_STYLES, rgpStageStyle } from './rgpLifecycle';
 
 /** States that demand a decision, and so must never be hidden behind the
  *  routine return loop. A `Record<PassStatus, boolean>` rather than an array
@@ -60,5 +61,12 @@ export function passStageStyle(
 ): StatusStyle {
   if (isExpiredPending(p)) return EXPIRED_STYLE;
   if (OUTRANKS_RETURN_LOOP[p.status]) return STATUS_STYLES[p.status];
-  return rgpStageStyle(p) ?? STATUS_STYLES[p.status];
+  const stage = rgpStageStyle(p);
+  if (stage) return stage;
+  // `matched` with no return loop at all is an NRGP through the gate, and that
+  // is the END of it — the material is not coming back. Client, 2026-08-18: no
+  // surface says "Matched"; it names the outward clearance, which is a moment in
+  // the timeline, not a state anybody is waiting on.
+  if (p.status === 'matched') return RGP_STAGE_STYLES.closed;
+  return STATUS_STYLES[p.status];
 }

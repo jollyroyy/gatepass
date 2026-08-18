@@ -84,11 +84,10 @@
 import type { GatePassView } from '../types';
 import type { Tone } from '../components/KpiCard';
 import { categoryKey } from './passTypes';
-import { isExpiredPending } from './statusStyles';
 
 export type DrillKey =
   | 'rgpRaised' | 'nrgpOut'
-  | 'pending' | 'expired' | 'flagged'
+  | 'pending' | 'flagged'
   | 'awaiting' | 'overdue' | 'closed';
 
 /** Which row set a drill filters: the two day-scoped sets, the
@@ -170,21 +169,6 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
     allTime: true,
     match: (p) => p.status === 'pending' || p.status === 'hod_reviewed',
   },
-  // Same today-scoping as `pending` — this is about today's gate activity:
-  // passes raised today whose paperwork went stale before anyone showed up.
-  // Not a status enum value; `is_expired` is derived by the database and only
-  // means anything while the pass is still pending (see isExpiredPending).
-  // Red (flagged tone) — this demands the same attention as a mismatch.
-  expired: {
-    key: 'expired',
-    label: 'Expired',
-    tone: 'flagged',
-    heading: 'Expired without reaching the gate',
-    empty: 'Nothing has expired today.',
-    source: 'raisedToday',
-    allTime: false,
-    match: isExpiredPending,
-  },
   flagged: {
     key: 'flagged',
     label: 'Mismatch at Gate',
@@ -243,7 +227,7 @@ export const DRILL_DEFS: Record<DrillKey, DrillDef> = {
  *  status of that work, then what is still open. */
 export const DRILL_ORDER: DrillKey[] = [
   'rgpRaised', 'nrgpOut',
-  'pending', 'expired', 'flagged',
+  'pending', 'flagged',
   'awaiting', 'overdue', 'closed',
 ];
 

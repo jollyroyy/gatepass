@@ -335,9 +335,9 @@ describe('the headline figures', () => {
 
 describe('the attention strip', () => {
   // The two mismatch tiles were dropped to match the reference layout box for
-  // box. Neither fact is lost with them: both are counted here, all-time, and
-  // both drill.
-  it('counts what is stopped and what is void, whatever day it happened', async () => {
+  // box. The fact is not lost with them: it is counted here, all-time, and it
+  // drills.
+  it('counts what is stopped, whatever day it happened', async () => {
     renderBoard();
     await loaded();
 
@@ -345,10 +345,9 @@ describe('the attention strip', () => {
     // p7 (five days ago) and p8 (today) — a day-scoped count would read 1 with
     // two lots of material standing at the barrier.
     expect(within(strip).getByText(/2 passes mismatched at the gate/)).toBeInTheDocument();
-    expect(within(strip).getByText(/1 pass expired and void/)).toBeInTheDocument();
   });
 
-  it('each count opens exactly the passes behind it', async () => {
+  it('the count opens exactly the passes behind it', async () => {
     renderBoard();
     await loaded();
     const strip = screen.getByRole('group', { name: 'Needs attention' });
@@ -357,10 +356,19 @@ describe('the attention strip', () => {
     expect(within(drill()).getByText('Gita')).toBeInTheDocument();
     expect(within(drill()).getByText('Hari')).toBeInTheDocument();
     expect(within(drill()).queryByText('Ila')).not.toBeInTheDocument();
+  });
 
-    fireEvent.click(within(strip).getByText(/expired and void/));
-    expect(within(drill()).getByText('Ila')).toBeInTheDocument();
-    expect(within(drill()).queryByText('Gita')).not.toBeInTheDocument();
+  // Client, 2026-08-18: expired passes come off the dashboards entirely. An
+  // expired pass is dead paperwork — `match_pass` refuses it forever — and no
+  // figure on a board is acted on by looking at it. It is still tracked: the
+  // raising HOD gets the bell notice, and Reports has an Expired filter.
+  it('says nothing about expired passes, even with one loaded', async () => {
+    renderBoard();
+    await loaded();
+    const strip = screen.getByRole('group', { name: 'Needs attention' });
+    expect(within(strip).queryByText(/expired/i)).not.toBeInTheDocument();
+    // p9 (Ila) is the pending+expired row in the fixture set.
+    expect(screen.queryByText('Ila')).not.toBeInTheDocument();
   });
 });
 

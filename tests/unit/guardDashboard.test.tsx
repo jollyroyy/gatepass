@@ -185,7 +185,6 @@ describe('GuardDashboard — KPI drills', () => {
   it('renders every gate KPI, including the two that came from Pending Returns', async () => {
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('Pending for Gate Approval')).toBeInTheDocument());
-    expect(screen.getByText('Expired')).toBeInTheDocument();
     expect(screen.getByText('Mismatch at Gate')).toBeInTheDocument();
     expect(screen.getByText('Awaiting Return')).toBeInTheDocument();
     expect(screen.getByText('Overdue')).toBeInTheDocument();

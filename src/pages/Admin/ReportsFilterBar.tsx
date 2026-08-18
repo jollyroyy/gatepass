@@ -28,6 +28,13 @@ type Props = {
    *  overdue is a different axis from RGP/NRGP and combines with it. */
   overdueOnly: boolean;
   onOverdueChange: (on: boolean) => void;
+  /** Show only passes that ran out of time before reaching the gate (client,
+   *  2026-08-18). Expired passes were taken off both dashboards; this is where
+   *  they are still tracked, over any range the admin picks. A separate axis
+   *  again — an expired pass is never overdue, so the two buttons narrow to
+   *  nothing together, which is the honest answer. */
+  expiredOnly: boolean;
+  onExpiredChange: (on: boolean) => void;
   onClear: () => void;
 };
 
@@ -44,9 +51,11 @@ export default function ReportsFilterBar({
   deptOptions,
   overdueOnly,
   onOverdueChange,
+  expiredOnly,
+  onExpiredChange,
   onClear,
 }: Props): React.ReactElement {
-  const active = typeFilter !== 'all' || deptFilter !== 'all' || overdueOnly;
+  const active = typeFilter !== 'all' || deptFilter !== 'all' || overdueOnly || expiredOnly;
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-2 no-print">
@@ -92,6 +101,21 @@ export default function ReportsFilterBar({
         }
       >
         Overdue
+      </button>
+
+      {/* Orange too — the Expired badge wears the same hue as Overdue, because
+          both mean "time ran out" and neither is a mismatch the guard found. */}
+      <button
+        type="button"
+        aria-pressed={expiredOnly}
+        onClick={() => onExpiredChange(!expiredOnly)}
+        className={
+          expiredOnly
+            ? 'btn-secondary text-xs px-4 py-1.5 bg-overdue-50 text-overdue-700 border-overdue-300'
+            : 'btn-secondary text-xs px-4 py-1.5'
+        }
+      >
+        Expired
       </button>
 
       {active && (

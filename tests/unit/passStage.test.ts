@@ -39,12 +39,13 @@ describe('passStageStyle — the single latest-state badge', () => {
     expect(passStageStyle(pass({ return_status: 'partially_returned' })).label).toBe('Partly Returned');
   });
 
-  // An NRGP never comes back, so the outward match IS its final state and
-  // "Matched" is the latest thing that happened to it.
-  it('keeps "Matched" for an NRGP', () => {
+  // An NRGP never comes back, so the outward match IS its final state — and the
+  // word for a finished pass is "Closed" (client, 2026-08-18: nothing reads
+  // "Matched"; the match is a moment in the timeline, not a state).
+  it('reads "Closed" for a cleared NRGP, never "Matched"', () => {
     expect(
       passStageStyle(pass({ type: 'NRGP', status: 'matched', return_status: 'not_applicable' })).label,
-    ).toBe('Matched');
+    ).toBe('Closed');
   });
 
   it('falls back to the status badge before the pass reaches the gate', () => {
@@ -87,12 +88,12 @@ describe('passStageStyle — the single latest-state badge', () => {
       .toBe('Expired');
   });
 
-  // Overdue re-TONES an open stage; it never renames it. Several KPI cards and
-  // drills are named "Overdue" and exact-text lookups of those must stay
-  // unambiguous — the rule PassRow already followed for the status badge.
-  it('never renames an overdue pass to "Overdue"', () => {
+  // Overdue used to re-TONE an open stage without renaming it, so the fact was
+  // carried by colour alone — nothing at all on the mono laser the register
+  // prints on, or in the CSV. Client, 2026-08-18: the status must SAY overdue.
+  it('renames an overdue open pass to "Overdue"', () => {
     const s = passStageStyle(pass({ return_status: 'awaiting_return', is_overdue: true }));
-    expect(s.label).toBe('Out — Not Returned');
+    expect(s.label).toBe('Overdue');
     expect(s.text).toContain('overdue');
   });
 

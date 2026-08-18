@@ -56,6 +56,11 @@ const ROWS: GatePassView[] = [
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   { ...row({ id: 'c', pass_number: 'RGP-20260804-0003', type: 'RGP', visitor_name: 'Late Larry' }),
     status: 'matched', return_status: 'awaiting_return', is_overdue: true, due_state: 'overdue' } as any,
+  // Dead paperwork: never reached the gate before its own expiry. `is_expired`
+  // comes off v_gate_passes and only means anything while the pass is pending.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  { ...row({ id: 'e', pass_number: 'RGP-20260804-0004', type: 'RGP', visitor_name: 'Gone Gita' }),
+    status: 'pending', is_expired: true } as any,
 ];
 
 function thenable(result: { data: unknown; error: unknown }) {
@@ -218,5 +223,42 @@ describe('Reports — the overdue-only button', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Overdue' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Clear' }));
     await waitFor(() => expect(screen.getByText('NRGP-OUT-20260804-0002')).toBeInTheDocument());
+  });
+});
+
+describe('Reports — the expired-only button', () => {
+  // Expired passes were taken off BOTH dashboards on 2026-08-18 (a dead pass is
+  // not something anyone acts on from a board). The client's condition was that
+  // the record is still kept: this is where it is kept, over any date range.
+  it('narrows the register to passes that ran out of time, and back again', async () => {
+    renderReports();
+    await waitFor(() => expect(screen.getByText('RGP-20260804-0004')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expired' }));
+    await waitFor(() => expect(screen.queryByText('RGP-OUT-20260804-0001')).not.toBeInTheDocument());
+    expect(screen.getByText('RGP-20260804-0004')).toBeInTheDocument();
+    expect(screen.queryByText('RGP-20260804-0003')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expired' }));
+    await waitFor(() => expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument());
+  });
+
+  it('counts as an active filter, so Clear resets it', async () => {
+    renderReports();
+    await waitFor(() => expect(screen.getByText('RGP-20260804-0004')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expired' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear' }));
+    await waitFor(() => expect(screen.getByText('NRGP-OUT-20260804-0002')).toBeInTheDocument());
+  });
+
+  // The register's Status column names the stage, so the expired row must say so
+  // — it is `pending` in the enum, and printing that word would be a lie.
+  it('shows the row as Expired, never as Pending', async () => {
+    renderReports();
+    await waitFor(() => expect(screen.getByText('RGP-20260804-0004')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Expired' }));
+    // Two now: the filter button, and the row's own badge.
+    await waitFor(() => expect(screen.getAllByText('Expired').length).toBe(2));
   });
 });

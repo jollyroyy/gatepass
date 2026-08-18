@@ -1,13 +1,19 @@
-// The guard dashboard's "Expired" KPI drill and its red callout — split into
-// its own file (rather than folded into guardDashboard.test.tsx) to keep both
-// files under the repo's 300-line cap. Mirrors the mock shape of
-// guardDashboard.test.tsx but with a minimal, purpose-built fixture set.
+// The guard board says NOTHING about expired passes.
 //
-// The business rule: a pass reads as "Expired" only while `status ===
-// 'pending' && is_expired === true` (gatepass.v_gate_passes derives
-// `is_expired`; never recomputed here). A matched/flagged pass is never
-// "Expired" regardless of `is_expired`, because it already reached an
-// outcome. The drill is today-scoped, same source as `pending`.
+// Client, 2026-08-18: "once the pass is expired, just remove it from the
+// dashboard... keep a track of the expired in the reports also." An expired pass
+// is dead paperwork — `match_pass` refuses it forever, so there is no action a
+// guard standing at the barrier can take on one, and a red tile that can only be
+// read is a tile that teaches the reader to ignore red.
+//
+// The record is NOT lost, which was the client's condition: the raising HOD
+// still gets the bell notification that opens `/expired/:id` to void it or raise
+// a replacement, and Reports has an Expired filter over the whole register
+// (tests/unit/reportsFilters.test.tsx). This file is the guard's half of that —
+// it fails if the tile, the drill or the old red callout creeps back.
+//
+// The fixture keeps a `pending` + `is_expired` row loaded on purpose: absence
+// with nothing to show would prove nothing.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -94,43 +100,18 @@ beforeEach(() => {
   expiredTestRow = null;
 });
 
-describe('GuardDashboard — Expired drill', () => {
-  it('excludes a matched row even when is_expired is true, and the count matches the list', async () => {
+describe('GuardDashboard — expired passes are off the board', () => {
+  it('offers no Expired tile, even with an expired pass loaded', async () => {
+    expiredTestRow = pass({ id: 'exp1', pass_number: 'EXP-0001', status: 'pending', is_expired: true });
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: /^Expired/i })).toHaveTextContent('0');
+    expect(screen.queryByRole('button', { name: /^Expired/i })).not.toBeInTheDocument();
   });
 
-  it('renders no red callout when nothing has expired today', async () => {
+  it('renders no red expiry callout', async () => {
+    expiredTestRow = pass({ id: 'exp1', pass_number: 'EXP-0001', status: 'pending', is_expired: true });
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
     expect(screen.queryByText(/expired without reaching the gate/i)).not.toBeInTheDocument();
-  });
-
-  it('includes a pending row raised today with is_expired true, and the count equals the list it opens', async () => {
-    expiredTestRow = pass({ id: 'exp1', pass_number: 'EXP-0001', status: 'pending', is_expired: true });
-    renderAt(<GuardDashboard />);
-    await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
-
-    expect(screen.getByRole('button', { name: /^Expired/i })).toHaveTextContent('1');
-
-    fireEvent.click(screen.getByRole('button', { name: /^Expired/i }));
-    await waitFor(() => expect(screen.getByText('EXP-0001')).toBeInTheDocument());
-    expect(screen.queryByText('MEXP-0001')).not.toBeInTheDocument();
-  });
-
-  it('excludes a pending row with is_expired false', async () => {
-    expiredTestRow = pass({ id: 'exp2', pass_number: 'EXP-0002', status: 'pending', is_expired: false });
-    renderAt(<GuardDashboard />);
-    await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: /^Expired/i })).toHaveTextContent('0');
-  });
-
-  it('shows a red callout naming the count once it is greater than zero', async () => {
-    expiredTestRow = pass({ id: 'exp1', pass_number: 'EXP-0001', status: 'pending', is_expired: true });
-    renderAt(<GuardDashboard />);
-    await waitFor(() =>
-      expect(screen.getByText(/1 pass expired without reaching the gate today/i)).toBeInTheDocument(),
-    );
   });
 });

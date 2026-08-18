@@ -23,6 +23,7 @@ import ReportsFilterBar, { type TypeFilter } from './ReportsFilterBar';
 import ReportsPrintHeader from '../../components/ReportsPrintHeader';
 import AllPassesReport from './AllPassesReport';
 import { IS_OPEN_RETURN } from '../../lib/boardDrills';
+import { isExpiredPending } from '../../lib/statusStyles';
 
 /** What the printed sheet and its footer call this report. */
 const REPORT_TITLE = 'Gate Pass Register';
@@ -40,6 +41,9 @@ export default function ReportsPage(): React.ReactElement {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [deptFilter, setDeptFilter] = useState<string>('all');
   const [overdueOnly, setOverdueOnly] = useState(false);
+  // Expired passes come off both dashboards (client, 2026-08-18) — this is the
+  // one place the record of them is read, so it filters the whole register.
+  const [expiredOnly, setExpiredOnly] = useState(false);
   // The register reports how many rows it is actually showing (its own search
   // applied), so the print header's count is the count that prints.
   const [displayCount, setDisplayCount] = useState(0);
@@ -103,15 +107,20 @@ export default function ReportsPage(): React.ReactElement {
         // recomputed here; `IS_OPEN_RETURN` is the same open-return map the
         // boards use, so a returned pass cannot appear under this button.
         if (overdueOnly && !(IS_OPEN_RETURN[p.return_status] && p.is_overdue)) return false;
+        // Expired is `status = 'pending'` plus the view's own `is_expired` —
+        // there is no enum label for it, and `is_expired` alone is meaningless
+        // on a pass that already reached an outcome.
+        if (expiredOnly && !isExpiredPending(p)) return false;
         return true;
       }),
-    [ranged, typeFilter, deptFilter, overdueOnly],
+    [ranged, typeFilter, deptFilter, overdueOnly, expiredOnly],
   );
 
   function clearFilters() {
     setTypeFilter('all');
     setDeptFilter('all');
     setOverdueOnly(false);
+    setExpiredOnly(false);
   }
 
   const dateLabel = preset === 'today' ? range.to : `${range.from} to ${range.to}`;
@@ -121,6 +130,7 @@ export default function ReportsPage(): React.ReactElement {
     deptOptions.find((d) => d.id === deptFilter)?.name,
     typeFilter === 'all' ? null : typeFilter,
     overdueOnly ? 'Overdue only' : null,
+    expiredOnly ? 'Expired only' : null,
   ].filter(Boolean);
   const rangeLabel = scopeParts.length > 0 ? `${dateLabel} · ${scopeParts.join(' · ')}` : dateLabel;
 
@@ -136,6 +146,8 @@ export default function ReportsPage(): React.ReactElement {
           deptOptions={deptOptions}
           overdueOnly={overdueOnly}
           onOverdueChange={setOverdueOnly}
+          expiredOnly={expiredOnly}
+          onExpiredChange={setExpiredOnly}
           onClear={clearFilters}
         />
       </div>

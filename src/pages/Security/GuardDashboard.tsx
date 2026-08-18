@@ -142,17 +142,6 @@ export default function GuardDashboard(): React.ReactElement {
 
       {error && <div className="alert-error mb-6">{error}</div>}
 
-      {/* Zero-count renders nothing. Reads the same `rows.expired` array the
-          Expired KPI card counts, so the two can never disagree. */}
-      {rows.expired.length > 0 && (
-        <div className="bg-flagged-500/10 border-l-4 border-flagged-500 rounded-r-lg px-4 py-3 mb-6">
-          <p className="text-sm font-semibold text-flagged-700">
-            {rows.expired.length} {rows.expired.length === 1 ? 'pass' : 'passes'} expired without reaching the
-            gate today.
-          </p>
-        </div>
-      )}
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
         {DRILL_ORDER.map((key) => (
           <KpiCard

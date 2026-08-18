@@ -66,11 +66,11 @@ describe.each(['row', 'drill'] as const)('pass stage pill — %s variant', (vari
   });
 
   // An NRGP never comes back, so the outward match IS its final state.
-  it('keeps "Matched" for an NRGP', () => {
+  it('reads "Closed" for a cleared NRGP, never "Matched"', () => {
     renderRow(pass({ type: 'NRGP', return_status: 'not_applicable' }), variant);
-    expect(screen.getByText('Matched')).toBeInTheDocument();
+    expect(screen.getByText('Closed')).toBeInTheDocument();
+    expect(screen.queryByText('Matched')).toBeNull();
     expect(screen.queryByText('Out — Not Returned')).toBeNull();
-    expect(screen.queryByText('Closed')).toBeNull();
   });
 
   it('reads the status badge before the pass reaches the gate', () => {
@@ -82,10 +82,10 @@ describe.each(['row', 'drill'] as const)('pass stage pill — %s variant', (vari
   // An overdue pass gets the orange TONE, never an 'Overdue' label — several
   // KPIs and drills are named "Overdue" and exact-text lookups of those must
   // stay unambiguous.
-  it('never renames the pill to "Overdue"', () => {
+  it('names a late pill "Overdue"', () => {
     renderRow(pass({ return_status: 'awaiting_return', is_overdue: true }), variant);
-    expect(screen.getByText('Out — Not Returned')).toBeInTheDocument();
-    expect(screen.queryByText('Overdue')).toBeNull();
+    expect(screen.getByText('Overdue')).toBeInTheDocument();
+    expect(screen.queryByText('Out — Not Returned')).toBeNull();
   });
 });
 

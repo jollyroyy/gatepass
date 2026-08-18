@@ -32,7 +32,11 @@ import MyPassesTable from './MyPassesTable';
 const STATUS_TABS: { key: PassStatus | 'all'; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'pending', label: 'Pending for Gate Approval' },
-  { key: 'matched', label: 'Matched' },
+  // The `matched` status axis, named for what actually happened: security
+  // cleared it out. No surface calls a pass "Matched" any more (client,
+  // 2026-08-18) — the word described the check, not the pass, and it read as
+  // finished on an RGP still standing outside the mall.
+  { key: 'matched', label: 'Cleared at Gate' },
   { key: 'flagged', label: 'Mismatched' },
 ];
 

@@ -88,10 +88,13 @@ describe('PassDetail header badge', () => {
     expect(screen.queryByText('Matched')).toBeNull();
   });
 
-  it('keeps "Matched" for an NRGP, whose outward trip IS its end state', async () => {
+  it('reads "Closed" for an NRGP, whose outward trip IS its end state', async () => {
     row = pass({ type: 'NRGP', return_status: 'not_applicable', actual_return_date: null });
     renderDetail();
-    await waitFor(() => expect(screen.getByText('Matched')).toBeInTheDocument());
+    // Twice: the header badge, and the timeline's own gate moment — an NRGP is
+    // closed the instant it is through the gate.
+    await waitFor(() => expect(screen.getAllByText('Closed').length).toBe(2));
+    expect(screen.queryByText('Matched')).toBeNull();
   });
 
   // The whole point of dropping "Matched" from the badge: the moment has to be

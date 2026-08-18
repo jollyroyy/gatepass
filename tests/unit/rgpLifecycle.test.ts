@@ -90,10 +90,11 @@ describe('rgpStageStyle', () => {
   // here. It re-TONES the pill without renaming it: several drills and KPIs
   // are named "Overdue", and exact-text lookups of those must stay
   // unambiguous (the same rule PassRow follows for its status badge).
-  it('tones an overdue open pass differently but keeps the stage label', () => {
+  it('names an overdue open pass "Overdue", and tones it', () => {
     const overdue = rgpStageStyle(pass({ return_status: 'awaiting_return', is_overdue: true }));
     const onTime = rgpStageStyle(pass({ return_status: 'awaiting_return', is_overdue: false }));
-    expect(overdue?.label).toBe('Out — Not Returned');
+    expect(overdue?.label).toBe('Overdue');
+    expect(onTime?.label).toBe('Out — Not Returned');
     expect(overdue?.bg).not.toBe(onTime?.bg);
   });
 

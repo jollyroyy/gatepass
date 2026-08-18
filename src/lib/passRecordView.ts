@@ -69,7 +69,7 @@ export function pendingItemCount(items: GatePassItemView[], passType: PassType):
 /**
  * The record's stages, oldest first, for the vertical strip in the summary
  * card. Distinct from `passTimeline` on purpose: this one is worded from the
- * material's point of view ("Issued", "In Use") rather than the pass's, and
+ * material's point of view ("Issued", "Cleared at Gate") rather than the pass's, and
  * it names the CURRENT return stage even while it is only partly done, which
  * `passTimeline` deliberately does not.
  */
@@ -78,11 +78,12 @@ export function passRecordStages(pass: GatePassView): TimelineMoment[] {
     { label: 'Issued', at: pass.created_at },
     pass.flag_reason ? { label: 'Mismatched', at: pass.flagged_at ?? pass.verified_at ?? pass.created_at } : null,
     pass.hod_reviewed_at ? { label: 'HOD Approved', at: pass.hod_reviewed_at } : null,
-    // An NRGP is CLOSED once it is through the gate — it is not coming back,
-    // so "In Use" claimed an obligation that does not exist (client). Only an
-    // RGP is genuinely out and owed back.
+    // The moment the gate let the material through. An RGP reads "Cleared at
+    // Gate" — the client's word for what actually happened; the older "In Use"
+    // described the material rather than the event, and nothing in this system
+    // observes use. An NRGP is CLOSED there and then: it is not coming back.
     pass.status === 'matched' && pass.verified_at
-      ? { label: pass.type === 'RGP' ? 'In Use' : 'Closed', at: pass.verified_at }
+      ? { label: pass.type === 'RGP' ? 'Cleared at Gate' : 'Closed', at: pass.verified_at }
       : null,
     pass.return_status === 'partially_returned' ? { label: 'Partially Returned', at: pass.updated_at } : null,
     pass.return_status === 'returned' && pass.actual_return_date

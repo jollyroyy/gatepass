@@ -1,5 +1,5 @@
-// The RGP Return Watch buckets — Overdue / Due Today / Due in Next 7 Days /
-// Due After 7 Days. They feed BOTH the "RGP Status Breakdown" donut and the
+// The RGP Return Watch buckets — Due Today / Due in Next 7 Days / Due After 7
+// Days. They feed BOTH the "RGP Status Breakdown" donut and the
 // "RGP Return Watch" tabbed table, from one function, so the ring and the table
 // can never disagree about which bucket a pass is in.
 //
@@ -16,7 +16,6 @@ import {
   returnWatchBuckets,
   RETURN_WATCH_ORDER,
   RETURN_WATCH_LABEL,
-  daysOverdue,
 } from '../../src/lib/returnWatch';
 
 /** Local-midnight ISO date (YYYY-MM-DD), `offset` days from today — the shape
@@ -39,14 +38,16 @@ function open(over: Partial<GatePassView>): GatePassView {
 }
 
 describe('which watch bucket a pass falls in', () => {
-  it('an overdue pass is Overdue, and is in NO other bucket', () => {
-    // The overlap trap: an overdue pass is still awaiting return, so the two
-    // obvious predicates would both catch it and the ring would add up to more
-    // passes than exist.
+  // Client, 2026-08-18: Overdue came off the admin board's Return Watch. The
+  // backlog is `/overdue`, graded line by line; a second pass-level copy of it
+  // here was two places to read one number. The `is_overdue` test must stay
+  // FIRST in returnWatchKeyOf — a late pass's date is in the past, so every
+  // predicate below it would catch it and file it under "Due in Next 7 Days",
+  // which is an outright lie about a date that has already gone.
+  it('puts an overdue pass in NO bucket at all — never in a future one', () => {
     const p = open({ is_overdue: true, due_state: 'overdue', expected_return_date: dateOnly(-3) });
-    expect(returnWatchKeyOf(p)).toBe('overdue');
-    const buckets = returnWatchBuckets([p]);
-    expect(buckets.filter((b) => b.rows.length > 0).map((b) => b.key)).toEqual(['overdue']);
+    expect(returnWatchKeyOf(p)).toBeNull();
+    expect(returnWatchBuckets([p]).every((b) => b.rows.length === 0)).toBe(true);
   });
 
   it('due today comes from the view\'s own due_state, not from arithmetic here', () => {
@@ -90,7 +91,7 @@ describe('the buckets as slices', () => {
     open({ id: 'closed', return_status: 'returned' }),
   ];
 
-  it('is always the four buckets in the reference order, even when empty', () => {
+  it('is always the three buckets in the reference order, even when empty', () => {
     expect(returnWatchBuckets([]).map((b) => b.key)).toEqual([...RETURN_WATCH_ORDER]);
     expect(returnWatchBuckets(rows).map((b) => b.label)).toEqual(
       RETURN_WATCH_ORDER.map((k) => RETURN_WATCH_LABEL[k]),
@@ -103,17 +104,11 @@ describe('the buckets as slices', () => {
     for (const b of returnWatchBuckets(rows)) expect(b.value).toBe(b.rows.length);
   });
 
-  it('splits the open passes and nothing else', () => {
+  it('splits the open passes that are still inside their date, and nothing else', () => {
     const b = returnWatchBuckets(rows);
-    expect(b.map((x) => x.value)).toEqual([2, 1, 1, 1]);
-    expect(b.reduce((s, x) => s + x.value, 0)).toBe(5);
-  });
-});
-
-describe('days overdue', () => {
-  it('counts whole days late, and is 0 for a pass that is not late', () => {
-    expect(daysOverdue(open({ is_overdue: true, expected_return_date: dateOnly(-3) }))).toBe(3);
-    expect(daysOverdue(open({ expected_return_date: dateOnly(5) }))).toBe(0);
-    expect(daysOverdue(open({ is_overdue: true, expected_return_date: null }))).toBe(0);
+    // o1 and o2 are late and o1's date is only two days gone — the pair is the
+    // regression guard for "overdue quietly becomes dueIn7".
+    expect(b.map((x) => x.value)).toEqual([1, 1, 1]);
+    expect(b.reduce((s, x) => s + x.value, 0)).toBe(3);
   });
 });
