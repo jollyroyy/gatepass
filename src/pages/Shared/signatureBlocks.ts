@@ -2,7 +2,7 @@
 //
 // Rows 1–2 are the approval chain, signed BEFORE the material moves. Read
 // left→right, top→bottom it is:
-//   Issuing HOD → Security HOD → COO → CEO → Finance HOD
+//   Issuing HOD → Security Head → COO → CEO → Finance HOD
 // Row 3 is what happens AT the gate, signed as it moves:
 //   Security Verification → Receiver Signature
 //
@@ -27,7 +27,7 @@ export interface SignatureBlock {
 export const SIGNATURE_ROWS: SignatureBlock[][] = [
   [
     { label: 'Issuing HOD', caption: 'Signature & Stamp' },
-    { label: 'Security HOD', caption: 'Signature & Stamp' },
+    { label: 'Security Head', caption: 'Signature & Stamp' },
     { label: 'COO', caption: 'Signature & Stamp' },
   ],
   [

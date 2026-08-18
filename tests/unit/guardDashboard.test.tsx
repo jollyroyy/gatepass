@@ -69,6 +69,17 @@ const OPEN_OBLIGATIONS: GatePassView[] = [
          due_state: 'ok', created_at: DAYS_AGO }),
 ];
 
+// Material lines, for the Scheduled Returns table the Awaiting Return drill
+// opens. Two lines on the pass due today, one on the overdue pass.
+const ITEMS = [
+  { id: 'it1', gate_pass_id: 'a1', line_no: 1, name: 'Bosch Drill', quantity: 1, unit: 'nos',
+    returned_qty: 0, outstanding_qty: 1, expected_return_date: null },
+  { id: 'it2', gate_pass_id: 'a1', line_no: 2, name: 'Alu Ladder', quantity: 1, unit: 'nos',
+    returned_qty: 1, outstanding_qty: 0, expected_return_date: null },
+  { id: 'it3', gate_pass_id: 'o1', line_no: 1, name: 'Cable Coil', quantity: 2, unit: 'nos',
+    returned_qty: 0, outstanding_qty: 2, expected_return_date: null },
+];
+
 /** Query builder mock: the dashboard issues three queries —
  *  .gte('created_at', start).lt('created_at', end),
  *  .gte('verified_at', start).lt('verified_at', end), and
@@ -80,7 +91,7 @@ const OPEN_OBLIGATIONS: GatePassView[] = [
  *  Returns is reachable. `in` therefore has to set the axis now; leaving it in
  *  the pass-through list silently routed the open-obligations query to
  *  RAISED_TODAY instead. */
-function builder() {
+function builder(table = 'v_gate_passes') {
   let axis: 'created_at' | 'verified_at' | 'return_status' | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const obj: any = {};
@@ -90,6 +101,7 @@ function builder() {
   obj.in = (col: string) => { if (col === 'return_status') axis = 'return_status'; return obj; };
   obj.then = (onOk: (v: unknown) => unknown, onErr?: (e: unknown) => unknown) => {
     const data =
+      table === 'v_gate_pass_items' ? ITEMS :
       axis === 'verified_at' ? VERIFIED_TODAY :
       axis === 'return_status' ? OPEN_OBLIGATIONS :
       RAISED_TODAY;
@@ -99,6 +111,8 @@ function builder() {
 }
 
 const markReturned = vi.fn(() => Promise.resolve({ data: null, error: null }));
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const itemReturns = vi.fn((_name: string, _args: any) => Promise.resolve({ data: null, error: null }));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ch: any = {};
@@ -107,10 +121,11 @@ ch.subscribe = () => ch;
 
 vi.mock('../../src/supabaseClient', () => ({
   gp: () => ({
-    from: () => builder(),
+    from: (table: string) => builder(table),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rpc: (name: string, args: any) => {
       if (name === 'mark_returned') return markReturned(name, args) as never;
+      if (name === 'apply_item_returns') return itemReturns(name, args) as never;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const t: any = { then: (ok: any, err?: any) => Promise.resolve({ data: [], error: null }).then(ok, err) };
       return t;
@@ -237,8 +252,11 @@ describe('GuardDashboard — KPI drills', () => {
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByText('Awaiting Return'));
-    await waitFor(() => expect(screen.getByText('AWAIT-0001')).toBeInTheDocument());
+    // Overdue is the drill that still shows CARDS — Awaiting Return is the
+    // line-level Scheduled Returns table now, whose Record path is
+    // apply_item_returns, not mark_returned.
+    fireEvent.click(screen.getByText('Overdue'));
+    await waitFor(() => expect(screen.getByText('OVER-0001')).toBeInTheDocument());
 
     // Every card in a returnable drill carries a Record Returns button — act on
     // the first. Per-line returns live inside that panel (ItemReturnList); this
@@ -270,12 +288,36 @@ describe('GuardDashboard — KPI drills', () => {
     await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: /Awaiting Return/i }));
-    await waitFor(() => expect(screen.getByText('AWAIT-0001')).toBeInTheDocument());
+    // The drill opens the Scheduled Returns table: rows are material LINES, and
+    // only the lines of the pass due back today.
+    await waitFor(() => expect(screen.getByTestId('scheduled-returns-table')).toBeInTheDocument());
+    expect(screen.getByText('Bosch Drill')).toBeInTheDocument();
+    expect(screen.getByText('Alu Ladder')).toBeInTheDocument();
     // A days-old pass still qualifies — the cut is the RETURN date, not the
     // raise date. The overdue one and the one due in October do not.
-    expect(screen.queryByText('OVER-0001')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cable Coil')).not.toBeInTheDocument();
     expect(screen.queryByText('LATER-0001')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Awaiting Return/i })).toHaveTextContent('1');
+  });
+
+  it('records a ticked line through apply_item_returns, not before', async () => {
+    renderAt(<GuardDashboard />);
+    await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Awaiting Return/i }));
+    await waitFor(() => expect(screen.getByTestId('scheduled-returns-table')).toBeInTheDocument());
+
+    // One line is already back: it offers View, never a tick.
+    expect(screen.getAllByRole('button', { name: 'Mark returned' })).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mark returned' }));
+    // A tap saves nothing — the commit is a second, deliberate press.
+    expect(itemReturns).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId('record-scheduled-returns'));
+    await waitFor(() => expect(itemReturns).toHaveBeenCalled());
+    expect(itemReturns.mock.calls[0][1].p_pass_id).toBe('a1');
+    expect(itemReturns.mock.calls[0][1].p_lines).toEqual([{ item_id: 'it1', qty: 1 }]);
   });
 
   it('sweeps every missed return date into Overdue, for all time', async () => {

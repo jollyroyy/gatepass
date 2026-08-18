@@ -5,7 +5,7 @@ import type { GatePassView, GatePassItemView } from '../../types';
 import { formatDateOnly } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
 import { parseCompanyInfo } from '../../lib/companyInfo';
-import { unitLabel } from '../../lib/units';
+import { quantityCell, quantityHeading } from '../../lib/units';
 import QrPass from '../../components/QrPass';
 import { QuestLockup } from '../../components/QuestMark';
 
@@ -81,6 +81,10 @@ export default function PassPrint(): React.ReactElement {
 
   const isRgp = pass.type === 'RGP';
   const companyInfo = parseCompanyInfo(pass.visitor_company);
+  // One shared unit is printed in the Qty heading instead of its own column —
+  // an A5 slip has no width to spare, and "3 / Kg" over two cells said nothing
+  // "Qty (Kg) 3" does not.
+  const itemUnits = items.map((i) => i.unit);
 
   return (
     <div>
@@ -151,8 +155,9 @@ export default function PassPrint(): React.ReactElement {
                   <th className="border border-black px-2 py-1 font-semibold text-black text-left">Name</th>
                   <th className="border border-black px-2 py-1 font-semibold text-black text-left">Description</th>
                   <th className="border border-black px-2 py-1 font-semibold text-black text-left">Purpose</th>
-                  <th className="border border-black px-2 py-1 font-semibold text-black text-right w-10">Qty</th>
-                  <th className="border border-black px-2 py-1 font-semibold text-black text-left w-10">Unit</th>
+                  <th className="border border-black px-2 py-1 font-semibold text-black text-right w-16">
+                    {quantityHeading('Qty', itemUnits)}
+                  </th>
                   <th className="border border-black px-2 py-1 font-semibold text-black text-right w-16">Value (₹)</th>
                   <th className="border border-black px-2 py-1 font-semibold text-black text-left">Return Date</th>
                 </tr>
@@ -166,14 +171,15 @@ export default function PassPrint(): React.ReactElement {
                     <td className="border border-black px-2 py-1 text-black font-semibold">{item.name}</td>
                     <td className="border border-black px-2 py-1 text-black">{item.description}</td>
                     <td className="border border-black px-2 py-1 text-black text-[10px]">{item.purpose}</td>
-                    <td className="border border-black px-2 py-1 text-black text-right">{item.quantity}</td>
-                    <td className="border border-black px-2 py-1 text-black">{unitLabel(item.unit)}</td>
+                    <td className="border border-black px-2 py-1 text-black text-right">
+                      {quantityCell(item.quantity, item.unit, itemUnits)}
+                    </td>
                     <td className="border border-black px-2 py-1 text-black text-right">{formatCurrency(item.approx_value)}</td>
                     <td className="border border-black px-2 py-1 text-black text-[10px]">{item.expected_return_date ? formatDateOnly(item.expected_return_date) : '—'}</td>
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={8} className="border border-black px-2 py-2 text-black text-gray-600 italic">
+                    <td colSpan={7} className="border border-black px-2 py-2 text-black text-gray-600 italic">
                       {pass.material_summary ?? '—'}
                     </td>
                   </tr>

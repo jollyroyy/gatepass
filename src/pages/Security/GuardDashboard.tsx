@@ -4,6 +4,11 @@
 //
 // It absorbed the old Pending Returns page (Awaiting Return + Overdue), so the
 // Mark Returned action lives on the drill cards now — see GuardDrillCard.
+//
+// AWAITING RETURN IS THE ONE DRILL THAT IS NOT CARDS. It opens the Scheduled
+// Returns table (client, 2026-08-18): a row per material LINE, because a guard
+// taking material back at the barrier is handed items, not passes. Overdue and
+// the rest stay cards — they are read pass by pass.
 import React, { useCallback, useEffect, useState } from 'react';
 import { gp, supabase } from '../../supabaseClient';
 import type { GatePassView } from '../../types';
@@ -13,6 +18,7 @@ import { DRILL_DEFS, DRILL_ORDER, type DrillKey } from '../../lib/guardDrills';
 import { todayBounds } from '../../lib/hodKpis';
 import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 import GuardDrillCard from './GuardDrillCard';
+import ScheduledReturns from './ScheduledReturns';
 
 type DrillRows = Record<DrillKey, GatePassView[]>;
 type DaySets = {
@@ -185,12 +191,16 @@ export default function GuardDashboard(): React.ReactElement {
       </div>
 
       <div ref={resultsRef}>
-        <div className="flex items-baseline gap-3 mb-4">
-          <h2 className="section-title mb-0">{def.heading}</h2>
-          <span className="text-xs font-medium text-navy-500 tabular">
-            {list.length} {list.length === 1 ? 'pass' : 'passes'}
-          </span>
-        </div>
+        {/* Scheduled Returns names and counts itself, in lines rather than
+            passes — two headings would disagree about what is being counted. */}
+        {selected !== 'awaiting' && (
+          <div className="flex items-baseline gap-3 mb-4">
+            <h2 className="section-title mb-0">{def.heading}</h2>
+            <span className="text-xs font-medium text-navy-500 tabular">
+              {list.length} {list.length === 1 ? 'pass' : 'passes'}
+            </span>
+          </div>
+        )}
 
         {actionError && <div className="alert-error mb-4">{actionError}</div>}
 
@@ -200,6 +210,8 @@ export default function GuardDashboard(): React.ReactElement {
               <div key={i} className="skeleton h-40 w-full" />
             ))}
           </div>
+        ) : selected === 'awaiting' ? (
+          <ScheduledReturns passes={list} onRecorded={handleItemReturned} />
         ) : list.length === 0 ? (
           <div className="card empty-state">
             <p>{def.empty}</p>

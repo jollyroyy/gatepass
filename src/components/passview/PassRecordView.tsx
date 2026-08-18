@@ -1,5 +1,5 @@
-// The Gate Pass Details record a Search Pass query resolves to: breadcrumb,
-// title with the pass's one live badge, Print Pass, the summary card, the item
+// The Gate Pass Details record a Search Pass query resolves to: the title with
+// the pass's one live badge, Print Pass, the summary card, the item
 // table, the return-activity rail, and the "still needs attention" footer.
 //
 // Composition only — the three panels own their own markup and the numbers all
@@ -18,24 +18,15 @@ import PassRecordActivity from './PassRecordActivity';
 
 type Props = {
   record: GatePassRecord;
-  /** Rendered above the record — the lookup outcome ("already matched",
-   *  "expired") the search itself produced, which the record cannot show. */
-  notice?: React.ReactNode;
   onClear?: () => void;
 };
 
-export default function PassRecordView({ record, notice, onClear }: Props): React.ReactElement {
+export default function PassRecordView({ record, onClear }: Props): React.ReactElement {
   const { pass, items, activity } = record;
   const outstanding = pendingItemCount(items, pass.type);
 
   return (
     <section data-testid="pass-record" className="flex flex-col gap-5">
-      <nav className="flex items-center gap-2 text-sm" aria-label="Breadcrumb">
-        <span className="text-accent-600 font-medium">Gate Passes</span>
-        <span className="text-navy-500">/</span>
-        <span className="text-navy-700 font-medium break-all">{pass.pass_number}</span>
-      </nav>
-
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="page-title !mb-0">Gate Pass Details</h1>
@@ -58,8 +49,6 @@ export default function PassRecordView({ record, notice, onClear }: Props): Reac
           )}
         </div>
       </div>
-
-      {notice}
 
       <PassRecordSummary pass={pass} />
 

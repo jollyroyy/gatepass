@@ -3,11 +3,11 @@
 // RGP Out, RGP In and NRGP Out — because the approval chain does not change
 // with the direction the material is travelling.
 //
-// Row 1 (approvals):   Issuing HOD · Security HOD · COO
+// Row 1 (approvals):   Issuing HOD · Security Head · COO
 // Row 2 (approvals):   CEO · Finance HOD
 // Row 3 (at the gate): Security Verification · Receiver Signature
 //
-// Read left→right, top→bottom the approval order is Issuing HOD → Security HOD
+// Read left→right, top→bottom the approval order is Issuing HOD → Security Head
 // → COO → CEO → Finance HOD. Three boxes per row is a print constraint, not a
 // grouping: five across an A5 sheet leaves ~18mm per box, too narrow for a
 // rubber stamp.
@@ -92,7 +92,7 @@ describe('signature block definitions', () => {
   it('runs the approval chain issuing → security → COO → CEO → finance', () => {
     expect(SIGNATURE_ROWS.flat().slice(0, 5).map((b) => b.label)).toEqual([
       'Issuing HOD',
-      'Security HOD',
+      'Security Head',
       'COO',
       'CEO',
       'Finance HOD',

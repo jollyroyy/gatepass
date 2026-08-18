@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-18
 
-Full gate: **1095 tests across 101 files** (`npm run check`), `npm run build` clean.
+Full gate: **1109 tests across 103 files** (`npm run check`), `npm run build` clean.
 Migrations **`001`–`041` are all applied to the live DB**; `039`, `040`, `041` were each
 verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 
@@ -50,45 +50,69 @@ verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`).
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 
-**Latest change (2026-08-18, sixth pass): Gate Console is now "Search Pass", second in the
-guard's sidebar, and an exact search renders the whole Gate Pass Details record in place.**
+**Latest change (2026-08-18, seventh pass): units moved into the quantity heading, the
+Awaiting Return drill became a line-level table, and the search stopped narrating outcomes.**
 Frontend only — no migration, no new RPC.
 
-- **The tab is renamed and moved.** `ALL_LINKS` for `guard` is now Dashboard · Search Pass ·
-  Pending Returns; `ROLE_ROUTES.guard` mirrors that order. The route is still `/console` —
-  renaming it would break the `flash` redirect out of `Verify`, which still says "Back to
-  Search Pass". `ROLE_HOME.guard` is unchanged (`/guard-dashboard`).
-- **The search bar is alone at the top centre** (`max-w-2xl mx-auto`, pill-rounded), no longer
-  a 380px card pinned to the right of the title. The "Find a Pass" caption is gone — the input
-  is labelled `sr-only` "Find a pass by number or mobile", which is what tests query by.
-- **The queue's pass-TYPE filter is deleted.** The department filter and the `n/total` counter
-  stay in the same chip, under a new `Pending Queue` section title (the queue now sits below a
-  possible record and needed naming).
-- **An exact query opens the record, it does not jump to `/verify`.** `GateLookup` gained
-  `onPassResolved(passId, outcome)`; when given, it fires instead of navigating. **A pass
-  number still goes through `lookup_pass`** — the scan attempt is still logged and the
-  blacklist alert still stops the guard first — and the callback fires for EVERY outcome that
-  carries a `pass_id`, so an expired or already-matched pass still shows its record with the
-  outcome message above it. A mobile number that **exactly one** pass carries opens that record
-  too; two or more still render `PhoneSearchResults`, whose rows now call `onOpen` (in place)
-  while the ACTION button still navigates (Verify at Gate / View Details).
-- **The record is `src/components/passview/`** — `PassRecordView` (breadcrumb, title, the one
-  `passStageStyle` badge, Print Pass, the attention banner) composing `PassRecordSummary`
-  (identity, facts, stage strip, QR + "last updated"), `PassRecordItems` (the table + progress
-  bar) and `PassRecordActivity` (verifications, newest first). Loaded by
-  `src/lib/useGatePassRecord.ts` — three reads of `v_gate_passes` / `v_gate_pass_items` /
-  `v_verifications`, `undefined` = loading and `null` = no access, deliberately different.
-- **The item table's columns are this app's, not the mock-up's.** There is no `category` and
-  no `condition` column anywhere in `gate_pass_items`, so those two slots carry **DESCRIPTION**
-  and **VALUE** — real fields, same seven-column layout. A column of em-dashes would read as
-  data loss. `SERIAL / ID` renders `serial_no`, which is write-dead today and shows `—`.
-- Every figure comes from `src/lib/passRecordView.ts` and nowhere else: `itemReturnStage`
-  grades a line on **quantities, not `returned_at`** (that column is written only when a line
-  goes FULLY back, so a half-returned line would read "pending"), `returnProgress` counts
-  LINES fully back out of all lines, `pendingItemCount` counts pending **and** partial.
-- Pinned by `tests/unit/passRecordView.test.ts` (11) and `tests/unit/gateConsoleSearch.test.tsx`
-  (4). `gateLookupPhone.test.tsx` now searches numbers that TWO passes carry — one match no
-  longer produces a list.
+- **A unit is named beside the column, never in the cells.** `src/lib/units.ts` gained
+  `sharedUnit` / `headingUnit` / `quantityHeading` / `quantityCell`: when every line of a table
+  carries the same unit and it is not `nos`, the heading reads **"Quantity (Kg)"** and the cells
+  are bare numbers. **`nos` is never named at all** — a count of 3 is "3", not "3 Numbers"
+  (client: "don't mention any NOS"). Lines that DISAGREE keep their own unit in the cell, or the
+  numbers stop meaning anything. Used by `PassRecordItems`, `ScheduledReturnsTable` and the
+  printed slip. **The slip's separate Unit column is gone** (`Qty` → `Qty (Kg)`, empty-row
+  colSpan 8 → 7). Pinned by `tests/unit/quantityUnitHeading.test.ts` (5) and a rewritten
+  `passPrintUnit.test.tsx` (2).
+- **The printed slip says "Security Head", not "Security HOD"** (`signatureBlocks.ts`, seven
+  blocks unchanged otherwise).
+- **A resolved search shows the record and says nothing else.** `GateLookup` no longer sets an
+  outcome banner when `onPassResolved` can open the record — the record's own stage badge
+  ("Expired", "Matched") is the statement. `OUTCOME_MESSAGES` still covers the no-`pass_id`
+  case (`not_found`). `PassRecordView`'s `notice` prop is deleted with its last caller, and so
+  is the **`Gate Passes / RGP-…` breadcrumb** — it repeated the title and the summary line.
+- **Awaiting Return opens "Scheduled returns", a table of MATERIAL LINES** (client mock-up,
+  2026-08-18): `src/pages/Security/ScheduledReturns.tsx` (loads `v_gate_pass_items` for the
+  drill's passes, holds the ticks, calls `apply_item_returns` once per pass) +
+  `ScheduledReturnsTable.tsx` (the table, `Showing 1–5 of N`, pager at **PAGE_SIZE 5**) +
+  `src/lib/scheduledReturns.ts` (`buildScheduledReturns`, `pageOf`). Columns are ITEM · GATE
+  PASS · CARRIED BY · DEPARTMENT · EXPECTED RETURN · QUANTITY · RETURN STATUS · ACTION — the
+  mock's CONDITION slot carries **quantity**, because no `condition` column exists (same rule
+  as the record view: no em-dash columns).
+  - **A tap still saves nothing.** "Mark returned" ticks the row; a Record bar appears and is
+    what reaches the database. Same rule as `ItemReturnList` — `apply_item_returns` has no undo.
+  - Rows sort by expected date, oldest first; a dateless legacy line sorts last.
+  - **Only `awaiting` changed.** Overdue and every other drill are still `GuardDrillCard`s, so
+    pass-level `mark_returned` ("Return All") is still reachable there and on `/returns`.
+  - Pinned by `tests/unit/scheduledReturns.test.ts` (7) and two rewritten cases in
+    `guardDashboard.test.tsx` (the Return All case now acts on the Overdue drill).
+
+**Earlier (2026-08-18, sixth pass): Gate Console is "Search Pass", second in the guard's
+sidebar, and an exact search renders the whole Gate Pass Details record in place.**
+
+- `ALL_LINKS` for `guard` is Dashboard · Search Pass · Pending Returns; `ROLE_ROUTES.guard`
+  mirrors it. **The route is still `/console`** — renaming it would break the `flash` redirect
+  out of `Verify`. `ROLE_HOME.guard` is unchanged (`/guard-dashboard`).
+- The search bar is alone at the top centre (`max-w-2xl mx-auto`, pill-rounded), labelled
+  `sr-only` "Find a pass by number or mobile", which is what tests query by. The queue's
+  pass-TYPE filter is deleted; the department filter and the `n/total` counter stay, under a
+  `Pending Queue` section title.
+- **An exact query opens the record, it does not jump to `/verify`.** `GateLookup` fires
+  `onPassResolved(passId, outcome)` for EVERY outcome carrying a `pass_id`. **A pass number
+  still goes through `lookup_pass`** — the scan attempt is logged and the blacklist alert still
+  stops the guard first. A mobile number that exactly ONE pass carries opens that record too;
+  two or more render `PhoneSearchResults`, whose rows call `onOpen` while the ACTION button
+  navigates.
+- **The record is `src/components/passview/`** — `PassRecordView` (title, the one
+  `passStageStyle` badge, Print Pass, the attention banner) composing `PassRecordSummary`,
+  `PassRecordItems` and `PassRecordActivity`. Loaded by `src/lib/useGatePassRecord.ts` — three
+  reads of `v_gate_passes` / `v_gate_pass_items` / `v_verifications`, `undefined` = loading and
+  `null` = no access, deliberately different.
+- The item table's columns are this app's: no `category`, no `condition`, so those slots carry
+  **DESCRIPTION** and **VALUE**. `SERIAL / ID` renders `serial_no`, which is write-dead and
+  shows `—`. Every figure comes from `src/lib/passRecordView.ts`: `itemReturnStage` grades a
+  line on **quantities, not `returned_at`**, `returnProgress` counts LINES fully back,
+  `pendingItemCount` counts pending **and** partial. Pinned by `passRecordView.test.ts` (11)
+  and `gateConsoleSearch.test.tsx` (4).
 
 **Also 2026-08-18: the NRGP category is labelled "NRGP" everywhere, never "NRGP Out"** (client:
 no KPI on either board says "out" for it). Changed in `PASS_CATEGORIES['NRGP-out'].label`,

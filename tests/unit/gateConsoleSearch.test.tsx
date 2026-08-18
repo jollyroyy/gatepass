@@ -163,8 +163,8 @@ describe('Search Pass — an exact query opens the whole record in place', () =>
     await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
     expect(rpcCalls).toContain('lookup_pass');
     expect(screen.getByRole('heading', { name: 'Gate Pass Details' })).toBeInTheDocument();
-    // Twice on purpose: the breadcrumb and the summary card's identity line.
-    expect(screen.getAllByText('RGP-OUT-20260818-0481')).toHaveLength(2);
+    // Once only: the breadcrumb above the title was redundant with it.
+    expect(screen.getAllByText('RGP-OUT-20260818-0481')).toHaveLength(1);
     expect(screen.getByText('Rohan Sharma')).toBeInTheDocument();
     expect(screen.getByText('Neha Kapoor')).toBeInTheDocument();
     expect(screen.getByText('Level 2 — Service Corridor')).toBeInTheDocument();

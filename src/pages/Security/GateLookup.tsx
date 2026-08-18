@@ -52,9 +52,9 @@ type Props = {
    *
    * It fires for EVERY outcome that carries a pass_id, not just `ok`: a guard
    * who typed the number of an expired or already-matched pass still wants to
-   * read the record — the outcome message rides above it. `lookup_pass` is
-   * still what decides, so the scan attempt is logged and the blacklist alert
-   * still fires exactly as before.
+   * read the record, and the record's own stage badge says which it is — no
+   * message is raised above it. `lookup_pass` is still what decides, so the
+   * scan attempt is logged and the blacklist alert still fires as before.
    */
   onPassResolved?: (passId: string, outcome: ScanOutcome) => void;
 };
@@ -126,11 +126,17 @@ export default function GateLookup({ onPhoneResults, onPassResolved }: Props = {
           navigate(`/verify/${row.pass_id}`);
           return;
         }
+        // A pass we can actually show speaks for itself: the record carries the
+        // stage badge ("Expired", "Matched") the message would have narrated,
+        // so no banner is raised above it (client, 2026-08-18).
+        if (row.pass_id && onPassResolved) {
+          onPassResolved(row.pass_id, row.outcome);
+          return;
+        }
         setOutcome({
           outcome: row.outcome as Exclude<ScanOutcome, 'ok'>,
           passId: row.pass_id,
         });
-        if (row.pass_id && onPassResolved) onPassResolved(row.pass_id, row.outcome);
       } catch (err) {
         setError(safeErrorMessage(err));
       } finally {

@@ -15,6 +15,7 @@ import { Link } from 'react-router-dom';
 import type { GatePassItemView, GatePassView } from '../../types';
 import { formatCurrency } from '../../lib/formatCurrency';
 import { ITEM_RETURN_STYLES, itemReturnStage, returnProgress } from '../../lib/passRecordView';
+import { quantityCell, quantityHeading } from '../../lib/units';
 import Badge from '../Badge';
 
 type Props = { pass: GatePassView; items: GatePassItemView[] };
@@ -22,6 +23,9 @@ type Props = { pass: GatePassView; items: GatePassItemView[] };
 export default function PassRecordItems({ pass, items }: Props): React.ReactElement {
   const progress = returnProgress(items, pass.type);
   const isRgp = pass.type === 'RGP';
+  // The unit rides in the column NAME when every line shares one, so the cells
+  // stay bare numbers — see src/lib/units.ts.
+  const units = items.map((i) => i.unit);
 
   return (
     <div className="card overflow-hidden">
@@ -53,7 +57,7 @@ export default function PassRecordItems({ pass, items }: Props): React.ReactElem
                 <th>Item</th>
                 <th>Description</th>
                 <th>Serial / ID</th>
-                <th>Quantity</th>
+                <th>{quantityHeading('Quantity', units)}</th>
                 <th>Value</th>
                 <th>Return Status</th>
                 <th>Action</th>
@@ -80,9 +84,8 @@ export default function PassRecordItems({ pass, items }: Props): React.ReactElem
                     <td className="font-mono text-xs">{item.serial_no || '—'}</td>
                     <td>
                       <span className="inline-flex items-center justify-center min-w-[1.75rem] px-2 py-0.5 rounded-md bg-surface-200 text-navy-800 text-xs font-semibold">
-                        {item.quantity}
+                        {quantityCell(item.quantity, item.unit, units)}
                       </span>
-                      <span className="ms-1.5 text-xs text-navy-500">{item.unit}</span>
                     </td>
                     <td>{item.approx_value != null ? formatCurrency(item.approx_value) : '—'}</td>
                     <td><Badge style={ITEM_RETURN_STYLES[stage]} /></td>

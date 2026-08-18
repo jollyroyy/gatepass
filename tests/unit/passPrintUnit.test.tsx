@@ -1,8 +1,8 @@
-// The printed slip's Material Items table must read "Numbers", not the raw
-// "nos" code — the same display rule the raise-pass dropdown follows
-// (2026-08-11, client: "in the print pass option also ... the unit should be
-// numbers not nos"). `unitLabel()` in src/lib/units.ts is the single source;
-// this renders a real PassPrint to pin the printed cell itself.
+// The printed slip has no Unit column: one shared unit is named in the Qty
+// heading ("Qty (Kg)") and `nos` is never named at all — a count reads as a
+// count (client, 2026-08-18). Lines that disagree keep their unit in the cell,
+// because otherwise the numbers stop meaning anything. `src/lib/units.ts` is
+// the single source; this renders a real PassPrint to pin the printed cells.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -47,7 +47,7 @@ beforeEach(() => {
 });
 
 describe('PassPrint material unit', () => {
-  it('renders "Numbers" for a nos unit, not the raw code', async () => {
+  it('names one shared unit in the Qty heading and never names nos', async () => {
     current.pass = {
       id: 'p1', pass_number: 'RGP-OUT-20260811-0001', type: 'RGP', direction: 'out',
       status: 'pending', return_status: 'not_applicable',
@@ -67,8 +67,23 @@ describe('PassPrint material unit', () => {
       </MemoryRouter>,
     );
     await waitFor(() => expect(screen.getByText('RGP-OUT-20260811-0001')).toBeInTheDocument());
-    expect(screen.getByText('Numbers')).toBeInTheDocument();
-    expect(screen.getByText('Kg')).toBeInTheDocument();
-    expect(screen.queryByText('nos')).not.toBeInTheDocument();
+    // Mixed units: the heading cannot carry one, so the kg line keeps its own.
+    expect(screen.getByRole('columnheader', { name: 'Qty' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Unit' })).toBeNull();
+    expect(screen.getByText('3 Kg')).toBeInTheDocument();
+    expect(screen.queryByText('Numbers')).toBeNull();
+    expect(screen.queryByText('nos')).toBeNull();
+  });
+
+  it('moves a single shared unit into the heading and leaves the cells bare', async () => {
+    current.items = current.items.map((i) => ({ ...i, unit: 'kg' }));
+    render(
+      <MemoryRouter>
+        <PassPrint />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText('RGP-OUT-20260811-0001')).toBeInTheDocument());
+    expect(screen.getByRole('columnheader', { name: 'Qty (Kg)' })).toBeInTheDocument();
+    expect(screen.queryByText('3 Kg')).toBeNull();
   });
 });
