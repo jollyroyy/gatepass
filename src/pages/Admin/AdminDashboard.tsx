@@ -1,45 +1,76 @@
-// Admin Dashboard — the org-wide gate pass board.
+// THE ADMIN DASHBOARD — the client's "Overview" mock-up, box for box
+// (2026-08-19): a title and a date-range chip, five figures with their change
+// against the previous window, a Gate Pass Trend, and a Passes by Status ring.
 //
-// Rebuilt 2026-08-17 to the client's reference layout. This file is now DATA ONLY:
-// the whole board lives in `src/components/board/GateBoard.tsx`, which the HOD
-// dashboard renders too, so the two cannot drift apart in layout the way they did
-// before.
+// IT IS NO LONGER `GateBoard`. The client asked for the whole page to be
+// replaced ("remove whatever is there in the admin dashboard currently and
+// replace those with the attached one"), so `src/components/board/*` and the
+// libraries only it used are DELETED rather than flagged off — a stale reference
+// is a build error, not a second admin board nobody notices. What went with it:
+// the two KPI sections, the Daily Movement Trend, the RGP Status Breakdown, the
+// Return Watch table, Top Items Today, the attention strip and the department
+// column chart.
 //
-// TWO reads, on mount: `v_gate_passes` and `v_gate_pass_items`. Every figure,
-// ring, bar and list on the board comes out of those two arrays — the items only
-// feed the two ranked panels (outstanding material, and today's top items).
+// KNOWN COSTS, FLAGGED TO THE CLIENT:
+//   * THE DEPARTMENT COLUMN CHART is gone. No screen ranks departments now.
+//   * THE RETURN WATCH TABLE is gone — the "due today / due in 7 / due later"
+//     breakdown of open obligations. `/overdue` still lists the backlog itself,
+//     and the Overdue Returns card here opens the same rows.
+//   * TOP ITEMS TODAY is gone. Nothing ranks materials any more, which is why
+//     this page no longer reads `v_gate_pass_items` at all — ONE query now.
+//   * THE MISMATCH ATTENTION STRIP is gone; a flagged pass is inside the ring's
+//     "Rejected" arc and in the register.
 //
-// No aggregate query, deliberately. See the invariant in GateBoard.tsx.
-import React, { useCallback, useEffect, useState } from 'react';
+// THE BOARD INVARIANT SURVIVES. Every clickable figure — a card, an arc, a day
+// on the trend — carries the very rows it counted on a `BoardDrill`, and the
+// stacked list below renders exactly that array. No aggregate query, no
+// `count: 'exact'`, no predicate re-applied against a second array.
+//
+// THE SKIN IS THE MOCK-UP'S, NOT THE HOUSE THEME — the same `.gb-board`
+// /`gb-main` island the guard's and the HOD's boards are. `gb-main` rides
+// alongside so the one HOUSE component this page still renders (`DrillList` and
+// the pass cards under it) takes its LIGHT half instead of the shipped dark
+// default; without it a dark pass card would land on a white ground.
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { gp } from '../../supabaseClient';
-import type { GatePassItemView, GatePassView } from '../../types';
+import type { GatePassView } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
-import GateBoard from '../../components/board/GateBoard';
-import BoardDepartments from '../../components/board/BoardDepartments';
+import DrillList from '../../components/DrillList';
+import OverviewCards from '../../components/admin/OverviewCards';
+import OverviewStatus, { sliceKey } from '../../components/admin/OverviewStatus';
+import OverviewTrend, { dayKey } from '../../components/admin/OverviewTrend';
+import { drillDefOf, type BoardDrill } from '../../lib/boardDrills';
+import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
+import {
+  buildOverviewCards,
+  OVERVIEW_WINDOWS,
+  rangeLabel,
+  statusSlices,
+  trendDays,
+  windowBounds,
+  type OverviewWindow,
+} from '../../lib/adminOverview';
 
 export default function AdminDashboard(): React.ReactElement {
   const [rows, setRows] = useState<GatePassView[]>([]);
-  const [items, setItems] = useState<GatePassItemView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [window, setWindow] = useState<OverviewWindow>('7');
+  const [drill, setDrill] = useState<BoardDrill | null>(null);
+  // Stamped ONCE, at mount. A ticking clock would re-render five cards and two
+  // charts every second for a boundary that moves at midnight.
+  const [stamp] = useState(() => Date.now());
 
   const load = useCallback(async () => {
     setLoading(true);
-    // Cleared UP FRONT, never on the success path: a refresh that resolves in the
-    // same microtask queue as a failed action would otherwise wipe the banner
-    // before it ever rendered (the 2026-08-13 BlacklistTab bug).
+    // Cleared UP FRONT, never on the success path: a refresh that resolves in
+    // the same microtask queue as a failed action would otherwise wipe the
+    // banner before it ever rendered (the 2026-08-13 BlacklistTab bug).
     setError(null);
     try {
-      const [passRes, itemRes] = await Promise.all([
-        gp().from('v_gate_passes').select('*'),
-        gp().from('v_gate_pass_items').select('*'),
-      ]);
-      if (passRes.error) throw passRes.error;
-      setRows((passRes.data as GatePassView[] | null) ?? []);
-      // A board that refuses to render because ONE panel's query failed is worse
-      // than a board with one empty panel: the items feed two ranked panels and
-      // nothing else.
-      setItems(itemRes.error ? [] : ((itemRes.data as GatePassItemView[] | null) ?? []));
+      const res = await gp().from('v_gate_passes').select('*');
+      if (res.error) throw res.error;
+      setRows((res.data as GatePassView[] | null) ?? []);
     } catch (err) {
       setError(safeErrorMessage(err));
     } finally {
@@ -51,21 +82,113 @@ export default function AdminDashboard(): React.ReactElement {
     void load();
   }, [load]);
 
+  const days = Number(window);
+  const cards = useMemo(() => buildOverviewCards(rows, days, stamp), [rows, days, stamp]);
+  const trend = useMemo(() => trendDays(rows, days, stamp), [rows, days, stamp]);
+  const slices = useMemo(() => statusSlices(rows, days, stamp), [rows, days, stamp]);
+  const span = useMemo(() => rangeLabel(windowBounds(days, stamp)), [days, stamp]);
+
+  // Toggling: pressing the thing already open closes it. Compared by `key`, not
+  // by object identity — every render builds fresh drill objects.
+  const select = useCallback((next: BoardDrill) => {
+    setDrill((cur) => (cur?.key === next.key ? null : next));
+  }, []);
+
+  const activeKey = drill?.key ?? null;
+  const resultsRef = useScrollIntoViewOnChange<HTMLDivElement>(activeKey);
+
   return (
-    <GateBoard
-      title="Gate Pass Management Dashboard"
-      // NO SUBTITLE (client, 2026-08-18). "Real-time overview of all material
-      // gate pass activity" described the page; Today's Summary at the top of
-      // the board states it instead, in five figures.
-      rows={rows}
-      items={items}
-      loading={loading}
-      error={error}
-      registerTo="/all-passes"
-      onRefresh={() => void load()}
-      /* Admin only (client, 2026-08-18): an HOD's board is one department, so
-         the same ranking there would be one column. */
-      footer={<div className="mt-6"><BoardDepartments rows={rows} loading={loading} /></div>}
-    />
+    <div className="gb-board gb-main">
+      <div className="gb-head-row">
+        <h1 className="gb-hello">Overview</h1>
+        {/* The mock draws a chevron here, and unlike the HOD board's date stamp
+            this one earns it: the window is a real choice, and it governs the
+            whole page. The trend card carries the SAME control bound to the
+            SAME state, so the two can never disagree about what is on screen. */}
+        <label className="gb-ov-range">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+            <rect x="3.75" y="5.25" width="16.5" height="15" rx="1.5" />
+            <path strokeLinecap="round" d="M3.75 10.5h16.5M8.25 3.75v3M15.75 3.75v3" />
+          </svg>
+          <span className="gb-ov-range-text">{span}</span>
+          <select
+            className="gb-ov-range-select"
+            aria-label="Date range"
+            value={window}
+            onChange={(e) => setWindow(e.target.value as OverviewWindow)}
+          >
+            {OVERVIEW_WINDOWS.map((w) => (
+              <option key={w.value} value={w.value}>{w.label}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {error && <div className="gb-alert">{error}</div>}
+
+      <OverviewCards cards={cards} activeKey={activeKey} onSelect={(c) => select(c.drill)} loading={loading} />
+
+      {/* The drill panel sits directly under the figures rather than at the foot
+          of the page: it is opened from anywhere on the board, and a reader who
+          clicked an arc at the bottom should not have to hunt for where the
+          answer appeared. `useScrollIntoViewOnChange` brings it into view. */}
+      {drill && (
+        <div ref={resultsRef} className="mt-6" role="region" aria-label="Selected passes">
+          <DrillList def={drillDefOf(drill)} rows={drill.rows} loading={loading} />
+        </div>
+      )}
+
+      <div className="gb-ov-panels">
+        <section className="gb-card gb-ov-panel">
+          <div className="gb-ov-panel-head">
+            <h2 className="gb-ov-panel-title">Gate Pass Trend</h2>
+            <select
+              className="gb-select"
+              aria-label="Trend window"
+              value={window}
+              onChange={(e) => setWindow(e.target.value as OverviewWindow)}
+            >
+              {OVERVIEW_WINDOWS.map((w) => (
+                <option key={w.value} value={w.value}>{w.label}</option>
+              ))}
+            </select>
+          </div>
+          {loading ? (
+            <div className="gb-ov-loading">Loading…</div>
+          ) : (
+            <OverviewTrend
+              days={trend}
+              activeKey={activeKey}
+              onSelect={(d) => select({
+                key: dayKey(d),
+                heading: `Passes raised on ${d.label}`,
+                empty: 'No pass was raised that day.',
+                rows: d.rows,
+              })}
+            />
+          )}
+        </section>
+
+        <section className="gb-card gb-ov-panel">
+          <div className="gb-ov-panel-head">
+            <h2 className="gb-ov-panel-title">Passes by Status</h2>
+          </div>
+          {loading ? (
+            <div className="gb-ov-loading">Loading…</div>
+          ) : (
+            <OverviewStatus
+              slices={slices}
+              activeKey={activeKey}
+              onSelect={(s) => select({
+                key: sliceKey(s),
+                heading: `${s.label} — passes in this window`,
+                empty: 'Nothing in this bucket.',
+                rows: s.rows,
+              })}
+            />
+          )}
+        </section>
+      </div>
+    </div>
   );
 }

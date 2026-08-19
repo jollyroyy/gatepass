@@ -9,7 +9,11 @@
 //   .section-title        22px  h2 — a region of a page
 //   .modal-title          22px  h2 — a dialog's own title (no rule under it)
 //   .card-title           18px  h3 — one card inside a region
-//   .board-section-title  18px  h2 — a KPI band on the dashboard
+//
+// It was five rungs until 2026-08-19: `.board-section-title` headed a KPI band
+// on `GateBoard`, and that board was replaced wholesale by the client's Overview
+// mock-up. The class went with it rather than lingering as a rung nothing takes
+// — a band heading now takes `.card-title`, which was always the same size.
 //
 // THREE THINGS HERE ARE LOAD-BEARING, and each is a defect this file exists to
 // prevent:
@@ -43,7 +47,6 @@ const HEADINGS = [
   'section-title',
   'modal-title',
   'card-title',
-  'board-section-title',
 ] as const;
 
 /** The @layer components definition — NOT the print override further up, which

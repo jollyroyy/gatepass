@@ -163,6 +163,7 @@
   .gb-main,
   .gb-stack {
     /* Mock-up palette. Named by role so a call site reads as intent. */
+    --gb-paper: #ffffff;
     --gb-ink: #111827;
     --gb-body: #374151;
     --gb-muted: #6b7280;
@@ -317,8 +318,7 @@
   .page-title,
   .section-title,
   .modal-title,
-  .card-title,
-  .board-section-title {
+  .card-title {
     color: #111 !important;
   }
 
@@ -705,36 +705,14 @@
     letter-spacing: -0.005em;
   }
 
-  /* --- Board headings (the admin and HOD dashboards) ---
-     Both boards render one `GateBoard`, so their heading treatment lives once,
-     here, rather than being retyped on each of the eight panels.
-
-     WHY THIS EXISTS. The KPI band headings — "RGP Overview", "NRGP Overview",
-     "Today's Summary" — used to be `text-micro text-navy-500 uppercase`: 11px,
-     grey, and LIGHTER than the tile labels directly beneath them. That inverts
-     the ladder the type scale is built to enforce, and on a board this dense the
-     reader loses where one section ends and the next begins.
-
-     They now sit at the h3 rung (18px/600), the SAME rung as `.card-title` —
-     deliberately, because a KPI band and a chart panel are peers in the grid and
-     must read as peers. The page title stays two steps above at 28px.
-
-     .board-accent is the gold rule to the left of the words: the same marker
-     device `BoardAttention` uses with a status hue two inches above. Gold here
-     is not "saturated colour as decoration" — gold is this system's structural
-     FILL (sidebar active link, primary button, ordinal badge), and keeping the
-     status hues off ordinary headings is exactly what lets the red rule on the
-     attention strip still mean something. It is `aria-hidden` at every call
-     site: it is a marker, not content. */
-  .board-section-title {
-    @apply font-display font-normal text-brand-800 dark:text-brand-300;
-    font-size: 1.125rem;
-    line-height: 1.5rem;
-    letter-spacing: -0.005em;
-  }
-  .board-accent {
-    @apply w-1 self-stretch min-h-[1.375rem] rounded-full bg-brand-500 shrink-0;
-  }
+  /* --- Board headings ---
+     `.board-section-title` and `.board-accent` are DELETED (2026-08-19, twelfth
+     pass). They were the KPI-band heading and the gold marker rule on
+     `GateBoard`, and that board was replaced wholesale by the client's Overview
+     mock-up — so both lost their last caller. The heading ladder is four rungs
+     now: page-title 28 · section-title 22 · modal-title 22 · card-title 18. A
+     future band heading takes `.card-title`, which is the same rung the band
+     one was, deliberately, so nothing was lost with it. */
 
   /* --- KPI card --- */
   .kpi-card {
@@ -884,7 +862,10 @@
      used four separate `.card`s, which put a gap and a shadow between Vendor
      Details and the Carrier details the mock rules together.
 
-     EVERY COLOUR HERE IS A TOKEN (navy-*/surface-*/accent-*), never a literal.
+     EVERY COLOUR HERE IS A TOKEN — navy, surface, accent — never a literal.
+     (Written out rather than as a glob: a `*` followed by a `/` CLOSES a CSS
+     comment, and everything after it is parsed as a selector. That is exactly
+     how this file shipped a build-breaking comment on 2026-08-19.)
      This sheet is page content, not chrome: the tokens invert under `.dark`,
      so the same markup reads on the app's dark theme instead of drawing the
      mock's white on white. */
@@ -1339,8 +1320,7 @@
   .gb-main .page-title,
   .gb-main .section-title,
   .gb-main .modal-title,
-  .gb-main .card-title,
-  .gb-main .board-section-title {
+  .gb-main .card-title {
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-weight: 600;
     color: var(--gb-ink);
@@ -2745,6 +2725,344 @@
     display: block;
     font-size: 13px;
     color: var(--gb-muted);
+  }
+
+  /* ============================================================
+     THE ADMIN OVERVIEW — the same island, the client's third mock-up.
+
+     Client, 2026-08-19: "remove whatever is there in the admin dashboard
+     currently and replace those with the attached one."
+
+     It reuses `.gb-board` (the white ground and the palette), `.gb-head-row`,
+     `.gb-hello`, `.gb-card`, `.gb-select` and the `.gb-tint-*` plates, and adds
+     only what this layout has that the other two do not: a five-up figure row
+     whose cards carry a change line, a date-range chip that is a real control,
+     two chart panels, and the ring's legend with its Total row.
+
+     No new colour is introduced. Every value below is one of `.gb-board`'s own
+     custom properties — the hex lives there and nowhere else.
+     ============================================================ */
+
+  /* ---- The date-range chip ------------------------------------------------
+   * A real <select> sitting on top of a readout, so the chip prints the resolved
+   * span ("13 Aug – 19 Aug 2026") while the menu offers the windows by name. The
+   * select is transparent and covers the whole chip, which is what makes the
+   * whole thing the hit area rather than a 12px chevron. */
+  .gb-ov-range {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    padding: 9px 34px 9px 13px;
+    border: 1px solid var(--gb-line);
+    border-radius: 9px;
+    background: var(--gb-paper);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--gb-body);
+    cursor: pointer;
+  }
+  .gb-ov-range:focus-within {
+    border-color: var(--gb-blue-line);
+    box-shadow: 0 0 0 3px var(--gb-blue-soft);
+  }
+  .gb-ov-range svg {
+    width: 16px;
+    height: 16px;
+    color: var(--gb-muted);
+    flex-shrink: 0;
+  }
+  .gb-ov-range-text {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .gb-ov-range-select {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    appearance: none;
+    border: 0;
+  }
+  /* The chevron the mock draws, painted by the label rather than the select —
+   * a transparent <select> renders no arrow of its own. */
+  .gb-ov-range::after {
+    content: '';
+    position: absolute;
+    right: 13px;
+    width: 8px;
+    height: 8px;
+    border-right: 1.6px solid var(--gb-muted);
+    border-bottom: 1.6px solid var(--gb-muted);
+    transform: translateY(-2px) rotate(45deg);
+    pointer-events: none;
+  }
+
+  /* ---- The five figures --------------------------------------------------- */
+  .gb-ov-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  @media (min-width: 640px) {
+    .gb-ov-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1024px) {
+    .gb-ov-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1280px) {
+    .gb-ov-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  }
+
+  /* The WHOLE CARD is the drill control, not the number: a figure this size with
+   * a hit area of two characters is a control nobody can press. */
+  .gb-ov {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 16px;
+    text-align: left;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .gb-ov:hover {
+    border-color: var(--gb-blue-line);
+    box-shadow: 0 2px 10px 0 rgb(16 24 40 / 0.08);
+  }
+  .gb-ov:focus-visible {
+    outline: 2px solid var(--gb-blue);
+    outline-offset: 2px;
+  }
+  .gb-ov[aria-pressed='true'] {
+    border-color: var(--gb-blue-line);
+    box-shadow: 0 0 0 1px var(--gb-blue-line);
+  }
+  .gb-ov-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 0;
+  }
+  /* Round, unlike the HOD board's rounded square — the mock draws a circle. */
+  .gb-ov-plate {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+  }
+  .gb-ov-plate svg { width: 21px; height: 21px; }
+  .gb-ov-label {
+    display: block;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--gb-muted);
+  }
+  .gb-ov-figure {
+    display: block;
+    margin-top: 3px;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--gb-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .gb-ov-delta {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12.5px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .gb-ov-delta svg { width: 13px; height: 13px; flex-shrink: 0; }
+  .gb-ov-up { color: var(--gb-green); }
+  .gb-ov-down { color: var(--gb-red); }
+  .gb-ov-flat { color: var(--gb-muted); }
+  /* The slot a running figure takes instead of an invented percentage. */
+  .gb-ov-none { color: var(--gb-muted); font-weight: 400; }
+
+  /* ---- The two panels ----------------------------------------------------- */
+  .gb-ov-panels {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    margin-top: 20px;
+  }
+  @media (min-width: 1280px) {
+    /* 7/5 rather than halves: the trend plots up to 90 buckets and needs the
+     * room; the ring is 190px plus a legend, which is what 5 columns holds. */
+    .gb-ov-panels { grid-template-columns: 7fr 5fr; }
+  }
+  .gb-ov-panel { padding: 18px; min-width: 0; }
+  .gb-ov-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .gb-ov-panel-title {
+    font-family: inherit;
+    font-size: 16px;
+    line-height: 22px;
+    font-weight: 700;
+    color: var(--gb-ink);
+    margin: 0;
+  }
+  .gb-ov-loading {
+    padding: 60px 0;
+    text-align: center;
+    font-size: 14px;
+    color: var(--gb-muted);
+  }
+
+  /* ---- The trend ---------------------------------------------------------- */
+  .gb-ov-axis {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    flex-shrink: 0;
+    padding: 2px 0;
+    font-size: 12px;
+    color: var(--gb-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .gb-ov-gridline { stroke: var(--gb-line); }
+  .gb-ov-marker { stroke: var(--gb-blue-line); }
+  .gb-ov-xaxis {
+    padding-left: 30px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--gb-muted);
+  }
+  .gb-ov-legend-row {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 22px;
+    margin-top: 14px;
+  }
+  .gb-ov-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    color: var(--gb-body);
+  }
+  .gb-ov-legend-line {
+    width: 18px;
+    height: 3px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* ---- The ring and its legend -------------------------------------------- */
+  .gb-ov-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+  }
+  .gb-ov-ring { position: relative; flex-shrink: 0; }
+  .gb-ov-ring-track { stroke: var(--gb-line-soft); }
+  .gb-ov-ring-centre {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .gb-ov-ring-value {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--gb-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .gb-ov-ring-label {
+    margin-top: 4px;
+    font-size: 12.5px;
+    color: var(--gb-muted);
+  }
+  .gb-ov-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1 1 220px;
+    min-width: 200px;
+  }
+  .gb-ov-legend-static,
+  .gb-ov-legend-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 8px;
+    text-align: left;
+    font-size: 13.5px;
+  }
+  .gb-ov-legend-btn {
+    transition: background-color 0.15s ease;
+    cursor: pointer;
+  }
+  .gb-ov-legend-btn:hover { background: var(--gb-head); }
+  .gb-ov-legend-btn:focus-visible {
+    outline: 2px solid var(--gb-blue);
+    outline-offset: -2px;
+  }
+  .gb-ov-legend-btn.is-open {
+    background: var(--gb-blue-soft);
+    box-shadow: inset 0 0 0 1px var(--gb-blue-line);
+  }
+  .gb-ov-swatch {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+  .gb-ov-legend-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--gb-body);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .gb-ov-legend-value {
+    flex-shrink: 0;
+    font-weight: 600;
+    color: var(--gb-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .gb-ov-legend-share {
+    flex-shrink: 0;
+    width: 4.5rem;
+    text-align: right;
+    color: var(--gb-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  /* The mock's footer row: the same three columns as a legend line, over a rule,
+   * with no swatch — it is the sum of the lines above, not a sixth bucket. */
+  .gb-ov-legend-total {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+    padding: 10px 8px 2px;
+    border-top: 1px solid var(--gb-line);
+    font-size: 13.5px;
+    font-weight: 600;
   }
 }
 

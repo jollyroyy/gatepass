@@ -180,3 +180,29 @@ describe('design system — every .dark rule opts out of the guard shell', () =>
     expect(offenders).toEqual([]);
   });
 });
+
+// THE BUILD BREAKS SILENTLY WHEN A COMMENT CLOSES ITSELF. `/* … navy-*/…` ends
+// the comment at that `*/`, and the prose after it is parsed as a selector —
+// so `npm run check` stays green (it never builds the CSS) while `vite build`
+// dies with "Unexpected '/'" and a `line: undefined` it cannot point at. That
+// shipped on 2026-08-19 in the raise-form sheet's own comment and cost a
+// bisect of the whole file to find. This is the cheap version of that bisect.
+describe('design system — index.css parses as CSS', () => {
+  it('has no comment that closes itself early, so every rule is a real rule', () => {
+    // Strip comments the way a parser does — first `*/` wins — and then require
+    // that what remains is only selectors, declarations and at-rules. A
+    // self-closed comment leaves a fragment of English, which fails both.
+    const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    // Prose gives itself away as a "selector" carrying a comma-free sentence
+    // with spaces AND punctuation no selector uses.
+    const offenders = stripped
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => /^[a-z][a-z ]{8,}[.,] /i.test(line));
+    expect(offenders).toEqual([]);
+  });
+
+  it('leaves no orphan comment terminator outside a comment', () => {
+    expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/\*\//);
+  });
+});

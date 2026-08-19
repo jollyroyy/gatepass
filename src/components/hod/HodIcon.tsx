@@ -80,6 +80,12 @@ const GLYPHS: Record<HodGlyph, React.ReactElement> = {
       <path d="M9.5 11.75l1.75 1.75 3.25-3.5" />
     </svg>
   ),
+  alert: (
+    <svg {...SVG}>
+      <circle cx="12" cy="12" r="8.25" />
+      <path d="M9.4 9.4l5.2 5.2M14.6 9.4l-5.2 5.2" />
+    </svg>
+  ),
   wallet: (
     <svg {...SVG}>
       <path d="M4 7.5A1.5 1.5 0 015.5 6h11A1.5 1.5 0 0118 7.5v1.25" />
@@ -110,8 +116,9 @@ type Props = {
   glyph: HodGlyph;
   tone: HodTone;
   /** `card` is the KPI card's tinted square; `tile` the bigger, saturated
-   *  quick-action plate; `chip` the small round plate on an approval slot. */
-  shape?: 'card' | 'tile' | 'chip';
+   *  quick-action plate; `chip` the small round plate on an approval slot;
+   *  `round` the admin Overview's circular tint plate. */
+  shape?: 'card' | 'tile' | 'chip' | 'round';
 };
 
 /** The quick-action plates are the one place on this board the mock-up fills a
@@ -129,6 +136,7 @@ const SHAPE: Record<NonNullable<Props['shape']>, string> = {
   card: 'gb-kpi-plate',
   tile: 'gb-raise-plate',
   chip: 'gb-approval-plate',
+  round: 'gb-ov-plate',
 };
 
 export default function HodIcon({ glyph, tone, shape = 'card' }: Props): React.ReactElement {

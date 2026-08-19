@@ -1,4 +1,9 @@
-// The HOD dashboard's icon vocabulary, as types alone.
+// The MOCK-UP BOARDS' icon vocabulary, as types alone.
+//
+// Named for the HOD dashboard because that is the board it was drawn for; the
+// admin Overview (2026-08-19) draws from the same set rather than duplicating
+// eight glyphs, since both boards are the same `.gb-*` island in the same
+// palette.
 //
 // Split out of `HodIcon.tsx` so `src/lib/hodBoard.ts` and `src/lib/hodApprovals.ts`
 // can name a glyph and a tone without a lib module importing a component.
@@ -20,4 +25,5 @@ export type HodGlyph =
   | 'hourglass'  // The Approval Pending strip's own heading.
   | 'people'     // An office staffed by people — HOD, Other Approvers.
   | 'shield'     // Security.
-  | 'wallet';    // Finance.
+  | 'wallet'     // Finance.
+  | 'alert';     // Overdue Returns — the admin Overview's fifth figure.

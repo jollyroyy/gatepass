@@ -39,7 +39,8 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-19
 
-Full gate: **1473 tests across 125 files** (`npm run check`), green.
+Full gate: **1424 tests across 118 files** (`npm run check`), green — and **`npm run build` is
+green again**, which it had not been since the raise-form CSS landed (see the twelfth pass).
 Migrations **`001`–`046` and `049` are applied to the live DB.** `044` was found UNAPPLIED on
 2026-08-19 — the overdue card's Contact Vendor and Add Remark had shipped against RPCs that did
 not exist — and was applied then, immediately before `046`. `039`, `040`, `041` and `043` were
@@ -62,7 +63,64 @@ notification function exists in `gatepass`. `APPLY_ALL.sql` carries all 49 secti
 | `gatepass.approval_roles` | **4 rows — ALL FOUR OFFICES ARE FILLED**, so since `046` was applied every NEWLY raised pass needs four approvals and **the gate cannot see it until it has them**. Security Head Demi · COO Sudeshna Pal · CEO Sid · Finance HOD GUARDSOHAM. One person holds one office (`049`). Admin → Users → *Gate pass approval ladder* is where they are set. |
 | `gatepass.pass_approvals` | **0 rows** — nothing has been raised since `046` landed. The 60 existing passes carry no ladder and reach the gate exactly as they did before. |
 
-**Latest change (2026-08-19, eleventh pass): the raise form IS the client's new "Raise Gate
+**Latest change (2026-08-19, twelfth pass): THE ADMIN DASHBOARD IS THE CLIENT'S "Overview"
+MOCK-UP, box for box — five figures with their change against the previous window, a Gate Pass
+Trend and a Passes by Status ring. `GateBoard` IS DELETED.** Frontend only — no migration, no
+new RPC, and ONE query where the old board made two.
+
+- **`src/pages/Admin/AdminDashboard.tsx` is its own layout now**, over `src/components/admin/*`
+  (`OverviewCards` · `OverviewTrend` · `OverviewStatus`) and `src/lib/adminOverview.ts` (pure).
+  **DELETED, not flagged off** — a stale reference is a build error: `src/components/board/*`
+  (all twelve files), `src/components/charts/*` (`TrendChart`, `DonutChart`, `ColumnChart`,
+  `chartPalette.ts`), `boardKpis.ts`, `boardWindows.ts`, `boardAnalytics.ts`, `returnWatch.ts`,
+  and eight spec files with them. `isWaitingAtGate` survived into `src/lib/gateQueue.ts`,
+  because the HOD board asks the same question.
+- **KNOWN COSTS, FLAGGED**: the admin loses the department column chart, the Return Watch
+  table (due today / in 7 / later), Top Items Today and the mismatch attention strip. `/overdue`
+  still lists the backlog and the Overdue Returns card opens the same rows; a flagged pass is
+  inside the ring's Rejected arc and in the register. **Nothing ranks materials or departments
+  any more** — which is why this page no longer reads `v_gate_pass_items` at all.
+- **THE BOARD INVARIANT SURVIVES.** Every clickable figure — a card, a legend row, a day on the
+  trend — carries the very rows it counted on a `BoardDrill`, and the stack underneath renders
+  exactly that array. No aggregate, no `count: 'exact'`.
+- **TWO FIGURES ARE DELIBERATELY OUTSIDE THE WINDOW**, and they are the two the mock draws in
+  red: Pending Approvals and Overdue Returns are RUNNING queues. An obligation does not close
+  because the window rolled past the day it started in. They carry **no delta**, ever — nothing
+  in this database records how long a queue was last week, and a figure invented for a red arrow
+  is worse than no arrow. A windowed card whose PREVIOUS window was empty drops its delta too:
+  a percentage change from zero is not a number.
+- **The third card is NRGP.** The mock's own label is "Energy Pay Pass" — the client corrected
+  that phrase on sight the first time it appeared, on the raise form's second pass type.
+- **The ring's five buckets are an ordered chain, urgency first**: Rejected (`flagged` /
+  `cancelled`) → Pending (`pending` / `held` / `hod_reviewed`) → Overdue → Returned → Approved
+  as the remainder, so the arcs sum to the rows and the centre total IS the Total Gate Passes
+  card. **KNOWN IMPRECISION, flagged**: an EXPIRED pass is still `status = 'pending'` and lands
+  under Pending though nothing can clear it — the mock has no sixth bucket, and the drill list
+  badges each such pass "Expired". `is_overdue` is read off `v_gate_passes`, never recomputed.
+- **The header chip and the trend card's chip are ONE control on ONE piece of state** (7 / 30 /
+  90 days, local calendar days ending today), so the two can never disagree.
+- **The skin is the `.gb-*` island** the guard's and the HOD's boards use — `gb-board gb-main`
+  on one div, so `DrillList`'s house-themed pass cards take their LIGHT halves. No literal hex
+  in `src/components/admin/*`; the two charts paint from `--gb-*` vars, which is why
+  `chartPalette.ts` could be deleted outright rather than re-exempted in `themeAudit`.
+- **`.board-section-title` and `.board-accent` are GONE from `index.css`** — the heading ladder
+  is four rungs now (page 28 · section 22 · modal 22 · card 18). They headed a KPI band on a
+  board that no longer exists; a future band heading takes `.card-title`, the same size.
+- **A BUILD BREAK THAT PREDATED THIS WORK IS FIXED.** `npm run build` had been failing since
+  the raise-form sheet landed: its comment read ``(navy-*/surface-*/accent-*)``, and the `*/`
+  inside it CLOSES the comment — the prose after it was parsed as a selector and PostCSS died
+  with "Unexpected '/'" pointing at `line: undefined`. **`npm run check` never sees this**: it
+  type-checks and runs vitest, and neither builds the CSS. Two new `designSystem` cases fail on
+  exactly that shape now (both were watched failing against the real bug before the fix).
+- Pinned by `tests/unit/adminOverview.test.ts` (24) and `adminDashboardOverview.test.tsx` (12 —
+  the five figures, the window/running split, the figure-drill agreement on a card, an arc and
+  a trend day, the one-query rule, and the absence of every old panel by name).
+  `boardHeadings.test.tsx` is DELETED with what it pinned; `headingIdentity` lost its fifth rung.
+- **NOT seen signed-in in a browser**: `npm run check` (1424 tests, 118 files) and
+  `npm run build` only. The trend's SVG geometry and the ring's dash arithmetic are exactly the
+  kind of thing only a real render proves.
+
+**Earlier (2026-08-19, eleventh pass): the raise form IS the client's new "Raise Gate
 Pass" mock-up, and the HOD dashboard offers ONE Raise tile instead of two — migration `045`,
 APPLIED via psql (every statement returned; not yet probed with a real anon-key JWT).**
 
@@ -275,7 +333,7 @@ it returns officers' EMAIL ADDRESSES, which no signed-in role may read) and `gat
 (admin-select, service-role-write, no insert policy). The sender is the Deno Edge Function
 `supabase/functions/notify-approval`, called AFTER the RPC commits — the pass matters more than
 the letter. **NOT DEPLOYED, and no mail has ever been sent**: the provider call is unverified
-against the real API. WHO gets mailed changed on the twelfth pass below — this entry describes
+against the real API. WHO gets mailed changed in a later pass — this entry describes
 the schema half only.
 
 - **`src/lib/approvalNotice.ts` MUST NEVER GAIN AN IMPORT.** Deno needs a `.ts` extension on a
@@ -1653,6 +1711,6 @@ rendered both by Search Pass and by `/pass/:id`; `src/components/overdue/` is Ov
 line-level returns table, each one component serving all three roles;
 `src/components/guard/` is the guard's three screens — the two summary cards, the quick actions,
 the two list tables and the chrome the list pages share (header, toolbar, filter bar, pager,
-`useGuardSearch`, `ApproveOutAction`); `src/components/PassStackCard.tsx` + `PassStack.tsx` are THE stacked pass card, drawn the guard's way for every role and linking to `/pass/:id` (the HOD/admin drills and My Passes render it; `DrillPassCard`, `MyPassCard`, `PassRowBody` and `PassItemLines` are deleted); `src/components/hod/` is the HOD's dashboard — the four drillable figures, the two Raise tiles and the Approval Pending strip, drawn to the client's mock-up in the `.gb-*` skin; `src/components/board/` is the ADMIN's dashboard alone (the HOD stopped sharing it on 2026-08-19). `src/lib/` holds the
+`useGuardSearch`, `ApproveOutAction`); `src/components/PassStackCard.tsx` + `PassStack.tsx` are THE stacked pass card, drawn the guard's way for every role and linking to `/pass/:id` (the HOD/admin drills and My Passes render it; `DrillPassCard`, `MyPassCard`, `PassRowBody` and `PassItemLines` are deleted); `src/components/hod/` is the HOD's dashboard — the four drillable figures, the two Raise tiles and the Approval Pending strip, drawn to the client's mock-up in the `.gb-*` skin; `src/components/admin/` is the ADMIN's dashboard — the Overview mock-up's five figures, the Gate Pass Trend and the Passes by Status ring, over `src/lib/adminOverview.ts` (`src/components/board/`, `src/components/charts/` and `GateBoard` are DELETED). `src/lib/` holds the
 lookup maps, derivations and formatters; `supabase/migrations/` runs `001` → `043`, with
 `005` an **optional demo seed** to skip in a real deployment.
