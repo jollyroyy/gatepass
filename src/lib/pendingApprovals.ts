@@ -10,12 +10,16 @@
 // THE SLIP-ORDER CLAUSE IS NOT DECORATION. `approve_pass_level` refuses a
 // caller whose level is not the LOWEST still-pending one on that pass — so a
 // pass with `security_head` still pending must not offer the CEO an Approve
-// button, because pressing it would only return a database error. The two
-// derivations below (`inMyQueue` / `waitingBelowMe`) are the same predicate
-// read from both directions, over the same `PassApproval[]`.
+// button, because pressing it would only return a database error. That rule now
+// lives in `approvalDecision.ts` and is IMPORTED, not restated: the Approve /
+// Reject bar at the foot of the gate pass record decides with the same
+// function, so the queue and the record can never disagree about whose turn it
+// is. The two derivations below (`inMyQueue` / `waitingBelowMe`) are that one
+// predicate read from both directions, over the same `PassApproval[]`.
 import type { GatePassView } from '../types';
 import type { ApprovalRoleKey } from './approvalLadder';
 import { APPROVAL_LADDER, APPROVAL_ROLE_TITLES } from './approvalLadder';
+import { canDecideApproval, heldByOffice, myStep } from './approvalDecision';
 import { partyOf } from './guardBoard';
 
 /** One row of `gatepass.pass_approvals` — a single office's decision on a
@@ -34,15 +38,6 @@ export interface PassApproval {
   created_at: string;
 }
 
-/** The lowest `level_no` still pending on one pass, or `null` when every row
- *  for it is decided (or the pass has no rows at all — an office designated
- *  after the pass was raised owes it nothing, by the snapshot's own design). */
-function lowestPendingLevel(approvals: PassApproval[]): number | null {
-  const pending = approvals.filter((a) => a.status === 'pending');
-  if (pending.length === 0) return null;
-  return Math.min(...pending.map((a) => a.level_no));
-}
-
 /** Passes belonging to me: my `role_key`'s row on that pass is `pending`, the
  *  pass itself is still `status === 'pending'`, and no earlier office still
  *  owes a signature. */
@@ -57,13 +52,7 @@ export function inMyQueue(
     if (list) list.push(a);
     else byPass.set(a.gate_pass_id, [a]);
   }
-  return passes.filter((p) => {
-    if (p.status !== 'pending') return false;
-    const rows = byPass.get(p.id) ?? [];
-    const mine = rows.find((a) => a.role_key === office);
-    if (!mine || mine.status !== 'pending') return false;
-    return lowestPendingLevel(rows) === mine.level_no;
-  });
+  return passes.filter((p) => canDecideApproval(p.status, byPass.get(p.id) ?? [], office));
 }
 
 /** A pass routed to my office, but currently waiting on an EARLIER office —
@@ -92,13 +81,13 @@ export function waitingBelowMe(
   for (const p of passes) {
     if (p.status !== 'pending') continue;
     const rows = byPass.get(p.id) ?? [];
-    const mine = rows.find((a) => a.role_key === office);
+    const mine = myStep(rows, office);
     if (!mine || mine.status !== 'pending') continue;
-    const lowest = lowestPendingLevel(rows);
-    if (lowest === null || lowest === mine.level_no) continue;
-    const holder = rows.find((a) => a.level_no === lowest && a.status === 'pending');
+    // `heldByOffice` is null exactly when it is MINE to sign — which is the
+    // other half of `inMyQueue`, read from the same rule rather than restated.
+    const holder = heldByOffice(rows, office);
     if (!holder) continue;
-    out.push({ pass: p, heldBy: holder.role_key });
+    out.push({ pass: p, heldBy: holder });
   }
   return out;
 }

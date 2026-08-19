@@ -155,6 +155,60 @@ describe('buildApprovalNotices — a freshly raised pass', () => {
   });
 });
 
+// ═══ THE LETTER NAMES THE PERSON IT IS ASKING ═══
+//
+// Client, 2026-08-19: "address the person to whom you are sending it for
+// approval — since we are using the same email I want to know whether the
+// approval flow is working. Mention the name of the person so I know once he
+// approves it goes to the next one and the next email is triggered."
+//
+// Every letter on this deployment is redirected to ONE inbox by MAIL_OVERRIDE_TO
+// (an unverified Resend account may write nowhere else), and the mailer DROPS
+// the display name when it redirects — so the recipient's name has to be inside
+// the subject and the body or it does not survive the redirect at all.
+describe('buildApprovalNotices — naming the office holder', () => {
+  it('names the person in the subject, beside their office', () => {
+    const [m] = buildApprovalNotices(PASS, LADDER, BASE);
+    expect(m.subject).toContain('Ravi Menon');
+    expect(m.subject).toContain('Security Head');
+    expect(m.subject).toContain('RGP-20260819-0001');
+  });
+
+  it('greets them by name in both the text and the HTML body', () => {
+    const [m] = buildApprovalNotices(PASS, LADDER, BASE);
+    expect(m.text).toContain('Hello Ravi Menon');
+    expect(m.html).toContain('Hello Ravi Menon');
+    expect(m.toName).toBe('Ravi Menon');
+  });
+
+  it('states which rung of which ladder this is, so the chain is followable', () => {
+    const [m] = buildApprovalNotices(PASS, LADDER, BASE);
+    expect(m.subject).toContain('Level 1 of 3');
+    expect(m.text).toContain('Level 1 of 3');
+  });
+
+  it('names the offices that have ALREADY signed, and who signed them', () => {
+    const moved = LADDER.map((a) =>
+      a.level_no === 1 ? { ...a, status: 'approved' as const, decided_at: '2026-08-19T08:00:00.000Z' } : a
+    );
+    const [m] = buildApprovalNotices(PASS, moved, BASE);
+    // It is now the COO's turn, and the letter says who cleared it before them.
+    expect(m.subject).toContain('Vikram Singh');
+    expect(m.text).toContain('Hello Vikram Singh');
+    expect(m.text).toContain('Security Head (Ravi Menon)');
+    expect(m.html).toContain('Security Head (Ravi Menon)');
+  });
+
+  it('falls back to the office alone when the holder has no name on file', () => {
+    const nameless = LADDER.map((a) => (a.level_no === 1 ? { ...a, approver_name: null } : a));
+    const [m] = buildApprovalNotices(PASS, nameless, BASE);
+    expect(m.subject).toContain('Security Head');
+    expect(m.subject).not.toContain('null');
+    expect(m.text).not.toContain('Hello ,');
+    expect(m.text).not.toContain('null');
+  });
+});
+
 describe('buildApprovalNotices — the ladder moving one rung at a time', () => {
   it('tells the NEXT office it is their turn, and only that office', () => {
     const moved = LADDER.map((a) =>

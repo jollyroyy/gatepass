@@ -1334,3 +1334,34 @@ describe('049 — one approval office per person', () => {
     expect(body).toMatch(/set search_path = ''/i);
   });
 });
+
+describe('051 — the approval letter is addressed to the office s current holder', () => {
+  const body = extractFunctions(allMigrationsText())
+    .filter((f) => f.name === 'gatepass.approval_notice_payload')
+    .slice(-1)[0].body;
+
+  it('resolves the address through approval_roles, not through the raise-time snapshot', () => {
+    // 046 gives AUTHORITY to whoever holds the office at the moment of the
+    // press (`my_approval_role()`), so a letter posted to the person the pass
+    // was routed to months ago asks somebody the database would refuse. Found
+    // by moving the Security Head while a pass sat at level 1.
+    expect(body).toMatch(/join gatepass\.approval_roles r on r\.role_key = a\.role_key/i);
+    expect(body).toMatch(/coalesce\(cur\.email,\s*ap\.email\)/i);
+    expect(body).toMatch(/coalesce\(cur\.full_name,\s*ap\.full_name\)/i);
+  });
+
+  it('keeps routed_to as the fallback, for an office nobody holds today', () => {
+    expect(body).toMatch(/a\.routed_to/i);
+  });
+
+  it('still reaches VMS by LEFT JOIN only, and stays service_role-only', () => {
+    // A narrowed VMS policy must degrade a level to "no address" (one dropped
+    // message), never to a different person's address.
+    const joins = (body.match(/join public\./gi) ?? []).length;
+    const lefts = (body.match(/left join\s+public\./gi) ?? []).length;
+    expect(joins).toBeGreaterThan(0);
+    expect(lefts).toBe(joins);
+    expect(body).toMatch(/security definer/i);
+    expect(body).toMatch(/set search_path = ''/i);
+  });
+});

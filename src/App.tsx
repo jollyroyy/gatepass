@@ -251,7 +251,7 @@ export default function App(): React.ReactElement {
           <Route path="/approvals" element={<PendingApprovals office={office} />} />
 
           {/* Shared */}
-          <Route path="/pass/:id" element={<PassDetail role={role} />} />
+          <Route path="/pass/:id" element={<PassDetail role={role} office={office} />} />
           <Route path="/profile" element={<ProfilePage session={session} role={role} />} />
 
           <Route path="*" element={<Navigate to={homeFor(role, office !== null)} replace />} />

@@ -31,6 +31,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { UserRole } from '../../types';
+import type { ApprovalRoleKey } from '../../lib/approvalLadder';
 import type { GatePassRecord } from '../../lib/useGatePassRecord';
 import { passStageStyle } from '../../lib/passStage';
 import { OVERDUE_STYLE } from '../../lib/statusStyles';
@@ -42,13 +43,18 @@ import Badge from '../Badge';
 import PassRecordSummary from './PassRecordSummary';
 import PassRecordReturns from './PassRecordReturns';
 import PassTimeline from './PassTimeline';
+import ApprovalDecisionBar from './ApprovalDecisionBar';
 
 type Props = {
   record: GatePassRecord;
   /** Decides which action the record offers. Null renders none — a reader whose
    *  role has not resolved yet is never shown a button that will fail. */
   role?: UserRole | null;
-  /** Re-read the record after a return lands. */
+  /** Which of the four approval offices the READER holds, or null (046). It is
+   *  not a role — see approverAccess.ts — so it travels beside one, and it is
+   *  what decides whether the Approve / Reject bar is drawn at the foot. */
+  office?: ApprovalRoleKey | null;
+  /** Re-read the record after a return lands, or after an approval decision. */
   onRecorded?: () => void;
   onClear?: () => void;
 };
@@ -61,7 +67,7 @@ const PrinterGlyph = (
 );
 
 export default function PassRecordView({
-  record, role = null, onRecorded, onClear,
+  record, role = null, office = null, onRecorded, onClear,
 }: Props): React.ReactElement {
   const { pass, items, activity } = record;
   const roles = useApprovalRoles();
@@ -141,6 +147,18 @@ export default function PassRecordView({
           reading ends, at full width, not as a small button above the fold.
           There is exactly ONE of it: a second copy in the header is how a
           reader ends up pressing the stale one. */}
+      {/* AN OFFICE HOLDER'S OWN PRESS, in the same place and for the same
+          reason (client, 2026-08-19). It can never appear beside the guard's
+          bar above: 046 hides a pass that still owes a signature from the gate
+          entirely, so the two conditions are mutually exclusive in the
+          database, not merely in this component. */}
+      <ApprovalDecisionBar
+        pass={pass}
+        approvals={approvals}
+        office={office}
+        onDecided={() => onRecorded?.()}
+      />
+
       {canApprove && (
         <div
           data-testid="record-actions"

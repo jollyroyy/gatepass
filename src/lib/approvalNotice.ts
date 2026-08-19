@@ -234,6 +234,26 @@ export function currentApproval(approvals: NoticeApproval[]): NoticeApproval | n
   return pending.reduce((lowest, a) => (a.level_no < lowest.level_no ? a : lowest));
 }
 
+/** "Security Head (Ravi Menon)" — the app's own bracket form, the same one the
+ *  record's approval rail prints — or just "Security Head" when VMS holds no
+ *  name for the holder. Never "Security Head (null)": a missing name is a
+ *  missing fact, and the word null in a subject line is how a real letter gets
+ *  read as a broken one. */
+export function holderLabel(a: NoticeApproval): string {
+  const name = (a.approver_name ?? '').trim();
+  return name ? `${titleOf(a.role_key)} (${name})` : titleOf(a.role_key);
+}
+
+/** The offices that have ALREADY approved, oldest rung first, each with the
+ *  name of whoever signed it — or '' when this is the first rung. */
+export function signedSoFar(approvals: NoticeApproval[]): string {
+  return approvals
+    .filter((a) => a.status === 'approved')
+    .sort((x, y) => x.level_no - y.level_no)
+    .map((a) => holderLabel(a))
+    .join(', ');
+}
+
 /** The office that refused it, or null. */
 export function rejectedApproval(approvals: NoticeApproval[]): NoticeApproval | null {
   return approvals.find((a) => a.status === 'rejected') ?? null;
@@ -269,11 +289,25 @@ export function buildApprovalNotices(
 
   const queueLink = joinUrl(baseUrl, '/approvals');
   const title = titleOf(current.role_key);
+  // WHO, BY NAME. Every letter on this deployment is redirected to one inbox
+  // (MAIL_OVERRIDE_TO, because the Resend account is unverified) and the mailer
+  // drops the display name when it redirects — so if the person's name is not
+  // in the subject and in the body, the reader of that inbox cannot tell the
+  // Security Head's letter from the CEO's. Client, 2026-08-19.
+  const who = holderLabel(current);
+  const rung = `Level ${current.level_no} of ${approvals.length}`;
   const heading = `Gate pass ${pass.pass_number} is waiting for your approval`;
+  const greeting = current.approver_name ? `Hello ${current.approver_name},` : 'Hello,';
   const lead =
-    `You hold the ${title} office. This gate pass has reached your level ` +
-    `(Level ${current.level_no}) and cannot leave the gate until you approve it.`;
+    `${greeting} you hold the ${title} office. This gate pass has reached your level ` +
+    `(${rung}) and cannot leave the gate until you approve it.`;
+  // WHAT HAS ALREADY BEEN SIGNED, and by whom. This is what makes the chain
+  // readable from the inbox alone: each letter names the rung it is asking for
+  // and the rungs behind it, so "Demi approved, and the COO's letter went out"
+  // is visible without opening the app.
+  const cleared = signedSoFar(approvals);
   const tail =
+    (cleared ? `Already approved by ${cleared}. ` : '') +
     'Approving passes it to the next office on the ladder, or releases it to the gate if you are the last. ' +
     'Rejecting closes the pass permanently and needs a written reason.';
 
@@ -282,7 +316,7 @@ export function buildApprovalNotices(
       to: current.approver_email,
       toName: current.approver_name,
       kind: 'awaiting_you',
-      subject: `Approval needed: ${pass.pass_number} (${pass.type}) — ${title}`,
+      subject: `Approval needed by ${who} — ${pass.pass_number} (${pass.type}), ${rung}`,
       text: wrapText(heading, lead, pass, { href: queueLink, label: 'Open your Pending Approvals' }, tail),
       html: wrapHtml(heading, lead, pass, { href: queueLink, label: 'Open your Pending Approvals' }, tail),
     },

@@ -39,9 +39,9 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-19
 
-Full gate: **1423 tests across 118 files** (`npm run check`), green — and **`npm run build` is
+Full gate: **1453 tests across 120 files** (`npm run check`), green — and **`npm run build` is
 green again**, which it had not been since the raise-form CSS landed (see the twelfth pass).
-Migrations **`001`–`047`, `049` and `050` are applied to the live DB.** `044` was found UNAPPLIED on
+Migrations **`001`–`047` and `049`–`051` are applied to the live DB.** `044` was found UNAPPLIED on
 2026-08-19 — the overdue card's Contact Vendor and Add Remark had shipped against RPCs that did
 not exist — and was applied then, immediately before `046`. `039`, `040`, `041` and `043` were
 each verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs` — `043` is **9/9**,
@@ -56,14 +56,77 @@ notification function exists in `gatepass`. `APPLY_ALL.sql` carries all 49 secti
 
 | Thing | State |
 |---|---|
-| `gatepass.gate_passes` | **60 rows** — real user data. **Not a scratch DB; do not wipe it.** |
+| `gatepass.gate_passes` | **61 rows** — real user data. **Not a scratch DB; do not wipe it.** |
 | `public.departments` | **12 rows** (VMS-owned, shared) — do not wipe |
 | Demo accounts | the `@demo.vms` accounts share password `demo123` and are email-confirmed; shared with VMS. **"all email-confirmed" was WRONG** — 7 real accounts carried `email_confirmed_at is null` and none of them had ever signed in (see the 048 entry). 6 still do, and a password reset is now what confirms them. |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
-| `gatepass.approval_roles` | **4 rows — ALL FOUR OFFICES ARE FILLED**, so since `046` was applied every NEWLY raised pass needs four approvals and **the gate cannot see it until it has them**. Security Head Demi · COO Sudeshna Pal · CEO Sid · Finance HOD GUARDSOHAM. One person holds one office (`049`). Admin → Users → *Gate pass approval ladder* is where they are set. |
-| `gatepass.pass_approvals` | **0 rows** — nothing has been raised since `046` landed. The 60 existing passes carry no ladder and reach the gate exactly as they did before. |
+| `gatepass.approval_roles` | **4 rows — ALL FOUR OFFICES ARE FILLED**, so since `046` was applied every NEWLY raised pass needs four approvals and **the gate cannot see it until it has them**. Security Head **Demi** (re-designated 2026-08-19, fourteenth pass — it had been Jane/`jollyroyy@gmail.com` for the email test) · COO Sudeshna Pal · CEO Sid · Finance HOD GUARDSOHAM. One person holds one office (`049`). Admin → Users → *Gate pass approval ladder* is where they are set. |
+| `gatepass.pass_approvals` | **4 rows** — one pending ladder, on `NRGP-20260819-0002`, sitting at level 1 (Security Head). The 60 older passes carry no ladder and reach the gate exactly as they did before. |
 
-**Latest change (2026-08-19, fourteenth pass): the raise form states the pass's REFERENCE
+**Latest change (2026-08-19, fifteenth pass): THE APPROVAL QUEUE IS THE GUARD'S STACKED
+SCREEN, the decision moved onto the pass record, and every letter NAMES THE PERSON IT IS
+ASKING — migration `051`, APPLIED, and the Edge Function REDEPLOYED and PROBED 7/7 LIVE.**
+
+- **DEMI NOW HOLDS THE SECURITY HEAD OFFICE.** The tab was never missing — `demi@vms.com` (an
+  `hod` account) simply held no office, and `security_head` was still pointed at Jane
+  (`jollyroyy@gmail.com`) from the email test. Re-designated on the live DB with the client's
+  agreement, so the ladder reads **Security Head Demi · COO Sudeshna Pal · CEO Sid · Finance HOD
+  GUARDSOHAM**. Nothing in the sidebar changed: `Sidebar.tsx` has appended `APPROVER_LINK`
+  whenever `my_approval_role()` resolves since 046.
+- **`/approvals` IS ONE FIGURE AND THE STACK IT OPENS** (client: "all the pending approvals
+  should show up there in a stacked format, the styling should be the guard's view style, put the
+  KPI number and make it reliable"). The same shape `/overdue` took: a `gpo-total` card, then
+  `PassStack` — THE stacked card every role already reads — with the guard's pager underneath.
+  **The figure is `rows.length` of the very array the stack renders**, so the search and the two
+  filters narrow BOTH; no aggregate, no second predicate.
+  `PendingApprovalsTable.tsx` and `PendingApprovalRow.tsx` are **DELETED**, so a stale reference
+  is a build error.
+- **APPROVE / REJECT ARE AT THE FOOT OF THE RECORD** (client: "once I click on the pending
+  approval item it should show the exact same thing as it is showing in the guard's view — here
+  make the CTA button, like approve or reject, at the bottom in a very proper manner").
+  `src/components/passview/ApprovalDecisionBar.tsx`, rendered by `PassRecordView` from the
+  `office` prop `App.tsx` now threads through `PassDetail`. Reject still opens the
+  500-character modal. **A card in the stack carries no control at all** — the rule every
+  stacked card in this app follows.
+  - **`src/lib/approvalDecision.ts` is the slip-order rule, stated ONCE** and imported by both
+    the queue and the bar, so a button is never drawn where `approve_pass_level` would refuse the
+    press. `pendingApprovals.ts` lost its private copy of it.
+  - An office the pass has NOT reached yet still gets the bar — as a sentence naming the office
+    holding it up, and no buttons. "Nothing for me yet" must not look like a broken screen.
+  - The record's `cancelled` banner now separates the two rejections by `flag_reason is null`:
+    "Rejected in the approval ladder" against the HOD upholding a gate flag.
+- **EVERY LETTER NAMES ITS RECIPIENT** (client: "address the person to whom you are sending it
+  for approval — since we are using the same email I want to know whether the approval flow is
+  working"). The subject is now **`Approval needed by Security Head (Demi) — RGP-20260819-0006
+  (RGP), Level 1 of 4`**, the body greets "Hello Demi," and the tail names **who has already
+  signed** ("Already approved by Security Head (Demi)"). That is load-bearing on this deployment:
+  `MAIL_OVERRIDE_TO` sends every office's letter to ONE inbox and the mailer DROPS the display
+  name when it redirects, so the name must be inside the subject and the body or the four
+  offices' mails cannot be told apart.
+- **MIGRATION `051` — the letter goes to WHOEVER HOLDS THE OFFICE TODAY.** Found by moving the
+  Security Head while a pass sat at level 1: 046 gives authority to `my_approval_role()`, read at
+  the moment of the press, but 047's payload joined `pass_approvals.routed_to` — the holder
+  snapshotted at raise. So the mail asked a person the database would have refused, and the
+  ladder stopped with an empty inbox as its only symptom. `approval_notice_payload` now resolves
+  each level through `approval_roles`, **falling back to `routed_to` for an office nobody holds
+  today**. 047's comment arguing the opposite is superseded — by 046, not by taste. **WHAT A PASS
+  OWES IS STILL FROZEN AT RAISE**; only the address follows the office.
+- **LIVE: `scripts/verify-047.mjs` 7/7 over real anon-key JWTs**, after
+  `supabase functions deploy notify-approval`. One letter, to the Security Head, accepted by
+  Resend (provider id recorded), logged as
+  `jollyroyy@gmail.com (redirected from demi@vms.com)`, and nothing addressed to the raising HOD.
+  **The probe pass was deleted afterwards; `gate_passes` is 61 rows** — 60 plus the client's own
+  `NRGP-20260819-0002`, which is pending at level 1 and is what Demi can approve to watch the
+  COO's letter go out.
+- Pinned by `approvalDecision.test.ts` (10), `passRecordApprovalCta.test.tsx` (7), a rewritten
+  `pendingApprovalsPage.test.tsx` (7 — the figure agreeing with the stack, no control on a card,
+  the card opening `/pass/:id`), 5 new `approvalNotice` cases and 3 new `sqlInvariants` cases.
+  `npm run check` is **1453 tests across 120 files**, and `npm run build` is green.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite, a production build and the live probe only.
+  The 2nd, 3rd and 4th rungs are still unproven end to end — approving as Demi is what proves
+  them, and that is now one press at the foot of the record.
+
+**Earlier (2026-08-19, fourteenth pass): the raise form states the pass's REFERENCE
 NUMBER and takes a return date PER ITEM, the HOD's figures say each number once, and THE
 GUARD'S SKIN IS NOW EVERY ROLE'S SKIN.** Frontend only — no migration, no RPC change, no change
 to any query.

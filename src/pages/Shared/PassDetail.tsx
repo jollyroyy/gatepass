@@ -19,13 +19,23 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { UserRole } from '../../types';
+import type { ApprovalRoleKey } from '../../lib/approvalLadder';
 import { supabase } from '../../supabaseClient';
 import { useGatePassRecord } from '../../lib/useGatePassRecord';
 import PassRecordView from '../../components/passview/PassRecordView';
 import { formatDateTime } from '../../lib/formatDate';
 import FlaggedReviewActions from './FlaggedReviewActions';
 
-export default function PassDetail({ role = null }: { role?: UserRole | null }): React.ReactElement {
+export default function PassDetail({
+  role = null,
+  office = null,
+}: {
+  role?: UserRole | null;
+  /** The approval office the reader holds (046), passed straight through to the
+   *  record: it is what draws the Approve / Reject bar at the foot, and this
+   *  page is where an approver lands from their stacked queue. */
+  office?: ApprovalRoleKey | null;
+}): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showCreated, setShowCreated] = useState(searchParams.get('created') === '1');
@@ -132,8 +142,15 @@ export default function PassDetail({ role = null }: { role?: UserRole | null }):
 
       {pass.status === 'cancelled' && (
         <div className="alert-error flex-col items-start gap-1">
+          {/* TWO DIFFERENT REJECTIONS END HERE, and `flag_reason` is what tells
+              them apart — the same null the notification bell reads. A pass
+              security flagged and the HOD then upheld carries the guard's
+              reason; a pass an approval office refused (046) never reached the
+              gate, so it carries none and its reason is on the ladder instead. */}
           <p className="font-semibold">
-            Rejected by HOD — this pass is closed and cannot be used at the gate
+            {pass.flag_reason
+              ? 'Rejected by HOD — this pass is closed and cannot be used at the gate'
+              : 'Rejected in the approval ladder — this pass is closed and cannot be used at the gate'}
           </p>
           {pass.flag_reason && (
             <p className="text-sm text-navy-500 whitespace-pre-wrap break-words">
@@ -146,6 +163,7 @@ export default function PassDetail({ role = null }: { role?: UserRole | null }):
       <PassRecordView
         record={record}
         role={role}
+        office={office}
         onRecorded={() => setReloadKey((k) => k + 1)}
       />
     </div>

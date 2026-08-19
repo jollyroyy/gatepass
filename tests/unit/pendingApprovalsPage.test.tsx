@@ -1,7 +1,17 @@
-// Pending Approvals (migration 046) — one office's queue, drawn to the
-// client's mock-up: a card with a search box, a Filter row, a table with
-// Approve/Reject, a read-only "waiting on someone else" section, and the
-// no-office empty state.
+// Pending Approvals (migration 046) — one office's queue, drawn as the guard's
+// own screen (client, 2026-08-19: "all the pending approvals should show up
+// there in a stacked format, the styling should be the guard's view style, put
+// the KPI number and make it reliable").
+//
+// WHAT THESE CASES USED TO HOLD, and why they no longer do: the queue was a
+// TABLE whose every row carried Approve and Reject. The client moved the
+// decision onto the pass record — "once I click on the pending approval item it
+// should show the exact same thing as it is showing in the guard's view; here
+// make the CTA button at the bottom" — so the rows are `PassStackCard`s, which
+// carry no control of any kind, and the two press cases moved to
+// `passRecordApprovalCta.test.tsx`. What is pinned here instead is the figure
+// agreeing with the stack under it, which is the board invariant this app has
+// carried since the first KPI.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -110,7 +120,7 @@ vi.mock('../../src/supabaseClient', () => ({
 import PendingApprovals from '../../src/pages/Approver/PendingApprovals';
 
 async function renderPage(office: 'coo' | null = 'coo') {
-  render(
+  const view = render(
     <MemoryRouter>
       <PendingApprovals office={office} />
     </MemoryRouter>,
@@ -118,6 +128,7 @@ async function renderPage(office: 'coo' | null = 'coo') {
   if (office) {
     await waitFor(() => expect(screen.getByText('RGP-00057')).toBeInTheDocument());
   }
+  return view;
 }
 
 beforeEach(() => {
@@ -125,72 +136,45 @@ beforeEach(() => {
   resetRows();
 });
 
-describe('The queue', () => {
-  it('renders one row per actionable pass with the mock-up\'s columns', async () => {
-    await renderPage();
-    const queueTable = screen.getAllByRole('table')[0];
-    const rows = within(queueTable).getAllByRole('row');
-    // p2 (03:00) sorts before p1 (04:50) — oldest first.
-    const second = within(rows[2]);
-    expect(second.getByText('RGP-00057')).toBeInTheDocument();
-    expect(second.getByText('RGP')).toBeInTheDocument();
-    expect(second.getByText('LMN Contractors')).toBeInTheDocument();
-    expect(second.getByText('Formwork Support')).toBeInTheDocument();
-    expect(second.getByText('Ramesh Kumar')).toBeInTheDocument();
-    expect(second.getByText('Engineering')).toBeInTheDocument();
-    // Only p1 and p2 are in my actionable queue — p3 (held up by security_head)
-    // is not one of these two rows (it renders in the read-only section below,
-    // covered by its own describe block).
-    expect(rows).toHaveLength(3);
+describe('The stack and its figure', () => {
+  it('counts exactly the cards it renders, and nothing else', async () => {
+    const { container } = await renderPage();
+    const cards = screen.getAllByTestId('pass-stack-card');
+    // p1 and p2 are mine to sign; p3 is held up by an earlier office.
+    expect(cards).toHaveLength(2);
+    expect(screen.getByText('Awaiting Your Approval')).toBeInTheDocument();
+    expect(container.querySelector('.gpo-total-figure')?.textContent).toBe(String(cards.length));
   });
 
-  it('sorts oldest first', async () => {
+  it('sorts oldest first — the thing that has waited longest is the thing to sign', async () => {
     await renderPage();
-    const queueTable = screen.getAllByRole('table')[0];
-    const rows = within(queueTable).getAllByRole('row');
+    const cards = screen.getAllByTestId('pass-stack-card');
     // p2 (03:00) is older than p1 (04:50).
-    expect(within(rows[1]).getByText('NRGP-00081')).toBeInTheDocument();
-    expect(within(rows[2]).getByText('RGP-00057')).toBeInTheDocument();
+    expect(within(cards[0]).getByText('NRGP-00081')).toBeInTheDocument();
+    expect(within(cards[1]).getByText('RGP-00057')).toBeInTheDocument();
   });
-});
 
-describe('Reject', () => {
-  it('opens the modal, disables Submit until a reason is typed, and calls reject_pass_level', async () => {
+  it('renders no table, and offers no Approve or Reject on a card', async () => {
     await renderPage();
-    const rows = screen.getAllByRole('row');
-    fireEvent.click(within(rows[1]).getByRole('button', { name: 'Reject' }));
-
-    expect(screen.getByText('Reject Request')).toBeInTheDocument();
-    expect(screen.getByText(/Pass ID: NRGP-00081/)).toBeInTheDocument();
-
-    const submit = screen.getByRole('button', { name: 'Submit Rejection' });
-    expect(submit).toBeDisabled();
-
-    fireEvent.change(screen.getByPlaceholderText(/Please provide a reason/), {
-      target: { value: '  Vendor blacklisted  ' },
-    });
-    expect(submit).not.toBeDisabled();
-
-    fireEvent.click(submit);
-
-    await waitFor(() => {
-      const call = rpcCalls.find((c) => c.name === 'reject_pass_level');
-      expect(call).toBeTruthy();
-      expect(call?.args).toEqual({ p_pass_id: 'p2', p_reason: 'Vendor blacklisted' });
-    });
+    const cards = screen.getAllByTestId('pass-stack-card');
+    for (const card of cards) {
+      expect(within(card).queryByRole('button')).not.toBeInTheDocument();
+    }
   });
-});
 
-describe('Approve', () => {
-  it('calls approve_pass_level with the pass id, and no other database RPC', async () => {
+  it('opens the ONE gate pass record — the same one the guard reads', async () => {
     await renderPage();
-    const rows = screen.getAllByRole('row');
-    fireEvent.click(within(rows[1]).getByRole('button', { name: 'Approve' }));
+    const card = screen.getAllByTestId('pass-stack-card')[1];
+    expect(within(card).getByRole('link')).toHaveAttribute('href', '/pass/p1');
+  });
 
-    await waitFor(() => {
-      expect(rpcCalls).toHaveLength(1);
+  it('narrows the figure and the stack together, so they cannot disagree', async () => {
+    const { container } = await renderPage();
+    fireEvent.change(screen.getByLabelText('Search by Pass ID / Vendor / Purpose'), {
+      target: { value: 'NRGP-00081' },
     });
-    expect(rpcCalls[0]).toEqual({ name: 'approve_pass_level', args: { p_pass_id: 'p2' } });
+    await waitFor(() => expect(screen.getAllByTestId('pass-stack-card')).toHaveLength(1));
+    expect(container.querySelector('.gpo-total-figure')?.textContent).toBe('1');
   });
 });
 
