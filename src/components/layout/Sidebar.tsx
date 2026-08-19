@@ -3,13 +3,17 @@ import { Link, useLocation } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import type { UserRole } from '../../types';
 import { isNavActive, ROLE_ROUTES } from '../../lib/roleRoutes';
-import { fetchDisplayName } from '../../lib/profiles';
 import { useTheme } from '../../lib/theme';
-import SidebarProfile from './SidebarProfile';
+import SidebarSignOut from './SidebarSignOut';
 import { QuestMark, QuestLockup } from '../QuestMark';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 
 type Props = {
+  /** ACCEPTED AND DELIBERATELY UNUSED since 2026-08-19. The sidebar resolved
+   *  the signed-in person's name from it while the identity chip lived at the
+   *  bottom left; that chip is the top-right one now (TopBarProfile) and it
+   *  does its own lookup. The prop stays because every caller passes it and
+   *  removing it buys nothing but a wider diff. */
   session: Session;
   role: UserRole | null;
   collapsed?: boolean;
@@ -73,10 +77,9 @@ export const ALL_LINKS: NavLink[] = [
 
 const COLLAPSE_KEY = 'gatepass-sidebar-collapsed';
 
-export default function Sidebar({ session, role, collapsed: collapsedProp, onCollapsedChange }: Props): React.ReactElement {
+export default function Sidebar({ role, collapsed: collapsedProp, onCollapsedChange }: Props): React.ReactElement {
   const loc = useLocation();
   const { theme, toggleTheme } = useTheme();
-  const email = session.user.email ?? 'User';
   // ORDER COMES FROM ROLE_ROUTES, not from the order of ALL_LINKS: `/overdue`
   // is one entry shared by three roles and cannot sit in the right place for
   // all of them at once. Sorting by the role's own route list puts each tab
@@ -93,7 +96,6 @@ export default function Sidebar({ session, role, collapsed: collapsedProp, onCol
     .filter((l) => role && l.roles.includes(role))
     .sort((a, b) => rank(a.to) - rank(b.to));
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [profileName, setProfileName] = useState<string>('');
   const [collapsedInternal, setCollapsedInternal] = useState<boolean>(() => {
     try { return window.localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
   });
@@ -103,10 +105,6 @@ export default function Sidebar({ session, role, collapsed: collapsedProp, onCol
     setCollapsedInternal(value);
     onCollapsedChange?.(value);
   };
-  const initials = profileName
-    ? profileName.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
-    : (email.split('@')[0] ?? 'U').slice(0, 2).toUpperCase();
-
   useEffect(() => {
     try { window.localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0'); } catch { /* ignore */ }
   }, [collapsed]);
@@ -115,17 +113,9 @@ export default function Sidebar({ session, role, collapsed: collapsedProp, onCol
 
   useEscapeKey(() => setMobileOpen(false), mobileOpen);
 
-  // Profile name — best effort; falls back to a name derived from the email.
-  // Goes through gatepass.my_profile() — never public.profiles, whose policies
-  // are VMS's and have recursed (see src/lib/profiles.ts).
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const name = await fetchDisplayName(email);
-      if (!cancelled) setProfileName(name);
-    })();
-    return () => { cancelled = true; };
-  }, [session.user.id, email]);
+  // NO PROFILE LOOKUP HERE ANY MORE (client, 2026-08-19). The name, the role
+  // and the photo moved to the top-right chip, which resolves them itself, so
+  // the sidebar has no identity left to fetch — only a session to end.
 
   // Sidebar no longer displays count badges. Those are now shown as
   // top-right push notifications via NotificationBell.
@@ -155,7 +145,9 @@ export default function Sidebar({ session, role, collapsed: collapsedProp, onCol
         })}
       </div>
 
-      {/* Bottom: theme toggle + profile */}
+      {/* Bottom: theme toggle + log out. The identity chip moved to the top
+          right (client, 2026-08-19); this corner is the session's exit and
+          nothing else. */}
       <div className="shrink-0 px-3 pb-5 space-y-2">
         <button type="button" onClick={toggleTheme} aria-label="Toggle theme"
           className={`sidebar-link w-full px-3 py-2.5 ${isCollapsed ? 'justify-center !px-0' : ''}`}>
@@ -169,7 +161,7 @@ export default function Sidebar({ session, role, collapsed: collapsedProp, onCol
           {!isCollapsed && <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>}
         </button>
 
-        <SidebarProfile role={role} isCollapsed={isCollapsed} profileName={profileName} initials={initials} />
+        <SidebarSignOut isCollapsed={isCollapsed} />
 
         {/* The collapse control is NOT here. It lives on the sidebar's right
             edge (see the desktop <aside> below) so it reads as a handle on the

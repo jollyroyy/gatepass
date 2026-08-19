@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import type { UserRole } from '../../types';
 import Sidebar from './Sidebar';
-import NotificationBell from './NotificationBell';
+import TopBar from './TopBar';
 import SessionTimeout from '../SessionTimeout';
 import { NotificationProvider } from '../../lib/notifications';
 
@@ -55,7 +55,10 @@ export default function AppShell({ session, role, children }: Props): React.Reac
           </footer>
         </div>
 
-        <NotificationBell />
+        {/* Notifications and the identity chip, as one fixed cluster at the
+            top right (client, 2026-08-19). Log out is NOT here — it stayed at
+            the bottom left of the sidebar, and only there. */}
+        <TopBar session={session} role={role} />
       </div>
     </NotificationProvider>
   );

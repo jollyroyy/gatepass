@@ -17,6 +17,13 @@ vi.mock('../../src/components/layout/NotificationBell', () => ({
   default: () => <div data-testid="notification-bell-stub" />,
 }));
 
+// The identity chip resolves its own name, photo and route context (it uses
+// useLocation and Link). Stubbed here for the same reason the sidebar is: this
+// file is about what the SHELL puts on screen, not about what the chip does.
+vi.mock('../../src/components/layout/TopBarProfile', () => ({
+  default: () => <div data-testid="topbar-profile-stub" />,
+}));
+
 function fakeSession(email: string): Session {
   return { user: { id: 'user-1', email } } as unknown as Session;
 }
@@ -56,27 +63,36 @@ describe('AppShell', () => {
     expect(screen.getByTestId('notification-bell-stub')).toBeInTheDocument();
   });
 
-  it('does NOT render the display name — that belongs to SidebarProfile', async () => {
-    render(
-      <AppShell session={fakeSession('sudeshna.pal@x.com')} role="hod">
-        <div>Dashboard content</div>
-      </AppShell>
-    );
-    await waitFor(() => expect(screen.getByText('Dashboard content')).toBeInTheDocument());
-    expect(screen.queryByText('Sudeshna Pal')).not.toBeInTheDocument();
-  });
+  // WHO IS SIGNED IN SITS TOP RIGHT, on every role's shell (client,
+  // 2026-08-19: "put all the users' profile picture on the top right corner ...
+  // for admin profile picture as well as HOD profile picture"). It is the
+  // shell's job because it must be true of every page without any page saying
+  // so — the same argument that puts `.gb-main` here.
+  it.each(['guard', 'hod', 'admin', 'super_admin'] as const)(
+    'puts the identity chip at the top right for %s',
+    (role) => {
+      render(
+        <AppShell session={fakeSession('someone@x.com')} role={role}>
+          <div>content</div>
+        </AppShell>
+      );
+      expect(screen.getByTestId('topbar-profile-stub')).toBeInTheDocument();
+    }
+  );
 
-  it('does NOT render the role label in the top strip', async () => {
+  // Log out stayed at the bottom left of the sidebar, and ONLY there (client,
+  // 2026-08-19). The sidebar is stubbed in this file, so the assertion is that
+  // the shell itself puts no sign-out control on screen.
+  it('carries no log out control of its own — that corner is the sidebar', () => {
     render(
       <AppShell session={fakeSession('someone@x.com')} role="guard">
-        <div>Console content</div>
+        <div>content</div>
       </AppShell>
     );
-    await waitFor(() => expect(screen.getByText('Console content')).toBeInTheDocument());
-    expect(screen.queryByText('Security')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /log out|sign out/i })).not.toBeInTheDocument();
   });
 
-  it('never performs a profile lookup — the shell has no identity to resolve', async () => {
+  it('never performs a profile lookup ITSELF — the chip resolves its own name', async () => {
     render(
       <AppShell session={fakeSession('someone@x.com')} role="hod">
         <div>content</div>

@@ -55,7 +55,11 @@ export default function NotificationBell(): React.ReactElement {
   );
 
   return (
-    <div ref={panelRef} className="fixed top-4 right-4 z-50">
+    // NOT `fixed` any more (client, 2026-08-19): the identity chip joined this
+    // corner, so `TopBar` positions the pair and this is an ordinary block
+    // inside it. `relative` is still load-bearing — the panel below is
+    // absolutely positioned against it.
+    <div ref={panelRef} className="relative">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
