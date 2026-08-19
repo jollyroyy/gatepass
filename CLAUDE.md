@@ -40,13 +40,18 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 ## Current state — 2026-08-19
 
 Full gate: **1473 tests across 125 files** (`npm run check`), green.
-**Migration `044_overdue_guard_actions.sql` landed on disk and in `APPLY_ALL.sql` in commit
-`7d249c8`, from a parallel session — its live state is NOT recorded here. Check before
-assuming it is applied.**
-Migrations **`001`–`043` are all applied to the live DB**; `039`, `040`, `041` and `043` were
-each verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs` — `043` is
-**9/9**, and it left the ladder empty exactly as it found it), and `042` with a rolled-back
-`psql` insert that returned `RGP-20260818-0001`.
+Migrations **`001`–`046` and `049` are applied to the live DB.** `044` was found UNAPPLIED on
+2026-08-19 — the overdue card's Contact Vendor and Add Remark had shipped against RPCs that did
+not exist — and was applied then, immediately before `046`. `039`, `040`, `041` and `043` were
+each verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs` — `043` is **9/9**,
+and it left the ladder empty exactly as it found it), `042` with a rolled-back `psql` insert that
+returned `RGP-20260818-0001`, and **`046` is 20/20 (`scripts/verify-046.mjs`)** — every check run
+as a real signed-in user, including the client's own rule that a guard cannot see an unapproved
+pass. That probe borrows all four offices and hands them back; the run recorded the ladder
+unchanged and its six probe passes were deleted, leaving **60 rows exactly as before**.
+**`045`, `047` and `048` belong to a parallel session.** `045` IS applied (`vendor_profiles.address`
+exists and `raise_pass` reads `make_model`); **`047` and `048` are NOT** — no approval-email or
+notification function exists in `gatepass`. `APPLY_ALL.sql` carries all 49 sections regardless.
 
 | Thing | State |
 |---|---|
@@ -54,7 +59,8 @@ each verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs` �
 | `public.departments` | **12 rows** (VMS-owned, shared) — do not wipe |
 | Demo accounts | the `@demo.vms` accounts share password `demo123` and are email-confirmed; shared with VMS. **"all email-confirmed" was WRONG** — 7 real accounts carried `email_confirmed_at is null` and none of them had ever signed in (see the 048 entry). 6 still do, and a password reset is now what confirms them. |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
-| `gatepass.approval_roles` | **0 rows** — nobody is designated yet, so every pass record reads "Not designated yet" on all four levels. Admin → Users → *Gate pass approval ladder* is where they are set. |
+| `gatepass.approval_roles` | **4 rows — ALL FOUR OFFICES ARE FILLED**, so since `046` was applied every NEWLY raised pass needs four approvals and **the gate cannot see it until it has them**. Security Head Demi · COO Sudeshna Pal · CEO Sid · Finance HOD GUARDSOHAM. One person holds one office (`049`). Admin → Users → *Gate pass approval ladder* is where they are set. |
+| `gatepass.pass_approvals` | **0 rows** — nothing has been raised since `046` landed. The 60 existing passes carry no ladder and reach the gate exactly as they did before. |
 
 **Latest change (2026-08-19, eleventh pass): the raise form IS the client's new "Raise Gate
 Pass" mock-up, and the HOD dashboard offers ONE Raise tile instead of two — migration `045`,
@@ -160,7 +166,7 @@ account cleaned up).**
 - **NOT seen signed-in in a browser**: the suite, a typecheck and the live 048 probe only.
 
 **Latest change (2026-08-19, eleventh pass): THE APPROVAL LADDER IS A REAL WORKFLOW —
-migration `046`, WRITTEN AND IN `APPLY_ALL.sql` BUT *NOT APPLIED* TO THE LIVE DB.** An admin
+migrations `046` and `049`, BOTH APPLIED AND PROBED 20/20 WITH REAL ANON-KEY JWTs.** An admin
 creates a Security Head / COO / CEO / Finance HOD user; that person signs in to a Pending
 Approvals queue and approves or rejects with a written reason; and **a guard cannot SEE a pass
 that has not finished climbing the ladder.**
@@ -236,10 +242,50 @@ that has not finished climbing the ladder.**
   guard alone (only `apply_item_returns` can act) and the remark item reads "Add Remark" for
   everyone else; Contact Vendor and Export Pass PDF are drawn for every role, because
   `pass_contact` / `add_pass_remark` are already RLS-scoped.
-- **NOT APPLIED, NOT PROBED, NOT SEEN IN A BROWSER.** `046` is on disk and in `APPLY_ALL.sql`
-  only. **Nothing here has been verified against the live database, and the RLS change is
-  exactly the kind that only a real anon-key JWT can prove** — write `scripts/verify-046.mjs`
-  before believing the guard's queue narrows correctly.
+- **`046` IS APPLIED AND PROBED — `scripts/verify-046.mjs`, 20/20, over real anon-key JWTs.**
+  It proves the whole workflow as signed-in users: the snapshot on raise, **a guard seeing
+  neither the pass nor its material lines**, `lookup_pass` answering `awaiting_approval` with no
+  pass id, **`match_pass` refused by the trigger even though it is SECURITY DEFINER**, slip
+  order in both directions, a rejection needing a reason and closing the pass with a
+  verification, and a fully approved pass becoming visible to the gate again.
+  **THE PROBE'S FIRST RUN "FAILED" FOR THE RIGHT REASON AND IS WORTH KNOWING ABOUT**: it had
+  lent the COO office to the very guard account whose blindness it was testing, and an office
+  holder can of course see what is routed to them. The four offices it borrows must always go to
+  accounts that are neither the probe guard nor the raising HOD.
+- **`049` CAME OUT OF THAT PROBE, not out of review.** `my_approval_role()` is a scalar
+  `returns text` over `approval_roles`, and Postgres does not error when such a query yields two
+  rows — it returns an arbitrary one. Nothing forbade designating one person to two offices, so
+  a dual-hatted approver could have acted on exactly one of them, silently, with half a queue.
+  `049` is a **unique index on `approval_roles(user_id)`** plus a `set_approval_role` that names
+  the office already held. If dual-hatting is ever wanted, that migration's header lists the four
+  things that must change with it.
+- **NOT SEEN SIGNED-IN IN A BROWSER.** No probe covers the RENDER: the `/approvals` screen, the
+  reject modal, the record's ladder rungs and the `.gb-*` skin on a `staff` account's shell have
+  been proved by the suite and a production build only.
+- **THE FOUR OFFICES ARE NOW DESIGNATED**, so every newly raised pass enters the ladder and is
+  hidden from the guard until it clears. `approval_roles` is no longer empty — the "nothing
+  blocks until an admin designates somebody" rollout above has already been triggered.
+  `security_head` is deliberately pointed at the `jollyroyy@gmail.com` account (Jane, a
+  `guard` — 043 allows that) **for the email test below**; move it back to a real Security Head
+  before this is used for real.
+
+**`047_approval_email_notifications.sql` — APPLIED (2026-08-19, via psql; every statement
+returned).** `gatepass.approval_notice_payload(uuid)` (SECURITY DEFINER, `service_role` only —
+it returns officers' EMAIL ADDRESSES, which no signed-in role may read) and `gatepass.email_log`
+(admin-select, service-role-write, no insert policy). The sender is the Deno Edge Function
+`supabase/functions/notify-approval`, called AFTER the RPC commits — the pass matters more than
+the letter. **NOT DEPLOYED, and no mail has ever been sent**: there is no Resend key yet, so the
+provider call is unverified against the real API.
+
+- **`src/lib/approvalNotice.ts` MUST NEVER GAIN AN IMPORT.** Deno needs a `.ts` extension on a
+  local import and the app's tooling needs none, so importing nothing is the only way one file
+  serves both runtimes. `tests/unit/approvalNotice.test.ts` fails if an import appears there.
+  It is also exempt in `themeAudit` — the hex is in email HTML, and a mail client does not load
+  `index.css` (same category as `PassPrint`).
+- **Testing without a corporate domain**: an unverified Resend account may send only FROM
+  `onboarding@resend.dev` and only TO the address that owns the account, so the whole test is
+  aimed at one real inbox. Read `gatepass.email_log` — `ok = false` carries the provider's
+  refusal verbatim; no row at all means the function was never reached.
 
 **Earlier (2026-08-19, tenth pass): ONE stacked pass card for every role, the
 timeline ends with the return, value is totalled everywhere, and the guard's record stopped

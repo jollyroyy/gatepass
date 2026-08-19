@@ -1306,3 +1306,31 @@ describe('048 — an admin-set password must actually let the person sign in', (
     expect(/alter\s+table\s+(public|auth)\./i.test(bare)).toBe(false);
   });
 });
+
+describe('049 — one approval office per person', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('049'))!.sql;
+  const bare = stripSqlComments(sql);
+
+  it('makes the designation UNIQUE BY PERSON, not just by office', () => {
+    // `my_approval_role()` is a scalar `returns text` over this table. Postgres
+    // does not error when such a query yields two rows — it hands back an
+    // arbitrary one — so a dual-hatted approver could act on exactly one of
+    // their offices, silently. Found by the live probe for 046, not by reading.
+    expect(bare).toMatch(/create unique index[\s\S]*?on gatepass\.approval_roles \(user_id\)/i);
+  });
+
+  it('refuses the designation with a sentence, rather than leaking a constraint name', () => {
+    const body = extractFunctions(allMigrationsText())
+      .filter((f) => f.name === 'gatepass.set_approval_role')
+      .slice(-1)[0].body;
+    expect(body).toMatch(/One person holds one approval office/i);
+    // …and re-designating somebody to the office they ALREADY hold stays a
+    // no-op, which is what this exclusion is for.
+    expect(body).toMatch(/r\.role_key <> p_role_key/i);
+    // The 043 guards are still all there.
+    expect(body).toMatch(/gatepass\.is_admin\(\)/i);
+    expect(body).toMatch(/security definer/i);
+    expect(body).toMatch(/set search_path = ''/i);
+  });
+});

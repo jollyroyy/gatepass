@@ -28,7 +28,7 @@
 import type { GatePassView } from '../types';
 import type { BoardDrill } from './boardDrills';
 import { IS_OPEN_RETURN } from './boardDrills';
-import { isWaitingAtGate } from './boardKpis';
+import { isWaitingAtGate } from './gateQueue';
 import { DAY_MS, dayStart } from './localDay';
 import type { HodGlyph, HodTone } from '../components/hod/hodIconTypes';
 
