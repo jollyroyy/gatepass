@@ -7,9 +7,10 @@
 // pass therefore reads exactly one way, and a change lands everywhere at once.
 //
 // FOUR PARTS, IN THE MOCK'S ORDER: the title row with the pass's live badge and
-// its ONE action; the fact strip; the material table (which is also where a
-// return is entered); and the approval ladder down the right, with the gate's
-// own activity trail under it. NOTHING ELSE — the explanatory strip under the
+// Print Pass; the fact strip; the material table (which is also where a return
+// is entered) with ONE timeline down its right — the approval ladder and the
+// gate's own activity on a single rail (client, 2026-08-19) — and the guard's
+// action bar at the FOOT of all of it. NOTHING ELSE — the explanatory strip under the
 // table saying the four signatures are collected on paper was deleted at the
 // client's word (2026-08-19: "don't put any extra words other than the ones I
 // gave you"). The ladder's own states are the statement.
@@ -18,7 +19,8 @@
 // Approve OUT while the gate can still act (`canVerifyAtGate`, the rule
 // `match_pass` enforces) — it opens `/verify/:id`, which offers Match, Flag and
 // Hold, because naming one of three outcomes on the button would teach a guard
-// the wrong model of their own job. Everyone else gets Print Pass alone. There
+// the wrong model of their own job. It sits at the BOTTOM of the record, where
+// the reading ends (client). Everyone else gets Print Pass alone. There
 // is no "Mark as Returned" button: a return is per line and per quantity now,
 // and it is entered on the table itself.
 //
@@ -33,17 +35,16 @@ import type { GatePassRecord } from '../../lib/useGatePassRecord';
 import { passStageStyle } from '../../lib/passStage';
 import { OVERDUE_STYLE } from '../../lib/statusStyles';
 import { canVerifyAtGate } from '../../lib/phoneSearch';
-import { approvalProgress, buildApprovalSteps, canRecordReturns } from '../../lib/approvalLadder';
+import { buildApprovalSteps, canRecordReturns } from '../../lib/approvalLadder';
 import { useApprovalRoles } from '../../lib/useApprovalRoles';
 import Badge from '../Badge';
 import PassRecordSummary from './PassRecordSummary';
 import PassRecordReturns from './PassRecordReturns';
-import PassApprovalTimeline from './PassApprovalTimeline';
-import PassRecordActivity from './PassRecordActivity';
+import PassTimeline from './PassTimeline';
 
 type Props = {
   record: GatePassRecord;
-  /** Decides which action the header offers. Null renders none — a reader whose
+  /** Decides which action the record offers. Null renders none — a reader whose
    *  role has not resolved yet is never shown a button that will fail. */
   role?: UserRole | null;
   /** Re-read the record after a return lands. */
@@ -67,7 +68,6 @@ export default function PassRecordView({
   // The reader's role decides how a vacant office reads: for a guard the
   // signed slip is in hand, so all four levels are approved (client).
   const steps = buildApprovalSteps(pass, roles, role);
-  const approval = approvalProgress(roles, role);
   const canRecord = canRecordReturns(pass, role);
   const canApprove = role === 'guard' && canVerifyAtGate(pass);
 
@@ -96,11 +96,6 @@ export default function PassRecordView({
             {PrinterGlyph}
             Print Pass
           </Link>
-          {canApprove && (
-            <Link to={`/verify/${pass.id}`} className="btn-primary">
-              Approve OUT
-            </Link>
-          )}
           {onClear && (
             <button type="button" className="btn-ghost" onClick={onClear}>
               Clear
@@ -109,7 +104,7 @@ export default function PassRecordView({
         </div>
       </div>
 
-      <PassRecordSummary pass={pass} approval={approval} gateName={gateName} />
+      <PassRecordSummary pass={pass} gateName={gateName} />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
         <div className="xl:col-span-2 flex flex-col gap-5">
@@ -122,10 +117,30 @@ export default function PassRecordView({
         </div>
 
         <div className="flex flex-col gap-5">
-          <PassApprovalTimeline steps={steps} />
-          <PassRecordActivity entries={activity} />
+          <PassTimeline steps={steps} activity={activity} />
         </div>
       </div>
+
+      {/* THE ACTION IS AT THE FOOT OF THE RECORD (client, 2026-08-19: "show
+          approve pass at the bottom of the pass details for better
+          visibility"). A guard reads the pass downward — the facts, then every
+          material line, then the ladder — and the press belongs where that
+          reading ends, at full width, not as a small button above the fold.
+          There is exactly ONE of it: a second copy in the header is how a
+          reader ends up pressing the stale one. */}
+      {canApprove && (
+        <div
+          data-testid="record-actions"
+          className="card p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+        >
+          <p className="text-sm text-navy-700">
+            Everything on this pass checked? Clear it out at the gate.
+          </p>
+          <Link to={`/verify/${pass.id}`} className="btn-primary text-base px-6 py-3">
+            Approve OUT
+          </Link>
+        </div>
+      )}
     </section>
   );
 }

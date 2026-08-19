@@ -37,7 +37,6 @@ const CLOCK = <svg {...ICON}><circle cx="12" cy="12" r="8.25" /><path strokeLine
 const PHONE = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3.75h3l1.5 4.5-2.25 1.5a12 12 0 005.25 5.25l1.5-2.25 4.5 1.5v3a1.5 1.5 0 01-1.5 1.5A15.75 15.75 0 015.25 5.25a1.5 1.5 0 011.5-1.5z" /></svg>;
 const TRUCK = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 7.5h9v9h-9v-9zM12.75 10.5h3.75l2.25 2.25v3.75h-6V10.5z" /><circle cx="7" cy="18" r="1.5" /><circle cx="16.5" cy="18" r="1.5" /></svg>;
 const DOC = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M7 3.75h7.5L19 8.25V20.25H7V3.75zM14.5 3.75V8.25H19" /></svg>;
-const LADDER = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M5 19.25h14M7.75 19.25V13h3.5v6.25M12.75 19.25V8.75h3.5v10.5" /></svg>;
 const GATE = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M4 20.25V7.5l8-3.75 8 3.75v12.75M9.5 20.25v-6.5h5v6.5" /></svg>;
 const FLAG = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M6 20.25V4.5m0 0h11l-2.25 3.75L17 12H6" /></svg>;
 
@@ -98,14 +97,11 @@ function CopyPassNumber({ value }: { value: string }): React.ReactElement {
 
 type Props = {
   pass: GatePassView;
-  /** "4 of 5 level(s) approved" — from `approvalProgress`, so the strip and the
-   *  ladder beside it can never disagree about how many offices are held. */
-  approval: { approved: number; total: number };
   /** The entrance named on the clearing verification, when one was named. */
   gateName?: string | null;
 };
 
-export default function PassRecordSummary({ pass, approval, gateName }: Props): React.ReactElement {
+export default function PassRecordSummary({ pass, gateName }: Props): React.ReactElement {
   const company = parseCompanyInfo(pass.visitor_company);
 
   return (
@@ -150,7 +146,6 @@ export default function PassRecordSummary({ pass, approval, gateName }: Props): 
           />
           <Fact icon={PERSON} label="Authorized Person's Name" value={pass.visitor_name} />
           {company.name && <Fact icon={BUILDING} label="Vendor / Person" value={company.name} />}
-          {company.address && <Fact icon={PIN} label="Vendor Address" value={company.address} />}
         </div>
 
         <div className="flex flex-col gap-5">
@@ -158,12 +153,12 @@ export default function PassRecordSummary({ pass, approval, gateName }: Props): 
           {pass.verified_at && (
             <Fact icon={CALENDAR} label="Cleared Date & Time" value={formatDateTime(pass.verified_at)} />
           )}
-          <Fact
-            icon={LADDER}
-            label="Multi-level Approval"
-            value={`${approval.approved} of ${approval.total} level${approval.total === 1 ? '' : 's'} approved`}
-            tone={approval.approved === approval.total ? 'ok' : 'plain'}
-          />
+          {/* THE APPROVAL COUNTER IS GONE (client, 2026-08-19). "5 of 5 levels
+              approved" restated, as a number, what the ladder beside it already
+              says level by level and with names — and a counter that disagrees
+              with the rail is how a reader stops trusting both. The vendor's
+              address takes the slot. */}
+          {company.address && <Fact icon={PIN} label="Vendor Address" value={company.address} />}
         </div>
 
         <div className="flex flex-col gap-5">

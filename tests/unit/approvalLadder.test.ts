@@ -17,7 +17,6 @@ import {
   APPROVAL_LADDER,
   APPROVAL_ROLE_TITLES,
   buildApprovalSteps,
-  approvalProgress,
   approverLine,
   canRecordReturns,
   isReturnClosed,
@@ -189,23 +188,6 @@ describe('buildApprovalSteps', () => {
     const steps = buildApprovalSteps(pass({ type: 'NRGP', return_status: 'not_applicable' }), FULL);
     expect(steps.some((s) => s.key === 'return')).toBe(false);
     expect(steps.at(-1)?.key).toBe('gate');
-  });
-});
-
-describe('approvalProgress', () => {
-  it('is 5 of 5 when every office is held — the HOD counts as the first', () => {
-    expect(approvalProgress(FULL)).toEqual({ approved: 5, total: 5 });
-  });
-
-  it('drops one for every vacant office', () => {
-    expect(approvalProgress([FULL[0], FULL[3]])).toEqual({ approved: 3, total: 5 });
-    expect(approvalProgress([])).toEqual({ approved: 1, total: 5 });
-  });
-
-  // The strip and the rail beside it must never disagree about one pass.
-  it('is 5 of 5 for a guard whatever the designation table holds', () => {
-    expect(approvalProgress([], 'guard')).toEqual({ approved: 5, total: 5 });
-    expect(approvalProgress([FULL[0]], 'guard')).toEqual({ approved: 5, total: 5 });
   });
 });
 

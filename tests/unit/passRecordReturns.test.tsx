@@ -174,18 +174,21 @@ describe('the approval ladder on the record', () => {
     { role_key: 'coo' as const, user_id: 'b', full_name: 'Vikram Singh', department_name: 'Operations', designated_at: '2026-08-01T00:00:00Z' },
   ];
 
-  it('names each office and its holder, and counts them in the fact strip', async () => {
+  it('names each office and its holder, and says which are vacant', async () => {
     ladder = TWO_HELD;
     await renderAs('hod');
 
-    const rail = within(await screen.findByTestId('approval-timeline'));
+    const rail = within(await screen.findByTestId('pass-timeline'));
     await waitFor(() => expect(rail.getByText('Security Head (Arun Kumar)')).toBeInTheDocument());
     expect(rail.getByText('COO (Vikram Singh)')).toBeInTheDocument();
     // Two offices vacant — said out loud to a reader at a desk, never implied
     // signed. The raising HOD is the first of the five and is always approved.
     expect(rail.getByText('CEO')).toBeInTheDocument();
     expect(rail.getAllByText('Not designated yet')).toHaveLength(2);
-    expect(screen.getByText('3 of 5 levels approved')).toBeInTheDocument();
+    // The fact strip's counter was deleted on 2026-08-19 (client): the rail
+    // states every level by name, and a number beside it was the same fact
+    // twice — and the one that goes stale.
+    expect(screen.queryByText(/levels? approved/)).not.toBeInTheDocument();
   });
 
   // Client, 2026-08-19: only approved passes reach the guard's view, so mark
@@ -194,17 +197,16 @@ describe('the approval ladder on the record', () => {
     ladder = TWO_HELD;
     await renderAs('guard');
 
-    const rail = within(await screen.findByTestId('approval-timeline'));
+    const rail = within(await screen.findByTestId('pass-timeline'));
     await waitFor(() => expect(rail.getByText('Security Head (Arun Kumar)')).toBeInTheDocument());
     expect(rail.queryByText('Not designated yet')).not.toBeInTheDocument();
     expect(rail.getAllByText('Signed on the printed pass')).toHaveLength(4);
-    expect(screen.getByText('5 of 5 levels approved')).toBeInTheDocument();
   });
 
   it('renders the record perfectly well when the ladder cannot be read', async () => {
     rpc.mockImplementationOnce(() => Promise.reject(new Error('nope')));
     await renderAs('hod');
-    expect(screen.getByTestId('approval-timeline')).toBeInTheDocument();
-    expect(screen.getByText('1 of 5 levels approved')).toBeInTheDocument();
+    expect(screen.getByTestId('pass-timeline')).toBeInTheDocument();
+    expect(screen.getAllByText('Not designated yet')).toHaveLength(4);
   });
 });

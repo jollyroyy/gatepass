@@ -63,3 +63,42 @@ export function quantityCell(
   if (headingUnit(units)) return String(quantity);
   return !unit || unit === 'nos' ? String(quantity) : `${quantity} ${unitLabel(unit)}`;
 }
+
+/**
+ * The unit codes that name a DISCRETE OBJECT, and therefore cannot carry a
+ * fraction (client, 2026-08-19).
+ *
+ * Half a box is not a quantity anybody can hand over at a barrier, and a
+ * fractional return is worse than a fractional issue: `apply_item_returns` has
+ * no undo, so `10 - 2.5` sits on that line as an outstanding 7.5 boxes for the
+ * rest of the pass's life. Kg, litres and metres are MEASURED and stay
+ * fractional — 800.5 Kg is an ordinary movement.
+ *
+ * An unknown code is deliberately NOT treated as whole: a code this app does
+ * not recognise is no evidence that it is countable, and refusing a fraction on
+ * it would block a return with no other way to record it.
+ */
+const WHOLE_UNITS = new Set(['nos', 'box', 'roll', 'set', 'bag', 'drum', 'lot']);
+
+export function isWholeUnit(unit: string | null | undefined): boolean {
+  return !!unit && WHOLE_UNITS.has(unit);
+}
+
+/**
+ * What a guard or an HOD is told when they type a fraction of a counted unit.
+ *
+ * It names the two whole numbers either side of what they typed, because
+ * "enter a whole number" leaves them to do the rounding and decide, at a
+ * barrier, which way. `max` is the ceiling the caller enforces (the line's
+ * outstanding quantity); the upper suggestion is dropped rather than offered
+ * and then refused. Below 1 there is no lower suggestion to make.
+ */
+export function wholeUnitError(unit: string | null | undefined, qty: number, max?: number): string {
+  const low = Math.floor(qty);
+  const high = Math.ceil(qty);
+  const options: number[] = [];
+  if (low >= 1) options.push(low);
+  if (max === undefined || high <= max) options.push(high);
+  const suffix = options.length ? ` — enter ${options.join(' or ')}.` : ' — enter a whole number.';
+  return `${unitLabel(unit)} cannot be split${suffix}`;
+}

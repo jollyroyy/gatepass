@@ -6,6 +6,7 @@
 // eight fields to reach it.
 import type { NewGatePass } from '../types';
 import { requiresReturnDate } from './passTypes';
+import { isWholeUnit, wholeUnitError } from './units';
 
 export type FormErrors = Record<string, string | undefined>;
 
@@ -35,6 +36,13 @@ export function validateRaiseForm(form: NewGatePass, hasDepartment: boolean, tod
       const qty = Number(item.quantity);
       if (!item.quantity || Number.isNaN(qty) || qty <= 0) {
         errs[`item_${idx}_quantity`] = 'Enter a quantity greater than 0.';
+      } else if (isWholeUnit(item.unit) && !Number.isInteger(qty)) {
+        // A COUNTED UNIT TAKES NO FRACTION, and the rule has to be here as well
+        // as in the return box: 2.5 boxes raised is 2.5 boxes the gate can never
+        // fully return, since `checkReturnQty` would refuse every fraction that
+        // clears it. Same function, so the two can never disagree about which
+        // units are countable.
+        errs[`item_${idx}_quantity`] = wholeUnitError(item.unit, qty);
       }
     });
   }

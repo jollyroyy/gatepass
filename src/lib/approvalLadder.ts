@@ -20,10 +20,11 @@
 // trail on a document that goes out of the building.
 //
 // AN OFFICE NOBODY HOLDS IS NOT APPROVED — EXCEPT IN THE GUARD'S VIEW.
-// `approvalProgress` counts designated offices only, so "3 of 5 levels
-// approved" is a true statement about a pass whose COO and CEO seats are empty.
-// Defaulting to 5 of 5 everywhere would make the counter meaningless the moment
-// someone left.
+// A vacant office reads "Not designated yet" rather than counting as signed:
+// implying an approval nobody gave is the one thing this ladder must not do.
+// (The fact strip's "N of 5 levels approved" counter was deleted on 2026-08-19
+// at the client's word — the rail states every level by name, and a number
+// beside it was the same fact twice.)
 //
 // A GUARD IS THE ONE READER FOR WHOM IT IS ALREADY TRUE. Client, 2026-08-19:
 // "only the approved ones will be appearing in the guard's view — mark them so
@@ -226,24 +227,6 @@ export function buildApprovalSteps(
   if (back) steps.push(back);
 
   return steps;
-}
-
-/** "4 of 5 level(s) approved" — the summary line the mock-up prints in its fact
- *  strip. The issuing HOD is always the first of the five and is always
- *  approved; the other four count only while somebody holds them — unless the
- *  reader is a guard, for whom the signed slip is in hand and the ladder is
- *  complete by the time the pass reaches the barrier. Same rule as
- *  `buildApprovalSteps`, and it must stay the same rule or the strip and the
- *  rail beside it disagree about the same pass. */
-export function approvalProgress(
-  roles: ApprovalRoleRow[],
-  viewerRole: UserRole | null = null
-): { approved: number; total: number } {
-  const held = byKey(roles);
-  const designated = viewerRole === 'guard'
-    ? APPROVAL_LADDER.length
-    : APPROVAL_LADDER.filter((l) => held.has(l.key)).length;
-  return { approved: 1 + designated, total: 1 + APPROVAL_LADDER.length };
 }
 
 /**

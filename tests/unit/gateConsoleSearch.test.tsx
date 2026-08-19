@@ -202,13 +202,16 @@ describe('Search Pass — an exact query opens the whole record in place', () =>
     expect(screen.getByRole('button', { name: '+ Add Return' })).toBeInTheDocument();
   });
 
-  it('shows the return activity newest first', async () => {
+  // One rail now (2026-08-19): the approval ladder and the gate's activity are
+  // a single timeline, so the activity reads OLDEST first like the ladder above
+  // it — a card that changes direction half way down cannot be read at all.
+  it('shows the gate activity on the one timeline, oldest first', async () => {
     await renderConsole();
     search('RGP-OUT-20260818-0481');
 
     await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
     const entries = screen.getAllByText(/Material marked returned|Cleared out at the gate/);
-    expect(entries[0].textContent).toBe('Material marked returned');
-    expect(entries[1].textContent).toBe('Cleared out at the gate');
+    expect(entries[0].textContent).toBe('Cleared out at the gate');
+    expect(entries[1].textContent).toBe('Material marked returned');
   });
 });

@@ -17,7 +17,7 @@
 // column header's text.
 import React from 'react';
 import type { NewGatePassItem } from '../../types';
-import { unitLabel } from '../../lib/units';
+import { isWholeUnit, unitLabel } from '../../lib/units';
 import { itemGridStyle } from './materialItemGrid';
 
 // The units a line can be raised in. `bag`, `drum` and `lot` were added on
@@ -95,10 +95,14 @@ export default function MaterialItemRow({
         </div>
 
         <div className="item-cell" data-label="Qty">
+          {/* A counted unit takes no fraction — `step` follows the unit chosen
+            * in the next cell, so the browser's own arrows and its validation
+            * agree with `validateRaiseForm`, which enforces the same rule
+            * through `isWholeUnit`. */}
           <input
             type="number"
-            min="0.01"
-            step="0.01"
+            min={isWholeUnit(item.unit) ? '1' : '0.01'}
+            step={isWholeUnit(item.unit) ? '1' : '0.01'}
             className="input text-sm w-full"
             aria-label="Quantity"
             placeholder="Qty"

@@ -39,7 +39,8 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-19
 
-Full gate: **1341 tests across 118 files** (`npm run check`), `npm run build` clean.
+Full gate: **1358 tests across 120 files** (`npm run check`) — a parallel session is editing
+`src/components/layout/*` at the same time, so that count moves.
 **Migration `044_overdue_guard_actions.sql` landed on disk and in `APPLY_ALL.sql` in commit
 `7d249c8`, from a parallel session — its live state is NOT recorded here. Check before
 assuming it is applied.**
@@ -56,7 +57,50 @@ each verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs` �
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 | `gatepass.approval_roles` | **0 rows** — nobody is designated yet, so every pass record reads "Not designated yet" on all four levels. Admin → Users → *Gate pass approval ladder* is where they are set. |
 
-**Latest change (2026-08-19, sixth pass): the guard's SHELL is the mock-up's skin, so
+**Latest change (2026-08-19, seventh pass): a counted unit takes no fraction, a pass has ONE
+timeline, and the guard's Approve OUT is at the FOOT of the record.** Frontend only — no
+migration, no new RPC, no query change.
+
+- **`isWholeUnit` in `src/lib/units.ts` is the one place a unit is judged countable**:
+  `nos` · `box` · `roll` · `set` · `bag` · `drum` · `lot` are discrete objects and refuse a
+  decimal; `kg` · `litre` · `metre` are measured and keep theirs. **An unknown code stays
+  fractional** — a code this app does not recognise is no evidence that it is countable, and
+  refusing a fraction on it would block a return with no other way to record it.
+  - **Both ends enforce it, through the same function.** `checkReturnQty(text, outstanding,
+    unit)` refuses 2.5 boxes at the gate, and `validateRaiseForm` refuses raising 2.5 boxes in
+    the first place — a fractional issue would otherwise be a line the gate can never fully
+    return. **The ceiling is checked BEFORE the fraction**, so 12.5 of 10 outstanding is told
+    what it actually is instead of sending the guard away to type 13 and be refused again.
+  - `wholeUnitError` names the two whole numbers either side ("Box cannot be split — enter 2 or
+    3."), and drops the upper one when it would exceed the outstanding quantity.
+  - **The return boxes still carry `step="any"`** and only switch `inputMode` to `numeric`:
+    `step="1"` would make the BROWSER refuse the submit with its own tooltip and this app's
+    message would never be reached. The raise form's Qty input DOES follow the unit
+    (`min`/`step` 1 vs 0.01) — that form has always paired native attributes with its own
+    errors, and the two agree because both read `isWholeUnit`.
+  - Pinned by `tests/unit/wholeUnitQuantity.test.tsx` (13), including both return boxes rendered
+    directly.
+- **ONE TIMELINE ON A PASS** (client: "merge Activity timeline and approval timeline together
+  for all passes"). `PassApprovalTimeline.tsx` and `PassRecordActivity.tsx` are gone, replaced by
+  **`src/components/passview/PassTimeline.tsx`** (`data-testid="pass-timeline"`): the ladder's
+  rungs in slip order, then `v_verifications`'s own events continuing the SAME rail underneath.
+  **The activity reads OLDEST FIRST here** — it used to read newest first as a card of its own,
+  and a shared rail that changes direction half way down cannot be read at all. `ActivityEntry`
+  moved with it; `useGatePassRecord` imports it from the new file.
+- **Approve OUT is at the BOTTOM of the record** (client: "for better visibility"), in its own
+  `data-testid="record-actions"` bar, at full width, drawn only while `canVerifyAtGate` holds.
+  It was REMOVED from the header — exactly one of it exists, because a second copy is how a
+  reader presses the stale one. Print Pass and Clear stay in the header.
+- **The fact strip no longer counts approvals.** "Multi-level Approval — 5 of 5 levels approved"
+  is deleted and the vendor's ADDRESS takes the slot (client). `approvalProgress` lost its last
+  caller and was **deleted with its tests**, per the repo's own rule; the rail states every level
+  by name, which is the fact the counter was restating.
+- Pinned by a new `passRecordTimelineMerge.test.tsx` (7) plus rewrites in
+  `passRecordReturns.test.tsx`, `passRecordEverywhere.test.tsx`, `gateConsoleSearch.test.tsx` and
+  `approvalLadder.test.ts`.
+- **NOT seen signed-in in a browser**: `npm run check` and the suite only.
+
+**Earlier (2026-08-19, sixth pass): the guard's SHELL is the mock-up's skin, so
 every tab a guard opens — including the record that Approve OUT and Verify Return lead to —
 is one white ground, one Inter ladder and one near-black ink. The type went up a rung, the
 approval ladder reads APPROVED for a guard, and the record's explanatory strip is gone.**

@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react';
 import { gp } from '../supabaseClient';
 import type { GatePassItemView, GatePassView } from '../types';
-import type { ActivityEntry } from '../components/passview/PassRecordActivity';
+import type { ActivityEntry } from '../components/passview/PassTimeline';
 import { safeErrorMessage } from './errors';
 
 export interface GatePassRecord {

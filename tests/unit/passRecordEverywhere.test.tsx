@@ -96,7 +96,7 @@ describe('/pass/:id renders the Search Pass record, not a second format', () => 
     await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
     expect(screen.getByRole('heading', { name: 'RGP Gate Pass Details' })).toBeInTheDocument();
     expect(screen.getByText('RGP Items (Returnable)')).toBeInTheDocument();
-    expect(screen.getByTestId('approval-timeline')).toBeInTheDocument();
+    expect(screen.getByTestId('pass-timeline')).toBeInTheDocument();
   });
 
   it('keeps every fact the old detail page carried', async () => {

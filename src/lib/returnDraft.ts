@@ -21,6 +21,7 @@
 // side.
 import type { GatePassItemView, GatePassView } from '../types';
 import { dayStart, daysBetween, parseLocalDay } from './localDay';
+import { isWholeUnit, wholeUnitError } from './units';
 
 /** One staged line: how much came back, and the guard's own words for it. */
 export interface DraftLine {
@@ -53,12 +54,24 @@ export type QtyCheck = { ok: true; qty: number } | { ok: false; error: string };
  * only take 250 more, and sending 1,250 would be refused by the database with
  * an exception the guard cannot act on while a truck waits.
  */
-export function checkReturnQty(text: string, outstanding: number): QtyCheck {
+export function checkReturnQty(
+  text: string,
+  outstanding: number,
+  unit?: string | null
+): QtyCheck {
   const qty = parseQty(text);
   if (qty === null) return { ok: false, error: 'Enter the quantity that came back.' };
   if (qty <= 0) return { ok: false, error: 'A return must be more than zero.' };
   if (qty > outstanding) {
     return { ok: false, error: `Only ${formatQty(outstanding)} is still outstanding on this line.` };
+  }
+  // A COUNTED UNIT TAKES NO FRACTION (client, 2026-08-19). Half a box cannot be
+  // handed over, and this RPC has no undo — a 2.5 recorded here leaves 7.5
+  // outstanding on the line for good. The ceiling is checked FIRST on purpose,
+  // so 12.5 of 10 outstanding is told what it actually is rather than sending
+  // the guard away to type 13 and be refused a second time.
+  if (isWholeUnit(unit) && !Number.isInteger(qty)) {
+    return { ok: false, error: wholeUnitError(unit, qty, outstanding) };
   }
   return { ok: true, qty };
 }

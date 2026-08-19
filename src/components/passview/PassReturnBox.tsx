@@ -20,7 +20,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { GatePassItemView } from '../../types';
 import { checkReturnQty, formatQty, type DraftLine } from '../../lib/returnDraft';
-import { unitLabel } from '../../lib/units';
+import { isWholeUnit, unitLabel } from '../../lib/units';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 
 type Props = {
@@ -51,7 +51,7 @@ export default function PassReturnBox({
 
   function submit(e: React.FormEvent): void {
     e.preventDefault();
-    const checked = checkReturnQty(qty, outstanding);
+    const checked = checkReturnQty(qty, outstanding, item.unit);
     if (!checked.ok) {
       setError(checked.error);
       return;
@@ -60,6 +60,11 @@ export default function PassReturnBox({
   }
 
   const unit = unitLabel(item.unit);
+  // A counted unit takes no fraction, so the keypad is the numeric one. `step`
+  // stays "any" even then: `step="1"` would make the BROWSER refuse the submit
+  // with its own tooltip and this app's message — which names the two whole
+  // numbers either side — would never be reached.
+  const whole = isWholeUnit(item.unit);
 
   return (
     <form
@@ -80,7 +85,7 @@ export default function PassReturnBox({
           ref={qtyRef}
           className="input"
           type="number"
-          inputMode="decimal"
+          inputMode={whole ? 'numeric' : 'decimal'}
           step="any"
           value={qty}
           onChange={(e) => {
