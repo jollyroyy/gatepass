@@ -1,22 +1,26 @@
-// The HOD dashboard — the same board the admin gets (rebuilt 2026-08-17 to the
-// client's reference layout), narrowed to one person.
+// The HOD dashboard — the client's own mock-up (2026-08-19): a greeting, four
+// drillable figures, Quick Actions and the Approval Pending strip.
 //
-// THREE THINGS THIS FILE EXISTS TO PIN, in order of how quietly they could break:
+// FIVE THINGS THIS FILE EXISTS TO PIN, in order of how quietly they could break:
 //
 //   1. THE PERSON SCOPE. The client asked for a board that is "only for their
-//      department and only for her or him". Department is RLS's job and this test
-//      cannot see it; the PERSON half is this page's, and it is a
-//      `.eq('raised_by', …)` on every read. The mock below RECORDS the filters it
-//      was handed and returns a colleague's pass to any read that did NOT ask for
-//      one — so forgetting the filter shows up as a stranger's pass on the board,
-//      not as a silent widening nobody notices.
-//   2. THE FIGURE/DRILL AGREEMENT. Read what a tile prints, click it, count the
-//      list underneath.
-//   3. THE THINGS DELIBERATELY DIFFERENT FROM THE ADMIN BOARD — a drill row that
-//      does not repeat the reader's own name back at them, the flagged-review
-//      queue at the foot, and no link to `/all-passes`, which ROLE_ROUTES closes
-//      to an HOD. The PANELS are identical: the Quick Summary row and the
-//      outstanding ranking went from both boards on 2026-08-18.
+//      department and only for her or him". Department is RLS's job and this
+//      test cannot see it; the PERSON half is this page's, and it is a
+//      `.eq('raised_by', …)` on the one read. The mock below RECORDS the filters
+//      a query was built with and hands a colleague's pass to any read that did
+//      NOT ask for one — so forgetting the filter shows up as a stranger's pass
+//      on the board, not as a silent widening nobody notices.
+//   2. THE FIGURE/DRILL AGREEMENT. Read what a card prints, press it, count the
+//      stack underneath. Pressing again closes it.
+//   3. THE TWO SCOPES ON ONE ROW. Cards 1–3 are TODAY; card 4 and the "pending
+//      at the gate" note are RUNNING. A five-day-old overdue pass must be in the
+//      Pending Return figure and in NO today figure.
+//   4. WHAT THE CLIENT ASKED TO GO: the Alerts card, and with the old board the
+//      trend, the status ring, the return watch, the top-items ring and the
+//      flagged-review queue.
+//   5. THE APPROVAL PENDING STRIP, kept exactly as the mock draws it and
+//      therefore permanently zero — see src/lib/hodApprovals.ts for why. If a
+//      real approval workflow ever lands, THIS is the test that should fail.
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
@@ -28,7 +32,7 @@ const COLLEAGUE = 'hod-2';
 
 function pass(over: Partial<GatePassView>): GatePassView {
   return {
-    id: 'x', pass_number: 'RGP-OUT-20260817-0001', type: 'RGP', direction: 'out',
+    id: 'x', pass_number: 'RGP-20260819-0001', type: 'RGP', direction: 'out',
     status: 'matched', return_status: 'not_applicable',
     department_id: 'd1', department_name: 'Engineering', department_code: 'ENG',
     raised_by: ME, raised_by_name: 'P M Sharma',
@@ -49,7 +53,8 @@ const TODAY = now.toISOString();
 const TODAY_0900 = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0).toISOString();
 const FIVE_DAYS_AGO = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
 
-// This HOD's own passes: three raised today, one still out from five days ago.
+// This HOD's own passes: three RGP and one NRGP raised today, plus one RGP
+// still out — and late — from five days ago.
 const MINE: GatePassView[] = [
   pass({ id: 't1', visitor_name: 'Alice', created_at: TODAY, status: 'pending' }),
   pass({
@@ -58,30 +63,25 @@ const MINE: GatePassView[] = [
   }),
   pass({ id: 't3', visitor_name: 'Eve', created_at: TODAY, status: 'flagged', flag_reason: 'Qty short' }),
   pass({
+    id: 't4', visitor_name: 'Nina', created_at: TODAY, status: 'pending',
+    type: 'NRGP', pass_number: 'NRGP-20260819-0001', material_summary: 'Scrap',
+  }),
+  pass({
     id: 'o1', visitor_name: 'Gus', created_at: FIVE_DAYS_AGO, status: 'matched', verified_at: FIVE_DAYS_AGO,
     return_status: 'awaiting_return', is_overdue: true, due_state: 'overdue',
     expected_return_date: '2026-01-02', material_summary: 'Hydraulic Pump',
   }),
 ];
 
-// Never raised by this HOD. RLS would hand it over (same department), so only the
-// page's own `.eq('raised_by', …)` keeps it off the board.
+// Never raised by this HOD. RLS would hand it over (same department), so only
+// the page's own `.eq('raised_by', …)` keeps it off the board. It is `pending`
+// and raised TODAY, so a missing filter would move three figures at once.
 const THEIRS = pass({
-  id: 'c1', visitor_name: 'Zara', pass_number: 'RGP-OUT-20260817-0099', created_at: TODAY,
+  id: 'c1', visitor_name: 'Zara', pass_number: 'RGP-20260819-0099', created_at: TODAY,
   status: 'pending', raised_by: COLLEAGUE, raised_by_name: 'Someone Else',
 });
 
-const ITEMS = [
-  { id: 'i1', gate_pass_id: 't2', name: 'Ladder', quantity: 2 },
-  { id: 'i2', gate_pass_id: 'o1', name: 'Hydraulic Pump', quantity: 1 },
-  // Belongs to the colleague's pass. Outstanding-material ranking keeps only lines
-  // whose parent pass is in scope, so this must never reach a bar.
-  { id: 'i3', gate_pass_id: 'c1', name: 'Scaffold Tower', quantity: 1 },
-];
-
-/** Records the `.eq()` filters a query was built with, and answers accordingly.
- *  This is the whole point of the harness: a read that never asked for `raised_by`
- *  gets the colleague's pass mixed in. */
+/** Records the `.eq()` filters a query was built with, and answers accordingly. */
 function passQuery() {
   const eqs: Record<string, string> = {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -115,13 +115,16 @@ ch.subscribe = () => ch;
 
 vi.mock('../../src/supabaseClient', () => ({
   gp: () => ({
-    from: (table: string) => {
-      if (table === 'v_gate_passes') return passQuery();
-      if (table === 'v_gate_pass_items') return simple(ITEMS);
-      return simple([{ department_id: 'd1' }]);
-    },
+    from: (table: string) => (table === 'v_gate_passes' ? passQuery() : simple([])),
+    rpc: () => ({
+      maybeSingle: () =>
+        Promise.resolve({
+          data: { id: ME, full_name: 'Rahul Sharma', email: 'r@x.z', role: 'hod' },
+          error: null,
+        }),
+    }),
   }),
-  pub: () => ({ from: () => simple([{ id: 'd1', name: 'Engineering' }]) }),
+  pub: () => ({ from: () => simple([]) }),
   supabase: {
     auth: { getUser: () => Promise.resolve({ data: { user: { id: ME } }, error: null }) },
     channel: () => ch,
@@ -139,101 +142,145 @@ function renderBoard() {
   );
 }
 
-function tile(section: string, label: string): HTMLElement {
-  const group = screen.getByRole('group', { name: `${section} figures` });
-  // Buttons AND links: Overdue Returns, RGP Overdue and RGP Due Today NAVIGATE
-  // to /overdue and /returns instead of drilling in place (client, 2026-08-18),
-  // so those three tiles are anchors. Every other tile is still a button.
-  const found = [...within(group).queryAllByRole('button'), ...within(group).queryAllByRole('link')]
-    .find((b) => (b.textContent ?? '').startsWith(label));
-  if (!found) throw new Error(`no "${label}" tile in ${section}`);
+/** The card whose label starts with `label`. Every one of the four is a button —
+ *  the WHOLE card is the drill control, not just the number. */
+function card(label: string): HTMLElement {
+  const group = screen.getByRole('group', { name: 'Dashboard figures' });
+  // Matched on the NAME element, not the card's whole text: "RGP Issued" is a
+  // substring of "NRGP Issued", and a loose `includes` picks the wrong card.
+  const found = within(group)
+    .getAllByRole('button')
+    .find((b) => b.querySelector('.gb-kpi-name')?.textContent === label);
+  if (!found) throw new Error(`no "${label}" card`);
   return found;
 }
 
-function expectFigure(section: string, label: string, value: number): void {
-  expect(tile(section, label).textContent).toMatch(new RegExp(`^${label}\\s*${value}(\\D|$)`));
+function expectFigure(label: string, value: number): void {
+  const el = card(label);
+  expect(el.querySelector('.gb-kpi-figure')?.textContent).toBe(String(value));
 }
 
-function drill(): HTMLElement {
+function stack(): HTMLElement {
   return screen.getByRole('region', { name: 'Selected passes' });
 }
 
 async function loaded(): Promise<void> {
-  await waitFor(() => expectFigure('RGP Overview', 'RGP Raised', 3));
+  await waitFor(() => expectFigure('Total Passes', 4));
 }
 
-describe('the HOD board is scoped to this HOD', () => {
+describe('the HOD dashboard is scoped to this HOD', () => {
   it('counts only passes this HOD raised', async () => {
     renderBoard();
     await loaded();
 
-    // The colleague's pending pass would push the waiting queue to 2.
-    expectFigure('RGP Overview', 'RGP Awaiting Clearance', 1);
-    expect(screen.queryByText('RGP-OUT-20260817-0099')).not.toBeInTheDocument();
+    // The colleague's pending RGP raised today would push Total to 5, RGP
+    // Issued to 4 and "pending at the gate" to 2.
+    expectFigure('RGP Issued', 3);
+    expect(card('RGP Issued').textContent).toContain('1 pending at the gate');
+    expect(screen.queryByText('RGP-20260819-0099')).not.toBeInTheDocument();
   });
 
-  it('never lists a colleague\'s pass in any drill', async () => {
+  it("never lists a colleague's pass in a drill", async () => {
     renderBoard();
     await loaded();
 
-    fireEvent.click(tile('RGP Overview', 'RGP Awaiting Clearance'));
-    expect(within(drill()).getByText('Alice')).toBeInTheDocument();
-    expect(within(drill()).queryByText('Zara')).not.toBeInTheDocument();
-    expect(within(drill()).getByText('1 pass')).toBeInTheDocument();
+    fireEvent.click(card('Total Passes'));
+    expect(within(stack()).getByText('Alice')).toBeInTheDocument();
+    expect(within(stack()).queryByText('Zara')).not.toBeInTheDocument();
+    expect(within(stack()).getByText('4 passes')).toBeInTheDocument();
   });
 
-  it('names the HOD\'s department in the subtitle', async () => {
+  it('greets the reader by name', async () => {
     renderBoard();
-    await waitFor(() => expect(screen.getByText(/Engineering — passes you raised/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 1 }).textContent).toMatch(/Rahul Sharma/),
+    );
   });
 });
 
-describe('the HOD board\'s figures', () => {
+describe("the four figures, and the two scopes they mix", () => {
   it('matches the fixture', async () => {
     renderBoard();
     await loaded();
 
-    expectFigure('RGP Overview', 'RGP Raised', 3); // t1 t2 t3
-    expectFigure('RGP Overview', 'RGP Cleared', 1); // t2
-    expectFigure('RGP Overview', 'RGP Currently Outside', 2); // t2 o1
-    expectFigure('RGP Overview', 'RGP Overdue', 1); // o1
+    expectFigure('Total Passes', 4); // t1 t2 t3 t4
+    expectFigure('NRGP Issued', 1); // t4
+    expectFigure('RGP Issued', 3); // t1 t2 t3
+    expectFigure('Pending Return', 1); // o1 — five days old, and RUNNING
   });
 
-  it('the all-time overdue pass is in no period figure but is still counted', async () => {
+  it('the five-day-old overdue pass is in no today figure but is still counted', async () => {
     renderBoard();
     await loaded();
 
-    fireEvent.click(tile('RGP Overview', 'RGP Raised'));
-    expect(within(drill()).queryByText('Gus')).not.toBeInTheDocument();
+    fireEvent.click(card('Total Passes'));
+    expect(within(stack()).queryByText('Gus')).not.toBeInTheDocument();
 
-    // RGP Overdue opens the HOD's own Overdue Items page now — same scope, one
-    // screen, and the figure is still the count of what is on it.
-    expectFigure('RGP Overview', 'RGP Overdue', 1);
-    expect(tile('RGP Overview', 'RGP Overdue')).toHaveAttribute('href', '/overdue');
+    fireEvent.click(card('Pending Return'));
+    expect(within(stack()).getByText('Gus')).toBeInTheDocument();
+    expect(within(stack()).getByText('1 pass')).toBeInTheDocument();
   });
 
-  it('a drill row does not repeat the reader\'s own name back at them', async () => {
+  it('pressing the open card again closes the stack', async () => {
     renderBoard();
     await loaded();
-    fireEvent.click(tile('RGP Overview', 'RGP Currently Outside'));
-    expect(within(drill()).queryByText(/P M Sharma/)).not.toBeInTheDocument();
+
+    fireEvent.click(card('NRGP Issued'));
+    expect(within(stack()).getByText('Nina')).toBeInTheDocument();
+    expect(card('NRGP Issued')).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(card('NRGP Issued'));
+    expect(screen.queryByRole('region', { name: 'Selected passes' })).not.toBeInTheDocument();
+  });
+
+  it("a drill row does not repeat the reader's own name back at them", async () => {
+    renderBoard();
+    await loaded();
+    fireEvent.click(card('Total Passes'));
+    expect(within(stack()).queryByText(/P M Sharma/)).not.toBeInTheDocument();
   });
 });
 
-describe('what differs from the admin board', () => {
-  it('carries no outstanding ranking, but does carry Today\'s Summary', async () => {
-    // The ranking went from BOTH boards (client, 2026-08-18) and was DELETED
-    // rather than flagged off — `BoardOutstanding` and `BarList` are gone from
-    // the tree. Today's Summary went from the HOD board alone (client, same
-    // day): an HOD reads their own two rows, and a roll-up of a handful of
-    // passes only restated them. The admin board still opens on it.
+describe('Quick Actions and the Approval Pending strip', () => {
+  it('offers the two Raise tiles, each opening its own pass type', async () => {
     renderBoard();
     await loaded();
 
-    expect(screen.queryByText('Material Wise Outstanding RGP')).not.toBeInTheDocument();
-    expect(screen.queryByText('Department Wise Outstanding RGP')).not.toBeInTheDocument();
-    expect(screen.queryByText("Today's Summary")).not.toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: "Today's Summary figures" })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Raise NRGP/ })).toHaveAttribute('href', '/raise?type=NRGP');
+    expect(screen.getByRole('link', { name: /Raise RGP/ })).toHaveAttribute('href', '/raise?type=RGP');
+  });
+
+  it('draws all four approval offices, every one of them waiting on nothing', async () => {
+    renderBoard();
+    await loaded();
+
+    // Permanently zero, and deliberately so: this database has no multi-level
+    // approval workflow — a raised pass goes straight to the gate, and
+    // `approval_roles` (043) is an org chart with no state. See hodApprovals.ts.
+    for (const office of ['HOD Approval', 'Security Approval', 'Finance Approval', 'Other Approvers']) {
+      const slot = screen.getByText(office).closest('.gb-approval');
+      expect(slot).not.toBeNull();
+      expect(slot?.querySelector('.gb-approval-value')?.textContent).toBe('0');
+    }
+    // The KPI cards' own "pending approval" lines read from the same map, so
+    // the strip and the cards cannot disagree.
+    expect(card('NRGP Issued').textContent).toContain('0 pending approval');
+    // No "View all" — it would open a list of passes waiting at a level, and no
+    // pass ever waits at one.
+    expect(screen.queryByRole('link', { name: /View all/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('what the client asked to go', () => {
+  it('carries no Alerts card and none of the old board’s panels', async () => {
+    renderBoard();
+    await loaded();
+
+    expect(screen.queryByText('Alerts')).not.toBeInTheDocument();
+    expect(screen.queryByText('Mismatches needing review')).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'RGP Overview figures' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'NRGP Overview figures' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Return Watch')).not.toBeInTheDocument();
   });
 
   it('links only to routes an HOD may open', async () => {
@@ -241,19 +288,7 @@ describe('what differs from the admin board', () => {
     await loaded();
 
     for (const link of screen.getAllByRole('link')) {
-      const href = link.getAttribute('href') ?? '';
-      expect(href.startsWith('/all-passes')).toBe(false);
+      expect((link.getAttribute('href') ?? '').startsWith('/all-passes')).toBe(false);
     }
-    // The register link every panel falls back to. `/all-passes` is the admin's;
-    // ROLE_ROUTES closes it to an HOD, so this board must point at `/my-passes`.
-    expect(screen.getByRole('link', { name: 'the register' })).toHaveAttribute('href', '/my-passes');
-  });
-
-  it('keeps the flagged-review queue, fed unscoped by period', async () => {
-    renderBoard();
-    await loaded();
-    // t3 is flagged and was raised today; the queue is its own unscoped read, and
-    // the period filter must never hide an open action item.
-    await waitFor(() => expect(screen.getByText(/Qty short/)).toBeInTheDocument());
   });
 });

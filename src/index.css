@@ -2302,6 +2302,252 @@
     line-height: 18px;
     resize: vertical;
   }
+
+  /* ============================================================
+     THE HOD DASHBOARD — the same island, the client's other mock-up.
+
+     Client, 2026-08-19: "hold dashboard to be exactly the same as the attached
+     one and remove the alert part… KPI counts should be drillable… once after
+     the drill it should stack up the list of the respective passes."
+
+     It reuses `.gb-board` (the white ground and the palette), `.gb-head-row`,
+     `.gb-hello`, `.gb-sub`, `.gb-stamp`, `.gb-card`, `.gb-quick-title` and the
+     `.gb-tint-*` plates, and adds only what the HOD layout has that the guard's
+     does not: a four-up KPI row whose cards carry notes under a hairline, the
+     two big Raise tiles, and the Approval Pending strip.
+
+     No new colour is introduced. Every value below is one of `.gb-board`'s own
+     custom properties — the hex lives there and nowhere else.
+     ============================================================ */
+
+  /* ---- The four figures --------------------------------------------------- */
+  .gb-kpi-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  @media (min-width: 640px) {
+    .gb-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1280px) {
+    .gb-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+
+  /* The WHOLE CARD is the drill control, not the number: a figure this size
+   * with a hit area of two characters is a control nobody can press. */
+  .gb-kpi {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 18px;
+    text-align: left;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .gb-kpi:hover {
+    border-color: #d1d5db;
+    box-shadow: 0 2px 10px 0 rgb(16 24 40 / 0.08);
+  }
+  .gb-kpi:focus-visible {
+    outline: 2px solid var(--gb-blue);
+    outline-offset: 2px;
+  }
+  /* The open card keeps its own tone rather than taking a new one: the reader
+   * needs to see WHICH figure the stack below belongs to, and a fifth colour
+   * for "selected" would be a fifth thing to learn. */
+  .gb-kpi[aria-pressed='true'] {
+    border-color: var(--gb-blue-line);
+    box-shadow: 0 0 0 1px var(--gb-blue-line);
+  }
+  .gb-kpi-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    min-width: 0;
+  }
+  .gb-kpi-plate {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+  }
+  .gb-kpi-plate svg { width: 24px; height: 24px; }
+  .gb-kpi-figure {
+    display: block;
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--gb-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .gb-kpi-name {
+    display: block;
+    margin-top: 4px;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--gb-body);
+  }
+  .gb-kpi-scope {
+    display: block;
+    margin-top: 1px;
+    font-size: 13.5px;
+    font-weight: 400;
+    color: var(--gb-muted);
+  }
+  /* The notes sit under a hairline that runs the width of the card, exactly as
+   * the mock draws it — they are a different KIND of fact from the figure
+   * above (a running queue under a day count), and the rule says so. */
+  .gb-kpi-notes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 12px;
+    border-top: 1px solid var(--gb-line);
+  }
+  .gb-kpi-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--gb-muted);
+  }
+  .gb-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+  .gb-dot-blue { background: var(--gb-blue); }
+  .gb-dot-green { background: var(--gb-green); }
+  .gb-dot-purple { background: var(--gb-purple); }
+  .gb-dot-orange { background: var(--gb-orange); }
+  .gb-dot-red { background: var(--gb-red); }
+
+  /* ---- Quick Actions: the two Raise tiles --------------------------------- */
+  /* The one place on this board the mock fills a colour SOLID, with the glyph
+   * in white — these are the two things the page is FOR, and a pale tint would
+   * have made them read as another pair of figures. */
+  .gb-solid-blue { background: var(--gb-blue); color: #ffffff; }
+  .gb-solid-green { background: var(--gb-green); color: #ffffff; }
+  .gb-solid-purple { background: var(--gb-purple); color: #ffffff; }
+  .gb-solid-orange { background: var(--gb-orange); color: #ffffff; }
+  .gb-solid-red { background: var(--gb-red); color: #ffffff; }
+
+  .gb-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .gb-raise-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    max-width: 460px;
+  }
+  .gb-raise-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 4px;
+    padding: 20px 14px;
+    border: 1px solid var(--gb-line);
+    border-radius: 12px;
+    background: #ffffff;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .gb-raise-tile:hover {
+    border-color: #d1d5db;
+    box-shadow: 0 2px 10px 0 rgb(16 24 40 / 0.08);
+  }
+  .gb-raise-plate {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    margin-bottom: 10px;
+  }
+  .gb-raise-plate svg { width: 28px; height: 28px; }
+  .gb-raise-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--gb-ink);
+  }
+  .gb-raise-note {
+    font-size: 13.5px;
+    color: var(--gb-muted);
+  }
+
+  /* ---- Approval Pending --------------------------------------------------- */
+  .gb-approvals { padding: 18px; }
+  .gb-approvals-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .gb-approvals-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: 13.5px;
+    color: var(--gb-muted);
+  }
+  .gb-approval-plate {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+  }
+  .gb-approval-plate svg { width: 20px; height: 20px; }
+  .gb-approvals-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  @media (min-width: 640px) {
+    .gb-approvals-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1024px) {
+    .gb-approvals-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+  .gb-approval {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 0;
+  }
+  .gb-approval-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--gb-body);
+  }
+  .gb-approval-value {
+    display: block;
+    margin-top: 2px;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--gb-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .gb-approval-note {
+    display: block;
+    font-size: 13px;
+    color: var(--gb-muted);
+  }
 }
 
 @layer utilities {

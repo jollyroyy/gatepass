@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-19
 
-Full gate: **1369 tests across 121 files** (`npm run check`) — a parallel session is editing
+Full gate: **1371 tests across 121 files** (`npm run check`) — a parallel session is editing
 `src/components/layout/*` and `src/lib/boardKpis.ts` at the same time, so that count moves.
 **Migration `044_overdue_guard_actions.sql` landed on disk and in `APPLY_ALL.sql` in commit
 `7d249c8`, from a parallel session — its live state is NOT recorded here. Check before
@@ -57,7 +57,67 @@ each verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs` �
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 | `gatepass.approval_roles` | **0 rows** — nobody is designated yet, so every pass record reads "Not designated yet" on all four levels. Admin → Users → *Gate pass approval ladder* is where they are set. |
 
-**Latest change (2026-08-19, eighth pass): the gate pass record is the client's newest
+**Latest change (2026-08-19, ninth pass): the HOD dashboard IS the client's mock-up — a
+greeting, four drillable figures, Quick Actions and the Approval Pending strip. No Alerts,
+and no `GateBoard`.** Frontend only — no migration, no new RPC, and ONE query where the old
+board made three.
+
+- **The HOD no longer gets `GateBoard`.** That component is the ADMIN's board and is untouched;
+  the HOD's page (`src/pages/HOD/Dashboard.tsx`) is now its own layout over
+  `src/components/hod/*` and `src/lib/hodBoard.ts`. Gone with the old board: the two KPI rows,
+  the movement trend, the status ring, the Return Watch, the Top Items ring, and — **known cost,
+  flagged to the client** — the "Mismatches needing review" queue. `FlaggedReviewCard.tsx` is
+  DELETED, so a stale reference is a build error, and `useHodBoardData` lost its flagged read,
+  its items read and `useMyDepartmentNames` with them. Nothing became unreachable: the bell's
+  mismatch notice still opens `/mismatch/:id`, and it is now the only route there.
+- **THE ALERTS CARD IS NOT DRAWN** (client: "remove the alert part"). Its three lines restated
+  the three cards beside it, each with a "View" link to the list a card's own drill now opens.
+- **The four figures are `buildHodKpis`, and every one of them is drillable** (client: "KPI
+  counts should be drillable… once after the drill it should stack up the list of the respective
+  passes"). The WHOLE CARD is the button — a 32px figure with a two-character hit area is a
+  control nobody can press — and it opens `DrillList`, the same stacked pass cards the board
+  always used, in place directly underneath. Pressing the open card closes it.
+  **The board's invariant survives the rewrite**: each card carries the very rows it counted on
+  a `BoardDrill`, so a figure and its own list cannot disagree. No aggregate, no `count: 'exact'`.
+- **TWO SCOPES SIT ON ONE ROW, exactly as the mock draws them.** Total Passes / NRGP Issued /
+  RGP Issued are TODAY (`created_at` in LOCAL time); Pending Return, and the RGP card's
+  "N pending at the gate" note, are RUNNING. The note is deliberately NOT a subset of the card
+  above it — the mock's own numbers say the same (6 issued today over "7 pending at the gate").
+  `is_overdue` comes off `v_gate_passes` and is never recomputed; `isWaitingAtGate` is now
+  EXPORTED from `boardKpis.ts` rather than restated, so the gate queue means one thing.
+- **"Pending approval" IS PERMANENTLY ZERO, and the client chose that with the gap in front of
+  them.** `src/lib/hodApprovals.ts` owns the four office counts and the roll-up the KPI notes
+  print. This database has no multi-level approval workflow: a raised pass goes STRAIGHT TO THE
+  GATE (`status` is `pending` from the insert until `match_pass`/`flag_pass`), and
+  `gatepass.approval_roles` (043) is an ORG CHART with no state — nothing waits at a level, no
+  level carries a timestamp, `match_pass` never consults it, and the four signatures are wet ink
+  on the A5 slip. Asked, answered "keep it exactly as drawn". The zeros live in ONE module so
+  the day a real workflow lands there is one place to make them real, and
+  `hodDashboardBoard.test.tsx` is the test that should fail when it does.
+  **There is no "View all" link on the strip** — it would open a list of passes waiting at a
+  level, and no pass ever waits at one.
+- **Quick Actions is the mock's two tiles, and `/raise` now reads a type.** `RaisePass` seeds
+  its initial `form.type` from `?type=NRGP|RGP` (once, as initial state — a `useEffect` resyncing
+  from the URL would fight the selector), so "Raise NRGP" lands on an NRGP form. Anything else
+  in the query falls back to RGP rather than seeding an illegal pass.
+- **The skin is the `.gb-*` island, not the house theme.** `.gb-board` paints the white ground
+  and the mock's blue/green/purple/orange; **`gb-main` rides alongside it on the same div** so
+  the two HOUSE components this page still renders — `DrillList` and its pass cards — take their
+  LIGHT halves instead of the shipped dark default, which is what stops a dark card landing on a
+  white ground. Neither class reaches outside this subtree; every other HOD screen is untouched.
+  The new CSS introduces NO new colour — every value is one of `.gb-board`'s own custom
+  properties — and `src/components/hod/*` carries no hex, so `themeAudit.test.ts` stays absolute.
+- **Two departures from the mock, both the usual rule.** The date chip carries no chevron: it
+  implies a day picker, every figure here is today-or-running, and a control that opens nothing
+  is worse than no control. The mock's own footer ("© 2025 Pass Management System") is another
+  product's chrome and is not drawn.
+- Pinned by a rewritten `hodDashboardBoard.test.tsx` (11): the person scope, the four figures
+  against a fixture, the drill/close toggle, the five-day-old overdue pass being in the running
+  figure and no today one, the two Raise hrefs, the four zeroed offices, and the absence of
+  Alerts and of every old panel.
+- **NOT seen signed-in in a browser**: `npm run check` (1371 tests) and `npm run build` only.
+
+**Earlier (2026-08-19, eighth pass): the gate pass record is the client's newest
 mock-up — ONE Quantity column naming its own unit, a real Serial / ID on every line, the
 system's own return date and time, and the amber "items still need attention" strip. The
 raise form now takes ONE return date for the whole pass and a serial per line.**
@@ -911,6 +971,13 @@ the query and `GateConsole` renders the results full width above the queue.
 
 ### Known, not fixed
 
+- **The HOD's "Mismatches needing review" queue is GONE** (2026-08-19, with the old board). The
+  bell's mismatch notice is now the only route to `/mismatch/:id`. Accepted with the client, who
+  asked for the dashboard to be their mock-up exactly.
+- **The HOD dashboard's four approval figures are HARD ZEROS** and cannot be anything else until
+  a real multi-level approval workflow exists (`src/lib/hodApprovals.ts` says why). Kept exactly
+  as the mock draws them, on the client's own instruction after the gap was put to them.
+
 - **⚠ `touch_updated_at` (001/008/010) pins `new.expires_at := old.expires_at` on EVERY
   update**, so `hod_review_flagged_pass(approve)`'s refresh of `expires_at` (035) **cannot
   take effect**. 035's live probe passed only because it overrode a pass raised the same day.
@@ -1264,6 +1331,6 @@ rendered both by Search Pass and by `/pass/:id`; `src/components/overdue/` is Ov
 line-level returns table, each one component serving all three roles;
 `src/components/guard/` is the guard's three screens — the two summary cards, the quick actions,
 the two list tables and the chrome the list pages share (header, toolbar, filter bar, pager,
-`useGuardSearch`, `ApproveOutAction`); `src/components/board/` is the dashboard both the admin and the HOD get — one component, the HOD's scoped to one person server-side. `src/lib/` holds the
+`useGuardSearch`, `ApproveOutAction`); `src/components/hod/` is the HOD's dashboard — the four drillable figures, the two Raise tiles and the Approval Pending strip, drawn to the client's mock-up in the `.gb-*` skin; `src/components/board/` is the ADMIN's dashboard alone (the HOD stopped sharing it on 2026-08-19). `src/lib/` holds the
 lookup maps, derivations and formatters; `supabase/migrations/` runs `001` → `043`, with
 `005` an **optional demo seed** to skip in a real deployment.

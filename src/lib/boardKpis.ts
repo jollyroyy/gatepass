@@ -104,7 +104,8 @@ const isRgp = (p: GatePassView): boolean => p.type === 'RGP';
  *  surfaced instead as a decision for the HOD who raised it (the bell, and
  *  `/expired/:id`). `is_expired` comes straight off the view — never recompute
  *  expiry in TypeScript. */
-const isWaiting = (p: GatePassView): boolean => p.status === 'pending' && !p.is_expired;
+export const isWaitingAtGate = (p: GatePassView): boolean => p.status === 'pending' && !p.is_expired;
+const isWaiting = isWaitingAtGate;
 const isRgpOut = (p: GatePassView): boolean => categoryKey(p.type, p.direction) === 'RGP-out';
 const isNrgpOut = (p: GatePassView): boolean => categoryKey(p.type, p.direction) === 'NRGP-out';
 

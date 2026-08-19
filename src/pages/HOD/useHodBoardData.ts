@@ -12,40 +12,30 @@
 //   to be the reader's own (2026-08-17). Server-side deliberately — filtering
 //   client-side would download a colleague's passes in order to hide them.
 //
-// Nothing here aggregates. The page filters the one `rows` array by period and
-// hands slices to the chart modules, so a figure and the list its click opens
-// are always the same array.
+// Nothing here aggregates. ONE read of `v_gate_passes`, and the page derives
+// every figure from that one array with `buildHodKpis`, so a figure and the
+// stacked list its click opens are the same array by construction.
 import { useCallback, useEffect, useState } from 'react';
-import { supabase, gp, pub } from '../../supabaseClient';
-import type { GatePassItemView, GatePassView } from '../../types';
+import { supabase, gp } from '../../supabaseClient';
+import type { GatePassView } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
-
-const FLAGGED_LIMIT = 5;
+import { fetchMyProfile } from '../../lib/profiles';
 
 export type HodBoardData = {
   rows: GatePassView[];
-  /** Line rows for the ranked panels. `v_gate_pass_items` has no `raised_by` of
-   *  its own — RLS scopes it to this HOD's DEPARTMENT — so a colleague's line
-   *  can arrive here. Both panels ignore any item whose parent pass is not in
-   *  `rows`, which is already person-scoped, so nothing widens. */
-  items: GatePassItemView[];
-  /** UNSCOPED by period on purpose — a mismatch raised yesterday still needs a
-   *  decision today, and the board's Today default must not hide it. */
-  flagged: GatePassView[];
+  /** The reader's own full name, for the greeting. Null until it resolves, and
+   *  null forever if it never does — the greeting falls back to "HOD" rather
+   *  than surfacing an error for a cosmetic read. */
+  name: string | null;
   loading: boolean;
   error: string | null;
-  /** Re-reads every query. The board's Refresh button — realtime already keeps the
-   *  numbers moving, but a reader who has just acted elsewhere wants to be able to
-   *  ask rather than wait. */
-  reload: () => Promise<void>;
 };
 
 export function useHodBoardData(): HodBoardData {
   const [userId, setUserId] = useState<string | null>(null);
   const [noUser, setNoUser] = useState(false);
   const [rows, setRows] = useState<GatePassView[]>([]);
-  const [items, setItems] = useState<GatePassItemView[]>([]);
-  const [flagged, setFlagged] = useState<GatePassView[]>([]);
+  const [name, setName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,24 +68,13 @@ export function useHodBoardData(): HodBoardData {
       // banner before it ever rendered (the 2026-08-13 BlacklistTab bug).
       setError(null);
       try {
-        const [passRes, flaggedRes, itemRes] = await Promise.all([
-          gp().from('v_gate_passes').select('*').eq('raised_by', userId).order('created_at', { ascending: false }),
-          gp()
-            .from('v_gate_passes')
-            .select('*')
-            .eq('raised_by', userId)
-            .eq('status', 'flagged')
-            .order('verified_at', { ascending: false })
-            .limit(FLAGGED_LIMIT),
-          gp().from('v_gate_pass_items').select('*'),
-        ]);
+        const passRes = await gp()
+          .from('v_gate_passes')
+          .select('*')
+          .eq('raised_by', userId)
+          .order('created_at', { ascending: false });
         if (passRes.error) throw passRes.error;
         setRows((passRes.data as GatePassView[] | null) ?? []);
-        // A board that refuses to render because ONE panel's query failed is
-        // worse than a board with one empty panel, so a failed flagged read is
-        // not fatal.
-        setFlagged(flaggedRes.error ? [] : ((flaggedRes.data as GatePassView[] | null) ?? []));
-        setItems(itemRes.error ? [] : ((itemRes.data as GatePassItemView[] | null) ?? []));
       } catch (err) {
         setError(safeErrorMessage(err));
       } finally {
@@ -108,6 +87,22 @@ export function useHodBoardData(): HodBoardData {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The greeting only. A profile that never resolves leaves "Good morning, HOD",
+  // so this read has no error surface of its own.
+  useEffect(() => {
+    let cancelled = false;
+    fetchMyProfile()
+      .then((p) => {
+        if (!cancelled) setName(p?.full_name ?? null);
+      })
+      .catch(() => {
+        /* the greeting falls back to "HOD" */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // A board that can never identify its reader must stop showing skeletons and
   // say so, rather than spinning forever on an empty session.
@@ -141,34 +136,5 @@ export function useHodBoardData(): HodBoardData {
     };
   }, [load]);
 
-  return { rows, items, flagged, loading, error, reload: () => load() };
-}
-
-/** The HOD's own departments, by name — the page subtitle and nothing else.
- *  Failures are swallowed: a missing subtitle must not block a board. */
-export function useMyDepartmentNames(): string[] {
-  const [names, setNames] = useState<string[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function run() {
-      try {
-        const { data: hodDepts, error: hodErr } = await gp().from('hod_departments').select('department_id');
-        if (hodErr) throw hodErr;
-        const ids = (hodDepts ?? []).map((r: { department_id: string }) => r.department_id);
-        if (ids.length === 0) return;
-        const { data: depts, error: deptErr } = await pub().from('departments').select('id, name').in('id', ids);
-        if (deptErr) throw deptErr;
-        if (!cancelled) setNames((depts ?? []).map((d: { name: string }) => d.name));
-      } catch {
-        // Cosmetic only.
-      }
-    }
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return names;
+  return { rows, name, loading, error };
 }
