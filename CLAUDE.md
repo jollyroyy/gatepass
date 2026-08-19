@@ -51,7 +51,7 @@ each verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs` �
 
 | Thing | State |
 |---|---|
-| `gatepass.gate_passes` | **49 rows** — real user data. **Not a scratch DB; do not wipe it.** |
+| `gatepass.gate_passes` | **60 rows** — real user data. **Not a scratch DB; do not wipe it.** |
 | `public.departments` | **12 rows** (VMS-owned, shared) — do not wipe |
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
