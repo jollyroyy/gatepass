@@ -37,9 +37,9 @@ followed without `--build`, so it type-checks **zero files** and always exits 0.
 is the artifact a human pastes; a migration edited but not re-concatenated never reaches the
 database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
-## Current state — 2026-08-18
+## Current state — 2026-08-19
 
-Full gate: **1175 tests across 110 files** (`npm run check`), `npm run build` clean.
+Full gate: **1158 tests across 108 files** (`npm run check`), `npm run build` clean.
 Migrations **`001`–`042` are all applied to the live DB**; `039`, `040`, `041` were each
 verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`), and `042` with a
 rolled-back `psql` insert that returned `RGP-20260818-0001`.
@@ -51,9 +51,67 @@ rolled-back `psql` insert that returned `RGP-20260818-0001`.
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 
-**Latest change (2026-08-18, twelfth pass): no surface says "Matched" or "In Use", expired
+**Latest change (2026-08-19): the guard's dashboard is REVAMPED — two lists, a greeting and
+three quick actions, from a client mock-up.** Frontend only — no migration, no new RPC, no query
+the board did not already make.
+
+- **The seven-drill board is GONE, deleted rather than flagged off.** `src/lib/guardDrills.ts`
+  (`DRILL_DEFS`, `DRILL_ORDER`, `DRILL_LINKS`, the `DrillKey` union) and
+  `src/pages/Security/GuardDrillCard.tsx` no longer exist, so a stale reference is a build
+  error. What went with them: today's raises, today's mismatches, today's closures, and the
+  in-place card stack. Those figures are the ADMIN's board and Reports — a whole-site count is
+  not what a person standing at a barrier reads.
+- **The board is two questions.** `src/lib/guardBoard.ts` holds the derivations and
+  `src/components/guard/` the parts (`GuardIcon`, `GuardPanel`, `GuardSummaryCards`,
+  `PendingOutTable`, `PendingReturnTable`, `QuickActions`):
+  - **Pending OUT (Needs Approval)** — the gate queue (`status in (pending, hod_reviewed)` and
+    `expires_at >= now`, ANY date), split into an RGP and an NRGP figure by `typeSplit`. The
+    split is of ONE array, so the two figures sum to the rows in the panel under them.
+  - **Pending RGP Return (Needs Verification)** — `needsReturnVerification`: an open return
+    (`awaiting_return` or `partially_returned`) whose `due_state` is `due_today` or `overdue`.
+    **Material due LATER is deliberately absent**: nobody is watching the barrier for an October
+    date, and neither `/returns` nor `/overdue` would accept its return today, so a row for it
+    would be a button that cannot be pressed. The whole backlog is still one click away.
+- **TWO QUERIES, and the old invariant is intact**: a card's number is `rows.length` of the very
+  array the panel beside it renders. No aggregate, no `count: 'exact'`, no second predicate.
+  Neither `due_state` nor `is_overdue` is recomputed — both come off `v_gate_passes` in
+  `site_tz()`.
+- **Every action goes somewhere that works.** Pending OUT's is **Verify at Gate** →
+  `/verify/:id`, rendered only while `canVerifyAtGate` holds (the same rule `match_pass`
+  enforces); a pass that expired while the board sat open degrades to a **View pass** link.
+  The return row's is **Record Return** → `/overdue` when the row is overdue, `/returns` when it
+  is due today — the two pages that can actually record a line through `apply_item_returns`.
+  **The client's mock-up said "Approve OUT" and "Verify Return"; the buttons keep this app's
+  words**, because the screen they open offers Match, Flag and Hold, and naming one of three
+  outcomes teaches a guard the wrong model of their own job.
+- **Lateness is in WORDS.** `EXPECTED BACK` carries the `DUE_STATE_STYLES` badge ("Due Today" /
+  "Overdue") beside the date, so the fact survives a mono print and a reader who does not
+  separate orange from amber.
+- **Each panel shows five rows and expands in place** ("View all (N)" / "Show less",
+  `PREVIEW_ROWS`), and each summary card's chevron SCROLLS to its panel rather than navigating —
+  a page load between a number and the list it stands for is a page load too many at a gate.
+- **Quick Actions is three tiles, not the mock's four**: Scan QR / Pass No. → `/console`,
+  Returns Due Today → `/returns`, Overdue Returns → `/overdue`. The mock's fourth was "Recent
+  Activity"; this app has no activity feed for a guard, and a tile that goes nowhere is worse
+  than no tile. Every destination is in `ROLE_ROUTES.guard`.
+- **The header greets by name** — `firstNameOf` over `fetchMyProfile()`, falling back to "Guard"
+  if the profile never resolves, with a date/time stamp taken ONCE at mount (a ticking clock
+  would re-render two tables every second for a fact that changes by the minute).
+- Design system untouched: `.card`, `.board-section-title` gold serif, `.table-base` gold column
+  headings, `.kpi-label` / `.kpi-value`, `.btn-secondary`, the tint-plate icon device from
+  `BoardKpiIcon`. No literal hex anywhere in the new components.
+- Pinned by `tests/unit/guardBoard.test.ts` (11) and a rewritten `guardDashboard.test.tsx` (15).
+  `scrollToDrill.test.tsx` became `scrollIntoViewOnChange.test.tsx` (the hook's remaining
+  consumer is `GateBoard`); `drillListLayout`, `guardDrillCardLayout` and
+  `awaitingReturnDueToday` are deleted with what they pinned; `stackedCards` and
+  `hodReviewGateFlow` were rewritten — the latter now proves an HOD-approved pass reaches the
+  guard through the Pending OUT list with a working Verify at Gate action.
+- **NOT SEEN IN A BROWSER.** The suite and a production build only — same standing caveat as
+  everything since 2026-08-17.
+
+**Earlier (2026-08-18, twelfth pass): no surface says "Matched" or "In Use", expired
 passes are off both dashboards and tracked in Reports instead, and the Return Watch looks
-forward only.** Frontend only — no migration.
+forward only.** Frontend only — no migration. *(The guard board's drills, `guardDrills.ts` and `GuardDrillCard` were deleted on 2026-08-19 — see the latest change. Everything else in this entry stands.)*
 
 - **A pass never reads "Matched".** `passStageStyle` gains a fourth arm: `matched` with no
   return loop at all is an NRGP through the gate, and that is the END of it, so it reads
@@ -110,8 +168,8 @@ gold.**
 - **Stacked cards, in every list: numbered, compact, timeline reads DOWN.** `PassOrdinal`
   ("1", "2"…, `data-testid="pass-ordinal"`, `aria-hidden`) is rendered by `PassRow` in all three
   variants from an `index` the LIST assigns — DrillList, GuardDashboard, MyPassesTable,
-  FlaggedReviewCard, PhoneSearchResults. **`GuardDrillCard` is `dense` now** (it was the roomy
-  variant and crowded the guard's screen), dense paddings dropped a step, and list gaps are 2.
+  FlaggedReviewCard, PhoneSearchResults. the guard board's own card was `dense` too (it was the roomy
+  variant and crowded the guard's screen; that board became two tables on 2026-08-19), dense paddings dropped a step, and list gaps are 2.
   `PassTimelineStrip` gained `orientation="vertical"` — a dot-on-a-rail rung per moment — which
   is what `PassRowBody` (every opened card) uses. Pinned by `stackedCards.test.tsx` (4).
 - **Today's Summary is DELETED from both boards.** The five keys (`totalRaised`, `totalCleared`,
@@ -173,7 +231,7 @@ migration.**
 
 **Earlier (2026-08-18, eighth pass): Overdue Items is a page all three roles get, the
 guard's Pending Returns tab is gone, Search Pass lost its Pending Queue, and the boards' Overdue
-/ Due Today figures NAVIGATE instead of drilling.** Frontend only — no migration, no new RPC.
+/ Due Today figures NAVIGATE instead of drilling.** Frontend only — no migration, no new RPC. *(The guard board's drills, `guardDrills.ts` and `GuardDrillCard` were deleted on 2026-08-19 — see the latest change. Everything else in this entry stands.)*
 
 - **`/overdue` — Overdue Items, one component, three scopes.** `src/components/overdue/`
   (`OverdueBoard` + `OverdueStats` + `OverdueFilters` + `OverdueTable` + `OverdueTrendPanel`),
@@ -286,7 +344,7 @@ from the same map. **The KEY `NRGP-out` is unchanged** — it mirrors
 
 **Previous change (2026-08-18, fifth pass): the guard board's Awaiting Return is now TODAY's
 expected returns only, and Overdue takes every earlier missed date.** Frontend only — no
-migration.
+migration. *(The guard board's drills, `guardDrills.ts` and `GuardDrillCard` were deleted on 2026-08-19 — see the latest change. Everything else in this entry stands.)*
 
 - `DRILL_DEFS.awaiting` matches `isAwaiting(p) && p.due_state === 'due_today'`;
   `DRILL_DEFS.overdue` matches `isAwaiting(p) && p.due_state === 'overdue'`. The two are one
@@ -721,10 +779,12 @@ Office**: material moves through the mall's service gate, HODs are department he
 
 `src/pages/` is grouped by who uses it: `HOD/` (Dashboard, RaisePass, MyPasses,
 MismatchReview, ExpiredReview), `Security/` (GateConsole — the **Search Pass** screen —
-GateLookup, Verify, GuardDashboard), `Shared/` also holding the two role-scoped return pages
+GateLookup, Verify, GuardDashboard — the two-table board), `Shared/` also holding the two role-scoped return pages
 (OverdueItemsPage, ReturnsDueTodayPage), `Admin/` (AdminPanel and its tabs, AdminDashboard, ReportsPage), `Shared/`
 (PassDetail, PassPrint, Profile). `src/components/passview/` is the Gate Pass Details record — the ONE record format,
 rendered both by Search Pass and by `/pass/:id`; `src/components/overdue/` is Overdue Items and `src/components/returns/` is the
-line-level returns table, each one component serving all three roles; `src/components/board/` is the dashboard both the admin and the HOD get — one component, the HOD's scoped to one person server-side. `src/lib/` holds the
+line-level returns table, each one component serving all three roles;
+`src/components/guard/` is the guard board alone — the two summary cards, the two tables and the
+quick actions; `src/components/board/` is the dashboard both the admin and the HOD get — one component, the HOD's scoped to one person server-side. `src/lib/` holds the
 lookup maps, derivations and formatters; `supabase/migrations/` runs `001` → `042`, with
 `005` an **optional demo seed** to skip in a real deployment.

@@ -24,7 +24,8 @@
 // rather than a copy of DrillPassCard's `.card` shell: the client asked for
 // glass specifically here, and keeping the two shells separate means a visual
 // tweak to one board never silently changes the other — the same reasoning
-// DrillPassCard records for not sharing with GuardDrillCard.
+// DrillPassCard's own comment gives for keeping its shell local rather than
+// shared.
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView } from '../../types';

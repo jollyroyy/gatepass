@@ -5,8 +5,8 @@
 // field." The HOD raised the pass — telling them "Raised By P M Sharma" on
 // their own board is noise.
 //
-// So a drill card is now the same shadcn Card idiom GuardDrillCard uses
-// (`PassRow variant="drill"`): a CardHeader carrying identity + state only,
+// So a drill card is now the shadcn Card idiom (`PassRow variant="drill"`):
+// a CardHeader carrying identity + state only,
 // a CardContent of labelled facts, and a CardFooter for the one action. What
 // differs is density (`dense`) and the omitted field (`showRaisedBy={false}`).
 import React from 'react';

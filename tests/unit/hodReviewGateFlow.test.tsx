@@ -8,7 +8,8 @@
 // HOD could therefore never be cleared through the UI at all.
 //
 // These tests pin the three links of the chain: the queue shows such a pass,
-// Verify offers a working Match for it, and the dashboard has a drill for it.
+// Verify offers a working Match for it, and the board lists it with the action
+// that clears it.
 //
 // THE QUEUE MOVED (2026-08-18). Search Pass became search-only and the list is
 // now the guard dashboard's "Pending for Gate Approval" figure — its own query,
@@ -16,7 +17,7 @@
 // pass, because it is the only list a guard picks one from.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { GatePassView } from '../../src/types';
 
@@ -152,20 +153,13 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
     });
   });
 
-  // The HOD Approved KPI was removed from the guard's dashboard at the
-  // client's request, 2026-08-11. The chain this whole spec exists to protect
-  // is NOT broken by that, and these two tests are what prove it: an
-  // HOD-approved pass is still in the Gate Console queue (asserted above) and
-  // still fully actionable on Verify (asserted above). The dashboard card was
-  // a second window onto passes the queue already lists.
-  describe('Dashboard drill', () => {
-    it('no longer carries an HOD Approved drill', async () => {
-      const { DRILL_DEFS, DRILL_ORDER } = await import('../../src/lib/guardDrills');
-      expect(DRILL_ORDER).not.toContain('approved');
-      expect(DRILL_DEFS).not.toHaveProperty('approved');
-    });
-
-    it('renders no HOD Approved KPI on the dashboard', async () => {
+  // The dashboard's KPI drills were replaced by two tables on 2026-08-19. The
+  // chain this whole spec exists to protect is NOT broken by that, and these
+  // cases are what prove it: an HOD-approved pass sits in the board's Pending
+  // OUT list — the only list a guard picks a waiting pass from — carrying the
+  // action that clears it, and Verify accepts it (asserted above).
+  describe('Dashboard — Pending OUT', () => {
+    it('lists an HOD-approved pass with a working Verify at Gate action', async () => {
       queueRows = [APPROVED, pass({ id: 'p2', pass_number: 'PEND-0001', status: 'pending' })];
       const GuardDashboard = (await import('../../src/pages/Security/GuardDashboard')).default;
       render(
@@ -174,12 +168,14 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
         </MemoryRouter>
       );
 
-      await waitFor(() => expect(screen.getByText('Pending for Gate Approval')).toBeInTheDocument());
-      // The KPI, not the words: an hod_reviewed pass in the queue below wears an
-      // "HOD Approved" status badge, which is correct and is not a drill. A KPI
-      // is identified by its own label class, so this cannot pass by accident.
-      const kpiLabels = screen.queryAllByText('HOD Approved').filter((el) => el.classList.contains('kpi-label'));
-      expect(kpiLabels).toHaveLength(0);
+      await waitFor(() => expect(screen.getByText('APPROVED-0001')).toBeInTheDocument());
+
+      const row = screen.getByText('APPROVED-0001').closest('tr')!;
+      expect(within(row).getByRole('link', { name: 'Verify at Gate' })).toHaveAttribute('href', '/verify/h1');
+
+      // And it asked the database for BOTH states the gate can still act on —
+      // narrowing this back to 'pending' alone is the original bug.
+      expect(queueInCalls.some((c) => c.col === 'status' && c.values.includes('hod_reviewed'))).toBe(true);
     });
   });
 });

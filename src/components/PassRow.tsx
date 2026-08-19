@@ -11,9 +11,10 @@
 //   pill — no vendor/visitor/material/vehicle/department), a CardContent body
 //   (PassRowBody) carrying every other fact EXACTLY ONCE, and an optional
 //   CardFooter (`detail`) on a distinct muted surface for actions. This is
-//   what GuardDrillCard uses; the old version showed every fact in the header
-//   AND again in its own detail grid, which was the client's actual
-//   complaint ("I see the vendor name on top and also in the body").
+//   what DrillPassCard uses for the HOD/admin drills; the old version showed
+//   every fact in the header AND again in its own detail grid, which was the
+//   client's actual complaint ("I see the vendor name on top and also in the
+//   body").
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView } from '../types';

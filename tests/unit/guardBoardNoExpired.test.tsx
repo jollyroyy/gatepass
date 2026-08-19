@@ -10,7 +10,8 @@
 // still gets the bell notification that opens `/expired/:id` to void it or raise
 // a replacement, and Reports has an Expired filter over the whole register
 // (tests/unit/reportsFilters.test.tsx). This file is the guard's half of that —
-// it fails if the tile, the drill or the old red callout creeps back.
+// it fails if a tile, a drill or the old red callout creeps back onto the
+// board — which since 2026-08-19 is two tables and three quick actions.
 //
 // The fixture keeps a `pending` + `is_expired` row loaded on purpose: absence
 // with nothing to show would prove nothing.
@@ -101,7 +102,7 @@ beforeEach(() => {
 });
 
 describe('GuardDashboard — expired passes are off the board', () => {
-  it('offers no Expired tile, even with an expired pass loaded', async () => {
+  it('names no Expired figure, even with an expired pass loaded', async () => {
     expiredTestRow = pass({ id: 'exp1', pass_number: 'EXP-0001', status: 'pending', is_expired: true });
     renderAt(<GuardDashboard />);
     await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());

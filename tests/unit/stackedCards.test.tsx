@@ -10,14 +10,15 @@
 // the stacked cards across all the views".
 //
 // All three live in `PassRow` and the two components it composes, so every
-// list gets them at once: DrillList (HOD + admin drills), GuardDrillCard (the
-// guard board), MyPassCard, PhoneSearchResults and the review stacks.
+// list gets them at once: DrillList (HOD + admin drills), MyPassCard,
+// PhoneSearchResults and the review stacks. The guard's board is no longer one
+// of them — it became two tables on 2026-08-19 — so every case here drives the
+// stack through DrillList, which is the component the rules were written for.
 import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import DrillList from '../../src/components/DrillList';
-import GuardDrillCard from '../../src/pages/Security/GuardDrillCard';
 import type { GatePassView } from '../../src/types';
 import type { DrillDef } from '../../src/lib/boardDrills';
 
@@ -61,13 +62,13 @@ describe('a stacked list is numbered', () => {
     expect(ordinals.map((o) => o.textContent)).toEqual(['1', '2']);
   });
 
-  it('numbers the guard\'s cards too — same component, same list', () => {
+  it('starts every list at 1, whatever the rows are', () => {
     render(
       <MemoryRouter>
-        <GuardDrillCard pass={pass()} index={4} />
+        <DrillList def={DEF} loading={false} rows={[pass({ id: 'p9', pass_number: 'RGP-20260818-0009' })]} />
       </MemoryRouter>,
     );
-    expect(screen.getByTestId('pass-ordinal')).toHaveTextContent('4');
+    expect(screen.getByTestId('pass-ordinal')).toHaveTextContent('1');
   });
 });
 
@@ -75,7 +76,7 @@ describe('a drilled-down card reads down, not across', () => {
   it('stacks the timeline moments vertically', () => {
     render(
       <MemoryRouter>
-        <GuardDrillCard pass={pass()} index={1} />
+        <DrillList def={DEF} loading={false} rows={[pass()]} />
       </MemoryRouter>,
     );
     const strip = screen.getByTestId('pass-timeline');
@@ -85,12 +86,12 @@ describe('a drilled-down card reads down, not across', () => {
     expect(within(strip).getByText('Cleared Out')).toBeInTheDocument();
   });
 
-  it('is compact on the guard board as well as the HOD board', () => {
-    // `dense` is what makes a card compact; the guard's cards used to be the
+  it('is compact — `dense`, not the roomy variant', () => {
+    // `dense` is what makes a card compact; the drill cards used to be the
     // roomy variant and crowded the screen (client, 2026-08-18).
     render(
       <MemoryRouter>
-        <GuardDrillCard pass={pass()} index={1} />
+        <DrillList def={DEF} loading={false} rows={[pass()]} />
       </MemoryRouter>,
     );
     expect(screen.getByTestId('pass-card-header').className).not.toContain('pt-5');

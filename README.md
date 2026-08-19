@@ -182,7 +182,7 @@ new pass exists either way.
 ```mermaid
 flowchart LR
     HOD["🧑‍💼 <b>HOD</b><br/>Dashboard · Raise · My Passes"] -->|raise_pass| P(("Pass"))
-    P -->|match_pass / flag_pass| SEC["👮 <b>Security</b><br/>Dashboard · Gate Console · Pending Returns"]
+    P -->|match_pass / flag_pass| SEC["👮 <b>Security</b><br/>Dashboard · Search Pass · Overdue Items"]
     SEC -->|apply_item_returns<br/>mark_returned| P
     P -.->|flagged / expired 🔔| HOD
     ADM["🛠️ <b>Admin</b><br/>Dashboard · Departments &amp; Users · Reports"] -.->|users · departments<br/>blacklist · whitelist| P
@@ -334,7 +334,7 @@ src/
     layout/              AppShell · Sidebar · NotificationBell
   pages/
     HOD/                 Dashboard · RaisePass · MyPasses · MismatchReview · ExpiredReview
-    Security/            GuardDashboard · GateConsole · Verify · PendingReturns · ItemReturnList
+    Security/            GuardDashboard · GateConsole (Search Pass) · GateLookup · Verify · PhoneSearchResults
     Admin/               AdminDashboard · AdminPanel + tabs · ReportsPage
     Shared/              PassDetail · PassPrint · Profile
 supabase/

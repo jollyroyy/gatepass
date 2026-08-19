@@ -14,12 +14,12 @@ import type { Tone } from '../components/KpiCard';
 
 /** The shape `DrillList` renders a revealed list from.
  *
- *  `src/lib/guardDrills.ts` deliberately keeps its own structurally identical
- *  copy: its `DrillKey` union is closed and its `DRILL_DEFS` is a
- *  `Record<DrillKey, …>`, which is what makes "added a drill, forgot its
- *  definition" a type error on that board. The board dashboards never write one
- *  by hand — they carry their rows on a `BoardDrill` and adapt through
- *  `drillDefOf` below. */
+ *  The admin and HOD board dashboards never write a `DrillDef` by hand — a
+ *  hand-written definition (label, tone, predicate) can drift from the KPI it
+ *  is supposed to describe. Instead they carry their rows on a `BoardDrill`
+ *  (the KPI's own key, label and rows, computed once alongside the number)
+ *  and adapt it into a `DrillDef` through `drillDefOf` below, so the list a
+ *  click reveals can never disagree with the figure that was clicked. */
 export interface DrillDef<K extends string = string> {
   key: K;
   label: string;

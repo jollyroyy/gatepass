@@ -1,100 +1,77 @@
-// The guard's Dashboard — every number the gate cares about, and each one is a
-// drill: click a KPI and the passes behind it open as premium cards below,
-// on this same page. No navigation, because a guard is standing at a barrier.
+// The guard's Dashboard — TWO LISTS AND A GREETING (client mock-up, 2026-08-19).
 //
-// TWO OF THE NINE FIGURES ARE LINKS, NOT DRILLS (client, 2026-08-18): Awaiting
-// Return opens `/returns` and Overdue opens `/overdue`. Both are line-level
-// pages the HOD and the admin get too, at their own scope, and both are where
-// a return is recorded now — so no card on this board is actionable. Overdue and
-// the rest stay cards — they are read pass by pass.
-import React, { useCallback, useEffect, useState } from 'react';
+// It was seven drill KPIs over a stack of pass cards; it is now the two things
+// a person standing at a barrier acts on:
+//
+//   Pending OUT (Needs Approval)            — the gate queue, RGP and NRGP
+//   Pending RGP Return (Needs Verification) — due back today, and every missed date
+//
+// The figures that went — today's raises, today's mismatches, today's closures —
+// are not lost: they are the admin's board and Reports, which is where a
+// whole-site count belongs. What a guard needs is the rows they will physically
+// act on this shift, with the number sitting on top of the list it counts.
+//
+// TWO QUERIES, AND EVERY FIGURE IS `rows.length` OF ONE OF THEM. No aggregate,
+// no `count: 'exact'`, no second predicate: `src/lib/guardBoard.ts` filters the
+// two arrays and the cards count what the panels render.
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { gp, supabase } from '../../supabaseClient';
 import type { GatePassView } from '../../types';
-import KpiCard from '../../components/KpiCard';
+import GuardPanel from '../../components/guard/GuardPanel';
+import GuardSummaryCards from '../../components/guard/GuardSummaryCards';
+import PendingOutTable from '../../components/guard/PendingOutTable';
+import PendingReturnTable from '../../components/guard/PendingReturnTable';
+import QuickActions from '../../components/guard/QuickActions';
 import { safeErrorMessage } from '../../lib/errors';
-import { DRILL_DEFS, DRILL_LINKS, DRILL_ORDER, type DrillKey } from '../../lib/guardDrills';
-import { todayBounds } from '../../lib/hodKpis';
-import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
-import GuardDrillCard from './GuardDrillCard';
-
-type DrillRows = Record<DrillKey, GatePassView[]>;
-type DaySets = {
-  raisedToday: GatePassView[];
-  verifiedToday: GatePassView[];
-  /** Every pass currently awaiting_return, with NO date filter — see the
-   *  reasoning in guardDrills.ts. Powers Awaiting Return and Overdue. */
-  openObligations: GatePassView[];
-  /** THE GATE QUEUE — pending or HOD-approved, not yet expired, any date. It
-   *  moved here when Search Pass became search-only (2026-08-18) and is the
-   *  only list a guard picks a waiting pass from. */
-  gateQueue: GatePassView[];
-};
-
-const EMPTY_SETS: DaySets = { raisedToday: [], verifiedToday: [], openObligations: [], gateQueue: [] };
-
-/** One pass through each day set, filtered by each drill's own predicate. The
- *  card's number and the card list it opens are therefore the same array. */
-function buildRows(sets: DaySets): DrillRows {
-  const out = {} as DrillRows;
-  for (const key of DRILL_ORDER) {
-    const def = DRILL_DEFS[key];
-    out[key] = sets[def.source].filter(def.match);
-  }
-  return out;
-}
+import { formatDateTime } from '../../lib/formatDate';
+import { firstNameOf, pendingOutOf, pendingReturnsOf, previewOf, typeSplit } from '../../lib/guardBoard';
+import { fetchMyProfile } from '../../lib/profiles';
 
 export default function GuardDashboard(): React.ReactElement {
-  const [sets, setSets] = useState<DaySets>(EMPTY_SETS);
-  const [selected, setSelected] = useState<DrillKey>('pending');
+  const [queue, setQueue] = useState<GatePassView[]>([]);
+  const [openReturns, setOpenReturns] = useState<GatePassView[]>([]);
+  const [name, setName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [outExpanded, setOutExpanded] = useState(false);
+  const [returnsExpanded, setReturnsExpanded] = useState(false);
+  // Stamped once, at mount: a clock that ticks on a board nobody is watching
+  // re-renders two tables every second for a fact that changes by the minute.
+  const [stamp] = useState(() => new Date().toISOString());
+
+  const outRef = useRef<HTMLDivElement>(null);
+  const returnsRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      // Four queries, not nine. Every drill is a client-side filter of one
-      // of them, so the board resets at local midnight by construction. The
-      // third carries no date filter at all: Awaiting Return cuts it to what is
-      // due back today and Overdue takes everything earlier, so the array has
-      // to hold both (see guardDrills.ts).
-      const { start, end } = todayBounds();
-      const startIso = new Date(start).toISOString();
-      const endIso = new Date(end).toISOString();
       const base = () => gp().from('v_gate_passes').select('*');
       const nowIso = new Date().toISOString();
-      const [raised, verified, open, queue] = await Promise.all([
-        base().gte('created_at', startIso).lt('created_at', endIso).order('created_at', { ascending: true }),
-        base().gte('verified_at', startIso).lt('verified_at', endIso).order('verified_at', { ascending: false }),
-        // BOTH open return states. `partially_returned` was missing here, and
-        // the consequence was severe: the moment a guard recorded ONE line of
-        // a multi-line RGP, the pass left this query, vanished from the
-        // Awaiting Return drill — the only place `Record Returns` is reachable
-        // — and its remaining lines could never be recorded through the UI at
-        // all. The database always allowed it (`apply_item_returns` accepts
-        // 'partially_returned'); only the client had shut the door.
-        base()
-          .in('return_status', ['awaiting_return', 'partially_returned'])
-          .order('created_at', { ascending: true }),
-        // The queue, exactly as Search Pass used to ask for it: both states the
-        // gate can still act on, and only while the pass's own expiry has not
-        // passed. `is_expired` covers `pending` alone; filtering `expires_at`
-        // covers both states uniformly and never needs recomputing here.
+      const [queued, open] = await Promise.all([
+        // The gate queue: both states the gate can still act on, and only while
+        // the pass's own expiry has not passed. `is_expired` covers `pending`
+        // alone; filtering `expires_at` covers both states uniformly and never
+        // needs recomputing on the client.
         base()
           .in('status', ['pending', 'hod_reviewed'])
           .gte('expires_at', nowIso)
           .order('created_at', { ascending: true }),
+        // BOTH open return states, unfiltered by date — `needsReturnVerification`
+        // cuts it to what is due. `partially_returned` is not optional here: the
+        // moment a guard records one line of a three-line RGP, an
+        // `.eq('return_status','awaiting_return')` query would drop the pass off
+        // this board with two lines still outside.
+        base()
+          .in('return_status', ['awaiting_return', 'partially_returned'])
+          .order('expected_return_date', { ascending: true }),
       ]);
 
-      for (const res of [raised, verified, open, queue]) {
+      for (const res of [queued, open]) {
         if (res.error) throw res.error;
       }
 
-      setSets({
-        raisedToday: (raised.data as GatePassView[] | null) ?? [],
-        verifiedToday: (verified.data as GatePassView[] | null) ?? [],
-        openObligations: (open.data as GatePassView[] | null) ?? [],
-        gateQueue: (queue.data as GatePassView[] | null) ?? [],
-      });
+      setQueue((queued.data as GatePassView[] | null) ?? []);
+      setOpenReturns((open.data as GatePassView[] | null) ?? []);
       setError(null);
     } catch (err) {
       setError(safeErrorMessage(err));
@@ -106,6 +83,23 @@ export default function GuardDashboard(): React.ReactElement {
   useEffect(() => {
     load();
   }, [load]);
+
+  // The greeting only. A profile that never resolves leaves "Hello, Guard",
+  // which is what the board said before anyone was named — so this read has no
+  // error surface of its own.
+  useEffect(() => {
+    let cancelled = false;
+    fetchMyProfile()
+      .then((p) => {
+        if (!cancelled) setName(p?.full_name ?? null);
+      })
+      .catch(() => {
+        /* the greeting falls back to "Guard" */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Realtime: refresh silently so the numbers never flash a skeleton mid-shift.
   useEffect(() => {
@@ -129,63 +123,76 @@ export default function GuardDashboard(): React.ReactElement {
     };
   }, [load]);
 
-  const rows = buildRows(sets);
-  const def = DRILL_DEFS[selected];
-  const list = rows[selected];
-  const resultsRef = useScrollIntoViewOnChange<HTMLDivElement>(selected);
+  const pendingOut = pendingOutOf(queue);
+  const pendingReturns = pendingReturnsOf(openReturns);
+
+  // `scrollIntoView` is absent in jsdom and on older mobile browsers; the
+  // optional call is what keeps a chevron from throwing there.
+  const scrollTo = (ref: React.RefObject<HTMLDivElement>): void => {
+    ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  };
 
   return (
     <div>
-      <div className="page-header">
-        <h1 className="page-title">Today at a glance</h1>
+      <div className="page-header flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="page-title">Hello, {firstNameOf(name)} 👋</h1>
+          <p className="page-subtitle">
+            Clear material leaving the gate, and verify RGP material coming back.
+          </p>
+        </div>
+        <span className="flex items-center gap-2 text-caption text-navy-500 tabular shrink-0">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+            <rect x="3.75" y="5.25" width="16.5" height="15" rx="1.5" />
+            <path strokeLinecap="round" d="M3.75 10.5h16.5M8.25 3.75v3M15.75 3.75v3" />
+          </svg>
+          {formatDateTime(stamp)}
+        </span>
       </div>
 
       {error && <div className="alert-error mb-6">{error}</div>}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-        {DRILL_ORDER.map((key) => (
-          <KpiCard
-            key={key}
-            label={DRILL_DEFS[key].label}
-            value={rows[key].length}
-            tone={DRILL_DEFS[key].tone}
-            delta={DRILL_DEFS[key].allTime ? 'all time' : undefined}
-            loading={loading}
-            to={DRILL_LINKS[key]}
-            active={key === selected}
-            onClick={DRILL_LINKS[key] ? undefined : () => setSelected(key)}
-          />
-        ))}
-      </div>
+      <GuardSummaryCards
+        split={typeSplit(pendingOut)}
+        returnsDue={pendingReturns.length}
+        loading={loading}
+        onOpenOut={() => scrollTo(outRef)}
+        onOpenReturns={() => scrollTo(returnsRef)}
+      />
 
-      <div ref={resultsRef}>
-        <div className="flex items-baseline gap-3 mb-4">
-          <h2 className="section-title mb-0">{def.heading}</h2>
-          <span className="text-xs font-medium text-navy-500 tabular">
-            {list.length} {list.length === 1 ? 'pass' : 'passes'}
-          </span>
+      <div className="grid gap-4 xl:grid-cols-2 mb-8">
+        <div ref={outRef}>
+          <GuardPanel
+            title="Pending OUT (Needs Approval)"
+            glyph="truck"
+            tone="pending"
+            total={pendingOut.length}
+            expanded={outExpanded}
+            onToggle={() => setOutExpanded((v) => !v)}
+            loading={loading}
+            empty="Queue clear — nothing is waiting at the gate."
+          >
+            <PendingOutTable rows={previewOf(pendingOut, outExpanded)} />
+          </GuardPanel>
         </div>
 
-        {loading ? (
-          <div className="flex flex-col gap-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="skeleton h-40 w-full" />
-            ))}
-          </div>
-        ) : list.length === 0 ? (
-          <div className="card empty-state">
-            <p>{def.empty}</p>
-          </div>
-        ) : (
-          // Full-width stacked rows, never a 2/3-up grid — the client asked
-          // for a KPI drill to scan top-to-bottom like a list, not a mosaic.
-          <div className="flex flex-col gap-2 w-full">
-            {list.map((p, i) => (
-              <GuardDrillCard key={p.id} pass={p} index={i + 1} />
-            ))}
-          </div>
-        )}
+        <div ref={returnsRef}>
+          <GuardPanel
+            title="Pending RGP Return (Needs Verification)"
+            glyph="returned"
+            tone="accent"
+            total={pendingReturns.length}
+            expanded={returnsExpanded}
+            onToggle={() => setReturnsExpanded((v) => !v)}
+            loading={loading}
+            empty="Nothing is due back today, and nothing is late."
+          >
+            <PendingReturnTable rows={previewOf(pendingReturns, returnsExpanded)} />
+          </GuardPanel>
+        </div>
       </div>
+
+      <QuickActions />
     </div>
   );
 }

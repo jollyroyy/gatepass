@@ -182,8 +182,10 @@ isForbidden(pathname, role)   // prefix match; null role means "still resolving"
 homeFor(role)
 ```
 
-`/returns` (`Security/PendingReturns`) is gone — its two KPIs (Awaiting Return, Overdue)
-and its Mark Returned action now live on `/guard-dashboard`'s drill cards (§9).
+`/returns` is `Shared/ReturnsDueTodayPage` (today's due returns) and `/overdue` is
+`Shared/OverdueItemsPage` (every earlier missed date); both record a return line by line through
+`apply_item_returns` — no card on any board does. `/guard-dashboard` links to both from its Quick
+Actions row and lists what is due back today or overdue in its own Pending RGP Return panel (§9).
 
 Import it. Never duplicate the list.
 
@@ -200,10 +202,13 @@ screens but leak nothing.
 | `/dashboard` | `HOD/Dashboard` | hod |
 | `/raise` | `HOD/RaisePass` | hod |
 | `/my-passes` | `HOD/MyPasses` | hod |
+| `/mismatch/:id` | `HOD/MismatchReview` | hod (the raising HOD) |
+| `/expired/:id` | `HOD/ExpiredReview` | hod (the raising HOD) |
 | `/guard-dashboard` | `Security/GuardDashboard` | guard |
-| `/console` | `Security/GateConsole` | guard |
+| `/console` | `Security/GateConsole` (Search Pass) | guard |
 | `/verify/:id` | `Security/Verify` | guard |
-| `/history` | `Security/History` | guard |
+| `/overdue` | `Shared/OverdueItemsPage` | guard, hod, admin, super_admin — scope decided from the role |
+| `/returns` | `Shared/ReturnsDueTodayPage` | guard, hod, admin, super_admin — scope decided from the role |
 | `/admin` | `Admin/AdminPanel` | admin, super_admin |
 | `/admin-dashboard` | `Admin/AdminDashboard` | admin, super_admin |
 | `/all-passes` | `Admin/ReportsPage` | admin, super_admin |
@@ -225,7 +230,7 @@ Several components subscribe to `postgres_changes` on `gatepass.gate_passes`:
 |---|---|---|
 | `src/components/layout/Sidebar.tsx:134` | `sidebar-gate-pass-counts` | badge counts |
 | `src/pages/HOD/Dashboard.tsx:114` | `hod-dashboard-gate-passes` | `event: '*'` |
-| `src/pages/Security/GuardDashboard.tsx` | `guard-dashboard-gate-passes` | `event: '*'` — all five drills reload silently |
+| `src/pages/Security/GuardDashboard.tsx` | `guard-dashboard-gate-passes` | `event: '*'` — both queries (gate queue, open returns) reload silently |
 | `src/pages/Security/GateConsole.tsx:103` | `gate-console-gate-passes` | `event: '*'` — pending queue only |
 | `src/pages/Security/Verify.tsx:66` | `verify-${id}` | that one row |
 
@@ -324,7 +329,7 @@ and a half hours and expired afternoon passes a day early.
 | `formatDate.ts` | date-fns formatting |
 | `exportUtils.ts` | CSV export |
 | `theme.tsx` | light/dark provider |
-| `guardDrills.ts` | `DRILL_DEFS`, `DRILL_ORDER`, `startOfTodayIso` — the guard dashboard's five KPI drills, each one both the card and the query behind the list it reveals |
+| `guardBoard.ts` | `isPendingOut`, `needsReturnVerification`, `pendingOutOf`, `pendingReturnsOf`, `typeSplit`, `partyOf`, `returnActionPath`, `returnedQtyLabel`, `previewOf`, `firstNameOf` — the guard dashboard's two lists (Pending OUT, Pending RGP Return), each one both the summary figure and the table behind it |
 
 `PASS_CATEGORIES` mirrors the three legal type×direction combinations, and the loading-bay
 console filters on it — a guard picks a whole category ("show me what is coming in on a
@@ -338,11 +343,17 @@ values) with `BulkItemRow` and `BulkResultList`, plus the extracted `PassTypeSel
 `PassIdentityPanel`, `MyPassesTable`, `MaterialItemRow`, `MaterialItemsCard`, `PassDetailsCards`,
 `PassSubmittedModal`.
 
-**Security/** — `GuardDashboard` (the guard's first tab: five KPI drills — Pending, Matched,
-Mismatch, Awaiting Return, Overdue — each a click-through to the matching passes as cards on the
-same page, plus `GuardDrillCard`, where Mark Returned now lives), `GateConsole` (pending queue
-only; the lookup box sits compact at the top right of the header), `GateLookup` (scan + typed
-entry), `Verify` (the match/flag decision screen), `History`, plus `VerifyPanels`.
+**Security/** — `GuardDashboard` (the guard's first tab: a greeting header, two summary cards —
+Pending OUT (Needs Approval), split RGP/NRGP, and Pending RGP Return (Needs Verification) — each
+opening a five-row table that expands in place via "View all (N)", plus a Quick Actions row to
+Search Pass, Returns Due Today and Overdue Returns; built from `src/components/guard/`
+(`GuardPanel`, `GuardSummaryCards`, `PendingOutTable`, `PendingReturnTable`, `QuickActions`,
+`GuardIcon`) and `src/lib/guardBoard.ts` — no card here records a return, both tables' actions
+link out to `/verify/:id`, `/returns` or `/overdue`), `GateConsole` — the **Search Pass** screen,
+search and nothing else since 2026-08-18: an exact hit renders the whole Gate Pass Details record
+in place — `GateLookup` (scan + typed entry, pass number or the carrier's mobile number),
+`PhoneSearchResults` (when several passes share a number), `Verify` (the match/flag decision
+screen), plus `VerifyPanels` and `VerifyItemsTable`.
 
 **Admin/** — `AdminPanel` with `UsersTab` and `DepartmentsTab`, `AdminDashboard` (sidebar label
 "Dashboard"; seven KPIs — Total, Pending for Gate Approval, Matched, Mismatched, Awaiting Return,

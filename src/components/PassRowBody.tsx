@@ -1,7 +1,7 @@
 // The drill card's CardContent — every fact PassRow's identity-only header
 // deliberately omits, each rendered EXACTLY ONCE. Client feedback 2026-08-10:
-// the old GuardDrillCard showed vendor/vehicle/department in the header AND
-// again in its own detail grid; this is the single place those facts live now.
+// the old drill card showed vendor/vehicle/department in the header AND again
+// in its own detail grid; this is the single place those facts live now.
 //
 // Layout follows DRILL_CARD_SPEC.md Rule 2: a horizontal strip of labelled
 // columns on md+ (`grid-cols-2 md:grid-cols-4 lg:grid-cols-5`), collapsing to

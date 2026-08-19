@@ -3,9 +3,13 @@
 // dashboards; a drill is a list, not a register.
 //
 // Renovated 2026-08-11 (client): these were flat single-line rows, and the
-// client preferred the gate console's card view. Each row is now a
-// DrillPassCard — the same shadcn Card idiom GuardDrillCard uses — at compact
-// density. `onOpen` survives as the card's own click-through.
+// client preferred the gate console's card view of that era. Each row is now
+// a DrillPassCard — a shadcn Card (CardHeader of identity + status,
+// CardContent of facts via PassRowBody, CardFooter of actions) — at compact
+// density. `onOpen` survives as the card's own click-through. (The guard's
+// own board moved off pass cards entirely on 2026-08-19, replaced by two
+// tables — Pending OUT and Pending RGP Return — so this card idiom is now
+// specific to the HOD/admin drills.)
 import React from 'react';
 import type { GatePassView } from '../types';
 import DrillPassCard from './DrillPassCard';

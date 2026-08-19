@@ -1,0 +1,117 @@
+// The guard's board, reduced to the two questions someone standing at a barrier
+// actually asks (client mock-up, 2026-08-19):
+//
+//   Pending OUT (Needs Approval)        — what is waiting to leave
+//   Pending RGP Return (Needs Verification) — what is due back and still outside
+//
+// It replaced a board of seven drill KPIs over a stack of pass cards. The
+// figures that went are not lost — they are the admin's board and Reports,
+// which is where a whole-site count belongs; what a guard needs is the two
+// lists they will physically act on this shift, each with its own number on
+// top of it.
+//
+// THE OLD BOARD'S ONE INVARIANT SURVIVES INTACT: a number on a card is
+// `rows.length` of the very array the panel under it renders. Nothing here
+// counts with one predicate and lists with another, and there is no
+// `count: 'exact'` query anywhere behind it.
+//
+// LATENESS IS STILL NOT DECIDED HERE. `due_state` is computed in
+// `gatepass.v_gate_passes` against `site_tz()` (Asia/Kolkata) and read, never
+// recomputed — comparing `expected_return_date` to the browser clock would make
+// the guard's screen disagree with the database for every pass after 18:30 IST.
+import type { GatePassView } from '../types';
+import { parseCompanyInfo } from './companyInfo';
+
+/** Waiting on the gate and nobody else. `hod_reviewed` rides along with
+ *  `pending` and that is load-bearing: an HOD override-approved pass is waiting
+ *  on exactly one action — this one — and for two months every guard surface
+ *  refused to show one (`tests/unit/hodReviewGateFlow.test.tsx` pins it here).
+ *  Expiry is NOT tested here: the query filters `expires_at >= now` server-side,
+ *  which covers both states uniformly and never needs recomputing. */
+export const isPendingOut = (p: GatePassView): boolean =>
+  p.status === 'pending' || p.status === 'hod_reviewed';
+
+/** Still owes material. `partially_returned` counts — one line back out of
+ *  three is not closure. */
+const isOpenReturn = (p: GatePassView): boolean =>
+  p.return_status === 'awaiting_return' || p.return_status === 'partially_returned';
+
+/**
+ * Due back today, or overdue — and deliberately NOT every open obligation.
+ *
+ * Material due in October is a real obligation that no guard is watching the
+ * barrier for, and neither `/returns` (due today) nor `/overdue` would accept
+ * its return today, so a row for it would be a button that cannot be pressed.
+ * The whole backlog of any date is still one click away on `/overdue`, and the
+ * admin's board counts what is outside.
+ */
+export const needsReturnVerification = (p: GatePassView): boolean =>
+  isOpenReturn(p) && (p.due_state === 'due_today' || p.due_state === 'overdue');
+
+/** Longest wait first — the truck that arrived at 10:20 is served before 10:30. */
+export function pendingOutOf(rows: GatePassView[]): GatePassView[] {
+  return rows.filter(isPendingOut).sort((a, b) => a.created_at.localeCompare(b.created_at));
+}
+
+/** Oldest expected date first. A dateless row sorts last rather than throwing
+ *  the order — it cannot reach this list today (an undated pass is never graded
+ *  `due_today` or `overdue`), but the comparator stays total. */
+export function pendingReturnsOf(rows: GatePassView[]): GatePassView[] {
+  return rows.filter(needsReturnVerification).sort((a, b) => {
+    const x = a.expected_return_date;
+    const y = b.expected_return_date;
+    if (!x && !y) return 0;
+    if (!x) return 1;
+    if (!y) return -1;
+    return x.localeCompare(y);
+  });
+}
+
+export interface TypeSplit {
+  RGP: number;
+  NRGP: number;
+}
+
+/** The pending-OUT list, split by type. A `Record<PassType, number>` by
+ *  construction, so the two figures always sum to the list under them. */
+export function typeSplit(rows: GatePassView[]): TypeSplit {
+  const out: TypeSplit = { RGP: 0, NRGP: 0 };
+  for (const p of rows) out[p.type] += 1;
+  return out;
+}
+
+/** The tenant, brand or contractor firm the material belongs to, falling back
+ *  to the person carrying it. Never the raw `visitor_company` blob — that is
+ *  `{"n":…,"a":…,"v":…}` and printing it raw shipped once. */
+export function partyOf(p: GatePassView): string {
+  const name = parseCompanyInfo(p.visitor_company).name.trim();
+  return name || p.visitor_name;
+}
+
+/** Where a return row's action button goes — the page that can RECORD it, line
+ *  by line. Two destinations because they are two pages, each already scoped by
+ *  the reader's role. */
+export function returnActionPath(p: GatePassView): string {
+  return p.due_state === 'overdue' ? '/overdue' : '/returns';
+}
+
+/** Both figures come off the view's roll-ups; never re-sum item rows here, or
+ *  this cell and the overdue KPI can disagree. */
+export function returnedQtyLabel(p: GatePassView): string {
+  return `${p.returned_quantity} / ${p.total_quantity}`;
+}
+
+/** How many rows a panel shows before the reader asks for the rest. */
+export const PREVIEW_ROWS = 5;
+
+export function previewOf<T>(rows: T[], expanded: boolean): T[] {
+  return expanded ? rows : rows.slice(0, PREVIEW_ROWS);
+}
+
+/** "Hello, Ravi" — the signed-in guard's own first name, and "Guard" when the
+ *  profile has not resolved yet, so the greeting never renders half-written. */
+export function firstNameOf(fullName: string | null | undefined): string {
+  const trimmed = (fullName ?? '').trim();
+  if (!trimmed) return 'Guard';
+  return trimmed.split(/\s+/)[0];
+}

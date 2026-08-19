@@ -1,17 +1,19 @@
 // One pass in a dashboard KPI drill, as the shadcn Card the client asked for.
 //
 // Client feedback, 2026-08-11: "I like the gate console's card view — make the
-// stacked cards under the HOD dashboard like that, but compact." This is the
-// HOD/admin sibling of src/pages/Security/GuardDrillCard.tsx: the same
-// `PassRow variant="drill"` idiom — CardHeader of identity + state, CardContent
-// of labelled facts (PassRowBody), CardFooter for actions — at `dense`
-// spacing, and with no return-recording controls, because closing an RGP is a
-// guard action and neither of these boards can perform it.
+// stacked cards under the HOD dashboard like that, but compact." This renders
+// the `PassRow variant="drill"` idiom — CardHeader of identity + state,
+// CardContent of labelled facts (PassRowBody), CardFooter for actions — at
+// `dense` spacing, and with no return-recording controls, because closing an
+// RGP is a guard action and neither of these boards can perform it.
 //
-// The card SHELL (ring + contact shadow layered over `.card`) is copied from
-// GuardDrillCard rather than shared: that component's ring is load-bearing for
-// its own test, which locates it via `.closest('.card')`, and coupling the two
-// would mean a purely visual tweak on one board silently changing the other.
+// The card SHELL (ring + contact shadow layered over `.card`) is this
+// component's own, not shared with anything else: keeping the shell local
+// means a purely visual tweak here can never silently change another board.
+// (The guard's own board used to have its own card, styled the same way for
+// the same reason, but that card was deleted on 2026-08-19 when the guard
+// dashboard became two tables, Pending OUT and Pending RGP Return, instead
+// of drill cards.)
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView } from '../types';
