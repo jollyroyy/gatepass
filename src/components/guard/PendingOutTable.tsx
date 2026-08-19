@@ -1,69 +1,43 @@
-// What is waiting at the barrier to go out, oldest first. Drawn to the
-// client's mock-up (2026-08-19): pill pass numbers and type chips coloured by
-// type — RGP blue, NRGP green — over the mock-up's grey title-case headings.
+// The Pending OUT queue as its own table (client mock-up, 2026-08-19) — it was
+// a five-row preview panel on the guard's dashboard until the two lists moved
+// onto pages of their own and the dashboard's cards became the way in.
 //
-// The ACTION is "Verify at Gate", not "Approve OUT" as the mock-up letters it,
-// and the difference is deliberate: the screen it opens offers Match, Flag and
-// Hold, and a button that names only one of the three teaches a guard the
-// wrong model of their own job. `canVerifyAtGate` is the same rule `match_pass`
-// enforces — a pass that expired while this board sat open falls back to a link
-// that works instead of a button that always fails.
-import React from 'react';
-import { Link } from 'react-router-dom';
+// ONE ROW OPEN AT A TIME. A guard reads one pass, decides, and presses Approve
+// OUT; leaving four detail panels open behind them means four item queries
+// still in flight and a table that has to be scrolled past to reach the next
+// truck.
+import React, { useState } from 'react';
 import type { GatePassView } from '../../types';
-import { formatTime } from '../../lib/formatDate';
-import { partyOf, TYPE_PILL } from '../../lib/guardBoard';
-import { canVerifyAtGate } from '../../lib/phoneSearch';
-
-const ArrowGlyph = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}
-       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M4 12h15M14 7l5 5-5 5" />
-  </svg>
-);
+import PendingOutRow from './PendingOutRow';
 
 export default function PendingOutTable({ rows }: { rows: GatePassView[] }): React.ReactElement {
+  const [openId, setOpenId] = useState<string | null>(null);
+
   return (
     <table className="gb-table">
       <thead>
         <tr>
+          <th><span className="sr-only">Show items</span></th>
           <th>Pass No.</th>
           <th>Type</th>
-          <th>Material</th>
-          <th>Qty</th>
           <th>Party</th>
-          <th>Time</th>
+          <th>Items</th>
+          <th>Total Qty</th>
+          <th>Vehicle No.</th>
+          <th>Department</th>
+          <th>Requested By</th>
+          <th>Requested Time</th>
           <th>Action</th>
         </tr>
       </thead>
       <tbody>
         {rows.map((p) => (
-          <tr key={p.id}>
-            <td>
-              <Link to={`/pass/${p.id}`} className={`gb-pill ${TYPE_PILL[p.type]}`}>
-                {p.pass_number}
-              </Link>
-            </td>
-            <td><span className={`gb-pill ${TYPE_PILL[p.type]}`}>{p.type}</span></td>
-            <td className="gb-truncate" title={p.material_summary ?? undefined}>
-              {p.material_summary ?? '—'}
-            </td>
-            <td>{p.total_quantity}</td>
-            <td className="gb-truncate">{partyOf(p)}</td>
-            <td>{formatTime(p.created_at)}</td>
-            <td>
-              {canVerifyAtGate(p) ? (
-                <Link to={`/verify/${p.id}`} className="gb-action gb-action-orange">
-                  {ArrowGlyph}
-                  Verify at Gate
-                </Link>
-              ) : (
-                <Link to={`/pass/${p.id}`} className="gb-link">
-                  View pass
-                </Link>
-              )}
-            </td>
-          </tr>
+          <PendingOutRow
+            key={p.id}
+            pass={p}
+            open={openId === p.id}
+            onToggle={() => setOpenId((id) => (id === p.id ? null : p.id))}
+          />
         ))}
       </tbody>
     </table>

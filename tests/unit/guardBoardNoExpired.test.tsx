@@ -11,7 +11,9 @@
 // a replacement, and Reports has an Expired filter over the whole register
 // (tests/unit/reportsFilters.test.tsx). This file is the guard's half of that —
 // it fails if a tile, a drill or the old red callout creeps back onto the
-// board — which since 2026-08-19 is two tables and three quick actions.
+// board — which since 2026-08-19 (second pass) is a greeting, two drillable
+// summary cards and three quick actions; the two preview tables that used to
+// sit under the cards moved onto pages of their own.
 //
 // The fixture keeps a `pending` + `is_expired` row loaded on purpose: absence
 // with nothing to show would prove nothing.
@@ -105,14 +107,21 @@ describe('GuardDashboard — expired passes are off the board', () => {
   it('names no Expired figure, even with an expired pass loaded', async () => {
     expiredTestRow = pass({ id: 'exp1', pass_number: 'EXP-0001', status: 'pending', is_expired: true });
     renderAt(<GuardDashboard />);
-    await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
+    // The dashboard carries no pass rows since 2026-08-19 — only the greeting
+    // and the two drillable summary cards. Wait on the cards themselves,
+    // which is the only thing the board renders once its one load resolves.
+    await waitFor(() =>
+      expect(screen.getByText('Pending OUT (Needs Approval)')).toBeInTheDocument());
+    expect(screen.getByText('Pending RGP Return (Needs Verification)')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Expired/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Expired$/i)).not.toBeInTheDocument();
   });
 
   it('renders no red expiry callout', async () => {
     expiredTestRow = pass({ id: 'exp1', pass_number: 'EXP-0001', status: 'pending', is_expired: true });
     renderAt(<GuardDashboard />);
-    await waitFor(() => expect(screen.getByText('PEND-0001')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('Pending OUT (Needs Approval)')).toBeInTheDocument());
     expect(screen.queryByText(/expired without reaching the gate/i)).not.toBeInTheDocument();
   });
 });

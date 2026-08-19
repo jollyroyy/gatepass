@@ -1,16 +1,17 @@
 // RGP material that is due back — today's returns and every missed date before
-// them, oldest first. Drawn to the client's mock-up (2026-08-19).
+// them, oldest first. Drawn to the client's mock-up (2026-08-19), and since
+// that day a page of its own rather than a preview panel on the dashboard.
 //
 // EXPECTED BACK CARRIES A BADGE, NOT A COLOUR. "Due Today" and "Overdue" come
 // straight from `v_gate_passes.due_state` through `DUE_STATE_STYLES`; the fact
 // is in the words, so it survives a screenshot, a mono print and a reader who
 // does not separate orange from amber. The mock-up prints a bare date here —
-// the badge is kept deliberately, because lateness is the only reason two of
-// these rows are on the board at all.
+// the badge is kept deliberately, because lateness is the only reason half
+// these rows are on the list at all.
 //
 // The ACTION goes to the page that can RECORD the return line by line —
 // `/overdue` for a missed date, `/returns` for today's — because
-// `apply_item_returns` is per line and no card on any board records a return.
+// `apply_item_returns` is per line and no table on any board records a return.
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView } from '../../types';
@@ -19,8 +20,15 @@ import { partyOf, returnActionPath, returnedQtyLabel, TYPE_PILL } from '../../li
 import { DUE_STATE_STYLES } from '../../lib/statusStyles';
 
 const CheckGlyph = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}
-       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2.4}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
     <path d="M5 12.5l4.5 4.5L19 7" />
   </svg>
 );
@@ -31,8 +39,10 @@ export default function PendingReturnTable({ rows }: { rows: GatePassView[] }): 
       <thead>
         <tr>
           <th>Pass No.</th>
+          <th>Type</th>
           <th>Material</th>
           <th>From (Party)</th>
+          <th>Department</th>
           <th>Expected Back</th>
           <th>Returned Qty</th>
           <th>Action</th>
@@ -46,10 +56,14 @@ export default function PendingReturnTable({ rows }: { rows: GatePassView[] }): 
                 {p.pass_number}
               </Link>
             </td>
+            <td>
+              <span className={`gb-pill ${TYPE_PILL[p.type]}`}>{p.type}</span>
+            </td>
             <td className="gb-truncate" title={p.material_summary ?? undefined}>
               {p.material_summary ?? '—'}
             </td>
             <td className="gb-truncate">{partyOf(p)}</td>
+            <td className="gb-truncate">{p.department_name}</td>
             <td>
               <span className="inline-flex items-center gap-2 whitespace-nowrap">
                 {formatDateOnly(p.expected_return_date)}

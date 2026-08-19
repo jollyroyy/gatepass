@@ -1,19 +1,22 @@
-// The guard's board after the 2026-08-19 revamp: a greeting, two figures, the
-// two lists those figures count, and three quick actions.
+// The guard's board after the 2026-08-19 second revision: a greeting, two
+// DRILLABLE figures, and three quick actions. Nothing else.
 //
 // What these cases exist to hold:
-//   * The RGP/NRGP split of Pending OUT sums to the rows in the panel below it.
-//   * Pending RGP Return is due-today and overdue material — NOT everything
+//   * The RGP/NRGP split of Pending OUT sums to the whole gate queue, and the
+//     return figure counts due-today and overdue material only — NOT everything
 //     still outside, because /returns and /overdue are the only two pages that
 //     can record a return and neither would take an October date today.
-//   * Every action goes somewhere that works: Verify at Gate only while
-//     `match_pass` would accept the pass, Record Return to the page that grades
-//     that row.
+//   * EVERY FIGURE IS A LINK to the page that lists exactly the passes it
+//     counted. The client asked for the number to be the way in; a figure that
+//     cannot be opened is a figure that cannot be acted on.
+//   * The two preview tables are GONE from this screen — they are pages now.
+//     A five-row preview above a page holding the same rows is a second,
+//     shorter answer to the same question.
 //   * Nothing from the old seven-drill board survives — no KPI drill, no pass
 //     cards, no "Today's Summary".
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ALL_LINKS } from '../../src/components/layout/Sidebar';
 import { ROLE_ROUTES } from '../../src/lib/roleRoutes';
@@ -59,11 +62,11 @@ function resetRows(): void {
            return_status: 'awaiting_return', expected_return_date: '2026-08-19',
            due_state: 'due_today', material_summary: 'Scaffolding Pipes',
            total_quantity: 200, returned_quantity: 0 }),
-    pass({ id: 'r2', pass_number: 'RGP-20260517-0055', status: 'matched',
+    pass({ id: 'r2', pass_number: 'RGP-20260517-0055', status: 'partially_returned',
            return_status: 'partially_returned', expected_return_date: '2026-05-18',
            due_state: 'overdue', is_overdue: true, material_summary: 'Timber Planks',
            total_quantity: 150, returned_quantity: 50 }),
-    // Due in October: a real obligation, deliberately on neither list.
+    // Due in October: a real obligation, deliberately counted by neither figure.
     pass({ id: 'r3', pass_number: 'RGP-20261001-0099', status: 'matched',
            return_status: 'awaiting_return', expected_return_date: '2026-10-01',
            material_summary: 'Wall Putty', due_state: 'ok' }),
@@ -77,7 +80,7 @@ function builder() {
   let axis: 'status' | 'return_status' | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const obj: any = {};
-  for (const m of ['select', 'order', 'limit', 'lte', 'lt', 'gte', 'eq']) obj[m] = () => obj;
+  for (const m of ['select', 'order', 'limit', 'lte', 'lt', 'gte', 'eq', 'ilike']) obj[m] = () => obj;
   obj.in = (col: string) => {
     if (col === 'status') axis = 'status';
     if (col === 'return_status') axis = 'return_status';
@@ -116,13 +119,21 @@ vi.mock('../../src/supabaseClient', () => ({
 
 import GuardDashboard from '../../src/pages/Security/GuardDashboard';
 
+/** The figure inside a summary card — the link the client asked to be
+ *  clickable. `label` is 'RGP' / 'NRGP' / 'Due back'. */
+function figure(label: string): HTMLElement {
+  return screen.getByTestId(`guard-figure-${label}`).querySelector('.gb-figure-value') as HTMLElement;
+}
+
 async function renderBoard() {
   render(
     <MemoryRouter>
       <GuardDashboard />
     </MemoryRouter>,
   );
-  await waitFor(() => expect(screen.getByText('RGP-20260819-0057')).toBeInTheDocument());
+  // The dashboard renders no pass rows any more, so the settled state is a
+  // figure that has stopped showing its loading dash.
+  await waitFor(() => expect(figure('RGP').textContent).not.toBe('—'));
 }
 
 beforeEach(() => {
@@ -138,131 +149,62 @@ describe('The greeting', () => {
 });
 
 describe('Pending OUT (Needs Approval)', () => {
-  it('splits the queue into RGP and NRGP, and the two sum to the list below', async () => {
+  it('splits the gate queue into RGP and NRGP, and the two sum to the queue', async () => {
     await renderBoard();
-
-    expect(screen.getByTestId('guard-figure-RGP').querySelector('.gb-figure-value')!.textContent).toBe('1');
-    expect(screen.getByTestId('guard-figure-NRGP').querySelector('.gb-figure-value')!.textContent).toBe('2');
-
-    // The panel renders all three — the figures are a split of one array.
-    for (const n of ['RGP-20260819-0057', 'NRGP-20260819-0081', 'NRGP-20260819-0080']) {
-      expect(screen.getByText(n)).toBeInTheDocument();
-    }
+    expect(figure('RGP').textContent).toBe('1');
+    expect(figure('NRGP').textContent).toBe('2');
   });
 
-  it('names the party, the material and the quantity on each row', async () => {
+  it('opens the Pending OUT page on the type the figure counted', async () => {
     await renderBoard();
-    expect(screen.getByText('LMN Contractors')).toBeInTheDocument();
-    expect(screen.getByText('Steel Props')).toBeInTheDocument();
-    expect(screen.getByText('10000')).toBeInTheDocument();
-  });
-
-  it('offers Verify at Gate while match_pass would still accept the pass', async () => {
-    await renderBoard();
-    const links = screen.getAllByRole('link', { name: 'Verify at Gate' });
-    expect(links).toHaveLength(3);
-    expect(links[0]).toHaveAttribute('href', '/verify/q1');
-  });
-
-  it('degrades an expired pass to a link that works instead of a button that cannot', async () => {
-    QUEUE = [pass({ id: 'q1', pass_number: 'RGP-20260819-0057', expires_at: '2026-01-01T00:00:00Z' })];
-    await renderBoard();
-    expect(screen.queryByRole('link', { name: 'Verify at Gate' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'View pass' })).toHaveAttribute('href', '/pass/q1');
-  });
-
-  it('says so plainly when the queue is clear', async () => {
-    QUEUE = [];
-    render(
-      <MemoryRouter>
-        <GuardDashboard />
-      </MemoryRouter>,
-    );
-    await waitFor(() =>
-      expect(screen.getByText(/Queue clear — nothing is waiting at the gate/)).toBeInTheDocument());
+    expect(figure('RGP')).toHaveAttribute('href', '/pending-out?type=RGP');
+    expect(figure('NRGP')).toHaveAttribute('href', '/pending-out?type=NRGP');
   });
 });
 
 describe('Pending RGP Return (Needs Verification)', () => {
-  it('counts and lists due-today and overdue material, not everything outside', async () => {
+  it('counts due-today and overdue material, not everything outside', async () => {
     await renderBoard();
-
-    expect(screen.getByText('RGP-20260518-0056')).toBeInTheDocument();
-    expect(screen.getByText('RGP-20260517-0055')).toBeInTheDocument();
-    // Due in October: still out, nothing to verify today.
-    expect(screen.queryByText('RGP-20261001-0099')).not.toBeInTheDocument();
-
-    expect(screen.getByTestId('guard-figure-Due back').querySelector('.gb-figure-value')!.textContent).toBe('2');
+    // Three rows are still out; only two are due back today or already late.
+    expect(figure('Due back').textContent).toBe('2');
   });
 
-  it('states lateness in words, never in colour alone', async () => {
+  it('opens the Pending RGP Return page', async () => {
     await renderBoard();
-    expect(screen.getByText('Overdue')).toBeInTheDocument();
-    expect(screen.getByText('Due Today')).toBeInTheDocument();
-  });
-
-  it('shows what has come back against what went out', async () => {
-    await renderBoard();
-    expect(screen.getByText('50 / 150')).toBeInTheDocument();
-    expect(screen.getByText('0 / 200')).toBeInTheDocument();
-  });
-
-  it('sends each row to the page that can record it', async () => {
-    await renderBoard();
-    const actions = screen.getAllByRole('link', { name: 'Record Return' });
-    // Oldest expected date first, so the overdue row leads.
-    expect(actions[0]).toHaveAttribute('href', '/overdue');
-    expect(actions[1]).toHaveAttribute('href', '/returns');
+    expect(figure('Due back')).toHaveAttribute('href', '/pending-returns');
   });
 });
 
-describe('The panels expand in place', () => {
-  it('shows five rows, then the rest when asked', async () => {
-    QUEUE = Array.from({ length: 7 }, (_, i) =>
-      pass({ id: `q${i}`, pass_number: `RGP-20260819-005${i}`, created_at: `2026-08-19T0${i}:00:00Z` }));
-    render(
-      <MemoryRouter>
-        <GuardDashboard />
-      </MemoryRouter>,
-    );
-    await waitFor(() => expect(screen.getByText('RGP-20260819-0050')).toBeInTheDocument());
-
-    expect(screen.queryByText('RGP-20260819-0056')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText('View All (7)'));
-    expect(screen.getByText('RGP-20260819-0056')).toBeInTheDocument();
-  });
-});
-
-describe('The summary cards', () => {
-  // The chevrons scrolled to the panel each figure counted. The client removed
-  // them (2026-08-19): that panel is directly underneath on every width, so the
-  // control was a button to scroll one screen. The cards are now the number and
-  // nothing else — no link, no button, no scroll target.
-  it('carry no chevron, and no control of any kind', async () => {
+describe('The two lists are pages now, not previews', () => {
+  // Client, 2026-08-19: "remove those pending out and all those return
+  // verifications from the guard's view... put the card numbers drillable".
+  // A preview above a page holding the same rows is a second, shorter answer
+  // to the same question — which is how the two start disagreeing.
+  it('renders no pass rows, no table and no View All control', async () => {
     await renderBoard();
-    const card = screen.getByTestId('guard-figure-Due back').closest('.gb-card')!;
-    expect(card.querySelector('button')).toBeNull();
-    expect(card.querySelector('a')).toBeNull();
-    expect(screen.queryByLabelText('Go to the pending RGP return list')).not.toBeInTheDocument();
+    expect(document.querySelector('table')).toBeNull();
+    expect(screen.queryByText('RGP-20260819-0057')).not.toBeInTheDocument();
+    expect(screen.queryByText('RGP-20260518-0056')).not.toBeInTheDocument();
+    expect(screen.queryByText(/View All/i)).not.toBeInTheDocument();
+  });
+
+  it('offers neither Approve OUT nor Record Return here — those live on the pages', async () => {
+    await renderBoard();
+    expect(screen.queryByRole('link', { name: /Approve OUT/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Record Return/i })).not.toBeInTheDocument();
   });
 });
 
 describe('The mock-up skin', () => {
-  // The client asked for this ONE screen in their own palette and type, not the
-  // house Quest gold / Antic Didone. These two assertions are what stops a
-  // later tidy-up from "restoring consistency" and undoing it.
+  // The client asked for this screen in their own palette and type, not the
+  // house Quest gold / Antic Didone. These assertions are what stops a later
+  // tidy-up from "restoring consistency" and undoing it.
   it('renders on the scoped .gb-board skin, and its h1 is not the gold display serif', async () => {
     await renderBoard();
     expect(document.querySelector('.gb-board')).not.toBeNull();
     const h1 = screen.getByRole('heading', { level: 1 });
     expect(h1.className).toContain('gb-hello');
     expect(h1.className).not.toContain('page-title');
-  });
-
-  it('colours a pass number and its type chip by type — RGP blue, NRGP green', async () => {
-    await renderBoard();
-    expect(screen.getByText('RGP-20260819-0057').className).toContain('gb-pill-blue');
-    expect(screen.getByText('NRGP-20260819-0081').className).toContain('gb-pill-green');
   });
 });
 
@@ -291,8 +233,14 @@ describe('The old drill board is gone, not hidden', () => {
     expect(document.querySelector('[data-testid="pass-card-header"]')).toBeNull();
   });
 
-  it('leaves the guard sidebar untouched — Dashboard, Search Pass, Overdue Items', () => {
+  it('gives the guard the two drill pages as tabs, and no Search Pass tab', () => {
     const guardTabs = ALL_LINKS.filter((l) => l.roles.includes('guard'));
-    expect(guardTabs.map((l) => l.to)).toEqual(['/guard-dashboard', '/console', '/overdue']);
+    expect(guardTabs.map((l) => l.to)).toEqual(
+      ['/guard-dashboard', '/pending-out', '/pending-returns', '/overdue'],
+    );
+    // The route survives — Verify redirects onto it and the Scan QR tile opens
+    // it — but it is not a tab any more.
+    expect(guardTabs.map((l) => l.to)).not.toContain('/console');
+    expect(ROLE_ROUTES.guard).toContain('/console');
   });
 });

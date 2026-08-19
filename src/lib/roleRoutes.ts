@@ -7,12 +7,19 @@
 import type { UserRole } from '../types/index';
 
 export const ROLE_ROUTES: Record<UserRole, string[]> = {
-  // Security at the gate.
-  // `/overdue` is the guard's third tab (2026-08-18) — today's overdue material,
-  // the same page the HOD and the admin get at their own scope. `/returns` is
-  // still routed but is no longer a tab: it is where the boards' "due today"
-  // figures navigate, on every role.
-  guard: ['/guard-dashboard', '/console', '/overdue', '/returns', '/verify', '/pass', '/profile'],
+  // Security at the gate. THE ORDER OF THIS LIST IS THE ORDER OF THE SIDEBAR
+  // (Sidebar.tsx sorts by it).
+  // `/pending-out` and `/pending-returns` are the two lists the dashboard's
+  // figures drill into (client, 2026-08-19) — each figure opens the page that
+  // holds the very rows it counted.
+  // `/console` is still routed but is NO LONGER A TAB (same client pass: the
+  // search moved to the top right of both list pages, where a guard is already
+  // standing). Verify's post-decision redirect still lands on it, and the
+  // dashboard's Scan QR quick action still opens it.
+  // `/overdue` is today's overdue material, the same page the HOD and the admin
+  // get at their own scope. `/returns` is where a board's "due today" figure
+  // navigates, on every role.
+  guard: ['/guard-dashboard', '/pending-out', '/pending-returns', '/overdue', '/console', '/returns', '/verify', '/pass', '/profile'],
   // Department heads raise passes for their own departments
   // `/mismatch/:id` and `/expired/:id` are where the bell's two decision notices
   // land — the review screens that offer "void it" or "raise it again". HOD-only:

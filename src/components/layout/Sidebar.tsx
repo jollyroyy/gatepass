@@ -38,8 +38,16 @@ export const ALL_LINKS: NavLink[] = [
     icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>,
   },
   {
-    to: '/console', label: 'Search Pass', roles: ['guard'],
-    icon: <svg {...ICON_PROPS}><circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="M20 20l-4.2-4.2" /></svg>,
+    // The two lists the guard's dashboard figures drill into (client,
+    // 2026-08-19). Search Pass is NOT a tab any more — the search moved to the
+    // top right of both of these pages, beside Scan QR, which is where a guard
+    // is already standing when they need it.
+    to: '/pending-out', label: 'Pending OUT', roles: ['guard'],
+    icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M2.75 7.25A1.5 1.5 0 014.25 5.75h8.5a1.5 1.5 0 011.5 1.5v8.5h-11.5z" /><path strokeLinecap="round" strokeLinejoin="round" d="M14.25 9.75h2.9a1.5 1.5 0 011.2.6l1.7 2.27a1.5 1.5 0 01.3.9v2.23h-6.1z" /><circle cx="7" cy="17.5" r="1.6" /><circle cx="16.25" cy="17.5" r="1.6" /></svg>,
+  },
+  {
+    to: '/pending-returns', label: 'Pending RGP Return', roles: ['guard'],
+    icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M9 7.25h6.5a4.25 4.25 0 010 8.5H7.5" /><path strokeLinecap="round" strokeLinejoin="round" d="M11.75 4.5L9 7.25l2.75 2.75" /></svg>,
   },
   {
     // Overdue Items, not Pending Returns (client, 2026-08-18). Everything still

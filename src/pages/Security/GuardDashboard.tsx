@@ -1,92 +1,38 @@
-// The guard's Dashboard — TWO LISTS AND A GREETING (client mock-up, 2026-08-19).
+// The guard's Dashboard — TWO DRILLABLE FIGURES, A GREETING AND THREE QUICK
+// ACTIONS (client, 2026-08-19, second revision of the mock-up).
 //
-// It was seven drill KPIs over a stack of pass cards; it is now the two things
-// a person standing at a barrier acts on:
+// The two lists that used to sit under the cards are GONE FROM HERE and are
+// pages of their own: `/pending-out` and `/pending-returns`. The client asked
+// for the number to be the way in — "when the guard clicks on the drillable
+// number it should directly take him to that particular page" — and a
+// five-row preview above a page holding the same rows is a second, shorter
+// answer to the same question, which is how a preview and its page start
+// disagreeing.
 //
-//   Pending OUT (Needs Approval)            — the gate queue, RGP and NRGP
-//   Pending RGP Return (Needs Verification) — due back today, and every missed date
+// THE FIGURES STILL COUNT WHAT THOSE PAGES LIST. `useGuardQueues` is the same
+// hook both pages call, `pendingOutOf` / `pendingReturnsOf` the same predicates:
+// no aggregate, no `count: 'exact'`, no second predicate that could drift.
 //
-// The figures that went — today's raises, today's mismatches, today's closures —
-// are not lost: they are the admin's board and Reports, which is where a
-// whole-site count belongs. What a guard needs is the rows they will physically
-// act on this shift, with the number sitting on top of the list it counts.
-//
-// IT IS NOT PAINTED IN THE HOUSE THEME. The client asked (2026-08-19) for this
-// one screen to match their mock-up exactly — Inter headings in near-black,
-// orange for the OUT queue, blue for the return queue, on a white ground — so
-// every class below is a `.gb-*` from the scoped, fixed-light skin at the foot
-// of src/index.css. Nothing else in the app uses those classes, and the gold
+// IT IS NOT PAINTED IN THE HOUSE THEME. The client asked (2026-08-19) for these
+// screens to match their mock-up exactly — Inter headings in near-black, orange
+// for the OUT queue, blue for the return queue, on a white ground — so every
+// class here is a `.gb-*` from the scoped, fixed-light skin at the foot of
+// src/index.css. Nothing else in the app uses those classes, and the gold
 // heading ladder is untouched everywhere else.
-//
-// TWO QUERIES, AND EVERY FIGURE IS `rows.length` OF ONE OF THEM. No aggregate,
-// no `count: 'exact'`, no second predicate: `src/lib/guardBoard.ts` filters the
-// two arrays and the cards count what the panels render.
-import React, { useCallback, useEffect, useState } from 'react';
-import { gp, supabase } from '../../supabaseClient';
-import type { GatePassView } from '../../types';
-import GuardPanel from '../../components/guard/GuardPanel';
+import React, { useEffect, useState } from 'react';
 import GuardSummaryCards from '../../components/guard/GuardSummaryCards';
-import PendingOutTable from '../../components/guard/PendingOutTable';
-import PendingReturnTable from '../../components/guard/PendingReturnTable';
 import QuickActions from '../../components/guard/QuickActions';
-import { safeErrorMessage } from '../../lib/errors';
 import { formatDateTime } from '../../lib/formatDate';
-import { firstNameOf, pendingOutOf, pendingReturnsOf, previewOf, typeSplit } from '../../lib/guardBoard';
+import { firstNameOf, pendingOutOf, pendingReturnsOf, typeSplit } from '../../lib/guardBoard';
 import { fetchMyProfile } from '../../lib/profiles';
+import { useGuardQueues } from '../../lib/useGuardQueues';
 
 export default function GuardDashboard(): React.ReactElement {
-  const [queue, setQueue] = useState<GatePassView[]>([]);
-  const [openReturns, setOpenReturns] = useState<GatePassView[]>([]);
+  const { queue, openReturns, loading, error } = useGuardQueues('both');
   const [name, setName] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [outExpanded, setOutExpanded] = useState(false);
-  const [returnsExpanded, setReturnsExpanded] = useState(false);
   // Stamped once, at mount: a clock that ticks on a board nobody is watching
-  // re-renders two tables every second for a fact that changes by the minute.
+  // re-renders the page every second for a fact that changes by the minute.
   const [stamp] = useState(() => new Date().toISOString());
-
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const base = () => gp().from('v_gate_passes').select('*');
-      const nowIso = new Date().toISOString();
-      const [queued, open] = await Promise.all([
-        // The gate queue: both states the gate can still act on, and only while
-        // the pass's own expiry has not passed. `is_expired` covers `pending`
-        // alone; filtering `expires_at` covers both states uniformly and never
-        // needs recomputing on the client.
-        base()
-          .in('status', ['pending', 'hod_reviewed'])
-          .gte('expires_at', nowIso)
-          .order('created_at', { ascending: true }),
-        // BOTH open return states, unfiltered by date — `needsReturnVerification`
-        // cuts it to what is due. `partially_returned` is not optional here: the
-        // moment a guard records one line of a three-line RGP, an
-        // `.eq('return_status','awaiting_return')` query would drop the pass off
-        // this board with two lines still outside.
-        base()
-          .in('return_status', ['awaiting_return', 'partially_returned'])
-          .order('expected_return_date', { ascending: true }),
-      ]);
-
-      for (const res of [queued, open]) {
-        if (res.error) throw res.error;
-      }
-
-      setQueue((queued.data as GatePassView[] | null) ?? []);
-      setOpenReturns((open.data as GatePassView[] | null) ?? []);
-      setError(null);
-    } catch (err) {
-      setError(safeErrorMessage(err));
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   // The greeting only. A profile that never resolves leaves "Hello, Guard",
   // which is what the board said before anyone was named — so this read has no
@@ -104,28 +50,6 @@ export default function GuardDashboard(): React.ReactElement {
       cancelled = true;
     };
   }, []);
-
-  // Realtime: refresh silently so the numbers never flash a skeleton mid-shift.
-  useEffect(() => {
-    let ch: ReturnType<typeof supabase.channel> | null = null;
-    try {
-      ch = supabase
-        .channel('guard-dashboard-gate-passes')
-        .on('postgres_changes', { event: '*', schema: 'gatepass', table: 'gate_passes' }, () => {
-          load(true);
-        })
-        .subscribe();
-    } catch {
-      // No realtime available — the initial load still populated the page.
-    }
-    return () => {
-      try {
-        if (ch) supabase.removeChannel(ch);
-      } catch {
-        // ignore cleanup failures
-      }
-    };
-  }, [load]);
 
   const pendingOut = pendingOutOf(queue);
   const pendingReturns = pendingReturnsOf(openReturns);
@@ -155,34 +79,6 @@ export default function GuardDashboard(): React.ReactElement {
         returnsDue={pendingReturns.length}
         loading={loading}
       />
-
-      <div className="gb-grid-2">
-        <GuardPanel
-          title="Pending OUT (Needs Approval)"
-          glyph="truck"
-          tone="orange"
-          total={pendingOut.length}
-          expanded={outExpanded}
-          onToggle={() => setOutExpanded((v) => !v)}
-          loading={loading}
-          empty="Queue clear — nothing is waiting at the gate."
-        >
-          <PendingOutTable rows={previewOf(pendingOut, outExpanded)} />
-        </GuardPanel>
-
-        <GuardPanel
-          title="Pending RGP Return (Needs Verification)"
-          glyph="exchange"
-          tone="blue"
-          total={pendingReturns.length}
-          expanded={returnsExpanded}
-          onToggle={() => setReturnsExpanded((v) => !v)}
-          loading={loading}
-          empty="Nothing is due back today, and nothing is late."
-        >
-          <PendingReturnTable rows={previewOf(pendingReturns, returnsExpanded)} />
-        </GuardPanel>
-      </div>
 
       <QuickActions />
     </div>

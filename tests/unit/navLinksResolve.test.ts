@@ -88,6 +88,11 @@ describe('every permitted route is reachable without typing a URL', () => {
     // both navigate here. A sidebar link would be a second door to a list that
     // already has one, and the figure is what says how many are on it.
     '/returns',
+    // Search Pass. It lost its sidebar tab on 2026-08-19 — the search moved to
+    // the top right of the two guard list pages — but the route stays: Verify
+    // redirects onto it with a flash after a decision, and the dashboard's
+    // Scan QR quick action opens it.
+    '/console',
   ]);
 
   const linked = new Set(ALL_LINKS.map((l) => l.to));

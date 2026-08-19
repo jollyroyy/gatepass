@@ -11,10 +11,13 @@
 // Verify offers a working Match for it, and the board lists it with the action
 // that clears it.
 //
-// THE QUEUE MOVED (2026-08-18). Search Pass became search-only and the list is
-// now the guard dashboard's "Pending for Gate Approval" figure — its own query,
-// deliberately not day-scoped. That is where this test looks for the approved
-// pass, because it is the only list a guard picks one from.
+// THE QUEUE MOVED TWICE. Search Pass became search-only on 2026-08-18 and the
+// list became the guard dashboard's "Pending for Gate Approval" figure; on
+// 2026-08-19 (second pass) the dashboard's two preview tables were deleted in
+// favour of two drillable summary cards, and the list itself became its own
+// page, `/pending-out` (`PendingOutPage`). Its query is unchanged — still its
+// own read, deliberately not day-scoped — so that is where this test looks for
+// the approved pass, because it is the only list a guard picks one from.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -94,13 +97,13 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
     vi.clearAllMocks();
   });
 
-  describe('the gate queue, on the guard dashboard', () => {
+  describe('the gate queue, on Pending OUT', () => {
     it('includes hod_reviewed passes in the queue, not just pending', async () => {
       queueRows = [APPROVED];
-      const GuardDashboard = (await import('../../src/pages/Security/GuardDashboard')).default;
+      const PendingOutPage = (await import('../../src/pages/Security/PendingOutPage')).default;
       render(
         <MemoryRouter>
-          <GuardDashboard />
+          <PendingOutPage />
         </MemoryRouter>
       );
 
@@ -108,9 +111,11 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
       const statusIn = queueInCalls.find((c) => c.col === 'status');
       expect(statusIn).toBeDefined();
       expect(statusIn!.values).toEqual(expect.arrayContaining(['pending', 'hod_reviewed']));
-      // And the card reaches the gate screen — otherwise the pass is visible
-      // and still unclearable, which is the original bug in a new place.
-      expect(screen.getByRole('link', { name: /verify at gate/i })).toHaveAttribute('href', '/verify/h1');
+      // And the row reaches the gate screen — otherwise the pass is visible
+      // and still unclearable, which is the original bug in a new place. The
+      // action was renamed "Approve OUT" (2026-08-19); the destination is
+      // unchanged.
+      expect(screen.getByRole('link', { name: /approve out/i })).toHaveAttribute('href', '/verify/h1');
     });
   });
 
@@ -153,25 +158,27 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
     });
   });
 
-  // The dashboard's KPI drills were replaced by two tables on 2026-08-19. The
-  // chain this whole spec exists to protect is NOT broken by that, and these
-  // cases are what prove it: an HOD-approved pass sits in the board's Pending
-  // OUT list — the only list a guard picks a waiting pass from — carrying the
-  // action that clears it, and Verify accepts it (asserted above).
-  describe('Dashboard — Pending OUT', () => {
-    it('lists an HOD-approved pass with a working Verify at Gate action', async () => {
+  // The dashboard's two preview tables were REPLACED by two drillable summary
+  // cards on 2026-08-19 (second pass) — the RGP figure's number is now the
+  // only way into this list, and it opens `/pending-out`. The chain this whole
+  // spec exists to protect is NOT broken by that move, and this case is what
+  // proves it: an HOD-approved pass sits in the page the dashboard's figure
+  // opens, carrying the action that clears it (renamed "Approve OUT"; the
+  // Verify screen still accepts it, asserted above).
+  describe('Pending OUT page', () => {
+    it('lists an HOD-approved pass with a working Approve OUT action', async () => {
       queueRows = [APPROVED, pass({ id: 'p2', pass_number: 'PEND-0001', status: 'pending' })];
-      const GuardDashboard = (await import('../../src/pages/Security/GuardDashboard')).default;
+      const PendingOutPage = (await import('../../src/pages/Security/PendingOutPage')).default;
       render(
         <MemoryRouter>
-          <GuardDashboard />
+          <PendingOutPage />
         </MemoryRouter>
       );
 
       await waitFor(() => expect(screen.getByText('APPROVED-0001')).toBeInTheDocument());
 
       const row = screen.getByText('APPROVED-0001').closest('tr')!;
-      expect(within(row).getByRole('link', { name: 'Verify at Gate' })).toHaveAttribute('href', '/verify/h1');
+      expect(within(row).getByRole('link', { name: 'Approve OUT' })).toHaveAttribute('href', '/verify/h1');
 
       // And it asked the database for BOTH states the gate can still act on —
       // narrowing this back to 'pending' alone is the original bug.

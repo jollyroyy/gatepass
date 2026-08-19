@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-19
 
-Full gate: **1160 tests across 108 files** (`npm run check`), `npm run build` clean.
+Full gate: **1212 tests across 111 files** (`npm run check`), `npm run build` clean.
 Migrations **`001`–`042` are all applied to the live DB**; `039`, `040`, `041` were each
 verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`), and `042` with a
 rolled-back `psql` insert that returned `RGP-20260818-0001`.
@@ -51,7 +51,68 @@ rolled-back `psql` insert that returned `RGP-20260818-0001`.
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 
-**Latest change (2026-08-19, second pass): the guard's dashboard is drawn in the CLIENT'S
+**Latest change (2026-08-19, third pass): the guard's two lists are PAGES, the dashboard's
+figures DRILL into them, the action is "Approve OUT", and Search Pass left the sidebar.**
+Frontend only — no migration, no new RPC, no query the guard screens did not already make.
+
+- **The dashboard is a greeting, two DRILLABLE figures and three quick actions.** The two
+  preview tables are gone from it (client: "remove those pending out and all those return
+  verifications from the guard's view... put the card numbers drillable"). Each figure is a
+  `<Link>`: RGP → `/pending-out?type=RGP`, NRGP → `/pending-out?type=NRGP`, the return count →
+  `/pending-returns`. `GuardPanel.tsx` was DELETED, so a stale reference is a build error.
+- **`/pending-out` — Pending OUT (Needs Approval)**, drawn to the client's mock-up:
+  tab strip `All (n) · RGP (n) · NRGP (n)`, the global search and **Scan QR** top right, a
+  filter bar (Type · Party · Department · Sort by · Reset), and a table of
+  Pass No. · Type · Party · Items · Total Qty · Vehicle No. · **Department** · Requested By ·
+  Requested Time · Action, each row opening its own material lines in place beside Pass
+  Validity / Purpose / Authorised By / Carried By. Footer is "Showing 1 to 10 of N entries",
+  numbered pages and Rows per page (10/25/50).
+  - **The mock's GATE column is DEPARTMENT** — there is no gate entity in this schema — and its
+    **UOM column is gone**: a shared unit is named once in the quantity heading and `nos` is
+    never named at all (`src/lib/units.ts`, a settled client call). Same rule the record view
+    follows: a column this app cannot fill takes the fact it does have, never an em dash.
+  - Lines load **on demand**, one row at a time (`src/lib/usePassItems.ts`).
+- **`/pending-returns` — Pending RGP Return (Needs Verification)**: the same chrome and the same
+  global search, no tab strip (only an RGP comes back), rows of Pass No. · Type · Material ·
+  From (Party) · Department · Expected Back (with the Due Today / Overdue badge) · Returned Qty ·
+  **Record Return** → `/overdue` or `/returns`. Its scope is unchanged —
+  `needsReturnVerification`, i.e. due today or already late, never every open obligation.
+- **The action is "Approve OUT"** (`src/components/guard/ApproveOutAction.tsx`, one file so the
+  client's word has one spelling). It replaces "Verify at Gate" everywhere a guard sees it. The
+  destination is unchanged (`/verify/:id`, which offers Match, Flag and Hold) and it is still
+  drawn only while `canVerifyAtGate` holds — the rule `match_pass` enforces — otherwise the row
+  degrades to a **View pass** link.
+- **THE SEARCH IS GLOBAL, and it is not a filter over the page it sits on.**
+  `src/lib/useGateSearch.ts` is the resolution, extracted from `GateLookup` so the house-themed
+  Search Pass screen and the guard pages' mock-up-themed bar cannot disagree about what a query
+  means: a pass number goes through `lookup_pass` (whole register, scan log, blacklist alert), a
+  mobile number through an unfiltered `v_gate_passes` query. `src/components/guard/useGuardSearch.tsx`
+  is the guard skin of it. **A resolved pass NAVIGATES to `/pass/:id`** rather than rendering in
+  place — that record is house-themed, and drawing it inside this fixed-light skin would put a
+  dark card on a white ground for every reader on the shipped dark default. Several passes on one
+  mobile number render as a gb-skinned list on the page.
+- **`Search Pass` is off the guard sidebar** (client). The guard's tabs are now Dashboard ·
+  Pending OUT · Pending RGP Return · Overdue Items, ordered by `ROLE_ROUTES.guard`. **The
+  `/console` ROUTE stays** — `Verify` redirects onto it with a flash after a decision, and the
+  dashboard's Scan QR quick action opens it — so `navLinksResolve.test.ts` names it as
+  deliberately link-less.
+- **ONE QUERY PAIR BEHIND ALL THREE SCREENS**: `src/lib/useGuardQueues.ts` (`'both' | 'out' |
+  'returns'`) makes the same two reads the dashboard used to make itself, and each page derives
+  its rows with the same predicate from `guardBoard.ts`. The old invariant is intact — a figure
+  is `rows.length` of the array the page it opens renders; no aggregate, no `count: 'exact'`.
+- **The `.gb-*` skin grew a page half** (`src/index.css`): page head, tab strip, search + scan
+  button, filter selects, row disclosure and detail boxes, and the pager. Still fixed-light with
+  **no `dark:` half**, still the ONLY place the mock-up's hex lives, and
+  `src/components/guard/*` still carries no hex — `themeAudit.test.ts` stays absolute.
+- Pinned by `tests/unit/pendingOutFilters.test.ts` (23), `pendingOutPage.test.tsx` (11),
+  `pendingReturnsPage.test.tsx` (7) and a rewritten `guardDashboard.test.tsx` (11, now holding
+  that the dashboard renders no table and every figure is a link). `hodReviewGateFlow.test.tsx`
+  moved its two queue cases onto the Pending OUT page — the only list a guard picks a waiting
+  pass from — and `sidebarOrder` / `guardBoardNoExpired` / `navLinksResolve` follow the new tabs.
+- **NOT seen in a browser**: the suite and a typecheck only. The three-column `.gb-detail` panel,
+  the tab underline and the pager are unverified against a real render.
+
+**Earlier (2026-08-19, second pass): the guard's dashboard is drawn in the CLIENT'S
 OWN PALETTE AND TYPE, not the house theme.** Frontend only — no migration, no query change, no
 change to what the board counts. **SEEN IN A BROWSER** (dev server, signed in as a guard, light
 and dark) — the first screen since 2026-08-17 that has been.
@@ -825,13 +886,15 @@ Office**: material moves through the mall's service gate, HODs are department he
 "factory"/"plant"/"manufacturing".
 
 `src/pages/` is grouped by who uses it: `HOD/` (Dashboard, RaisePass, MyPasses,
-MismatchReview, ExpiredReview), `Security/` (GateConsole — the **Search Pass** screen —
-GateLookup, Verify, GuardDashboard — the two-table board), `Shared/` also holding the two role-scoped return pages
+MismatchReview, ExpiredReview), `Security/` (GateConsole — the **Search Pass** screen, no longer
+a sidebar tab — GateLookup, Verify, GuardDashboard — the figures-and-quick-actions board — and
+the two pages its figures drill into, PendingOutPage and PendingReturnsPage), `Shared/` also holding the two role-scoped return pages
 (OverdueItemsPage, ReturnsDueTodayPage), `Admin/` (AdminPanel and its tabs, AdminDashboard, ReportsPage), `Shared/`
 (PassDetail, PassPrint, Profile). `src/components/passview/` is the Gate Pass Details record — the ONE record format,
 rendered both by Search Pass and by `/pass/:id`; `src/components/overdue/` is Overdue Items and `src/components/returns/` is the
 line-level returns table, each one component serving all three roles;
-`src/components/guard/` is the guard board alone — the two summary cards, the two tables and the
-quick actions; `src/components/board/` is the dashboard both the admin and the HOD get — one component, the HOD's scoped to one person server-side. `src/lib/` holds the
+`src/components/guard/` is the guard's three screens — the two summary cards, the quick actions,
+the two list tables and the chrome the list pages share (header, toolbar, filter bar, pager,
+`useGuardSearch`, `ApproveOutAction`); `src/components/board/` is the dashboard both the admin and the HOD get — one component, the HOD's scoped to one person server-side. `src/lib/` holds the
 lookup maps, derivations and formatters; `supabase/migrations/` runs `001` → `042`, with
 `005` an **optional demo seed** to skip in a real deployment.

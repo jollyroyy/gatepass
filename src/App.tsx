@@ -20,6 +20,8 @@ import ExpiredReview from './pages/HOD/ExpiredReview';
 import GateConsole from './pages/Security/GateConsole';
 import Verify from './pages/Security/Verify';
 import GuardDashboard from './pages/Security/GuardDashboard';
+import PendingOutPage from './pages/Security/PendingOutPage';
+import PendingReturnsPage from './pages/Security/PendingReturnsPage';
 import AdminPanel from './pages/Admin/AdminPanel';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import ReportsPage from './pages/Admin/ReportsPage';
@@ -206,6 +208,8 @@ export default function App(): React.ReactElement {
 
           {/* Security */}
           <Route path="/guard-dashboard" element={<GuardDashboard />} />
+          <Route path="/pending-out" element={<PendingOutPage />} />
+          <Route path="/pending-returns" element={<PendingReturnsPage />} />
           <Route path="/console" element={<GateConsole />} />
           <Route path="/verify/:id" element={<Verify />} />
 

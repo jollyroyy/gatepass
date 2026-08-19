@@ -31,7 +31,7 @@ function labels(role: UserRole): string[] {
   // opened, so a single render gives exactly one copy of the nav.
   const rail = container.querySelector('aside') as HTMLElement;
   const NAV = ['Dashboard', 'Overdue Items', 'Departments & Users', 'Reports',
-    'Search Pass', 'Raise Gate Pass', 'My Passes'];
+    'Search Pass', 'Pending OUT', 'Pending RGP Return', 'Raise Gate Pass', 'My Passes'];
   const out = [...rail.querySelectorAll('a')]
     .map((a) => a.textContent?.trim() ?? '')
     .filter((t) => NAV.includes(t));
@@ -46,8 +46,14 @@ describe('sidebar order', () => {
     ]);
   });
 
-  it('leaves the guard and the HOD orders as they were', () => {
-    expect(labels('guard')).toEqual(['Dashboard', 'Search Pass', 'Overdue Items']);
+  it('gives the guard Pending OUT and Pending RGP Return in place of Search Pass', () => {
+    // Client, 2026-08-19: the dashboard's two figures now drill into their own
+    // pages, so Search Pass left the sidebar — the search itself moved to the
+    // top right of those two pages, not away from the guard.
+    expect(labels('guard')).toEqual(['Dashboard', 'Pending OUT', 'Pending RGP Return', 'Overdue Items']);
+  });
+
+  it('leaves the HOD order as it was', () => {
     expect(labels('hod')).toEqual(['Dashboard', 'Raise Gate Pass', 'My Passes', 'Overdue Items']);
   });
 });
