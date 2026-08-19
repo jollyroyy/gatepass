@@ -568,19 +568,12 @@
      text-kpi). The rule the client asked for: a heading sits at least two
      scale steps above, and 200 weight units heavier than, the text directly
      beneath it. */
-  /* The house pages' heading row. The right pad is the same reservation the
-   * guard skin makes (see `.gb-head-row`): the top-right cluster is FIXED to
-   * the viewport, so a header with a button on its right edge sits underneath
-   * it otherwise. Only from `lg` up — below that the sidebar is a drawer, the
-   * page head is already full width and the cluster is its compact form. */
+  /* The same reservation the guard skin makes (see `.gb-head-row`): the bell
+   * is FIXED to the viewport, so a header with an action button on its right
+   * edge sits underneath it otherwise. */
   .page-header {
     @apply mb-8;
-  }
-  @media (min-width: 1024px) {
-    .page-header { padding-right: 110px; }
-  }
-  @media (min-width: 1280px) {
-    .page-header { padding-right: 270px; }
+    padding-right: 76px;
   }
   /* Antic Didone has a single 400 weight. `font-bold` on it produces a synthesised
      faux-bold that smears the didone hairlines — the exact "cheap" tell. Presence
@@ -1217,7 +1210,12 @@
 
   /* Header. The right padding is not decoration: the notification bell is
    * `fixed top-4 right-4`, so a date stamp flush to the content edge sits
-   * underneath it and loses its time on a narrow window. */
+   * underneath it and loses its time on a narrow window.
+   *
+   * THE NUMBER: 16px offset + a 36px button + the unread badge, which hangs
+   * 6px past the button's right edge = 58px of occupied corner. 60px left the
+   * content touching it; 76px is that plus a real gap, so nothing ever reads
+   * as tucked under the bell. */
   .gb-head-row {
     display: flex;
     flex-wrap: wrap;
@@ -1225,15 +1223,7 @@
     justify-content: space-between;
     gap: 16px;
     margin-bottom: 22px;
-    /* Room for the FIXED top-right cluster, which is the bell AND the identity
-     * chip since 2026-08-19 — it was 60px when the bell stood there alone. The
-     * chip shows the name from `xl` up and the avatar alone below it, so the
-     * reservation steps with it. Without this the date stamp loses its time
-     * under the avatar. */
-    padding-right: 110px;
-  }
-  @media (min-width: 1280px) {
-    .gb-head-row { padding-right: 270px; }
+    padding-right: 76px;
   }
 
   /* Inter bold near-black — NOT the house `.page-title`, which is the gold
@@ -1643,10 +1633,7 @@
     gap: 12px;
     margin-bottom: 18px;
     /* Same reservation as `.gb-head-row` — see the note there. */
-    padding-right: 110px;
-  }
-  @media (min-width: 1280px) {
-    .gb-page-head { padding-right: 270px; }
+    padding-right: 76px;
   }
   .gb-page-title {
     display: flex;

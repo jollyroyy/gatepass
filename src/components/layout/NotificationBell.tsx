@@ -55,11 +55,9 @@ export default function NotificationBell(): React.ReactElement {
   );
 
   return (
-    // NOT `fixed` any more (client, 2026-08-19): the identity chip joined this
-    // corner, so `TopBar` positions the pair and this is an ordinary block
-    // inside it. `relative` is still load-bearing — the panel below is
-    // absolutely positioned against it.
-    <div ref={panelRef} className="relative">
+    // `no-print`: the bell is fixed to the viewport, so on the A5 slip it
+    // would print stamped over the pass's top-right corner.
+    <div ref={panelRef} className="no-print fixed top-4 right-4 z-50">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

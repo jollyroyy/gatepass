@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import type { UserRole } from '../../types';
 import { formatDateTime } from '../../lib/formatDate';
-import { ROLE_LABELS } from '../../lib/roleLabels';
+import { ROLE_LABELS } from '../../components/layout/SidebarProfile';
 
 type Props = {
   fullName: string;
