@@ -7,6 +7,28 @@
     <meta name="theme-color" content="#16161A" />
     <meta name="description" content="Material gate pass control for the Quest Mall management office." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Home-screen install, Android and iOS alike. The manifest carries the
+         name, the icons and the standalone display mode; apple-touch-icon is
+         listed separately because Safari does not read the manifest for it, and
+         without it iOS puts a SCREENSHOT of the page on the home screen.
+
+         The viewport deliberately does NOT say viewport-fit=cover. Cover lets
+         the page paint under the notch and the home indicator, and it is only
+         safe once the layout pays that inset back with env(safe-area-inset-*);
+         nothing in src/ reads those variables, so cover would put the topbar
+         under the status bar on every notched phone. Add the padding first.
+
+         theme-color needs no light twin either. index.css rule 1 is that the
+         shell is dark in BOTH themes because it is chrome rather than content,
+         and the status bar of an installed app is the same kind of chrome. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Gate Pass" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <title>Quest Gate Pass</title>

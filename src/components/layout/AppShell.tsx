@@ -4,6 +4,7 @@ import type { UserRole } from '../../types';
 import Sidebar from './Sidebar';
 import NotificationBell from './NotificationBell';
 import SessionTimeout from '../SessionTimeout';
+import OfflineBanner from '../OfflineBanner';
 import { NotificationProvider } from '../../lib/notifications';
 
 type Props = {
@@ -51,6 +52,10 @@ export default function AppShell({ session, role, isApprover = false, children }
               `main` (they are `fixed`), so they keep the house theme — the same
               gap the guard's shell has had since the skin landed. */}
           <main className="flex-1 w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-20 lg:pt-8 pb-8 gb-main">
+            {/* Above the content, on every screen: since public/sw.js landed, an
+                offline app OPENS instead of erroring, and what it opens is every
+                list empty. Renders nothing while online. */}
+            <OfflineBanner />
             {children}
           </main>
 

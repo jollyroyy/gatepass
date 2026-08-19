@@ -16,9 +16,10 @@
     <path d="M16 1.6 29.8 16 16 16Z" fill="url(#qmShade)" opacity="0.82" />
     <path d="M2.2 16 16 16 16 30.4Z" fill="url(#qmShade)" opacity="0.62" />
     <path d="M29.8 16 16 30.4 16 16Z" fill="url(#qmLit)" opacity="0.9" />
-    <path d="M2.2 16H29.8" stroke="#16161A" stroke-opacity="0.28" stroke-width="0.7" />
+    <path d="M2.2 16H29.8" fill="none" stroke="#16161A" stroke-opacity="0.28" stroke-width="0.7" />
     <path
       d="M16 1.6 29.8 16 16 30.4 2.2 16Z"
+      fill="none"
       stroke="#EBD9B4"
       stroke-opacity="0.45"
       stroke-width="0.9"
