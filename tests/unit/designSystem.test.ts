@@ -121,6 +121,19 @@ describe('design system — no element combines font-display with a synthesised 
 // applying). Delete either and the other is not enough — the record a guard
 // opens would go back to dark cards on a white ground.
 describe('design system — the guard shell (.gb-main)', () => {
+
+  // A `var()` nobody defined is not a fallback — it makes the whole declaration
+  // invalid, and an inherited property like `color` then takes the value from
+  // the app around it. On the shipped dark default that is near-white ink on
+  // the skin's white card, which is how the pass record's item cells went
+  // blank for a guard (client, 2026-08-19). `.gb-main` must therefore carry the
+  // same six neutrals `.gb-board` does, not borrow them.
+  it('defines every --gb-* neutral it paints with', () => {
+    const block = css.match(/\.gb-main\s*{[^}]*}/)?.[0] ?? '';
+    for (const name of ['--gb-ink', '--gb-body', '--gb-muted', '--gb-line', '--gb-line-soft', '--gb-head']) {
+      expect(block).toContain(`${name}:`);
+    }
+  });
   const config = readFileSync(join(__dirname, '../../tailwind.config.ts'), 'utf-8');
 
   it('re-declares the light neutral ramp so house components stop inverting', () => {

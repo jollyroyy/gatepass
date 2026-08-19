@@ -154,3 +154,71 @@ describe('the fact strip', () => {
     expect(screen.getByText('B-108, Sector 63, Noida')).toBeInTheDocument();
   });
 });
+
+// THE RETURN IS THE LAST RUNG, ALWAYS (client, 2026-08-19: "Cleared out at the
+// gate should be just before the return … To Be Returned should be after
+// Cleared out at the gate"). The ladder's own order puts its return step
+// straight after the gate step, which pushed it ABOVE the recorded gate events
+// once the two rails merged — so the card claimed the material was due back
+// before it had left. The return step now closes the rail, under the activity.
+describe('the return closes the rail', () => {
+  function railLines(): string[] {
+    return Array.from(screen.getByTestId('pass-timeline').querySelectorAll('li'))
+      .map((li) => li.textContent ?? '');
+  }
+
+  beforeEach(() => {
+    row = pass({
+      status: 'matched',
+      verified_at: '2026-08-18T06:15:00Z',
+      verified_by_name: 'Guard One',
+      return_status: 'awaiting_return',
+    });
+    verifications = [
+      {
+        id: 'v1', gate_pass_id: 'p1', action: 'matched', remarks: null,
+        gate_name: 'Service Gate', security_id: 'g1', security_name: 'Guard One',
+        created_at: '2026-08-18T06:15:00Z',
+      },
+    ];
+  });
+
+  it('draws To Be Returned after the gate clearance, not before it', async () => {
+    await renderAs('hod');
+    const lines = railLines();
+    const approval = lines.findIndex((t) => t.includes('Cleared by Security'));
+    const cleared = lines.findIndex((t) => t.includes('Cleared out at the gate'));
+    const back = lines.findIndex((t) => t.includes('To Be Returned'));
+    expect(approval).toBeGreaterThanOrEqual(0);
+    expect(cleared).toBeGreaterThan(approval);
+    expect(back).toBeGreaterThan(cleared);
+    // and it is the very last rung on the rail
+    expect(back).toBe(lines.length - 1);
+  });
+
+  it('keeps the returned rung last too, once the material is back', async () => {
+    row = pass({
+      status: 'matched',
+      verified_at: '2026-08-18T06:15:00Z',
+      return_status: 'returned',
+      actual_return_date: '2026-08-19T04:00:00Z',
+    });
+    verifications = [
+      {
+        id: 'v1', gate_pass_id: 'p1', action: 'matched', remarks: null,
+        gate_name: null, security_id: 'g1', security_name: 'Guard One',
+        created_at: '2026-08-18T06:15:00Z',
+      },
+      {
+        id: 'v2', gate_pass_id: 'p1', action: 'returned', remarks: null,
+        gate_name: null, security_id: 'g1', security_name: 'Guard One',
+        created_at: '2026-08-19T04:00:00Z',
+      },
+    ];
+    await renderAs('hod');
+    const lines = railLines();
+    expect(lines[lines.length - 1]).toContain('Returned');
+    expect(lines.findIndex((t) => t.includes('Material marked returned')))
+      .toBeLessThan(lines.length - 1);
+  });
+});

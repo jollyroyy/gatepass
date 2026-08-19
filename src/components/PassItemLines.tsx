@@ -35,6 +35,12 @@ export default function PassItemLines({
   if (items.length === 0) return null;
 
   const units = items.map((i) => i.unit);
+  // THE PRICED LINES ONLY (client, 2026-08-19: "overall the total value also").
+  // An unpriced line contributes nothing rather than a zero — the same rule the
+  // cell follows: nobody entered a figure, and a zero would be a claim. When no
+  // line carries one there is nothing to total, so no foot is drawn.
+  const priced = items.filter((i) => i.approx_value != null);
+  const totalValue = priced.reduce((sum, i) => sum + Number(i.approx_value), 0);
 
   return (
     <div className="overflow-x-auto">
@@ -66,6 +72,21 @@ export default function PassItemLines({
             </tr>
           ))}
         </tbody>
+        {priced.length > 0 && (
+          <tfoot>
+            <tr>
+              <td colSpan={3} className={`text-right font-semibold text-navy-700 ${dense ? 'text-sm' : ''}`}>
+                Total Value
+              </td>
+              <td
+                data-testid="item-lines-total"
+                className="tabular-nums font-semibold text-navy-900"
+              >
+                {formatCurrency(totalValue)}
+              </td>
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   );

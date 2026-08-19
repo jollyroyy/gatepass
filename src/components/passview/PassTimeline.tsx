@@ -7,7 +7,10 @@
 // took holding two columns in your head and matching timestamps between them.
 // Now the ladder's rungs come first, in slip order, and the gate's recorded
 // events continue the SAME rail underneath, oldest first — so the card reads
-// down in time from the raise to the last movement.
+// down in time from the raise to the last movement. The RETURN leg is the one
+// rung that leaves the ladder's own order: it closes the rail, below the gate's
+// events, because material is due back only after it has gone out (client,
+// 2026-08-19).
 //
 // The ladder prints the printed slip's own chain (Issuing HOD → Security Head →
 // COO → CEO → Finance HOD → the gate → the return), so a guard holding the
@@ -118,16 +121,31 @@ function Rail({
 
 type Props = { steps: ApprovalStep[]; activity: ActivityEntry[] };
 
+/** THE RETURN LEG CLOSES THE RAIL, UNDER THE GATE'S OWN EVENTS (client,
+ *  2026-08-19: "Cleared out at the gate should be just before the return …
+ *  To Be Returned should be after Cleared out at the gate").
+ *
+ *  `buildApprovalSteps` is the printed SLIP's order and keeps it — there the
+ *  return is simply the last box. On the merged rail the recorded gate events
+ *  come after the ladder, so leaving the return step among them put "To Be
+ *  Returned" ABOVE "Cleared out at the gate": the card said the material was
+ *  due back before it had left. It is split off here, in the rail, because
+ *  this is a rendering order, not a change to the ladder itself. */
+const RETURN_STEP_KEY = 'return';
+
 export default function PassTimeline({ steps, activity }: Props): React.ReactElement {
+  const ladder = steps.filter((s) => s.key !== RETURN_STEP_KEY);
+  const closing = steps.filter((s) => s.key === RETURN_STEP_KEY);
+
   return (
     <aside className="card p-5" data-testid="pass-timeline">
       <h2 className="card-title mb-4">Approval &amp; Activity Timeline</h2>
 
       <ol className="flex flex-col">
-        {steps.map((step, i) => (
+        {ladder.map((step, i) => (
           <Rail
             key={step.key}
-            last={i === steps.length - 1 && activity.length === 0}
+            last={i === ladder.length - 1 && activity.length === 0 && closing.length === 0}
             dot={
               <span className={`mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center ${DOT[step.state]}`}>
                 <Tick state={step.state} />
@@ -147,7 +165,7 @@ export default function PassTimeline({ steps, activity }: Props): React.ReactEle
         {activity.map((v, i) => (
           <Rail
             key={v.id}
-            last={i === activity.length - 1}
+            last={i === activity.length - 1 && closing.length === 0}
             dot={<span className={`mt-1.5 h-2.5 w-2.5 ml-[5px] mr-[5px] rounded-full border-2 shrink-0 ${ACTION_DOT[v.action]}`} />}
           >
             <p className="text-xs text-navy-500">
@@ -156,6 +174,26 @@ export default function PassTimeline({ steps, activity }: Props): React.ReactEle
             <p className="text-sm font-semibold text-navy-900">{ACTION_TITLE[v.action]}</p>
             <p className="text-xs text-navy-500">by {v.security_name || 'security'}</p>
             {v.remarks && <p className="text-xs text-navy-700 mt-0.5 break-words">{v.remarks}</p>}
+          </Rail>
+        ))}
+
+        {closing.map((step) => (
+          <Rail
+            key={step.key}
+            last
+            dot={
+              <span className={`mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center ${DOT[step.state]}`}>
+                <Tick state={step.state} />
+              </span>
+            }
+          >
+            <p className="text-sm font-semibold text-navy-900">{step.label}</p>
+            {step.who && <p className="text-sm text-navy-700 break-words">{step.who}</p>}
+            {step.detail && <p className="text-xs text-navy-500 break-words">{step.detail}</p>}
+            {step.at && <p className="text-xs text-navy-500 tabular">{formatDateTime(step.at)}</p>}
+            {step.note && (
+              <p className={`text-xs mt-0.5 break-words ${NOTE_INK[step.state]}`}>{step.note}</p>
+            )}
           </Rail>
         ))}
       </ol>

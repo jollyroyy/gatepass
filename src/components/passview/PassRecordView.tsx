@@ -77,7 +77,14 @@ export default function PassRecordView({
 
   return (
     <section data-testid="pass-record" className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      {/* THE BELL IS FIXED TO THE VIEWPORT'S TOP-RIGHT CORNER, so a header row
+          with buttons on its right edge sits underneath it — Print Pass was
+          printing under the bell on every wide screen (client, 2026-08-19).
+          76px is the same reservation `.page-header` and the guard skin's
+          `.gb-page-head` already make; this row is not a `.page-header` (it
+          carries its own spacing inside the record's flex column), so it makes
+          the reservation itself. */}
+      <div className="flex flex-wrap items-start justify-between gap-3 pr-[76px]">
         <div className="min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="page-title !mb-0">{pass.type} Gate Pass Details</h1>

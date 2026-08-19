@@ -120,6 +120,28 @@ describe('an opened stacked card lists its lines', () => {
     expect(table.queryByText('₹0')).not.toBeInTheDocument();
   });
 
+  // Client, 2026-08-19: "put value in all the details and the cards … and the
+  // overall total value." A card that prices every line and never adds them up
+  // makes the reader do the arithmetic that decides whether a load matters.
+  it('foots the value column with the pass total', async () => {
+    renderCard();
+    const table = within(await screen.findByTestId('pass-item-lines'));
+    expect(table.getByText('Total Value')).toBeInTheDocument();
+    expect(table.getByTestId('item-lines-total')).toHaveTextContent('₹13,350');
+  });
+
+  it('adds up only the priced lines, and draws no total when none are priced', async () => {
+    ITEMS = [item({ id: 'i1', approx_value: null }), item({ id: 'i2', approx_value: 850 })];
+    renderCard();
+    const table = within(await screen.findByTestId('pass-item-lines'));
+    expect(table.getByTestId('item-lines-total')).toHaveTextContent('₹850');
+
+    ITEMS = [item({ id: 'i1', approx_value: null })];
+    renderCard();
+    await waitFor(() => expect(screen.getAllByTestId('pass-item-lines').length).toBeGreaterThan(1));
+    expect(screen.queryAllByText('Total Value')).toHaveLength(1);
+  });
+
   it('asks the database once per opened card, not once per list', async () => {
     renderCard([pass(), pass({ id: 'p2', pass_number: 'RGP-20260819-0002' })]);
     await waitFor(() => expect(screen.getAllByTestId('pass-item-lines')).toHaveLength(2));

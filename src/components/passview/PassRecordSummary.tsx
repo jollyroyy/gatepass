@@ -24,6 +24,7 @@ import type { GatePassView } from '../../types';
 import { formatDateTime, formatDateOnly } from '../../lib/formatDate';
 import { parseCompanyInfo } from '../../lib/companyInfo';
 import { relativeSince } from '../../lib/passRecordView';
+import { formatCurrency } from '../../lib/formatCurrency';
 import QrPass from '../QrPass';
 import { TypeChip } from '../Badge';
 
@@ -38,6 +39,7 @@ const PHONE = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" 
 const TRUCK = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 7.5h9v9h-9v-9zM12.75 10.5h3.75l2.25 2.25v3.75h-6V10.5z" /><circle cx="7" cy="18" r="1.5" /><circle cx="16.5" cy="18" r="1.5" /></svg>;
 const DOC = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M7 3.75h7.5L19 8.25V20.25H7V3.75zM14.5 3.75V8.25H19" /></svg>;
 const GATE = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M4 20.25V7.5l8-3.75 8 3.75v12.75M9.5 20.25v-6.5h5v6.5" /></svg>;
+const TAG = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M4.75 5.5v5a1.5 1.5 0 00.44 1.06l7.2 7.2a1.5 1.5 0 002.12 0l5.35-5.35a1.5 1.5 0 000-2.12l-7.2-7.2a1.5 1.5 0 00-1.06-.44h-5A1.75 1.75 0 004.75 5.5z" /><circle cx="9" cy="9" r="1.1" /></svg>;
 const FLAG = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M6 20.25V4.5m0 0h11l-2.25 3.75L17 12H6" /></svg>;
 
 /** One labelled fact. The caption is a caption, never a heading, so it stays
@@ -120,6 +122,14 @@ export default function PassRecordSummary({ pass, gateName }: Props): React.Reac
           />
           <Fact icon={FLAG} label="Pass Type" value={<TypeChip type={pass.type} />} />
           <Fact icon={PIN} label="Purpose" value={pass.purpose} />
+          {/* THE MATERIAL'S WORTH, on both pass types (client, 2026-08-19:
+              "put value in all the details … overall the total value also").
+              It is the sum the item table foots, off the view's own roll-up of
+              the same lines. A pass whose lines carry no value at all shows
+              nothing here rather than ₹0 — the strip's own rule. */}
+          {pass.total_value > 0 && (
+            <Fact icon={TAG} label="Total Value" value={formatCurrency(pass.total_value)} />
+          )}
           {/* RGP only — an NRGP has no deadline to miss. */}
           {pass.type === 'RGP' && pass.expected_return_date && (
             <Fact

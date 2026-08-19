@@ -1119,6 +1119,22 @@
           fails on a new `.dark` rule that forgets it.
      Remove any one of the three and the others stop being enough. */
   .gb-main {
+    /* THE SKIN'S OWN NEUTRALS, DECLARED HERE AND NOT BORROWED FROM `.gb-board`.
+     * The rules below paint with `var(--gb-ink)` / `var(--gb-body)`, and those
+     * were defined on `.gb-board` alone — so on a guard page that has no board
+     * (the pass record, Search Pass, Verify) every one of those declarations
+     * was invalid at computed-value time and the text fell back to INHERITING
+     * the app's colour, which on the shipped dark default is near-white on a
+     * white card: the item table's cells went invisible (client, 2026-08-19:
+     * "a couple of columns are showing in light, it's not visible"). Same six
+     * values as the board, so the two islands cannot drift. */
+    --gb-ink: #111827;
+    --gb-body: #374151;
+    --gb-muted: #6b7280;
+    --gb-line: #e5e7eb;
+    --gb-line-soft: #f3f4f6;
+    --gb-head: #f9fafb;
+
     --c-navy-50: 250 249 247;
     --c-navy-100: 244 242 238;
     --c-navy-200: 231 228 222;

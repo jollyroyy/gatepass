@@ -121,6 +121,29 @@ describe('/pass/:id renders the Search Pass record, not a second format', () => 
     expect(screen.queryByText(/signs the printed pass/i)).not.toBeInTheDocument();
   });
 
+  // The notification bell is `fixed top-4 right-4` on every screen, so a header
+  // row whose buttons sit on the right edge renders UNDERNEATH it (client,
+  // 2026-08-19: Print Pass was overlapping the bell in the guard's view). The
+  // record's title row is not a `.page-header`, so it must make the same 76px
+  // reservation itself — this is the test that fails if it is dropped.
+  it('keeps Print Pass clear of the fixed notification bell', async () => {
+    renderDetail();
+    await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
+    const head = screen.getByRole('link', { name: /Print Pass/ }).closest('div')?.parentElement;
+    expect(head?.className).toContain('pr-[76px]');
+  });
+
+  // Client, 2026-08-19: "put value in all the details and the cards … overall
+  // the total value also." The strip carried no money at all until now.
+  it('carries the pass total value in the fact strip', async () => {
+    renderDetail();
+    await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
+    // Twice on purpose: the strip states the pass's own roll-up, and the item
+    // table foots the very lines under it.
+    expect(screen.getAllByText('Total Value').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('₹5,000').length).toBeGreaterThan(0);
+  });
+
   it('still offers the raising HOD the flagged override, above the record', async () => {
     row = pass({ status: 'flagged', flag_reason: 'Count did not match', verified_at: '2026-08-18T08:00:00Z' });
     renderDetail();

@@ -69,6 +69,12 @@ export default function PassRecordItems({
   // it sits over rather than describing the pass as it was before staging.
   const staged = items.map((i) => ({ ...i, returned_qty: effectiveReturned(i, draft) }));
   const progress = returnProgress(staged, pass.type);
+  // THE VALUE COLUMN IS FOOTED (client, 2026-08-19: "overall the total value
+  // also"). Only the priced lines are added — an unpriced one contributes
+  // nothing, never a zero — and a table where no line carries a value gets no
+  // foot at all rather than a ₹0 nobody entered.
+  const priced = items.filter((i) => i.approx_value != null);
+  const totalValue = priced.reduce((sum, i) => sum + Number(i.approx_value), 0);
 
   return (
     <div className="card overflow-hidden">
@@ -188,6 +194,17 @@ export default function PassRecordItems({
                 );
               })}
             </tbody>
+            {priced.length > 0 && (
+              <tfoot>
+                <tr>
+                  <td colSpan={5} className="text-right font-semibold text-navy-700">Total Value</td>
+                  <td data-testid="items-total-value" className="tabular font-semibold text-navy-900">
+                    {formatCurrency(totalValue)}
+                  </td>
+                  <td colSpan={isRgp ? 2 : 1} />
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       )}
