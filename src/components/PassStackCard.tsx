@@ -29,11 +29,11 @@ import { formatDateOnly } from '../lib/formatDate';
 import { formatCurrency } from '../lib/formatCurrency';
 import { parseCompanyInfo } from '../lib/companyInfo';
 import { passStageStyle } from '../lib/passStage';
-import { stageTone } from '../lib/passStackCard';
+import { stageTone, type GbTone } from '../lib/passStackCard';
 
 /** The left edge follows the pill, so a stack can be read by its margin alone
  *  before a single word of it is. */
-const EDGE: Record<string, string> = {
+const EDGE: Record<GbTone, string> = {
   blue: 'gpo-card-blue',
   green: 'gpo-card-green',
   red: 'gpo-card-red',
