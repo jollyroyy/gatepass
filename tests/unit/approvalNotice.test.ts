@@ -37,8 +37,6 @@ const PASS: NoticePass = {
   created_at: '2026-08-19T06:30:00.000Z',
 };
 
-const HOD = { email: 'anita.rao@example.com', name: 'Anita Rao' };
-
 function approval(over: Partial<NoticeApproval> = {}): NoticeApproval {
   return {
     role_key: 'security_head',
@@ -128,126 +126,110 @@ describe('passFacts', () => {
 });
 
 describe('buildApprovalNotices — a freshly raised pass', () => {
-  const msgs = buildApprovalNotices(PASS, LADDER, HOD, BASE);
+  const msgs = buildApprovalNotices(PASS, LADDER, BASE);
 
   it('asks the FIRST office only, never all four', () => {
-    const asked = msgs.filter((m) => m.kind === 'awaiting_you');
-    expect(asked).toHaveLength(1);
-    expect(asked[0].to).toBe('ravi.menon@example.com');
-    expect(msgs.map((m) => m.to)).not.toContain('vikram@example.com');
-    expect(msgs.map((m) => m.to)).not.toContain('meera@example.com');
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].to).toBe('ravi.menon@example.com');
+    expect(msgs[0].kind).toBe('awaiting_you');
+    expect(msgs[0].subject).toContain('Security Head');
   });
 
-  it('copies the raising HOD, naming where the pass now sits', () => {
-    const ack = msgs.find((m) => m.kind === 'raised_ack');
-    expect(ack?.to).toBe('anita.rao@example.com');
-    expect(ack?.subject).toContain('RGP-20260819-0001');
-    expect(ack?.text).toContain('Security Head');
+  // The client's instruction, 2026-08-19: the HOD raised it, so their approval
+  // is already given and no letter is owed to them at any step.
+  it('writes NOTHING to the raising HOD', () => {
+    expect(msgs.some((m) => m.to === 'anita.rao@example.com')).toBe(false);
   });
 
-  it('sends the approver to the queue and the HOD to the record', () => {
-    expect(msgs.find((m) => m.kind === 'awaiting_you')?.text).toContain(`${BASE}/approvals`);
-    expect(msgs.find((m) => m.kind === 'raised_ack')?.text).toContain(`${BASE}/pass/pass-1`);
+  it('sends the approver to their queue, not to the record', () => {
+    expect(msgs[0].html).toContain(`${BASE}/approvals`);
+    expect(msgs[0].text).toContain(`${BASE}/approvals`);
   });
 
   it('carries the facts an approver needs to decide without opening the app', () => {
     const body = msgs[0].text;
+    expect(body).toContain('RGP-20260819-0001');
     expect(body).toContain('Sharma Electricals');
-    expect(body).toContain('₹48,500');
-    expect(body).toContain('Anita Rao');
+    expect(body).toContain('Engineering / MEP');
+    expect(body).toContain(noticeCurrency(48500));
   });
 });
 
-describe('buildApprovalNotices — the ladder moving', () => {
-  it('tells the NEXT office it is their turn, and the HOD who just signed', () => {
-    const moved = [
-      approval({ status: 'approved', decided_at: '2026-08-19T07:00:00.000Z' }),
-      approval({ role_key: 'coo', level_no: 2, approver_id: 'u-coo', approver_name: 'Vikram Singh', approver_email: 'vikram@example.com' }),
-    ];
-    const msgs = buildApprovalNotices(PASS, moved, HOD, BASE);
-    expect(msgs.find((m) => m.kind === 'awaiting_you')?.to).toBe('vikram@example.com');
-    const cleared = msgs.find((m) => m.kind === 'level_cleared');
-    expect(cleared?.to).toBe('anita.rao@example.com');
-    expect(cleared?.subject).toContain('Security Head');
-    expect(cleared?.subject).toContain('COO');
+describe('buildApprovalNotices — the ladder moving one rung at a time', () => {
+  it('tells the NEXT office it is their turn, and only that office', () => {
+    const moved = LADDER.map((a) =>
+      a.level_no === 1 ? { ...a, status: 'approved' as const, decided_at: '2026-08-19T08:00:00.000Z' } : a
+    );
+    const msgs = buildApprovalNotices(PASS, moved, BASE);
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].to).toBe('vikram@example.com');
+    expect(msgs[0].subject).toContain('COO');
+    // The office that just signed is not written to again.
+    expect(msgs.some((m) => m.to === 'ravi.menon@example.com')).toBe(false);
   });
 
-  it('tells the HOD when the last office signs, and asks nobody', () => {
+  it('asks nobody once the last office has signed', () => {
     const done = LADDER.map((a) => ({ ...a, status: 'approved' as const }));
-    const msgs = buildApprovalNotices(PASS, done, HOD, BASE);
-    expect(msgs).toHaveLength(1);
-    expect(msgs[0].kind).toBe('fully_approved');
-    expect(msgs[0].to).toBe('anita.rao@example.com');
+    expect(buildApprovalNotices(PASS, done, BASE)).toEqual([]);
   });
 });
 
 describe('buildApprovalNotices — rejection', () => {
-  const refused = [
-    approval({ status: 'approved' }),
-    approval({
-      role_key: 'coo',
-      level_no: 2,
-      approver_id: 'u-coo',
-      approver_name: 'Vikram Singh',
-      approver_email: 'vikram@example.com',
+  const refused: NoticeApproval[] = [
+    { ...LADDER[0], status: 'approved' },
+    {
+      ...LADDER[1],
       status: 'rejected',
-      reason: 'Invoice reference does not match the material.',
-    }),
-    approval({ role_key: 'ceo', level_no: 3, approver_id: 'u-ceo', approver_email: 'meera@example.com' }),
+      decided_at: '2026-08-19T09:00:00.000Z',
+      reason: 'Vendor is not on the approved list',
+    },
+    LADDER[2],
   ];
-  const msgs = buildApprovalNotices({ ...PASS, status: 'cancelled' }, refused, HOD, BASE);
+  const msgs = buildApprovalNotices({ ...PASS, status: 'cancelled' }, refused, BASE);
 
-  it('tells the HOD alone, with the reason', () => {
-    expect(msgs).toHaveLength(1);
-    expect(msgs[0].kind).toBe('rejected');
-    expect(msgs[0].to).toBe('anita.rao@example.com');
-    expect(msgs[0].text).toContain('Invoice reference does not match the material.');
-    expect(msgs[0].subject).toContain('COO');
+  // A rejection is terminal (046) and the HOD hears about it through the bell,
+  // not by mail. There is therefore no letter at all.
+  it('sends no mail once an office has refused the pass', () => {
+    expect(msgs).toEqual([]);
   });
 
-  // The levels below a rejection are still `pending` rows in the table — 046
-  // leaves them alone deliberately. Mailing them would ask somebody to decide a
-  // pass their own RPC now refuses, on a pass that is closed.
   it('does not ask a still-pending lower office to approve a closed pass', () => {
-    expect(msgs.map((m) => m.to)).not.toContain('meera@example.com');
+    expect(msgs.some((m) => m.to === 'meera@example.com')).toBe(false);
   });
 });
 
 describe('buildApprovalNotices — the edges', () => {
-  it('says so plainly when no office is designated and the pass skips the ladder', () => {
-    const msgs = buildApprovalNotices(PASS, [], HOD, BASE);
-    expect(msgs).toHaveLength(1);
-    expect(msgs[0].kind).toBe('raised_ack');
-    expect(msgs[0].subject).toContain('no approval required');
+  it('sends nothing when no office is designated and the pass skips the ladder', () => {
+    // 046 snapshots no rows when `approval_roles` is empty, so the pass is at
+    // the gate already and there is nobody to ask.
+    expect(buildApprovalNotices(PASS, [], BASE)).toEqual([]);
   });
 
-  it('drops a message whose recipient has no address, and keeps the rest', () => {
-    const msgs = buildApprovalNotices(PASS, LADDER, { email: null, name: 'Anita Rao' }, BASE);
-    expect(msgs).toHaveLength(1);
-    expect(msgs[0].kind).toBe('awaiting_you');
+  it('drops the message rather than sending to an office with no address', () => {
+    const noAddress = LADDER.map((a) => (a.level_no === 1 ? { ...a, approver_email: null } : a));
+    expect(buildApprovalNotices(PASS, noAddress, BASE)).toEqual([]);
   });
 
-  it('sends one mail, not two, when the approver is also the raising HOD', () => {
-    const msgs = buildApprovalNotices(PASS, LADDER, { email: 'ravi.menon@example.com', name: 'Ravi Menon' }, BASE);
-    expect(msgs).toHaveLength(1);
-    // The actionable one survives, not the receipt.
-    expect(msgs[0].kind).toBe('awaiting_you');
-  });
-
-  it('escapes a rejection reason rather than letting it write HTML into the mail', () => {
-    const nasty = [
-      approval({ status: 'rejected', reason: '<script>alert(1)</script>' }),
-    ];
-    const msgs = buildApprovalNotices(PASS, nasty, HOD, BASE);
-    expect(msgs[0].html).not.toContain('<script>');
-    expect(msgs[0].html).toContain('&lt;script&gt;');
+  it('escapes a vendor name rather than letting it write HTML into the mail', () => {
+    const msgs = buildApprovalNotices(
+      { ...PASS, visitor_name: '<img src=x onerror=alert(1)>' },
+      LADDER,
+      BASE
+    );
+    expect(msgs[0].html).not.toContain('<img src=x');
+    expect(msgs[0].html).toContain('&lt;img src=x');
   });
 
   it('never puts "Invalid Date" in a subject or body', () => {
-    const msgs = buildApprovalNotices({ ...PASS, created_at: 'not-a-date', expected_return_date: 'nope' }, LADDER, HOD, BASE);
+    const msgs = buildApprovalNotices(
+      { ...PASS, created_at: 'not-a-date', expected_return_date: 'nope' },
+      LADDER,
+      BASE
+    );
     for (const m of msgs) {
       expect(m.subject).not.toContain('Invalid Date');
       expect(m.text).not.toContain('Invalid Date');
+      expect(m.html).not.toContain('Invalid Date');
     }
   });
 });

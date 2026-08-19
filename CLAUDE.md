@@ -274,8 +274,9 @@ returned).** `gatepass.approval_notice_payload(uuid)` (SECURITY DEFINER, `servic
 it returns officers' EMAIL ADDRESSES, which no signed-in role may read) and `gatepass.email_log`
 (admin-select, service-role-write, no insert policy). The sender is the Deno Edge Function
 `supabase/functions/notify-approval`, called AFTER the RPC commits — the pass matters more than
-the letter. **NOT DEPLOYED, and no mail has ever been sent**: there is no Resend key yet, so the
-provider call is unverified against the real API.
+the letter. **NOT DEPLOYED, and no mail has ever been sent**: the provider call is unverified
+against the real API. WHO gets mailed changed on the twelfth pass below — this entry describes
+the schema half only.
 
 - **`src/lib/approvalNotice.ts` MUST NEVER GAIN AN IMPORT.** Deno needs a `.ts` extension on a
   local import and the app's tooling needs none, so importing nothing is the only way one file
@@ -286,6 +287,42 @@ provider call is unverified against the real API.
   `onboarding@resend.dev` and only TO the address that owns the account, so the whole test is
   aimed at one real inbox. Read `gatepass.email_log` — `ok = false` carries the provider's
   refusal verbatim; no row at all means the function was never reached.
+
+**Latest change (2026-08-19, twelfth pass): the ladder mails ONE OFFICE AT A TIME AND NOBODY
+ELSE, and every letter can be redirected to a single inbox.** Frontend/function only — no
+migration; `047` is unchanged and still applied.
+
+- **THE RAISING HOD IS NEVER WRITTEN TO** (client: "the hod who raises the pass should not get
+  any email because he or she already raised it. That means approval is already taken").
+  `buildApprovalNotices` now returns AT MOST ONE message and `NoticeKind` is the single label
+  `awaiting_you`. The four HOD receipts — `raised_ack`, `level_cleared`, `fully_approved`,
+  `rejected` — are **deleted, not flagged off**, and `NoticePerson` with them, so a stale
+  reference is a type error. **KNOWN COST, FLAGGED**: the HOD learns of a rejection in the app
+  alone (the bell's notice, `status = 'cancelled' and flag_reason is null`) and hears nothing by
+  mail.
+- **ONE RUNG PER EVENT, which is what the client asked for and what the code already did.**
+  Raising mails level 1; that office approving mails level 2; and so on, because each mail is
+  sent by `notifyApproval` AFTER the RPC for the step before it committed, and `currentApproval`
+  is the LOWEST still-pending level — the only one `approve_pass_level` will accept. A rejected
+  ladder mails nobody: the levels below a rejection stay `pending` and asking one of them to
+  approve a closed pass is the exact letter the guard in that function prevents.
+- **`MAIL_OVERRIDE_TO` — every letter to one inbox.** An env var read in `_shared/mailer.ts`
+  (never a constant, and the test inbox is named nowhere in the repo): when set, the provider is
+  handed that address whatever office the message was aimed at, and the display name is dropped
+  so a redirected letter cannot be mistaken for a real one. It exists because an unverified
+  Resend account may only write to the address that owns it. `email_log.recipient` records
+  **`delivered@x (redirected from intended@y)`** — a log saying only "sent to the test inbox"
+  could not tell the four offices' mails apart afterwards. Unsetting it, plus a `MAIL_FROM` at a
+  verified domain, is the whole production switch-over.
+- **STILL NOT DEPLOYED BY THIS SESSION, and no mail has yet been sent.** The Resend key is in
+  hand but `supabase functions deploy` needs a CLI login this session does not have; the exact
+  secrets and deploy commands are in `supabase/functions/README.md`. Until it runs, every
+  `notifyApproval` call warns in the console and no `email_log` row appears — which is the
+  documented way to tell "never reached" from "provider refused".
+- Pinned by a rewritten `tests/unit/approvalNotice.test.ts` (21): the first office only, nothing
+  to the HOD, the next office when a rung is signed, silence when the ladder is done, silence on
+  a rejection, silence when no office is designated, and silence rather than a letter to an
+  office with no address.
 
 **Earlier (2026-08-19, tenth pass): ONE stacked pass card for every role, the
 timeline ends with the return, value is totalled everywhere, and the guard's record stopped

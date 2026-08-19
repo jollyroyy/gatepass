@@ -38,6 +38,10 @@ export interface OutgoingMail {
 
 export interface SendResult {
   ok: boolean;
+  /** The address the provider was actually handed. Equal to `mail.to` unless
+   *  MAIL_OVERRIDE_TO is set, in which case it is that address — the log must
+   *  record where the letter WENT, not where it was aimed. */
+  deliveredTo: string;
   /** The provider's id for an accepted message — what you quote when asking
    *  them where it went. */
   providerId: string | null;
@@ -61,16 +65,36 @@ export function addressOf(email: string, name: string | null): string {
 export async function sendMail(mail: OutgoingMail): Promise<SendResult> {
   const key = Deno.env.get('RESEND_API_KEY');
   const from = Deno.env.get('MAIL_FROM');
+  // ═══ MAIL_OVERRIDE_TO — EVERY LETTER GOES TO ONE INBOX ═══
+  //
+  // Set on this deployment because the Resend account is unverified: it may
+  // send ONLY to the address that owns it, so a mail addressed to the real COO
+  // is refused by the provider and the ladder looks broken for a reason that
+  // has nothing to do with this app. With the override set, the four offices'
+  // letters all land in that one inbox, one per approval step, each naming its
+  // office in the subject line.
+  //
+  // IT IS AN ENVIRONMENT VARIABLE, NOT A CONSTANT, and that is the point:
+  // verifying a domain and unsetting this secret is the entire production
+  // switch-over. Nothing in the repo names the test inbox.
+  //
+  // The caller still knows who the letter was AIMED at (`mail.to`) and writes
+  // both into `email_log`, so the log never claims the CEO was written to
+  // directly when the letter went somewhere else.
+  const overrideTo = (Deno.env.get('MAIL_OVERRIDE_TO') ?? '').trim();
 
   if (!key || !from) {
     return {
       ok: false,
+      deliveredTo: overrideTo || mail.to,
       providerId: null,
       error:
         'RESEND_API_KEY or MAIL_FROM is not set on this function. ' +
         'Run: supabase secrets set RESEND_API_KEY=... MAIL_FROM="Quest GatePass <gatepass@yourdomain.com>"',
     };
   }
+
+  const deliveredTo = overrideTo || mail.to;
 
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -81,7 +105,10 @@ export async function sendMail(mail: OutgoingMail): Promise<SendResult> {
       },
       body: JSON.stringify({
         from,
-        to: [addressOf(mail.to, mail.toName)],
+        // When the override is set the display name is dropped: labelling
+        // somebody else's inbox with the CEO's name is how a test mail gets
+        // mistaken for a real one.
+        to: [overrideTo ? overrideTo : addressOf(mail.to, mail.toName)],
         subject: mail.subject,
         text: mail.text,
         html: mail.html,
@@ -90,7 +117,7 @@ export async function sendMail(mail: OutgoingMail): Promise<SendResult> {
 
     const body = await res.text();
     if (!res.ok) {
-      return { ok: false, providerId: null, error: `${res.status} ${body}`.slice(0, 1000) };
+      return { ok: false, deliveredTo, providerId: null, error: `${res.status} ${body}`.slice(0, 1000) };
     }
     let providerId: string | null = null;
     try {
@@ -98,8 +125,8 @@ export async function sendMail(mail: OutgoingMail): Promise<SendResult> {
     } catch {
       /* Accepted with a body we could not parse. The send still happened. */
     }
-    return { ok: true, providerId, error: null };
+    return { ok: true, deliveredTo, providerId, error: null };
   } catch (e) {
-    return { ok: false, providerId: null, error: String(e).slice(0, 1000) };
+    return { ok: false, deliveredTo, providerId: null, error: String(e).slice(0, 1000) };
   }
 }

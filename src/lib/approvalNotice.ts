@@ -22,11 +22,21 @@
 // cannot ask this system to tell the CEO that a pass was approved when it was
 // not. "Just raised" is `no row has been decided yet`, not a word in a payload.
 //
-// WHAT IS DELIBERATELY NOT MAILED. Only the office whose TURN it is hears about
-// a pass — 046 makes the ladder sequential, so mailing all four would send three
-// people a pass they cannot act on and train them to ignore the fourth mail that
-// matters. The client asked for "the designated ladder holders"; this is that,
-// one at a time, plus the raising HOD's copy of every step.
+// WHAT IS DELIBERATELY NOT MAILED, and this is the whole of it:
+//
+//   * every office but the one whose TURN it is. 046 makes the ladder
+//     sequential, so mailing all four would send three people a pass they
+//     cannot act on and train them to ignore the fourth mail that matters.
+//   * THE RAISING HOD, at every step — raised, level cleared, fully approved,
+//     rejected. Client, 2026-08-19: "the hod who raises the pass should not get
+//     any email because he or she already raised it. That means approval is
+//     already taken." So this module now produces EXACTLY ONE KIND OF MESSAGE:
+//     a request to the office that must act next, and nothing else.
+//     COST, STATED: the HOD learns of a rejection in the app alone — the bell's
+//     notice, derived on mount from `status = 'cancelled' and flag_reason is
+//     null` — and hears nothing by mail. That is the client's instruction; if
+//     receipts are ever wanted back, this is the file and `NoticeKind` is the
+//     union to widen.
 
 /** The four offices between the issuing HOD and the gate. Mirrors
  *  `ApprovalRoleKey` in `approvalLadder.ts` and the `approval_roles_key_known`
@@ -73,25 +83,15 @@ export interface NoticeApproval {
   reason: string | null;
 }
 
-/** The person who raised the pass. */
-export interface NoticePerson {
-  email: string | null;
-  name: string | null;
-}
-
 /**
- * `awaiting_you`    — it is this office's turn. The only mail that asks for an action.
- * `raised_ack`      — receipt to the HOD: raised, and here is where it now sits.
- * `level_cleared`   — receipt to the HOD: one office signed, another now holds it.
- * `fully_approved`  — receipt to the HOD: the ladder is done, the gate can see it.
- * `rejected`        — receipt to the HOD: an office refused it, with the reason.
+ * `awaiting_you` — it is this office's turn, and the mail asks for a decision.
+ *
+ * THERE IS DELIBERATELY ONLY ONE KIND. Receipts to the raising HOD were removed
+ * on the client's instruction (see the header). The union is kept as a union
+ * rather than collapsed to a string so that adding a second kind stays a typed
+ * change and `email_log.kind` keeps meaning something.
  */
-export type NoticeKind =
-  | 'awaiting_you'
-  | 'raised_ack'
-  | 'level_cleared'
-  | 'fully_approved'
-  | 'rejected';
+export type NoticeKind = 'awaiting_you';
 
 export interface NoticeMessage {
   to: string;
@@ -239,145 +239,52 @@ export function rejectedApproval(approvals: NoticeApproval[]): NoticeApproval | 
   return approvals.find((a) => a.status === 'rejected') ?? null;
 }
 
+
 /**
- * Every email this pass's current state calls for, in send order.
+ * The email this pass's current state calls for — AT MOST ONE, addressed to the
+ * office whose turn it is.
  *
- * `hod` is the raising HOD's copy. A message whose recipient has no address on
- * file is DROPPED, not faked: a pass whose HOD has no email must still notify
- * the approver.
+ * Nothing goes to the raising HOD (see the header), and nothing goes to an
+ * office above or below the current rung: 046's `approve_pass_level` accepts
+ * only the LOWEST pending level, so any other letter would ask for a decision
+ * the database refuses to record.
  *
- * DE-DUPLICATED BY ADDRESS. One person may hold an office and have raised the
- * pass — plausible on a small site — and two mails about one event, one of them
- * asking them to approve their own pass, reads as a broken system.
+ * Returns an empty array — never a fabricated message — when there is nobody to
+ * ask: no office was designated, every office has signed, an office has already
+ * rejected it, or the office holder has no address on file.
  */
 export function buildApprovalNotices(
   pass: NoticePass,
   approvals: NoticeApproval[],
-  hod: NoticePerson,
   baseUrl: string
 ): NoticeMessage[] {
-  const messages: NoticeMessage[] = [];
-  const passLink = joinUrl(baseUrl, `/pass/${pass.id}`);
-  const queueLink = joinUrl(baseUrl, '/approvals');
-
-  const rejected = rejectedApproval(approvals);
-  if (rejected) {
-    const who = rejected.approver_name
-      ? `${titleOf(rejected.role_key)} (${rejected.approver_name})`
-      : titleOf(rejected.role_key);
-    const heading = `Gate pass ${pass.pass_number} was rejected`;
-    const lead = `${who} rejected this gate pass. It is closed and cannot be cleared at the gate.`;
-    const tail = rejected.reason ? `Reason given: ${rejected.reason}` : 'No reason was recorded.';
-    messages.push({
-      to: hod.email ?? '',
-      toName: hod.name,
-      kind: 'rejected',
-      subject: `Rejected: ${pass.pass_number} — ${who}`,
-      text: wrapText(heading, lead, pass, { href: passLink, label: 'Open the pass record' }, tail),
-      html: wrapHtml(heading, lead, pass, { href: passLink, label: 'Open the pass record' }, tail),
-    });
-    return messages.filter((m) => m.to);
-  }
+  // A rejection is terminal (046): the pass is cancelled and the levels below
+  // it stay `pending` because nobody signed them. Asking one of them to approve
+  // a closed pass is the exact mail this guard exists to prevent.
+  if (rejectedApproval(approvals)) return [];
 
   const current = currentApproval(approvals);
-  const decided = approvals.filter((a) => a.status !== 'pending');
+  if (!current) return [];
+  if (!current.approver_email) return [];
 
-  if (current) {
-    const title = titleOf(current.role_key);
-    const heading = `Gate pass ${pass.pass_number} is waiting for your approval`;
-    const lead =
-      `You hold the ${title} office. This gate pass has reached your level ` +
-      `(Level ${current.level_no}) and cannot leave the gate until you approve it.`;
-    const tail =
-      'Approving passes it to the next office on the ladder, or releases it to the gate if you are the last. ' +
-      'Rejecting closes the pass permanently and needs a written reason.';
-    messages.push({
-      to: current.approver_email ?? '',
+  const queueLink = joinUrl(baseUrl, '/approvals');
+  const title = titleOf(current.role_key);
+  const heading = `Gate pass ${pass.pass_number} is waiting for your approval`;
+  const lead =
+    `You hold the ${title} office. This gate pass has reached your level ` +
+    `(Level ${current.level_no}) and cannot leave the gate until you approve it.`;
+  const tail =
+    'Approving passes it to the next office on the ladder, or releases it to the gate if you are the last. ' +
+    'Rejecting closes the pass permanently and needs a written reason.';
+
+  return [
+    {
+      to: current.approver_email,
       toName: current.approver_name,
       kind: 'awaiting_you',
       subject: `Approval needed: ${pass.pass_number} (${pass.type}) — ${title}`,
       text: wrapText(heading, lead, pass, { href: queueLink, label: 'Open your Pending Approvals' }, tail),
       html: wrapHtml(heading, lead, pass, { href: queueLink, label: 'Open your Pending Approvals' }, tail),
-    });
-  }
-
-  const hodMessage = ((): NoticeMessage | null => {
-    // Nothing to approve at all — no office was designated when this pass was
-    // raised, so 046 snapshotted no rows and it went straight to the gate. Say
-    // that plainly rather than sending nothing: silence would read as a lost mail.
-    if (approvals.length === 0) {
-      const heading = `Gate pass ${pass.pass_number} has been raised`;
-      const lead =
-        'No approval offices are designated, so this pass needs no approval and is already visible at the gate.';
-      return {
-        to: hod.email ?? '',
-        toName: hod.name,
-        kind: 'raised_ack',
-        subject: `Raised: ${pass.pass_number} (${pass.type}) — no approval required`,
-        text: wrapText(heading, lead, pass, { href: passLink, label: 'Open the pass record' }, ''),
-        html: wrapHtml(heading, lead, pass, { href: passLink, label: 'Open the pass record' }, ''),
-      };
-    }
-
-    if (!current) {
-      const heading = `Gate pass ${pass.pass_number} is fully approved`;
-      const lead =
-        `Every approval office has signed this pass. It is now visible to security and can be cleared at the gate.`;
-      return {
-        to: hod.email ?? '',
-        toName: hod.name,
-        kind: 'fully_approved',
-        subject: `Fully approved: ${pass.pass_number} (${pass.type})`,
-        text: wrapText(heading, lead, pass, { href: passLink, label: 'Open the pass record' }, ''),
-        html: wrapHtml(heading, lead, pass, { href: passLink, label: 'Open the pass record' }, ''),
-      };
-    }
-
-    const waitingOn = current.approver_name
-      ? `${titleOf(current.role_key)} (${current.approver_name})`
-      : titleOf(current.role_key);
-
-    if (decided.length === 0) {
-      const heading = `Gate pass ${pass.pass_number} has been raised`;
-      const lead =
-        `It has entered the approval ladder and is now with the ${waitingOn}. ` +
-        `The gate cannot see this pass until every office has approved it.`;
-      return {
-        to: hod.email ?? '',
-        toName: hod.name,
-        kind: 'raised_ack',
-        subject: `Raised: ${pass.pass_number} (${pass.type}) — awaiting ${titleOf(current.role_key)}`,
-        text: wrapText(heading, lead, pass, { href: passLink, label: 'Open the pass record' }, ''),
-        html: wrapHtml(heading, lead, pass, { href: passLink, label: 'Open the pass record' }, ''),
-      };
-    }
-
-    const last = decided.reduce((a, b) => (a.level_no > b.level_no ? a : b));
-    const lastWho = last.approver_name
-      ? `${titleOf(last.role_key)} (${last.approver_name})`
-      : titleOf(last.role_key);
-    const heading = `Gate pass ${pass.pass_number} cleared one approval level`;
-    const lead = `${lastWho} approved this pass. It is now with the ${waitingOn}.`;
-    return {
-      to: hod.email ?? '',
-      toName: hod.name,
-      kind: 'level_cleared',
-      subject: `Approved by ${titleOf(last.role_key)}: ${pass.pass_number} — now with ${titleOf(current.role_key)}`,
-      text: wrapText(heading, lead, pass, { href: passLink, label: 'Open the pass record' }, ''),
-      html: wrapHtml(heading, lead, pass, { href: passLink, label: 'Open the pass record' }, ''),
-    };
-  })();
-
-  if (hodMessage) messages.push(hodMessage);
-
-  // Drop the addressless, then the duplicates. Order matters: `awaiting_you` is
-  // pushed first, so when one person is both the approver and the raising HOD
-  // it is the actionable mail that survives.
-  const seen = new Set<string>();
-  return messages.filter((m) => {
-    const key = m.to.trim().toLowerCase();
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+    },
+  ];
 }

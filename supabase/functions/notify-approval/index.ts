@@ -1,5 +1,13 @@
-// notify-approval — tell the office whose turn it is that a gate pass is
-// waiting, and copy the HOD who raised it.
+// notify-approval — tell the office whose turn it is, and NOBODY ELSE, that a
+// gate pass is waiting for their decision.
+//
+// ONE EVENT SENDS AT MOST ONE LETTER, to the lowest still-pending office. The
+// raising HOD is deliberately never written to (client, 2026-08-19: they raised
+// it, so their approval is already given); see `src/lib/approvalNotice.ts`.
+// The ladder is therefore driven one rung at a time: raising the pass mails
+// level 1, that office approving mails level 2, and so on — each mail is sent
+// by the app calling this function AFTER the RPC for the previous step has
+// committed.
 //
 // Called by the app after `raise_pass`, `approve_pass_level` and
 // `reject_pass_level` have ALREADY COMMITTED (see `src/lib/notifyApproval.ts`).
@@ -127,21 +135,16 @@ Deno.serve(async (req: Request) => {
     created_at: String(p.created_at),
   };
 
-  const messages = buildApprovalNotices(
-    pass,
-    raw.approvals ?? [],
-    { email: (p.raised_by_email as string | null) ?? null, name: pass.raised_by_name },
-    baseUrl,
-  );
+  const messages = buildApprovalNotices(pass, raw.approvals ?? [], baseUrl);
 
   // ── 3. Send, and record every attempt ────────────────────────────────────
-  // Sequential, not Promise.all: at most two messages come out of one event,
-  // and a provider rate limit hit by parallel calls costs a delivery for no
-  // measurable gain.
+  // A loop over what is currently at most ONE message. It stays a loop because
+  // the shape of `buildApprovalNotices` is "every letter this state calls for",
+  // and a second kind must not need this function rewritten.
   const results: { to: string; kind: string; ok: boolean }[] = [];
   for (const m of messages) {
     const sent = await sendMail(m);
-    results.push({ to: m.to, kind: m.kind, ok: sent.ok });
+    results.push({ to: sent.deliveredTo, kind: m.kind, ok: sent.ok });
 
     // The log is best-effort and must never break the send loop: failing to
     // record a message that WAS delivered is a smaller problem than aborting
@@ -149,14 +152,22 @@ Deno.serve(async (req: Request) => {
     const { error: logErr } = await service.schema('gatepass').from('email_log').insert({
       gate_pass_id: passId,
       kind: m.kind,
-      recipient: m.to,
+      // WHERE IT WENT, and where it was aimed when those differ. With
+      // MAIL_OVERRIDE_TO set (an unverified Resend account can only write to
+      // one inbox) every letter is delivered to that address, and a log saying
+      // only "sent to the test inbox" could not tell the four offices' mails
+      // apart afterwards.
+      recipient:
+        sent.deliveredTo.toLowerCase() === m.to.toLowerCase()
+          ? m.to
+          : `${sent.deliveredTo} (redirected from ${m.to})`,
       subject: m.subject,
       ok: sent.ok,
       provider_id: sent.providerId,
       error: sent.error,
     });
     if (logErr) console.error('[notify-approval] could not write email_log:', logErr.message);
-    if (!sent.ok) console.error(`[notify-approval] send failed to ${m.to}: ${sent.error}`);
+    if (!sent.ok) console.error(`[notify-approval] send failed to ${sent.deliveredTo}: ${sent.error}`);
   }
 
   // 200 even when a send failed, and the body says which. The caller is a

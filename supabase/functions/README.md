@@ -13,22 +13,24 @@ happen.
 
 | When | Who gets it | Subject |
 |---|---|---|
-| A pass is raised | the **first** office on the ladder | `Approval needed: RGP-… — Security Head` |
-| | the raising HOD (copy) | `Raised: RGP-… — awaiting Security Head` |
-| An office approves | the **next** office | `Approval needed: …` |
-| | the raising HOD (copy) | `Approved by COO: … — now with CEO` |
-| The last office approves | the raising HOD | `Fully approved: RGP-…` |
-| An office rejects | the raising HOD | `Rejected: RGP-… — COO` |
-| No office is designated | the raising HOD | `Raised: … — no approval required` |
+| A pass is raised | the **first** office on the ladder | `Approval needed: RGP-… (RGP) — Security Head` |
+| That office approves | the **next** office, and nobody else | `Approval needed: RGP-… (RGP) — COO` |
+| The last office approves | nobody — the pass is at the gate | — |
+| An office rejects | nobody — the pass is closed | — |
+| No office is designated | nobody — the pass never entered the ladder | — |
 
-**Only the office whose turn it is is written to**, never all four. The ladder is
-sequential — 046's `approve_pass_level` refuses anybody but the lowest pending
-level — so mailing four people would send three of them a pass they cannot act
-on, and teach them to ignore the fourth mail that matters.
+**One event sends at most one letter.** The ladder is sequential — 046's
+`approve_pass_level` refuses anybody but the lowest pending level — so mailing
+four people would send three of them a pass they cannot act on, and teach them to
+ignore the fourth mail that matters. Each rung is mailed only when the rung below
+it has actually been signed.
 
-A recipient with no email address on file is **dropped**, not faked; the other
-message still sends. If one person is both the approver and the raising HOD, they
-get **one** mail — the actionable one.
+**The raising HOD is never written to.** Client instruction, 2026-08-19: they
+raised the pass, so their approval is already given. The cost, stated: they learn
+of a rejection in the app (the bell's notice), not by mail.
+
+An office with no email address on file is **dropped**, not faked — the pass
+still waits for them in `/approvals`.
 
 ## Why not Supabase's built-in email
 
@@ -58,9 +60,27 @@ supabase link --project-ref oxzzeonftrmohdrancex
 
 supabase secrets set \
   RESEND_API_KEY="re_..." \
-  MAIL_FROM="Quest GatePass <gatepass@yourcompany.com>" \
-  APP_BASE_URL="https://your-app.vercel.app"
+  MAIL_FROM="Quest GatePass <onboarding@resend.dev>" \
+  APP_BASE_URL="https://your-app.vercel.app" \
+  MAIL_OVERRIDE_TO="you@example.com"
 ```
+
+### `MAIL_OVERRIDE_TO` — every letter to one inbox
+
+Optional, and set on **this** deployment. When it carries an address, every
+message is delivered there whatever office it was addressed to. It exists because
+an unverified Resend account may only write to the address that owns it, so a
+letter aimed at the real COO is refused by the provider and the ladder looks
+broken for a reason that has nothing to do with this app.
+
+The office is still named in the subject line, so four approvals produce four
+distinguishable letters in the one inbox. `gatepass.email_log` records
+`delivered@address (redirected from intended@address)`, so the log never claims
+the CEO was written to directly.
+
+**Unset it the day a sending domain is verified** — that, plus a `MAIL_FROM` at
+the verified domain, is the whole production switch-over. Nothing in the repo
+names the test inbox.
 
 `APP_BASE_URL` is where the links in the letter point (`/approvals` for the
 approver, `/pass/<id>` for the HOD). **No trailing slash needed** — it is
