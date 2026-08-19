@@ -52,11 +52,19 @@ type Props = {
   /** The department ranking — admin only. An HOD's page is one department by
    *  construction, and a guard chases a line, not a department. */
   showDepartments?: boolean;
+  /** The seven-day trend, and the "longest delay in this list" footnote.
+   *
+   *  OFF FOR THE GUARD (client, 2026-08-19). Both are figures about the shape
+   *  of a backlog, which is a question an HOD or an admin asks; a guard is
+   *  looking for the line in front of them and acts on the table alone. The
+   *  escalation card is NOT part of this — it names items to chase, which is
+   *  exactly the guard's job, so it stays on every role's page. */
+  showTrend?: boolean;
 };
 
 export default function OverdueBoard({
   subtitle, passes, items, canRecord, loading, error, onRecorded,
-  showDepartments = false,
+  showDepartments = false, showTrend = true,
 }: Props): React.ReactElement {
   const [filters, setFilters] = useState<OverdueFilterState>(EMPTY_FILTERS);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -201,7 +209,7 @@ export default function OverdueBoard({
               </div>
             )}
 
-            {stats.total > 0 && (
+            {showTrend && stats.total > 0 && (
               <p className="text-[11px] text-navy-500">
                 Longest delay in this list: {formatDelay(Math.max(...rows.map((r) => r.daysLate)))}.
               </p>
@@ -212,6 +220,7 @@ export default function OverdueBoard({
             {showDepartments && <OverdueDeptChart rows={rows} />}
             <OverdueTrendPanel
               bars={bars}
+              showTrend={showTrend}
               critical={stats.critical}
               onReviewCritical={() => applyFilters({ ...filters, delay: 'critical' })}
             />

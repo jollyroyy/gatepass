@@ -210,7 +210,7 @@ export default function App(): React.ReactElement {
           <Route path="/guard-dashboard" element={<GuardDashboard />} />
           <Route path="/pending-out" element={<PendingOutPage />} />
           <Route path="/pending-returns" element={<PendingReturnsPage />} />
-          <Route path="/console" element={<GateConsole />} />
+          <Route path="/console" element={<GateConsole role={role} />} />
           <Route path="/verify/:id" element={<Verify />} />
 
           {/* Admin */}
@@ -225,7 +225,7 @@ export default function App(): React.ReactElement {
           <Route path="/returns" element={<ReturnsDueTodayPage role={role} />} />
 
           {/* Shared */}
-          <Route path="/pass/:id" element={<PassDetail />} />
+          <Route path="/pass/:id" element={<PassDetail role={role} />} />
           <Route path="/profile" element={<ProfilePage session={session} role={role} />} />
 
           <Route path="*" element={<Navigate to={homeFor(role)} replace />} />

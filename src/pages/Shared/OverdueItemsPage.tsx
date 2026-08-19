@@ -39,6 +39,7 @@ export default function OverdueItemsPage({ role }: Props): React.ReactElement {
       items={items}
       canRecord={isGuard}
       showDepartments={!isGuard && !isHod}
+      showTrend={!isGuard}
       loading={loading}
       error={error}
       onRecorded={() => void reload()}

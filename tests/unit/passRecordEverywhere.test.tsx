@@ -94,14 +94,15 @@ describe('/pass/:id renders the Search Pass record, not a second format', () => 
   it('is the same component the gate search resolves to', async () => {
     renderDetail();
     await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
-    expect(screen.getByRole('heading', { name: 'Gate Pass Details' })).toBeInTheDocument();
-    expect(screen.getByText('Items in this gate pass')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'RGP Gate Pass Details' })).toBeInTheDocument();
+    expect(screen.getByText('RGP Items (Returnable)')).toBeInTheDocument();
+    expect(screen.getByTestId('approval-timeline')).toBeInTheDocument();
   });
 
   it('keeps every fact the old detail page carried', async () => {
     renderDetail();
     await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
-    for (const label of ["Authorized Person's Name", 'Contact', 'Vendor', 'Vendor address', 'Vehicle number', 'Department', 'Issued by', 'Issue date', 'Expected return']) {
+    for (const label of ["Authorized Person's Name", 'Contact No.', 'Vendor / Person', 'Vendor Address', 'Vehicle No.', 'Requested By', 'Request Date & Time', 'Return Before']) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
     expect(screen.getByText('Sharma Traders')).toBeInTheDocument();
@@ -114,7 +115,9 @@ describe('/pass/:id renders the Search Pass record, not a second format', () => 
     row = pass({ status: 'flagged', flag_reason: 'Count did not match', verified_at: '2026-08-18T08:00:00Z' });
     renderDetail();
     await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
-    expect(screen.getByText('Count did not match')).toBeInTheDocument();
+    // Twice on purpose: the override panel above the record states it, and the
+    // approval ladder's gate rung carries it as the reason that rung is blocked.
+    expect(screen.getAllByText('Count did not match').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
   });
 });

@@ -8,11 +8,12 @@
 //     is still logged;
 //   * a mobile number only ONE pass carries opens that record directly rather
 //     than a one-row list;
-//   * the record's figures are the rows underneath it: 1 of 2 items returned
-//     at 50%, and one line still needing attention.
+//   * the record's figures are the rows underneath it — the total row sums the
+//     very quantities printed above it (2026-08-19: the progress bar and the
+//     attention banner were replaced by the mock-up's own Total row).
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { GatePassItemView, GatePassView } from '../../src/types';
 
@@ -138,7 +139,7 @@ async function renderConsole() {
   const GateConsole = (await import('../../src/pages/Security/GateConsole')).default;
   render(
     <MemoryRouter>
-      <GateConsole />
+      <GateConsole role="guard" />
     </MemoryRouter>
   );
   await waitFor(() => expect(screen.getByTestId('gate-lookup')).toBeInTheDocument());
@@ -162,11 +163,13 @@ describe('Search Pass — an exact query opens the whole record in place', () =>
 
     await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
     expect(rpcCalls).toContain('lookup_pass');
-    expect(screen.getByRole('heading', { name: 'Gate Pass Details' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'RGP Gate Pass Details' })).toBeInTheDocument();
     // Once only: the breadcrumb above the title was redundant with it.
     expect(screen.getAllByText('RGP-OUT-20260818-0481')).toHaveLength(1);
     expect(screen.getByText('Rohan Sharma')).toBeInTheDocument();
-    expect(screen.getByText('Neha Kapoor')).toBeInTheDocument();
+    // Twice, and the mock-up's own doing: the fact strip's "Requested By" and
+    // the approval ladder's first rung both name the raising HOD.
+    expect(screen.getAllByText('Neha Kapoor').length).toBeGreaterThan(0);
     expect(screen.getByText('Level 2 — Service Corridor')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /print pass/i })).toBeInTheDocument();
   });
@@ -182,21 +185,21 @@ describe('Search Pass — an exact query opens the whole record in place', () =>
     expect(rpcCalls).not.toContain('lookup_pass');
   });
 
-  it('counts the progress bar and the attention banner off the rows below them', async () => {
+  it('sums the total row off the very rows printed above it', async () => {
     await renderConsole();
     search('RGP-OUT-20260818-0481');
 
     await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
-    expect(screen.getByText('1 of 2 items returned')).toBeInTheDocument();
-    expect(screen.getByText('50%')).toBeInTheDocument();
     expect(screen.getByText('Dell Precision Laptop 5570')).toBeInTheDocument();
     expect(screen.getByText('Bosch Cordless Drill')).toBeInTheDocument();
-    expect(screen.getByText('IT-LTP-0842')).toBeInTheDocument();
-    expect(
-      screen.getByText('1 item still needs attention before this pass can be closed')
-    ).toBeInTheDocument();
-    // The open line offers the only action that can actually close it.
-    expect(screen.getByRole('link', { name: /mark return — bosch cordless drill/i })).toBeInTheDocument();
+
+    const total = within(screen.getByRole('table')).getAllByRole('row').at(-1)!;
+    expect(within(total).getByText('Total')).toBeInTheDocument();
+
+    // A guard is the only reader who may record a return; the console is a
+    // guard's screen, so the open line offers the entry and the closed one
+    // offers nothing.
+    expect(screen.getByRole('button', { name: '+ Add Return' })).toBeInTheDocument();
   });
 
   it('shows the return activity newest first', async () => {

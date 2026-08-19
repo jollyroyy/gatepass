@@ -111,11 +111,11 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
       const statusIn = queueInCalls.find((c) => c.col === 'status');
       expect(statusIn).toBeDefined();
       expect(statusIn!.values).toEqual(expect.arrayContaining(['pending', 'hod_reviewed']));
-      // And the row reaches the gate screen — otherwise the pass is visible
-      // and still unclearable, which is the original bug in a new place. The
-      // action was renamed "Approve OUT" (2026-08-19); the destination is
-      // unchanged.
-      expect(screen.getByRole('link', { name: /approve out/i })).toHaveAttribute('href', '/verify/h1');
+      // And the row reaches the pass, which is what makes it clearable —
+      // otherwise it is visible and stuck, the original bug in a new place.
+      // Approve OUT opens the RECORD (2026-08-19), whose own Approve OUT button
+      // goes on to /verify/:id.
+      expect(screen.getByRole('link', { name: /approve out/i })).toHaveAttribute('href', '/pass/h1');
     });
   });
 
@@ -178,7 +178,7 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
       await waitFor(() => expect(screen.getByText('APPROVED-0001')).toBeInTheDocument());
 
       const row = screen.getByText('APPROVED-0001').closest('tr')!;
-      expect(within(row).getByRole('link', { name: 'Approve OUT' })).toHaveAttribute('href', '/verify/h1');
+      expect(within(row).getByRole('link', { name: 'Approve OUT' })).toHaveAttribute('href', '/pass/h1');
 
       // And it asked the database for BOTH states the gate can still act on —
       // narrowing this back to 'pending' alone is the original bug.

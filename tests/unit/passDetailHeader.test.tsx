@@ -91,9 +91,11 @@ describe('PassDetail header badge', () => {
   it('reads "Closed" for an NRGP, whose outward trip IS its end state', async () => {
     row = pass({ type: 'NRGP', return_status: 'not_applicable', actual_return_date: null });
     renderDetail();
-    // Twice: the header badge, and the timeline's own gate moment — an NRGP is
-    // closed the instant it is through the gate.
-    await waitFor(() => expect(screen.getAllByText('Closed').length).toBe(2));
+    // ONCE, in the header. The rail beside the record is the approval ladder
+    // now (2026-08-19) and its gate rung is worded as the event — "Cleared by
+    // Security" — not as the pass's resulting state, so the word appears in
+    // exactly one place.
+    await waitFor(() => expect(screen.getAllByText('Closed').length).toBe(1));
     expect(screen.queryByText('Matched')).toBeNull();
   });
 

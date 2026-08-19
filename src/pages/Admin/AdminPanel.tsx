@@ -5,12 +5,16 @@
 // card above the queue because the two are one setting and one consequence:
 // with nobody designated, every request in the list below is unapprovable, and
 // splitting them across screens would hide that.
+//
+// The Users tab carries the gate pass approval ladder (043) for the same
+// reason: it is four people picked out of the very directory listed under it.
 import React, { useState } from 'react';
 import DepartmentsTab from './DepartmentsTab';
 import UsersTab from './UsersTab';
 import BlacklistTab from './BlacklistTab';
 import WhitelistRequestsTab from './WhitelistRequestsTab';
 import CeoApproverCard from './CeoApproverCard';
+import ApprovalLadderCard from './ApprovalLadderCard';
 import { useMyProfile } from '../../lib/useMyProfile';
 
 type Tab = 'departments' | 'users' | 'blacklist' | 'whitelist';
@@ -29,7 +33,12 @@ export default function AdminPanel(): React.ReactElement {
 
   const rendered: Record<Tab, React.ReactElement> = {
     departments: <DepartmentsTab />,
-    users: <UsersTab />,
+    users: (
+      <div className="space-y-6">
+        <ApprovalLadderCard />
+        <UsersTab />
+      </div>
+    ),
     blacklist: <BlacklistTab />,
     whitelist: (
       <div className="space-y-6">

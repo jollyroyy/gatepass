@@ -18,13 +18,14 @@
 // record itself is byte-for-byte what the gate sees.
 import React, { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
+import type { UserRole } from '../../types';
 import { supabase } from '../../supabaseClient';
 import { useGatePassRecord } from '../../lib/useGatePassRecord';
 import PassRecordView from '../../components/passview/PassRecordView';
 import { formatDateTime } from '../../lib/formatDate';
 import FlaggedReviewActions from './FlaggedReviewActions';
 
-export default function PassDetail(): React.ReactElement {
+export default function PassDetail({ role = null }: { role?: UserRole | null }): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showCreated, setShowCreated] = useState(searchParams.get('created') === '1');
@@ -142,7 +143,11 @@ export default function PassDetail(): React.ReactElement {
         </div>
       )}
 
-      <PassRecordView record={record} />
+      <PassRecordView
+        record={record}
+        role={role}
+        onRecorded={() => setReloadKey((k) => k + 1)}
+      />
     </div>
   );
 }

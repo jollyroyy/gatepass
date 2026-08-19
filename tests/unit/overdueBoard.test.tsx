@@ -163,3 +163,29 @@ describe('Overdue Items — filters and escalation', () => {
     expect(screen.getByText(/No overdue item matches these filters/i)).toBeInTheDocument();
   });
 });
+
+describe('Overdue Items — the trend is not the guard\'s question', () => {
+  // Client, 2026-08-19: "remove Overdue trend from the guards' view. Put the
+  // overview trend in the HOD and the admins' view." Plus, the same day:
+  // "remove Longest delay in this list from overdue in guard."
+  //
+  // Both are figures about the SHAPE of a backlog. A guard is looking for the
+  // line in front of them and acts on the table alone; an HOD or an admin is
+  // asking whether the backlog is growing.
+  it('draws neither the trend chart nor the longest-delay footnote for a guard', () => {
+    renderBoard({ showTrend: false });
+    expect(screen.queryByText('Overdue trend')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Longest delay in this list/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps the escalation card, which names items to chase — exactly the guard\'s job', () => {
+    renderBoard({ showTrend: false });
+    expect(screen.getByRole('button', { name: /review critical items/i })).toBeInTheDocument();
+  });
+
+  it('draws both for an HOD and an admin', () => {
+    renderBoard();
+    expect(screen.getByText('Overdue trend')).toBeInTheDocument();
+    expect(screen.getByText(/Longest delay in this list/i)).toBeInTheDocument();
+  });
+});

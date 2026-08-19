@@ -1,48 +1,101 @@
-// The Gate Pass Details record a Search Pass query resolves to: the title with
-// the pass's one live badge, Print Pass, the summary card, the item
-// table, the return-activity rail, and the "still needs attention" footer.
+// GATE PASS DETAILS — the one record format in this app, drawn to the client's
+// mock-up (2026-08-19).
 //
-// Composition only — the three panels own their own markup and the numbers all
-// come from `src/lib/passRecordView.ts`, so a figure in the header can never
-// disagree with the rows underneath it.
+// Everything that opens a single pass renders THIS: `/pass/:id`, the gate
+// search, every stacked list, every KPI drill, the notification bell, and — as
+// of the same day — the guard's own Approve OUT and Verify Return actions. A
+// pass therefore reads exactly one way, and a change lands everywhere at once.
+//
+// FOUR PARTS, IN THE MOCK'S ORDER: the title row with the pass's live badge and
+// its ONE action; the fact strip; the material table (which is also where a
+// return is entered); and the approval ladder down the right, with the gate's
+// own activity trail under it.
+//
+// THE ACTION IS SINGULAR AND ROLE-SHAPED. A guard standing at the barrier gets
+// Approve OUT while the gate can still act (`canVerifyAtGate`, the rule
+// `match_pass` enforces) — it opens `/verify/:id`, which offers Match, Flag and
+// Hold, because naming one of three outcomes on the button would teach a guard
+// the wrong model of their own job. Everyone else gets Print Pass alone. There
+// is no "Mark as Returned" button: a return is per line and per quantity now,
+// and it is entered on the table itself.
+//
+// EXPORT PDF AND SHARE FROM THE MOCK ARE DELIBERATELY ABSENT. Print Pass is
+// this app's PDF (the browser's own print dialogue, on a slip laid out for A5
+// and a mono laser), and there is no share mechanism to put behind a Share
+// button — a control that does nothing is worse than no control.
 import React from 'react';
 import { Link } from 'react-router-dom';
+import type { UserRole } from '../../types';
 import type { GatePassRecord } from '../../lib/useGatePassRecord';
 import { passStageStyle } from '../../lib/passStage';
 import { OVERDUE_STYLE } from '../../lib/statusStyles';
-import { pendingItemCount } from '../../lib/passRecordView';
-import Badge, { TypeChip } from '../Badge';
-import { returnDeskFor } from '../../lib/overdueItems';
+import { canVerifyAtGate } from '../../lib/phoneSearch';
+import { approvalProgress, buildApprovalSteps, canRecordReturns } from '../../lib/approvalLadder';
+import { useApprovalRoles } from '../../lib/useApprovalRoles';
+import Badge from '../Badge';
 import PassRecordSummary from './PassRecordSummary';
-import PassRecordItems from './PassRecordItems';
+import PassRecordReturns from './PassRecordReturns';
+import PassApprovalTimeline from './PassApprovalTimeline';
 import PassRecordActivity from './PassRecordActivity';
 
 type Props = {
   record: GatePassRecord;
+  /** Decides which action the header offers. Null renders none — a reader whose
+   *  role has not resolved yet is never shown a button that will fail. */
+  role?: UserRole | null;
+  /** Re-read the record after a return lands. */
+  onRecorded?: () => void;
   onClear?: () => void;
 };
 
-export default function PassRecordView({ record, onClear }: Props): React.ReactElement {
+const PrinterGlyph = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 8.25V3.75h10.5v4.5M6.75 17.25h10.5v3h-10.5v-3z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 17.25H4.5a1.5 1.5 0 01-1.5-1.5v-4.5a1.5 1.5 0 011.5-1.5h15a1.5 1.5 0 011.5 1.5v4.5a1.5 1.5 0 01-1.5 1.5h-2.25" />
+  </svg>
+);
+
+export default function PassRecordView({
+  record, role = null, onRecorded, onClear,
+}: Props): React.ReactElement {
   const { pass, items, activity } = record;
-  const outstanding = pendingItemCount(items, pass.type);
+  const roles = useApprovalRoles();
+
+  const steps = buildApprovalSteps(pass, roles);
+  const approval = approvalProgress(roles);
+  const canRecord = canRecordReturns(pass, role);
+  const canApprove = role === 'guard' && canVerifyAtGate(pass);
+
+  // The entrance the guard named when they cleared it. Nothing invents one:
+  // there is no gate entity in this schema, so an unnamed exit shows no fact.
+  const gateName = [...activity].reverse().find((v) => v.gate_name)?.gate_name ?? null;
 
   return (
     <section data-testid="pass-record" className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="page-title !mb-0">Gate Pass Details</h1>
-          <TypeChip type={pass.type} />
-          <Badge style={passStageStyle(pass)} />
-          {pass.is_overdue && <Badge style={OVERDUE_STYLE} />}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="page-title !mb-0">{pass.type} Gate Pass Details</h1>
+            <Badge style={passStageStyle(pass)} />
+            {pass.is_overdue && <Badge style={OVERDUE_STYLE} />}
+          </div>
+          <p className="page-subtitle !mb-0 mt-1">
+            {pass.type === 'RGP'
+              ? 'View details of this Returnable Gate Pass'
+              : 'View details of this Non-Returnable Gate Pass'}
+          </p>
         </div>
+
         <div className="flex items-center gap-2">
           <Link to={`/pass/${pass.id}/print`} className="btn-secondary inline-flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 8.25V3.75h10.5v4.5M6.75 17.25h10.5v3h-10.5v-3z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 17.25H4.5a1.5 1.5 0 01-1.5-1.5v-4.5a1.5 1.5 0 011.5-1.5h15a1.5 1.5 0 011.5 1.5v4.5a1.5 1.5 0 01-1.5 1.5h-2.25" />
-            </svg>
+            {PrinterGlyph}
             Print Pass
           </Link>
+          {canApprove && (
+            <Link to={`/verify/${pass.id}`} className="btn-primary">
+              Approve OUT
+            </Link>
+          )}
           {onClear && (
             <button type="button" className="btn-ghost" onClick={onClear}>
               Clear
@@ -51,26 +104,35 @@ export default function PassRecordView({ record, onClear }: Props): React.ReactE
         </div>
       </div>
 
-      <PassRecordSummary pass={pass} />
+      <PassRecordSummary pass={pass} approval={approval} gateName={gateName} />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
         <div className="xl:col-span-2 flex flex-col gap-5">
-          <PassRecordItems pass={pass} items={items} />
+          <PassRecordReturns
+            pass={pass}
+            items={items}
+            canRecord={canRecord}
+            onRecorded={() => onRecorded?.()}
+          />
 
-          {outstanding > 0 && (
-            <div className="alert-warning justify-between flex-wrap gap-3">
-              <span className="font-semibold">
-                {outstanding} {outstanding === 1 ? 'item still needs' : 'items still need'} attention before this
-                pass can be closed
-              </span>
-              <Link to={returnDeskFor(pass)} className="btn-primary shrink-0">
-                Review pending items
-              </Link>
-            </div>
-          )}
+          {/* The mock's note strip. It states the one thing the ladder beside it
+              cannot: those four signatures are collected on PAPER, before the
+              material moves — this app records who holds each office, not a
+              click. Saying so is what stops a reader treating a green tick as
+              an approval this system witnessed. */}
+          <div className="alert-info">
+            <span>
+              This gate pass carries a multi-level approval chain. Every level signs the printed pass
+              before the material leaves the premises; the gate records only the clearance and the
+              return.
+            </span>
+          </div>
         </div>
 
-        <PassRecordActivity entries={activity} />
+        <div className="flex flex-col gap-5">
+          <PassApprovalTimeline steps={steps} />
+          <PassRecordActivity entries={activity} />
+        </div>
       </div>
     </section>
   );

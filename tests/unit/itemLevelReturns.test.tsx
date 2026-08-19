@@ -135,7 +135,9 @@ async function renderPage() {
 }
 
 async function openRow(): Promise<void> {
-  fireEvent.click(screen.getByRole('button', { name: /Verify \/ Update Return/ }));
+  // The row's own chevron. The Action button beside it is a LINK to the pass
+  // record now (client, 2026-08-19) — the panel is opened in place.
+  fireEvent.click(screen.getByRole('button', { name: /Show items in RGP-20260810-0007/ }));
   await waitFor(() => expect(screen.getByText(/Items in this Pass/)).toBeInTheDocument());
   await waitFor(() => expect(screen.getByText('Diesel')).toBeInTheDocument());
 }

@@ -9,11 +9,13 @@
 //   * Lateness is in WORDS ("(Due Today)" / "(3 Days Overdue)" under the date,
 //     plus the Status pill), from the database's own `due_state`, never from
 //     colour alone.
-//   * Each row's action OPENS the pass's own material lines, which is where a
-//     return is recorded line by line and quantity by quantity (2026-08-19,
-//     second pass — it used to be a link to /returns or /overdue).
-//   * The same GLOBAL search sits top right — a pass number typed here reaches
-//     the whole register, not these rows.
+//   * Each row opens its own material lines IN PLACE on the chevron, which is
+//     where a return is recorded line by line and quantity by quantity, while
+//     the Action button beside it opens the pass's full record — the client's
+//     two doors onto the same pass (2026-08-19).
+//   * The page carries NO status tab strip and NO search bar (client,
+//     2026-08-19). Both were removed the same day; these cases are what stops
+//     either coming back by accident.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -151,17 +153,20 @@ describe('What is on the page', () => {
     expect(screen.getByText('0 of 200 returned')).toBeInTheDocument();
   });
 
-  it('opens the material lines rather than sending the guard to another page', async () => {
+  it('opens the material lines in place, on the chevron', async () => {
     await renderPage();
-    // The return is recorded HERE, per line, so the action expands the row.
-    // A link to /returns or /overdue would be a page load between a guard and
-    // the material standing in front of them.
-    const actions = screen.getAllByRole('button', { name: /Verify \/ Update Return/ });
-    expect(actions).toHaveLength(2);
-    expect(screen.queryByRole('link', { name: 'Record Return' })).not.toBeInTheDocument();
-    fireEvent.click(actions[0]);
+    // The return is recorded HERE, per line — a page load between a guard and
+    // the material standing in front of them is a page load too many.
+    fireEvent.click(screen.getByRole('button', { name: /Show items in RGP-00056/ }));
     await waitFor(() =>
       expect(screen.getByText(/Items in this Pass/)).toBeInTheDocument());
+  });
+
+  it('sends Verify Return to the pass record, the second door onto the pass', async () => {
+    await renderPage();
+    const actions = screen.getAllByRole('link', { name: /Verify Return/ });
+    expect(actions).toHaveLength(2);
+    expect(actions.map((a) => a.getAttribute('href')).sort()).toEqual(['/pass/r1', '/pass/r2']);
   });
 
   it('says so plainly when nothing is due', async () => {
@@ -176,33 +181,29 @@ describe('What is on the page', () => {
   });
 });
 
-describe('The toolbar', () => {
-  // Only an RGP comes back, so a type tab strip with one live option would be
-  // a control that teaches nothing. The tabs here are STATUS instead, and
-  // their counts are over the whole list — never the filtered one.
-  it('carries the global search and Scan QR, and status tabs rather than type tabs', async () => {
+describe('The page carries neither tabs nor a search bar', () => {
+  // Client, 2026-08-19. The four status counts said in a strip what the Status
+  // column and the filter bar already say per row, and the global search
+  // belongs where a guard goes looking for a pass they cannot see — Pending OUT
+  // and the dashboard's Scan QR both still carry it.
+  it('has no status tab strip', async () => {
     await renderPage();
-    expect(screen.getByLabelText(/Search any pass/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Scan QR/ })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'All (2)' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Due Today (1)' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Overdue (1)' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Returned Partially (1)' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: /NRGP/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    for (const label of ['All (2)', 'Due Today (1)', 'Overdue (1)', 'Returned Partially (1)']) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
+    }
   });
 
-  it('narrows to one tab without changing the counts beside the others', async () => {
+  it('has no search bar and no Scan QR button', async () => {
     await renderPage();
-    fireEvent.click(screen.getByRole('tab', { name: 'Overdue (1)' }));
+    expect(screen.queryByLabelText(/Search any pass/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Scan QR/ })).not.toBeInTheDocument();
+  });
+
+  it('still narrows through the filter bar, which is what replaced them', async () => {
+    await renderPage();
+    fireEvent.change(screen.getByLabelText('Vendor'), { target: { value: 'XYZ Builders' } });
     await waitFor(() => expect(screen.queryByText('RGP-00056')).not.toBeInTheDocument());
     expect(screen.getByText('RGP-00055')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'All (2)' })).toBeInTheDocument();
-  });
-
-  it('reaches a pass that is not on this page at all', async () => {
-    await renderPage();
-    fireEvent.change(screen.getByLabelText(/Search any pass/i), { target: { value: 'NRGP-00777' } });
-    fireEvent.submit(screen.getByLabelText(/Search any pass/i).closest('form')!);
-    await waitFor(() => expect(screen.getByText('RECORD PAGE')).toBeInTheDocument());
   });
 });

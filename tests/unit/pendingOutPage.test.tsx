@@ -157,7 +157,10 @@ describe('The queue', () => {
     await renderPage();
     const links = screen.getAllByRole('link', { name: 'Approve OUT' });
     expect(links).toHaveLength(3);
-    expect(links[0]).toHaveAttribute('href', '/verify/q1');
+    // It opens the pass RECORD (client, 2026-08-19), which carries its own
+    // Approve OUT through to /verify/:id — so a guard reads the whole pass, its
+    // approval ladder and its lines before deciding Match, Flag or Hold.
+    expect(links[0]).toHaveAttribute('href', '/pass/q1');
     // The old wording is gone, not merely unused.
     expect(screen.queryByText('Verify at Gate')).not.toBeInTheDocument();
   });

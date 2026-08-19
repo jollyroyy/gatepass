@@ -3,8 +3,6 @@ import {
   itemReturnStage,
   ITEM_RETURN_STYLES,
   returnProgress,
-  pendingItemCount,
-  passRecordStages,
   relativeSince,
 } from '../../src/lib/passRecordView';
 import type { GatePassItemView, GatePassView } from '../../src/types';
@@ -115,41 +113,12 @@ describe('returnProgress', () => {
   });
 });
 
-describe('pendingItemCount', () => {
-  it('counts pending AND partial — a half-returned line is not settled', () => {
-    const items = [
-      line({ id: 'a', quantity: 1, returned_qty: 1 }),
-      line({ id: 'd', quantity: 1, returned_qty: 0 }),
-      line({ id: 'e', quantity: 2, returned_qty: 1 }),
-    ];
-    expect(pendingItemCount(items, 'RGP')).toBe(2);
-    expect(pendingItemCount(items, 'NRGP')).toBe(0);
-  });
-});
-
-describe('passRecordStages', () => {
-  it('runs Issued → Cleared at Gate → the current return stage', () => {
-    const stages = passRecordStages(pass({ return_status: 'partially_returned' }));
-    expect(stages.map((s) => s.label)).toEqual(['Issued', 'Cleared at Gate', 'Partially Returned']);
-    expect(stages[0].at).toBe('2026-08-18T04:12:00.000Z');
-    expect(stages[2].at).toBe('2026-08-18T10:50:00.000Z');
-  });
-
-  it('names a closed pass Returned, at its actual return date', () => {
-    const stages = passRecordStages(
-      pass({ return_status: 'returned', actual_return_date: '2026-08-18T12:00:00.000Z' }),
-    );
-    expect(stages.map((s) => s.label)).toEqual(['Issued', 'Cleared at Gate', 'Returned']);
-  });
-
-  it('is a single moment for a pass still waiting at the gate', () => {
-    const stages = passRecordStages(
-      pass({ status: 'pending', verified_at: null, return_status: 'not_applicable' }),
-    );
-    expect(stages.map((s) => s.label)).toEqual(['Issued']);
-  });
-});
-
+// `pendingItemCount` and `passRecordStages` were DELETED on 2026-08-19 with
+// their last callers: the record's stage strip became the approval ladder
+// (`approvalLadder.ts`, pinned by approvalLadder.test.ts) and the "N items still
+// need attention" banner went with the mock-up's own layout. Their cases are
+// gone rather than pointed at something else — a test with no subject proves
+// nothing.
 describe('relativeSince', () => {
   const now = new Date('2026-08-18T12:00:00.000Z');
   it('reads in the largest whole unit', () => {

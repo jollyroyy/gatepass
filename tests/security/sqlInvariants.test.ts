@@ -1046,3 +1046,67 @@ describe('042 — the pass number drops the direction', () => {
     expect(/^\s*grant\b/im.test(bare)).toBe(false);
   });
 });
+
+describe('043 — the gate pass approval ladder', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('043'))!.sql;
+  const bare = stripSqlComments(sql);
+
+  it('touches nothing in `public` — the two-schema rule', () => {
+    // References into public by foreign key and by read are fine; altering it
+    // is not, and neither is creating anything there.
+    expect(/create\s+(table|view|function|type)\s+public\./i.test(bare)).toBe(false);
+    expect(/alter\s+table\s+public\./i.test(bare)).toBe(false);
+  });
+
+  it('keys the four offices with a CHECK, never a new enum', () => {
+    // A new enum VALUE cannot be used in the transaction that adds it, and
+    // APPLY_ALL.sql is pasted as one transaction — a `check (role_key in
+    // (...))` naming fresh enum labels would abort the whole paste.
+    expect(/create\s+type/i.test(bare)).toBe(false);
+    expect(bare).toMatch(/role_key\s+text\s+primary key/i);
+    expect(bare).toMatch(/check\s*\(\s*role_key in \('security_head', 'coo', 'ceo', 'finance_head'\)\s*\)/i);
+  });
+
+  it('turns RLS on and hands out no write privilege at all', () => {
+    expect(bare).toMatch(/alter table gatepass\.approval_roles enable row level security/i);
+    expect(bare).toMatch(/grant select on gatepass\.approval_roles to authenticated/i);
+    expect(/grant\s+(insert|update|delete|all)[^;]*approval_roles/i.test(bare)).toBe(false);
+  });
+
+  it('has exactly one SELECT policy, and it is deliberately open to every app user', () => {
+    // The four names are printed on the face of every pass that leaves the
+    // building, so a guard holding the paper already has them.
+    const policies = [...bare.matchAll(/create policy\s+(\w+)\s+on gatepass\.approval_roles for (\w+)/gi)];
+    expect(policies).toHaveLength(1);
+    expect(policies[0][2].toLowerCase()).toBe('select');
+  });
+
+  it('both writers are admin-gated, SECURITY DEFINER, with a pinned search_path', () => {
+    for (const fn of ['set_approval_role', 'clear_approval_role']) {
+      const body = extractFunctions(allMigrationsText()).find((f) => f.name === `gatepass.${fn}`)!.body;
+      expect(body, fn).toMatch(/security definer/i);
+      expect(body, fn).toMatch(/set search_path = ''/i);
+      expect(body, fn).toMatch(/gatepass\.is_admin\(\)/i);
+    }
+  });
+
+  it('does not touch the CEO whitelist designation — that row is a PERMISSION', () => {
+    // Folding the two together would mean naming the CEO on a gate pass
+    // silently hands them the blacklist override that 039 exists to protect.
+    expect(/ceo_approver/i.test(bare)).toBe(false);
+  });
+
+  it('reads names and departments through its own SECURITY DEFINER function', () => {
+    const body = extractFunctions(allMigrationsText())
+      .find((f) => f.name === 'gatepass.get_approval_ladder')!.body;
+    expect(body).toMatch(/security definer/i);
+    expect(body).toMatch(/set search_path = ''/i);
+    // LEFT JOIN on purpose: a narrowed VMS policy must degrade to a missing
+    // name, never to a missing office.
+    expect(body).toMatch(/left join\s+public\.profiles/i);
+    expect(body).toMatch(/left join\s+public\.departments/i);
+    // And it is gated on being an app user at all.
+    expect(body).toMatch(/gatepass\.app_role\(\) is not null/i);
+  });
+});

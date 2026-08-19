@@ -171,10 +171,15 @@ export default function PendingReturnRow({
           {/* No overflow menu beside it (client, 2026-08-19). The pass number
             * in this same row is already a link to the full record, so the
             * three-dot control was a second door onto one destination. */}
-          <button type="button" className="gb-action gb-action-blue" onClick={open ? close : onToggle}>
+          {/* Opens the pass's own record (client, 2026-08-19), where the
+            * approval ladder, the facts and the same line-by-line return entry
+            * all sit together. The chevron beside the pass number still opens
+            * the panel below without leaving the queue, so a guard clearing a
+            * row of trucks keeps their place. */}
+          <Link to={`/pass/${pass.id}`} className="gb-action gb-action-blue">
             {VerifyGlyph}
-            Verify / Update Return
-          </button>
+            Verify Return
+          </Link>
         </td>
       </tr>
 

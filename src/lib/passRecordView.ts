@@ -9,9 +9,8 @@
 // that column only when a line goes FULLY back, so a partly-returned line has
 // a null `returned_at` and would read as "pending" — which is wrong, the
 // material is half in. Quantities are the fact; the timestamp is a note.
-import type { GatePassItemView, GatePassView, PassType } from '../types';
+import type { GatePassItemView, PassType } from '../types';
 import type { StatusStyle } from './statusStyles';
-import type { TimelineMoment } from './passTimeline';
 
 export type ItemReturnStage = 'closed' | 'pending' | 'partial' | 'returned';
 
@@ -55,42 +54,6 @@ export function returnProgress(items: GatePassItemView[], passType: PassType): R
   const total = items.length;
   const returned = items.filter((i) => itemReturnStage(i, passType) === 'returned').length;
   return { returned, total, percent: total === 0 ? 0 : Math.round((returned / total) * 100) };
-}
-
-/** Lines that still owe material — 'pending' and 'partial' both count, because
- *  a half-returned line is not settled. Zero for every NRGP. */
-export function pendingItemCount(items: GatePassItemView[], passType: PassType): number {
-  return items.filter((i) => {
-    const stage = itemReturnStage(i, passType);
-    return stage === 'pending' || stage === 'partial';
-  }).length;
-}
-
-/**
- * The record's stages, oldest first, for the vertical strip in the summary
- * card. Distinct from `passTimeline` on purpose: this one is worded from the
- * material's point of view ("Issued", "Cleared at Gate") rather than the pass's, and
- * it names the CURRENT return stage even while it is only partly done, which
- * `passTimeline` deliberately does not.
- */
-export function passRecordStages(pass: GatePassView): TimelineMoment[] {
-  const out: (TimelineMoment | null)[] = [
-    { label: 'Issued', at: pass.created_at },
-    pass.flag_reason ? { label: 'Mismatched', at: pass.flagged_at ?? pass.verified_at ?? pass.created_at } : null,
-    pass.hod_reviewed_at ? { label: 'HOD Approved', at: pass.hod_reviewed_at } : null,
-    // The moment the gate let the material through. An RGP reads "Cleared at
-    // Gate" — the client's word for what actually happened; the older "In Use"
-    // described the material rather than the event, and nothing in this system
-    // observes use. An NRGP is CLOSED there and then: it is not coming back.
-    pass.status === 'matched' && pass.verified_at
-      ? { label: pass.type === 'RGP' ? 'Cleared at Gate' : 'Closed', at: pass.verified_at }
-      : null,
-    pass.return_status === 'partially_returned' ? { label: 'Partially Returned', at: pass.updated_at } : null,
-    pass.return_status === 'returned' && pass.actual_return_date
-      ? { label: 'Returned', at: pass.actual_return_date }
-      : null,
-  ];
-  return out.filter((m): m is TimelineMoment => m !== null);
 }
 
 /** "2 min ago" / "3 hr ago" / "4 days ago" — the "Last updated" line under the

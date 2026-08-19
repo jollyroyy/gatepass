@@ -22,19 +22,24 @@ const TICKS = 4;
 
 type Props = {
   bars: TrendBar[];
+  /** False on the guard's page (client, 2026-08-19): the chart is a question
+   *  about the shape of a backlog, and a guard acts on the table. The
+   *  escalation card below it is unaffected — it names items to chase. */
+  showTrend?: boolean;
   critical: number;
   /** Narrows the table to the critical band — the same filter the select sets,
    *  so the button and the control can never disagree. */
   onReviewCritical: () => void;
 };
 
-export default function OverdueTrendPanel({ bars, critical, onReviewCritical }: Props): React.ReactElement {
+export default function OverdueTrendPanel({ bars, showTrend = true, critical, onReviewCritical }: Props): React.ReactElement {
   const max = niceMax(Math.max(0, ...bars.map((b) => b.count)), TICKS);
   const lane = W / Math.max(bars.length, 1);
   const barWidth = Math.min(22, lane * 0.55);
 
   return (
     <div className="flex flex-col gap-4">
+      {showTrend && (
       <div className="card p-4">
         <h2 className="card-title mb-3">Overdue trend</h2>
 
@@ -80,6 +85,7 @@ export default function OverdueTrendPanel({ bars, critical, onReviewCritical }: 
           ))}
         </div>
       </div>
+      )}
 
       {/* Only when there is something to escalate — an empty alarm card teaches
           a reader to ignore the alarm. */}

@@ -39,10 +39,11 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-19
 
-Full gate: **1281 tests across 115 files** (`npm run check`), `npm run build` clean.
-Migrations **`001`–`042` are all applied to the live DB**; `039`, `040`, `041` were each
-verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`), and `042` with a
-rolled-back `psql` insert that returned `RGP-20260818-0001`.
+Full gate: **1314 tests across 117 files** (`npm run check`), `npm run build` clean.
+Migrations **`001`–`043` are all applied to the live DB**; `039`, `040`, `041` and `043` were
+each verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs` — `043` is
+**9/9**, and it left the ladder empty exactly as it found it), and `042` with a rolled-back
+`psql` insert that returned `RGP-20260818-0001`.
 
 | Thing | State |
 |---|---|
@@ -50,8 +51,108 @@ rolled-back `psql` insert that returned `RGP-20260818-0001`.
 | `public.departments` | **12 rows** (VMS-owned, shared) — do not wipe |
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
+| `gatepass.approval_roles` | **0 rows** — nobody is designated yet, so every pass record reads "Not designated yet" on all four levels. Admin → Users → *Gate pass approval ladder* is where they are set. |
 
-**Latest change (2026-08-19, fourth pass): Overdue Items counts what the return queue
+**Latest change (2026-08-19, fifth pass): the gate pass record IS the mock-up — a fact
+strip, the material table with issued/returned/pending quantities, and the printed slip's own
+APPROVAL LADDER down the right; a return is entered ON it; a returned pass is closed for good;
+and the guard's Approve OUT / Verify Return open it.** One migration (**`043`, APPLIED**), no
+change to the state machine.
+
+- **Migration `043` — `gatepass.approval_roles`.** One row per office, keyed `security_head` ·
+  `coo` · `ceo` · `finance_head` — the four the printed slip has always carried between the
+  issuing HOD and the gate (`signatureBlocks.ts`: Issuing HOD → Security Head → COO → CEO →
+  Finance HOD). Client, 2026-08-19: "just match the print slip."
+  - **IT IS A LADDER, NOT A WORKFLOW.** Nothing gates anything: `match_pass` is untouched, no
+    pass waits on a level, no queue exists for these offices. The signature is still the wet
+    one on the A5 slip; the table only records WHO holds each office so the record can print a
+    name instead of a blank box. **That is why none of the four carries a timestamp** — this
+    database stamps two moments on a pass (the raise, the gate clearance) and inventing a
+    third would be a fabricated audit trail on a document that leaves the building.
+  - **It deliberately does NOT reuse `gatepass.ceo_approver` (039).** That row is a
+    PERMISSION — its holder can whitelist a blacklisted vendor. This one is an ORG CHART.
+    Folding them together would mean naming the CEO on a gate pass silently hands them the
+    blacklist override that 039 exists to protect. `sqlInvariants` pins that 043 never
+    mentions `ceo_approver`.
+  - `role_key` is **text with a CHECK, not an enum** — a new enum value cannot be USED in the
+    transaction that adds it, and `APPLY_ALL.sql` is pasted as one.
+  - **Every app user may SELECT it**, on purpose: the four names are printed on the face of
+    every pass that leaves the building, so a guard holding the paper already has them.
+    Nobody holds INSERT/UPDATE/DELETE — `set_approval_role` / `clear_approval_role` (both
+    **admin**, not super_admin, because the designation grants no access at all) are the only
+    writers. Names and departments come back through `get_approval_ladder()`, SECURITY DEFINER
+    because `gatepass.profile_names` carries no department and its own comment forbids adding
+    one; its joins into `public.*` are LEFT, so a narrowed VMS policy degrades to a missing
+    name rather than a missing office.
+  - **No role restriction on the designee** — a Security Head is plausibly a `guard` account
+    and a Finance HOD a `staff` one, and the designation opens nothing to sign in to.
+- **`src/lib/approvalLadder.ts` builds the rail**: Raised By (HOD + department, at
+  `created_at`, "Approved on raising") → Level 1–4 (office and holder as **`COO (Vikram
+  Singh)`**, the client's own bracket form) → Cleared by Security / Mismatch raised at the
+  gate / Security Verification pending → To Be Returned (RGP only, `blocked` and red when
+  `is_overdue`) or Returned. **A vacant office is `unset`, says "Not designated yet", and does
+  NOT count** — `approvalProgress` is "3 of 5 levels approved" on a pass whose COO and CEO
+  seats are empty, because defaulting to 5 of 5 makes the counter meaningless.
+  `src/components/passview/PassApprovalTimeline.tsx` is the rail; every state carries WORDS as
+  well as a hue, for the mono print.
+- **The record is rebuilt to the mock-up.** `PassRecordSummary` is a five-column fact strip
+  (Gate Pass No. with a copy button · Pass Type · Purpose · Return Before · Requested By +
+  department · Authorized Person's Name · Vendor / Person · Vendor Address · Request Date &
+  Time · Cleared Date & Time · Multi-level Approval · Gate Exit · Vehicle No. · Contact No. ·
+  Last Movement · QR). **Where the mock and this schema disagree, the schema wins**: there is
+  no EMP ID (the slot carries the department), and **no gate entity** — Gate Exit is drawn
+  only when a verification actually recorded a `gate_name`. **The mock's Status box is NOT
+  drawn**: this app's live badge is in the title row a few pixels above, and repeating a live
+  badge is how two of them end up disagreeing.
+- **`PassRecordItems` is the mock's table**: `# · Item Name · Description · Unit · Qty Issued ·
+  Qty Returned · Pending Qty · Value · Status · Action`, with a **Total row** summing the very
+  figures printed above it. **The UNIT has its own column here** — a deliberate exception to
+  `quantityHeading`/`quantityCell`, the same argument that put it back on Pending OUT: three
+  quantity columns cannot share one unit named in a heading. **An NRGP draws no return columns
+  at all** — it is not coming back, and a column of zeroes would describe an obligation that
+  never existed. The ordinal IS the serial number (`serial_no` is write-dead).
+- **A RETURN IS ENTERED ON THIS RECORD** (`PassRecordReturns` + `PassReturnBox`), over the same
+  `returnDraft.ts` and the same one `apply_item_returns` call the guard's return queue uses.
+  Two presses, and only the second is real: "+ Add Return" → "Confirm Return" STAGES (tinted,
+  "Not recorded yet"), and the **Record N returns** bar is the commit. The box is the house
+  theme, not `.gb-*` — this record renders on every role's dark surface and the guard skin has
+  no `dark:` half. After the RPC the whole record is **re-read**, never patched.
+- **ONCE RETURNED, NOTHING IS EDITABLE** (client). `canRecordReturns(pass, role)` restates the
+  two conditions the RPC raises on — guard only, `return_status in (awaiting_return,
+  partially_returned)` — so an HOD, an admin and a closed pass all get `NA`. A closed pass also
+  prints the strip *"Fully returned and closed — nothing on this pass can be edited"*, because
+  a table with no controls and no sentence reads as a screen that failed to load.
+- **The guard's Approve OUT and Verify Return now open `/pass/:id`** (client: "clicking on
+  Approve or Verify Return … it would come up like this"). The record carries its own
+  **Approve OUT** button through to `/verify/:id` — still the only screen offering Match, Flag
+  and Hold, and still drawn only while `canVerifyAtGate` holds. **Nothing became unreachable**:
+  the return row's chevron still opens the line-by-line panel in place, so a guard clearing a
+  row of trucks keeps their place in the queue. Known cost, accepted: the return can now be
+  recorded from two surfaces.
+- **Pending RGP Return lost its tab strip and its search bar** (client). The four status counts
+  said in a strip what the Status column and the filter bar already say per row; the global
+  search belongs where a guard goes looking for a pass they cannot see, and Pending OUT and the
+  dashboard's Scan QR both still carry it. `filters.tab` stays at `'all'`, so
+  `pendingReturnFilters.ts` is unchanged and the machinery is there if it comes back.
+- **The guard's `/overdue` loses the Overdue trend AND the "Longest delay in this list" line**
+  (client); the HOD's and the admin's keep both (`showTrend`, false only for a guard). **The
+  escalation card stays on every role's page** — it names items to chase, which is exactly the
+  guard's job.
+- **Deleted with their last callers**: `pendingItemCount` and `passRecordStages` in
+  `passRecordView.ts` (the stage strip became the approval ladder; the "N items still need
+  attention" banner went with the mock's layout). Their cases are gone, not repointed.
+- **Admin → Users carries "Gate pass approval ladder"** (`ApprovalLadderCard.tsx`): four
+  selects over the whole directory, each saying "Not designated yet" until set.
+- Pinned by `approvalLadder.test.ts` (17), `passRecordReturns.test.tsx` (7 — staging without an
+  RPC, the exact payload, the outstanding ceiling, the HOD refusal, the closed strip, the
+  ladder's vacant offices, and a ladder read that FAILS leaving the record perfectly readable),
+  six new cases in `sqlInvariants.test.ts`, three in `overdueBoard.test.tsx`, and rewrites of
+  `nrgpItemAction`, `pendingReturnsPage`, `gateConsoleSearch`, `passRecordEverywhere`,
+  `passDetailHeader`, `pendingOutPage`, `hodReviewGateFlow` and `itemLevelReturns`.
+- **NOT seen signed-in in a browser**: `npm run check` (1314 tests), `npm run build`, and the
+  `verify-043.mjs` probe only.
+
+**Earlier (2026-08-19, fourth pass): Overdue Items counts what the return queue
 calls overdue, the guard's day cut is GONE, no surface says "Partial", a returned line names
 its DATE, the scanner clears the page, the Quick Action tiles carry counts, and a stacked card
 lists its lines priced in ₹.** Frontend only — no migration, no new RPC.
@@ -675,6 +776,10 @@ the query and `GateConsole` renders the results full width above the queue.
   it. Fix: let the trigger keep `expires_at` unless an RPC is deliberately moving it.
 - **`UsersTab.tsx` is 478 lines**, over the 300-line cap (pre-existing). The honest fix is
   extracting the Add-User and Edit-User modals.
+- **A return can be recorded from TWO surfaces** (2026-08-19): the guard's Pending RGP Return
+  row panel, and the pass record itself. Both go through the same `returnDraft.ts` and the same
+  single `apply_item_returns` call, so they cannot disagree about a quantity — but they are two
+  places to change when the rules move. Accepted with the client, who asked for both.
 - **Pass-level `mark_returned` now has NO caller in `src/`** (2026-08-18): every return is
   recorded line by line through `apply_item_returns` on `/returns` and `/overdue`. The RPC is
   still granted and still part of the state machine — decide deliberately whether to drop it.
@@ -1012,11 +1117,11 @@ MismatchReview, ExpiredReview), `Security/` (GateConsole — the **Search Pass**
 a sidebar tab — GateLookup, Verify, GuardDashboard — the figures-and-quick-actions board — and
 the two pages its figures drill into, PendingOutPage and PendingReturnsPage), `Shared/` also holding the two role-scoped return pages
 (OverdueItemsPage, ReturnsDueTodayPage), `Admin/` (AdminPanel and its tabs, AdminDashboard, ReportsPage), `Shared/`
-(PassDetail, PassPrint, Profile). `src/components/passview/` is the Gate Pass Details record — the ONE record format,
+(PassDetail, PassPrint, Profile). `src/components/passview/` is the Gate Pass Details record — the ONE record format, drawn to the client's mock-up and carrying the approval ladder and the line-by-line return entry,
 rendered both by Search Pass and by `/pass/:id`; `src/components/overdue/` is Overdue Items and `src/components/returns/` is the
 line-level returns table, each one component serving all three roles;
 `src/components/guard/` is the guard's three screens — the two summary cards, the quick actions,
 the two list tables and the chrome the list pages share (header, toolbar, filter bar, pager,
 `useGuardSearch`, `ApproveOutAction`); `src/components/board/` is the dashboard both the admin and the HOD get — one component, the HOD's scoped to one person server-side. `src/lib/` holds the
-lookup maps, derivations and formatters; `supabase/migrations/` runs `001` → `042`, with
+lookup maps, derivations and formatters; `supabase/migrations/` runs `001` → `043`, with
 `005` an **optional demo seed** to skip in a real deployment.

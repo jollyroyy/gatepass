@@ -14,13 +14,13 @@
 // and this page has one job.
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import type { GatePassView } from '../../types';
+import type { GatePassView, UserRole } from '../../types';
 import { useGatePassRecord } from '../../lib/useGatePassRecord';
 import PassRecordView from '../../components/passview/PassRecordView';
 import GateLookup from './GateLookup';
 import PhoneSearchResults from './PhoneSearchResults';
 
-export default function GateConsole(): React.ReactElement {
+export default function GateConsole({ role = null }: { role?: UserRole | null }): React.ReactElement {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -44,7 +44,10 @@ export default function GateConsole(): React.ReactElement {
 
   // The pass whose full record is open under the search bar. Null = none.
   const [recordId, setRecordId] = useState<string | null>(null);
-  const { record, error: recordError } = useGatePassRecord(recordId);
+  // Bumped after a return lands on the record — only the database knows
+  // whether that movement closed the pass.
+  const [reloadKey, setReloadKey] = useState(0);
+  const { record, error: recordError } = useGatePassRecord(recordId, reloadKey);
 
   // One match is an answer, not a list: a mobile number that only one pass
   // carries opens that record straight away, exactly as a pass number does.
@@ -95,7 +98,12 @@ export default function GateConsole(): React.ReactElement {
 
       {record && (
         <div className="mb-8">
-          <PassRecordView record={record} onClear={clearSearch} />
+          <PassRecordView
+            record={record}
+            role={role}
+            onRecorded={() => setReloadKey((k) => k + 1)}
+            onClear={clearSearch}
+          />
         </div>
       )}
 

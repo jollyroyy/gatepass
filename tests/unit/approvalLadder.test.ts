@@ -1,0 +1,198 @@
+// The approval ladder printed beside a gate pass record.
+//
+// The ladder is the printed slip's own chain (signatureBlocks.ts) — Issuing HOD
+// → Security Head → COO → CEO → Finance HOD, then the gate. These cases pin the
+// two things that make it honest:
+//
+//   * an office nobody has been designated to reads "Not designated" and does
+//     NOT count towards "N of 5 approved" — the alternative is a screen that
+//     claims four signatures the paper does not have;
+//   * nothing invents a timestamp. The four offices sign on paper and this
+//     database records no moment for it, so those steps carry a name and no
+//     time. Only the two moments the database actually stamps — the raise and
+//     the gate clearance — print a date.
+import { describe, it, expect } from 'vitest';
+import type { GatePassView } from '../../src/types';
+import {
+  APPROVAL_LADDER,
+  APPROVAL_ROLE_TITLES,
+  buildApprovalSteps,
+  approvalProgress,
+  approverLine,
+  canRecordReturns,
+  isReturnClosed,
+  type ApprovalRoleRow,
+} from '../../src/lib/approvalLadder';
+
+function pass(over: Partial<GatePassView> = {}): GatePassView {
+  return {
+    id: 'p1', pass_number: 'RGP-20260818-0001', type: 'RGP', direction: 'out',
+    status: 'matched', return_status: 'awaiting_return',
+    department_id: 'd1', department_name: 'Engineering (MEP)', department_code: 'ENG',
+    raised_by: 'u1', raised_by_name: 'Ramesh Yadav',
+    visitor_name: 'Ravi Kumar', visitor_company: null, vehicle_number: 'WB01AB1234',
+    purpose: 'Equipment repair', expected_return_date: '2026-08-24',
+    actual_return_date: null,
+    verified_by: 'g1', verified_by_name: 'Guard One', verified_at: '2026-08-18T06:15:00Z',
+    flag_reason: null, flagged_at: null, hod_reviewed_at: null,
+    qr_token: 'tok', expires_at: '2026-08-19T18:30:00Z',
+    created_at: '2026-08-18T05:00:00Z', updated_at: '2026-08-18T06:15:00Z',
+    is_overdue: false, is_expired: false, due_state: 'ok',
+    item_count: 3, total_quantity: 3, returned_quantity: 1, total_value: 5000,
+    material_summary: 'Hydraulic Spanner Set',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...over,
+  } as any;
+}
+
+function role(key: string, name: string, dept: string | null = 'Security'): ApprovalRoleRow {
+  return {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    role_key: key as any,
+    user_id: `u-${key}`,
+    full_name: name,
+    department_name: dept,
+    designated_at: '2026-08-01T00:00:00Z',
+  };
+}
+
+const FULL: ApprovalRoleRow[] = [
+  role('security_head', 'Arun Kumar', 'Security'),
+  role('coo', 'Vikram Singh', 'Operations'),
+  role('ceo', 'Neha Sharma', 'Executive'),
+  role('finance_head', 'Sameer Khan', 'Finance & Accounts'),
+];
+
+describe('the ladder mirrors the printed slip', () => {
+  it('is Security Head, COO, CEO, Finance HOD — in slip order', () => {
+    expect(APPROVAL_LADDER.map((l) => l.key)).toEqual([
+      'security_head', 'coo', 'ceo', 'finance_head',
+    ]);
+    expect(APPROVAL_LADDER.map((l) => APPROVAL_ROLE_TITLES[l.key])).toEqual([
+      'Security Head', 'COO', 'CEO', 'Finance HOD',
+    ]);
+  });
+
+  it('names the office and puts the person in brackets', () => {
+    expect(approverLine('COO', 'Vikram Singh')).toBe('COO (Vikram Singh)');
+    expect(approverLine('COO', null)).toBe('COO');
+  });
+});
+
+describe('buildApprovalSteps', () => {
+  it('opens with the raising HOD — name, department, and the raise time', () => {
+    const [first] = buildApprovalSteps(pass(), FULL);
+    expect(first.label).toBe('Raised By');
+    expect(first.who).toBe('Ramesh Yadav');
+    expect(first.detail).toBe('Engineering (MEP)');
+    expect(first.at).toBe('2026-08-18T05:00:00Z');
+    expect(first.state).toBe('done');
+  });
+
+  it('numbers the four offices Level 1 to Level 4 and carries no invented time', () => {
+    const steps = buildApprovalSteps(pass(), FULL);
+    const levels = steps.filter((s) => s.label.startsWith('Level'));
+    expect(levels.map((s) => s.label)).toEqual([
+      'Level 1 Approval', 'Level 2 Approval', 'Level 3 Approval', 'Level 4 Approval',
+    ]);
+    expect(levels.map((s) => s.who)).toEqual([
+      'Security Head (Arun Kumar)',
+      'COO (Vikram Singh)',
+      'CEO (Neha Sharma)',
+      'Finance HOD (Sameer Khan)',
+    ]);
+    expect(levels.map((s) => s.at)).toEqual([null, null, null, null]);
+    expect(levels.every((s) => s.state === 'done')).toBe(true);
+  });
+
+  it('an office nobody holds reads "Not designated" and is not approved', () => {
+    const steps = buildApprovalSteps(pass(), [FULL[0]]);
+    const coo = steps.find((s) => s.label === 'Level 2 Approval');
+    expect(coo?.who).toBe('COO');
+    expect(coo?.state).toBe('unset');
+    expect(coo?.note).toMatch(/not designated/i);
+  });
+
+  it('counts a cleared gate as its own step, naming the guard', () => {
+    const gate = buildApprovalSteps(pass(), FULL).find((s) => s.key === 'gate');
+    expect(gate?.label).toBe('Cleared by Security');
+    expect(gate?.who).toBe('Guard One');
+    expect(gate?.at).toBe('2026-08-18T06:15:00Z');
+    expect(gate?.state).toBe('done');
+  });
+
+  it('an uncleared pass waits at the gate rather than claiming it left', () => {
+    const gate = buildApprovalSteps(pass({ status: 'pending', verified_at: null, verified_by_name: null }), FULL)
+      .find((s) => s.key === 'gate');
+    expect(gate?.label).toBe('Security Verification');
+    expect(gate?.state).toBe('pending');
+    expect(gate?.at).toBeNull();
+  });
+
+  it('a mismatch at the gate is blocked, not pending', () => {
+    const gate = buildApprovalSteps(
+      pass({ status: 'flagged', flag_reason: 'Count did not match' }), FULL,
+    ).find((s) => s.key === 'gate');
+    expect(gate?.state).toBe('blocked');
+    expect(gate?.label).toBe('Mismatch raised at the gate');
+  });
+
+  it('an RGP still out ends on "To Be Returned" with its deadline', () => {
+    const last = buildApprovalSteps(pass(), FULL).at(-1);
+    expect(last?.label).toBe('To Be Returned');
+    expect(last?.state).toBe('pending');
+    expect(last?.note).toMatch(/before/i);
+  });
+
+  it('an overdue RGP is blocked, so the deadline reads as missed', () => {
+    const last = buildApprovalSteps(pass({ is_overdue: true, due_state: 'overdue' }), FULL).at(-1);
+    expect(last?.state).toBe('blocked');
+  });
+
+  it('a fully returned RGP ends on Returned, with the date it came back', () => {
+    const last = buildApprovalSteps(
+      pass({ return_status: 'returned', actual_return_date: '2026-08-20T04:00:00Z' }), FULL,
+    ).at(-1);
+    expect(last?.label).toBe('Returned');
+    expect(last?.state).toBe('done');
+    expect(last?.at).toBe('2026-08-20T04:00:00Z');
+  });
+
+  it('an NRGP has no return step at all — it is closed at the gate', () => {
+    const steps = buildApprovalSteps(pass({ type: 'NRGP', return_status: 'not_applicable' }), FULL);
+    expect(steps.some((s) => s.key === 'return')).toBe(false);
+    expect(steps.at(-1)?.key).toBe('gate');
+  });
+});
+
+describe('approvalProgress', () => {
+  it('is 5 of 5 when every office is held — the HOD counts as the first', () => {
+    expect(approvalProgress(FULL)).toEqual({ approved: 5, total: 5 });
+  });
+
+  it('drops one for every vacant office', () => {
+    expect(approvalProgress([FULL[0], FULL[3]])).toEqual({ approved: 3, total: 5 });
+    expect(approvalProgress([])).toEqual({ approved: 1, total: 5 });
+  });
+});
+
+describe('what may still be edited', () => {
+  it('only the gate records a return, and only while one is owed', () => {
+    expect(canRecordReturns(pass({ return_status: 'awaiting_return' }), 'guard')).toBe(true);
+    expect(canRecordReturns(pass({ return_status: 'partially_returned' }), 'guard')).toBe(true);
+    expect(canRecordReturns(pass({ return_status: 'returned' }), 'guard')).toBe(false);
+    expect(canRecordReturns(pass({ type: 'NRGP', return_status: 'not_applicable' }), 'guard')).toBe(false);
+  });
+
+  it('refuses an HOD and an admin — apply_item_returns would refuse them too', () => {
+    expect(canRecordReturns(pass(), 'hod')).toBe(false);
+    expect(canRecordReturns(pass(), 'admin')).toBe(false);
+    expect(canRecordReturns(pass(), null)).toBe(false);
+  });
+
+  it('a returned pass is closed for good', () => {
+    expect(isReturnClosed(pass({ return_status: 'returned' }))).toBe(true);
+    expect(isReturnClosed(pass({ return_status: 'partially_returned' }))).toBe(false);
+    expect(isReturnClosed(pass({ type: 'NRGP', return_status: 'not_applicable' }))).toBe(false);
+  });
+});

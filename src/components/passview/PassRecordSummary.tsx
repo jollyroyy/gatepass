@@ -1,21 +1,31 @@
-// The summary card at the top of a gate-pass record: who took what, when it
-// was issued, where the pass stands, and the QR that reopens it.
+// The fact strip at the top of a gate-pass record — drawn to the client's
+// mock-up (2026-08-19): five columns of labelled facts, each with its own small
+// icon, and the QR that reopens the pass.
 //
-// This is the ONE record format in the app (2026-08-18). `/pass/:id` — where
-// every stacked list, KPI drill and notification lands — renders the same
-// component the gate search resolves to, so a pass never reads two ways. That
-// is why the fact columns carry the vendor block and the vehicle number: they
-// were on the old detail page, and a drill-down must not lose them.
+// This is the ONE record format in the app. `/pass/:id` — where every stacked
+// list, KPI drill, guard action and notification lands — renders the same
+// component the gate search resolves to, so a pass never reads two ways.
 //
-// Four columns on a wide screen — facts, more facts, the stage strip, the QR —
-// collapsing to one on a phone. Presentation only; every value is read from
-// the row the caller already loaded.
-import React from 'react';
+// WHERE THE MOCK-UP AND THIS SCHEMA DISAGREE, THE SCHEMA WINS:
+//   * "Requested By ... EMP ID" — there is no employee number anywhere in this
+//     database. The slot carries the raising HOD's DEPARTMENT instead, which is
+//     the fact the reader actually needs and the one the ladder repeats.
+//   * "Gate Exit: Main Gate" — there is no gate entity either. A verification
+//     row records `gate_name` when the guard names one, so the fact is drawn
+//     ONLY when it was recorded. An invented "Main Gate" would be a claim about
+//     which door a truck used.
+//   * "Approved Date & Time (Latest)" is this app's own event: the moment
+//     security cleared the material out. Nothing else on a pass is "approved".
+//
+// A fact with no value is OMITTED, never drawn as an em dash — the rule the
+// item table follows. A column of dashes reads as data loss.
+import React, { useState } from 'react';
 import type { GatePassView } from '../../types';
 import { formatDateTime, formatDateOnly } from '../../lib/formatDate';
-import { passRecordStages, relativeSince } from '../../lib/passRecordView';
 import { parseCompanyInfo } from '../../lib/companyInfo';
+import { relativeSince } from '../../lib/passRecordView';
 import QrPass from '../QrPass';
+import { TypeChip } from '../Badge';
 
 const ICON = { className: 'w-4 h-4 shrink-0 text-navy-500', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', strokeWidth: 1.7 } as const;
 
@@ -26,84 +36,146 @@ const CALENDAR = <svg {...ICON}><rect x="3.75" y="5.25" width="16.5" height="15"
 const CLOCK = <svg {...ICON}><circle cx="12" cy="12" r="8.25" /><path strokeLinecap="round" d="M12 7.75V12l2.75 1.75" /></svg>;
 const PHONE = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3.75h3l1.5 4.5-2.25 1.5a12 12 0 005.25 5.25l1.5-2.25 4.5 1.5v3a1.5 1.5 0 01-1.5 1.5A15.75 15.75 0 015.25 5.25a1.5 1.5 0 011.5-1.5z" /></svg>;
 const TRUCK = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 7.5h9v9h-9v-9zM12.75 10.5h3.75l2.25 2.25v3.75h-6V10.5z" /><circle cx="7" cy="18" r="1.5" /><circle cx="16.5" cy="18" r="1.5" /></svg>;
+const DOC = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M7 3.75h7.5L19 8.25V20.25H7V3.75zM14.5 3.75V8.25H19" /></svg>;
+const LADDER = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M5 19.25h14M7.75 19.25V13h3.5v6.25M12.75 19.25V8.75h3.5v10.5" /></svg>;
+const GATE = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M4 20.25V7.5l8-3.75 8 3.75v12.75M9.5 20.25v-6.5h5v6.5" /></svg>;
+const FLAG = <svg {...ICON}><path strokeLinecap="round" strokeLinejoin="round" d="M6 20.25V4.5m0 0h11l-2.25 3.75L17 12H6" /></svg>;
 
-/** One labelled fact. Icon, caption, value — the caption is a caption, never a
- *  heading, so it stays Inter and neutral. */
-function Fact({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | null | undefined }): React.ReactElement {
+/** One labelled fact. The caption is a caption, never a heading, so it stays
+ *  Inter and neutral — the gold display serif is for headings only. */
+function Fact({
+  icon, label, value, tone = 'plain',
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+  /** `alert` is the mock-up's red return deadline. Status outranks the house
+   *  neutral, the same rule "Delete Department?" follows. */
+  tone?: 'plain' | 'alert' | 'ok';
+}): React.ReactElement {
+  const ink =
+    tone === 'alert' ? 'text-flagged-700' : tone === 'ok' ? 'text-matched-700' : 'text-navy-900';
   return (
     <div className="flex items-start gap-2.5">
       <span className="mt-0.5">{icon}</span>
       <div className="min-w-0">
         <p className="text-xs text-navy-500">{label}</p>
-        <p className="text-sm font-semibold text-navy-900 break-words">{value || '—'}</p>
+        <div className={`text-sm font-semibold break-words ${ink}`}>{value}</div>
       </div>
     </div>
   );
 }
 
-export default function PassRecordSummary({ pass }: { pass: GatePassView }): React.ReactElement {
-  const stages = passRecordStages(pass);
+/** Copies the pass number — the mock-up's little duplicate glyph beside it. A
+ *  pass number is what a guard reads down a phone line, and re-typing 17
+ *  characters is where a wrong pass gets looked up. */
+function CopyPassNumber({ value }: { value: string }): React.ReactElement {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      type="button"
+      className="btn-icon !w-6 !h-6 shrink-0"
+      aria-label={done ? 'Pass number copied' : 'Copy pass number'}
+      onClick={() => {
+        void navigator.clipboard?.writeText(value);
+        setDone(true);
+        window.setTimeout(() => setDone(false), 1500);
+      }}
+    >
+      {done ? (
+        <svg className="w-3.5 h-3.5 text-matched-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4.5 4.5L19 7" />
+        </svg>
+      ) : (
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+          <rect x="9" y="9" width="11" height="11" rx="2" />
+          <path strokeLinecap="round" d="M15 5.75H6a1.5 1.5 0 00-1.5 1.5V16" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+type Props = {
+  pass: GatePassView;
+  /** "4 of 5 level(s) approved" — from `approvalProgress`, so the strip and the
+   *  ladder beside it can never disagree about how many offices are held. */
+  approval: { approved: number; total: number };
+  /** The entrance named on the clearing verification, when one was named. */
+  gateName?: string | null;
+};
+
+export default function PassRecordSummary({ pass, approval, gateName }: Props): React.ReactElement {
   const company = parseCompanyInfo(pass.visitor_company);
-  const subtitle =
-    pass.type === 'RGP' ? 'Equipment issue and return record' : 'Material issue record — non-returnable';
 
   return (
     <div className="card p-5 sm:p-6">
-      <div className="flex items-start gap-3.5 mb-6">
-        <span className="w-11 h-11 rounded-xl bg-accent-600 text-white flex items-center justify-center shrink-0">
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M7 3.75h7.5L19 8.25V19.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 017 19.5V3.75z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M14.5 3.75V8.25H19M9.5 12.75h5M9.5 15.75h5" />
-          </svg>
-        </span>
-        <div className="min-w-0">
-          <p className="text-xl sm:text-2xl font-semibold tracking-tight text-navy-950 break-all">{pass.pass_number}</p>
-          <p className="text-sm text-navy-500">{subtitle}</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 xl:gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6 xl:gap-5">
         <div className="flex flex-col gap-5">
-          <Fact icon={PERSON} label="Authorized Person's Name" value={pass.visitor_name} />
-          <Fact icon={PHONE} label="Contact" value={company.phone} />
-          <Fact icon={BUILDING} label="Vendor" value={company.name} />
-          <Fact icon={PIN} label="Vendor address" value={company.address} />
-          <Fact icon={TRUCK} label="Vehicle number" value={pass.vehicle_number} />
-        </div>
-
-        <div className="flex flex-col gap-5">
-          <Fact icon={BUILDING} label="Department" value={pass.department_name} />
-          <Fact icon={PIN} label="Destination" value={pass.purpose} />
-          <Fact icon={PERSON} label="Issued by" value={pass.raised_by_name} />
-          <Fact icon={CALENDAR} label="Issue date" value={formatDateTime(pass.created_at)} />
-          {/* RGP only — an NRGP never comes back, so the row is omitted rather
-              than shown as a dash that reads like missing data. */}
-          {pass.type === 'RGP' && (
-            <Fact icon={CLOCK} label="Expected return" value={formatDateOnly(pass.expected_return_date)} />
+          <Fact
+            icon={DOC}
+            label="Gate Pass No."
+            value={
+              <span className="flex items-center gap-1.5">
+                <span className="break-all">{pass.pass_number}</span>
+                <CopyPassNumber value={pass.pass_number} />
+              </span>
+            }
+          />
+          <Fact icon={FLAG} label="Pass Type" value={<TypeChip type={pass.type} />} />
+          <Fact icon={PIN} label="Purpose" value={pass.purpose} />
+          {/* RGP only — an NRGP has no deadline to miss. */}
+          {pass.type === 'RGP' && pass.expected_return_date && (
+            <Fact
+              icon={CLOCK}
+              label="Return Before"
+              value={formatDateOnly(pass.expected_return_date)}
+              tone={pass.is_overdue ? 'alert' : 'plain'}
+            />
           )}
         </div>
 
-        {/* The stage strip. Dots and a connecting rule, not a chart — the
-            information is the order and the times, and both must survive a
-            mono print. */}
-        <ol className="flex flex-col gap-4 xl:border-l xl:border-surface-200 xl:pl-6">
-          {stages.map((s, i) => (
-            <li key={s.label} className="flex gap-3">
-              <span className="flex flex-col items-center shrink-0">
-                <span
-                  className={`mt-1 h-3 w-3 rounded-full border-2 ${
-                    i === stages.length - 1 ? 'border-accent-600 bg-accent-600' : 'border-matched-500 bg-matched-500'
-                  }`}
-                />
-                {i < stages.length - 1 && <span className="w-px flex-1 bg-surface-300 my-1" />}
-              </span>
-              <div className="min-w-0 pb-1">
-                <p className="text-sm font-semibold text-navy-900">{s.label}</p>
-                <p className="text-xs text-navy-500">{formatDateTime(s.at)}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
+        <div className="flex flex-col gap-5">
+          <Fact
+            icon={PERSON}
+            label="Requested By"
+            value={
+              <>
+                {pass.raised_by_name}
+                {pass.department_name && (
+                  <span className="block text-xs font-normal text-navy-500">{pass.department_name}</span>
+                )}
+              </>
+            }
+          />
+          <Fact icon={PERSON} label="Authorized Person's Name" value={pass.visitor_name} />
+          {company.name && <Fact icon={BUILDING} label="Vendor / Person" value={company.name} />}
+          {company.address && <Fact icon={PIN} label="Vendor Address" value={company.address} />}
+        </div>
+
+        <div className="flex flex-col gap-5">
+          <Fact icon={CALENDAR} label="Request Date & Time" value={formatDateTime(pass.created_at)} />
+          {pass.verified_at && (
+            <Fact icon={CALENDAR} label="Cleared Date & Time" value={formatDateTime(pass.verified_at)} />
+          )}
+          <Fact
+            icon={LADDER}
+            label="Multi-level Approval"
+            value={`${approval.approved} of ${approval.total} level${approval.total === 1 ? '' : 's'} approved`}
+            tone={approval.approved === approval.total ? 'ok' : 'plain'}
+          />
+        </div>
+
+        <div className="flex flex-col gap-5">
+          {gateName && <Fact icon={GATE} label="Gate Exit" value={gateName} />}
+          {pass.vehicle_number && <Fact icon={TRUCK} label="Vehicle No." value={pass.vehicle_number} />}
+          {company.phone && <Fact icon={PHONE} label="Contact No." value={company.phone} />}
+          {/* The mock's fifth column ends in a Status box. This app's badge for
+              that fact is in the title row a few pixels above, and repeating a
+              live badge is how two of them end up disagreeing — so the slot
+              carries the moment it last moved instead. */}
+          <Fact icon={CLOCK} label="Last Movement" value={formatDateTime(pass.updated_at)} />
+        </div>
 
         <div className="flex flex-col items-center gap-2">
           <div className="rounded-xl border border-surface-200 p-3">

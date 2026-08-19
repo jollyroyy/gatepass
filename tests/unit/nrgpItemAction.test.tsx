@@ -1,21 +1,26 @@
-// An NRGP line is CLOSED, and its Action cell is empty of links.
+// The material table on a gate pass record — what each type shows, and who may
+// touch it.
 //
-// Client, 2026-08-18: "what do you mean by 'in use'? Once it is out of the
-// gate it should be marked as returned not in use ... remove the view and
-// under action put NA but status you mark it as closed for NRGP. Similarly
-// for RGP ... under the action for the individual item level put the return
-// marking."
+// Client, 2026-08-18: "what do you mean by 'in use'? Once it is out of the gate
+// it should be marked as returned not in use ... under action put NA but status
+// you mark it as closed for NRGP."
 //
-// So the Action column carries exactly one thing — the return action — and
-// nothing else. A line with no return left to record reads NA, on either
-// type: "View" was a second route to the page the reader is already on, and
-// an NRGP never owes anything at all.
+// Client, 2026-08-19: the record is where a return is ENTERED, per line and per
+// quantity, and "once it is marked as returned, nothing can be edited anymore".
+// So the Action column carries exactly one thing — "+ Add Return" — and it is
+// drawn only for a guard, only on an RGP line that still owes material.
+// Everything else reads NA.
+//
+// AN NRGP HAS NO RETURN COLUMNS AT ALL: it is not coming back, and Qty Returned
+// / Pending Qty would be a column of zeroes describing an obligation that never
+// existed.
 import React from 'react';
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import PassRecordItems from '../../src/components/passview/PassRecordItems';
-import { itemReturnStage, ITEM_RETURN_STYLES, passRecordStages } from '../../src/lib/passRecordView';
+import { itemReturnStage, ITEM_RETURN_STYLES } from '../../src/lib/passRecordView';
+import { EMPTY_DRAFT } from '../../src/lib/returnDraft';
 import type { GatePassItemView, GatePassView } from '../../src/types';
 
 function line(over: Partial<GatePassItemView> = {}): GatePassItemView {
@@ -23,7 +28,7 @@ function line(over: Partial<GatePassItemView> = {}): GatePassItemView {
     id: 'i1', gate_pass_id: 'p1', line_no: 1, name: 'Drill Machine',
     description: 'Bosch 500W', serial_no: null, quantity: 2, unit: 'nos',
     returned_qty: 0, returned_at: null, approx_value: 5000,
-    expected_return_date: null,
+    expected_return_date: null, outstanding_qty: 2,
     ...over,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
@@ -31,7 +36,7 @@ function line(over: Partial<GatePassItemView> = {}): GatePassItemView {
 
 function pass(over: Partial<GatePassView> = {}): GatePassView {
   return {
-    id: 'p1', pass_number: 'NRGP-OUT-20260818-0001', type: 'NRGP', direction: 'out',
+    id: 'p1', pass_number: 'NRGP-20260818-0001', type: 'NRGP', direction: 'out',
     status: 'matched', return_status: 'not_applicable',
     department_id: 'd1', department_name: 'Engineering',
     raised_by: 'u1', visitor_name: 'Ravi Kumar', visitor_company: null,
@@ -47,13 +52,24 @@ function pass(over: Partial<GatePassView> = {}): GatePassView {
   } as any;
 }
 
-function renderItems(p: GatePassView, items: GatePassItemView[]) {
+function renderItems(p: GatePassView, items: GatePassItemView[], canRecord = false) {
   return render(
     <MemoryRouter>
-      <PassRecordItems pass={p} items={items} />
+      <PassRecordItems
+        pass={p}
+        items={items}
+        draft={EMPTY_DRAFT}
+        canRecord={canRecord}
+        onAdd={vi.fn()}
+      />
     </MemoryRouter>,
   );
 }
+
+const RGP = pass({
+  type: 'RGP', pass_number: 'RGP-20260818-0001', return_status: 'awaiting_return',
+  expected_return_date: '2026-08-25', due_state: 'ok',
+});
 
 describe('an NRGP line is closed, not "not applicable"', () => {
   it('grades every NRGP line as closed', () => {
@@ -61,42 +77,60 @@ describe('an NRGP line is closed, not "not applicable"', () => {
     expect(ITEM_RETURN_STYLES.closed.label).toBe('Closed');
   });
 
-  it('says Closed in the status cell and NA in the action cell', () => {
+  it('says Closed in the status cell and offers no action at all', () => {
     renderItems(pass(), [line()]);
     expect(screen.getByText('Closed')).toBeInTheDocument();
-    expect(screen.getByText('NA')).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
-  it('closes an NRGP at the gate instead of putting it "Cleared at Gate"', () => {
-    expect(passRecordStages(pass()).map((s) => s.label)).toEqual(['Issued', 'Closed']);
-  });
-
-  it('still calls a cleared RGP Cleared at Gate — it is out and owed back', () => {
-    const rgp = pass({
-      type: 'RGP', pass_number: 'RGP-OUT-20260818-0001', return_status: 'awaiting_return',
-      expected_return_date: '2026-08-25', due_state: 'ok',
-    });
-    expect(passRecordStages(rgp).map((s) => s.label)).toEqual(['Issued', 'Cleared at Gate']);
+  it('draws no return columns on an NRGP — nothing is owed back', () => {
+    renderItems(pass(), [line()]);
+    const heads = screen.getAllByRole('columnheader').map((h) => h.textContent);
+    expect(heads).not.toContain('Qty Returned');
+    expect(heads).not.toContain('Pending Qty');
+    expect(heads).toContain('Quantity');
   });
 });
 
-describe('an RGP line carries its own return marking', () => {
-  const rgp = pass({
-    type: 'RGP', pass_number: 'RGP-OUT-20260818-0001', return_status: 'awaiting_return',
-    expected_return_date: '2026-08-25', due_state: 'ok',
+describe('an RGP line carries its own return entry', () => {
+  it('draws the mock-up\'s quantity columns, with the unit on every line', () => {
+    renderItems(RGP, [line()]);
+    const heads = screen.getAllByRole('columnheader').map((h) => h.textContent);
+    expect(heads).toEqual([
+      '#', 'Item Name', 'Description', 'Unit', 'Qty Issued',
+      'Qty Returned', 'Pending Qty', 'Value', 'Status', 'Action',
+    ]);
+    expect(screen.getByText('Numbers')).toBeInTheDocument();
   });
 
-  it('offers Mark return on a line that still owes material', () => {
-    renderItems(rgp, [line({ returned_qty: 0 }), line({ id: 'i2', returned_qty: 1 })]);
-    expect(screen.getAllByRole('link', { name: /Mark return/ })).toHaveLength(2);
+  it('offers + Add Return to a GUARD on a line that still owes material', () => {
+    renderItems(RGP, [line({ returned_qty: 0 }), line({ id: 'i2', returned_qty: 1 })], true);
+    expect(screen.getAllByRole('button', { name: '+ Add Return' })).toHaveLength(2);
     expect(screen.queryByText('NA')).not.toBeInTheDocument();
   });
 
-  it('has nothing left to do on a fully returned line', () => {
-    renderItems(rgp, [line({ returned_qty: 2 })]);
+  it('offers nobody else anything — apply_item_returns refuses them', () => {
+    renderItems(RGP, [line({ returned_qty: 0 })], false);
+    expect(screen.queryByRole('button', { name: /Add Return/ })).not.toBeInTheDocument();
+    expect(screen.getByText('NA')).toBeInTheDocument();
+  });
+
+  it('has nothing left to do on a fully returned line, even for a guard', () => {
+    renderItems(RGP, [line({ returned_qty: 2, outstanding_qty: 0 })], true);
     expect(screen.getByText('Returned')).toBeInTheDocument();
     expect(screen.getByText('NA')).toBeInTheDocument();
-    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  it('totals the same figures it printed above them', () => {
+    renderItems(RGP, [
+      line({ id: 'a', quantity: 10, returned_qty: 4, approx_value: 1000 }),
+      line({ id: 'b', quantity: 5, returned_qty: 0, approx_value: 500 }),
+    ]);
+    const total = within(screen.getByRole('table')).getAllByRole('row').at(-1)!;
+    expect(within(total).getByText('15')).toBeInTheDocument();
+    expect(within(total).getByText('4')).toBeInTheDocument();
+    expect(within(total).getByText('11')).toBeInTheDocument();
+    expect(within(total).getByText('₹1,500')).toBeInTheDocument();
   });
 });
