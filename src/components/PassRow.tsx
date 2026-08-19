@@ -1,26 +1,22 @@
-// One gate pass, shared by every role. Two presentations:
+// One gate pass as a LINE, in the two lists that still read that way: the
+// guard's phone-number search results (the default row — identity, a few
+// inline facts, the timeline strip, the status badge) and the HOD's two
+// single-pass review screens (`compact` — three facts collapsed, the rest
+// revealed in place).
 //
-//   variant="row" (default) — a compact horizontal line: identity, a few
-//   inline facts, the timeline, the status badge. Used by QueueCard,
-//   FlaggedReviewCard, MyPassesTable and DrillList (the HOD drills) — none of
-//   these render a second "expanded" copy of the same facts, so nothing here
-//   duplicates.
-//
-//   variant="drill" — the shadcn Card idiom (client feedback 2026-08-10): a
-//   CardHeader that is IDENTITY + STATE ONLY (pass number, type chip, status
-//   pill — no vendor/visitor/material/vehicle/department), a CardContent body
-//   (PassRowBody) carrying every other fact EXACTLY ONCE, and an optional
-//   CardFooter (`detail`) on a distinct muted surface for actions. This is
-//   what DrillPassCard uses for the HOD/admin drills; the old version showed
-//   every fact in the header AND again in its own detail grid, which was the
-//   client's actual complaint ("I see the vendor name on top and also in the
-//   body").
+// THE STACKED CARD IS NOT HERE ANY MORE. Every stacked list — the HOD and
+// admin KPI drills and My Passes — draws `PassStackCard`, the guard's own
+// plate, and navigates to `/pass/:id` (client, 2026-08-19: "all the cards …
+// should mimic the exact same stacked card style of the guard's view"). The
+// `drill` variant, `PassRowBody` and `PassItemLines` went with that change,
+// deleted rather than left unreachable; the facts they carried — every
+// material line, its value and the pass's total — are on the record the card
+// now opens.
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView } from '../types';
 import { TypeChip } from './Badge';
 import PassOrdinal from './PassOrdinal';
-import PassRowBody from './PassRowBody';
 import PassRowCompact from './PassRowCompact';
 import { formatDateOnly } from '../lib/formatDate';
 import { parseCompanyInfo } from '../lib/companyInfo';
@@ -51,32 +47,13 @@ type Props = {
   badge?: React.ReactNode;
   /** The head of a queue gets the gold ring. */
   isOldest?: boolean;
-  /** Expanded content. Row variant: a free-form detail block. Drill variant:
-   *  the CardFooter — actions on their own muted surface, below the
-   *  auto-rendered CardContent body. */
+  /** Expanded content — a free-form detail block under the row. */
   detail?: React.ReactNode;
-  /** Start expanded (e.g. a drill card, whose whole point is the detail). */
-  defaultOpen?: boolean;
-  /** "row" (default): compact single-line card, used in every list. "drill":
-   *  the shadcn Card idiom — identity-only header, PassRowBody content, a
-   *  muted-surface footer for `detail`. */
-  variant?: 'row' | 'drill';
-  /** Row variant only: the stack presentation (My Passes, HOD flagged review).
-   *  Collapsed it shows exactly three facts — Item, Value, Reason — plus
-   *  identity and status; clicking reveals the rest inline (PassRowCompact),
-   *  with `to` / `onOpen` surviving as a "View full pass" affordance inside. */
+  /** The stack presentation used by the HOD's two review screens: collapsed it
+   *  shows exactly three facts — Item, Value, Reason — plus identity and
+   *  status; clicking reveals the rest inline (PassRowCompact), with `to` /
+   *  `onOpen` surviving as a "View full pass" affordance inside. */
   compact?: boolean;
-  /** Drill variant only: tighter padding and a denser fact grid, for the HOD
-   *  dashboard's compact cards. The guard's drill cards stay roomy. */
-  dense?: boolean;
-  /** Drill variant only: the HOD board omits "Raised By" — they raised it. */
-  showRaisedBy?: boolean;
-  /** Drill variant only: a second line under the pass number, ALWAYS visible
-   *  (the body is not). My Passes uses it so a collapsed stack is still a
-   *  register — a column of pass numbers and nothing else cannot be scanned. */
-  subtitle?: React.ReactNode;
-  /** Drill variant only: the trimmed fact set — see PassRowBody. */
-  slim?: boolean;
   /** 1-based position in the stack, shown as a small ordinal beside the pass
    *  number (client, 2026-08-18). The LIST assigns it — the same pass is #3 in
    *  one drill and #1 in another. Omitted for a card that stands alone. */
@@ -90,95 +67,17 @@ export default function PassRow({
   badge,
   isOldest,
   detail,
-  defaultOpen = false,
-  variant = 'row',
   compact = false,
-  dense = false,
-  showRaisedBy = true,
-  subtitle,
-  slim = false,
   index,
 }: Props): React.ReactElement {
-  const [open, setOpen] = useState(defaultOpen);
+  const [open, setOpen] = useState(false);
   const company = parseCompanyInfo(p.visitor_company);
   // ONE pill, naming the LATEST state — never "Matched  Closed" (client,
   // 2026-08-11). The outward match it supersedes is not lost: it is a moment
   // in `passTimeline`, rendered by the expanded body below and by PassDetail.
   const badgeStyle = passStageStyle(p);
-  const expandable = compact || (Boolean(detail || variant === 'drill') && !to);
+  const expandable = compact || (Boolean(detail) && !to);
   const isRgp = p.type === 'RGP';
-
-  if (variant === 'drill') {
-    // CardHeader: identity + state, nothing else. `justify-between` is the
-    // shadcn header grid's stand-in for CardAction pinning the status pill
-    // top-right without absolute positioning.
-    // The header is the ONLY toggle control — its accessible name is just the
-    // pass number, chip and status. Putting role="button" on the whole card
-    // instead would give it an accessible name equal to its ENTIRE text
-    // content (including footer button labels), which broke `getByRole` name
-    // matching on 'Return All' during testing and would read just as badly to
-    // a screen reader.
-    const header = (
-      <div
-        className={`flex items-center justify-between gap-3 cursor-pointer ${
-          dense ? 'px-3.5 pt-2.5' : 'px-5 pt-5'
-        }`}
-        data-testid="pass-card-header"
-        onClick={() => setOpen(!open)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setOpen(!open);
-          }
-        }}
-        role="button"
-        tabIndex={0}
-        aria-expanded={open}
-      >
-        <div className="flex flex-col gap-1 min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            {index !== undefined && <PassOrdinal index={index} />}
-            <span
-              className={`font-semibold tabular-nums tracking-tight text-navy-900 truncate ${
-                dense ? 'text-base' : 'text-h3'
-              }`}
-            >
-              {p.pass_number}
-            </span>
-            <TypeChip type={p.type} />
-          </div>
-          {subtitle}
-        </div>
-        <span className={`status-badge shrink-0 ${badgeStyle.bg} ${badgeStyle.text}`}>{badgeStyle.label}</span>
-      </div>
-    );
-
-    const content = open ? (
-      <div>
-        {/* CardContent */}
-        <div className={dense ? 'px-3.5 pb-3 pt-2.5' : 'px-5 pb-5 pt-4'} data-testid="pass-card-body">
-          <PassRowBody pass={p} dense={dense} showRaisedBy={showRaisedBy} slim={slim} />
-        </div>
-        {/* CardFooter — a distinct muted band, never the same surface as the
-            body, or the card flattens back into an unstructured box. */}
-        {detail && (
-          <div
-            className={`bg-surface-100/60 border-t border-surface-200 ${dense ? 'px-3.5 py-2' : 'px-5 py-4'}`}
-            data-testid="pass-card-footer"
-          >
-            {detail}
-          </div>
-        )}
-      </div>
-    ) : null;
-
-    return (
-      <div>
-        {header}
-        {content}
-      </div>
-    );
-  }
 
   const content = (
     <>

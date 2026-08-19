@@ -39,8 +39,8 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-19
 
-Full gate: **1371 tests across 121 files** (`npm run check`) — a parallel session is editing
-`src/components/layout/*` and `src/lib/boardKpis.ts` at the same time, so that count moves.
+Full gate: **1367 tests across 118 files** (`npm run check`) — four test files were deleted
+with the card idiom they pinned (see the latest change) and one new one replaced them.
 **Migration `044_overdue_guard_actions.sql` landed on disk and in `APPLY_ALL.sql` in commit
 `7d249c8`, from a parallel session — its live state is NOT recorded here. Check before
 assuming it is applied.**
@@ -57,7 +57,56 @@ each verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs` �
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 | `gatepass.approval_roles` | **0 rows** — nobody is designated yet, so every pass record reads "Not designated yet" on all four levels. Admin → Users → *Gate pass approval ladder* is where they are set. |
 
-**Latest change (2026-08-19, ninth pass): the HOD dashboard IS the client's mock-up — a
+**Latest change (2026-08-19, tenth pass): ONE stacked pass card for every role, the
+timeline ends with the return, value is totalled everywhere, and the guard's record stopped
+rendering white-on-white.** Frontend only — no migration, no new RPC. One DATA fix.
+
+- **EVERY STACKED LIST DRAWS THE GUARD'S CARD** (client: "all the cards across all the admin,
+  whether admin or HOD level, should mimic the exact same stacked card style of the guard's
+  view … upon clicking on those cards it should show up the exact details as guard, but HOD
+  and admin cannot perform any action — they can just see the return status").
+  `src/components/PassStackCard.tsx` is `OverduePassCard` generalised — the white plate, the
+  coloured left edge, the pass number, a six-fact grid (Requested By · Vendor / Person ·
+  Material · Items · **Total Value** · Return Before, or Cleared on an NRGP) and the stage
+  pill — and `PassStack.tsx` is the list plus the token island it needs.
+  - **THE WHOLE CARD IS A LINK TO `/pass/:id` AND EXPANDS NOTHING.** The drill card used to
+    open in place; now every role reads a pass in the one record.
+  - **It offers no action to anybody, and that is not a role check** — there is no control on
+    it at all. Approve OUT and recording a return live on the record and are drawn for a guard
+    alone, by the rules `match_pass` and `apply_item_returns` enforce.
+  - **DELETED, not flagged off**: `DrillPassCard.tsx`, `MyPassCard.tsx`, `PassRowBody.tsx`,
+    `PassItemLines.tsx` and `PassRow`'s whole `drill` variant (with `dense`, `slim`,
+    `subtitle`, `defaultOpen`, `showRaisedBy`). `PassRow` is now the phone-search row and the
+    `compact` review card only. **KNOWN COST, FLAGGED**: the opened card's per-line material
+    table went with `PassItemLines`, so each line's value is read on the record now (where the
+    item table foots it) rather than inside the card.
+  - `src/lib/passStackCard.ts` maps a stage LABEL to one of the guard skin's five pill tones;
+    `passStackCard.test.tsx` walks `STATUS_STYLES` / `RGP_STAGE_STYLES` / `EXPIRED_STYLE` and
+    fails on a stage nobody toned, which a Record keyed on an enum cannot do here.
+- **THE `--gb-*` PALETTE IS DECLARED ONCE, for `.gb-board`, `.gb-main` AND `.gb-stack`.** It
+  used to live on `.gb-board` alone while `.gb-main` painted with it — so on a guard page with
+  no board (the pass record, Search Pass, Verify) `color: var(--gb-body)` was invalid at
+  computed-value time and the cells INHERITED the app's near-white dark-mode ink onto a white
+  plate. That is the bug the client reported ("a couple of columns are showing in light, it's
+  not visible"). `designSystem.test.ts` pins the shared rule.
+- **The return leg closes the merged timeline** (client: "To Be Returned should be after
+  Cleared out at the gate"). `buildApprovalSteps` keeps the printed slip's order; `PassTimeline`
+  renders the `return` step BELOW the recorded gate events, because material is due back only
+  after it has gone out.
+- **Print Pass no longer sits under the notification bell.** The record's title row reserves
+  the same 76px `.page-header` and `.gb-page-head` do.
+- **Value is totalled everywhere** (client): the record's item table and the fact strip both
+  carry it, and only PRICED lines are added — an unpriced line contributes nothing, and a table
+  where no line carries a value gets no total at all rather than a ₹0 nobody entered.
+- **DATA FIX, live DB**: `RGP-20260818-0003`'s "sony" line (headphone) was **0.99 set**, issued
+  before `isWholeUnit` existed. Set to **1 set, 1 returned** — the line was already fully back,
+  so nothing pends on it. The pass's OTHER line (aluminium foil, 21 roll, none returned) is a
+  real open obligation and was not touched, so the pass is still `partially_returned`.
+- **NOT seen signed-in in a browser**: `npm run check` (1367 tests) and `npm run build` only.
+  The stack card on an HOD/admin page is a fixed-light island on the house surface — exactly
+  the kind of thing only a real render proves.
+
+**Earlier (2026-08-19, ninth pass): the HOD dashboard IS the client's mock-up — a
 greeting, four drillable figures, Quick Actions and the Approval Pending strip. No Alerts,
 and no `GateBoard`.** Frontend only — no migration, no new RPC, and ONE query where the old
 board made three.
@@ -398,7 +447,8 @@ lists its lines priced in ₹.** Frontend only — no migration, no new RPC.
   demand. The dashboard builds each figure with the page's own function — `buildScheduledReturns`
   over `due_state === 'due_today'` passes, `buildOverdueRows` over every open return.
 - **A stacked card now lists its material lines, numbered and priced in ₹**
-  (`src/components/PassItemLines.tsx`, rendered by `PassRowBody`). `usePassItems` fetches on
+  (`src/components/PassItemLines.tsx`, rendered by `PassRowBody`) — **both DELETED on
+  2026-08-19 with the card disclosure; see the latest change**. `usePassItems` fetches on
   disclosure, so a collapsed list makes no queries. **The ordinal IS the serial number** —
   `serial_no` is write-dead, and a column of em dashes says less than the line's position. An
   unpriced line is an empty cell, never `₹0`. PassRowBody's old header comment saying per-item
@@ -702,7 +752,9 @@ gold.**
   FlaggedReviewCard, PhoneSearchResults. the guard board's own card was `dense` too (it was the roomy
   variant and crowded the guard's screen; that board became two tables on 2026-08-19), dense paddings dropped a step, and list gaps are 2.
   `PassTimelineStrip` gained `orientation="vertical"` — a dot-on-a-rail rung per moment — which
-  is what `PassRowBody` (every opened card) uses. Pinned by `stackedCards.test.tsx` (4).
+  is what `PassRowBody` (every opened card) uses. **`PassRowBody` and `stackedCards.test.tsx`
+  are DELETED (2026-08-19, tenth pass) — the stack is `PassStackCard` now, and it does not
+  expand at all. The numbering rule survives, re-pinned by `passStackCard.test.tsx`.**
 - **Today's Summary is DELETED from both boards.** The five keys (`totalRaised`, `totalCleared`,
   `pendingApprovals`, `overdueReturns`, `materialOutside`) are gone from `BoardKpiKey`,
   `BOARD_KPIS`, `BoardKpiIcon` and `BOARD_KPI_LINKS`, so a stale reference is a type error. The
@@ -1331,6 +1383,6 @@ rendered both by Search Pass and by `/pass/:id`; `src/components/overdue/` is Ov
 line-level returns table, each one component serving all three roles;
 `src/components/guard/` is the guard's three screens — the two summary cards, the quick actions,
 the two list tables and the chrome the list pages share (header, toolbar, filter bar, pager,
-`useGuardSearch`, `ApproveOutAction`); `src/components/hod/` is the HOD's dashboard — the four drillable figures, the two Raise tiles and the Approval Pending strip, drawn to the client's mock-up in the `.gb-*` skin; `src/components/board/` is the ADMIN's dashboard alone (the HOD stopped sharing it on 2026-08-19). `src/lib/` holds the
+`useGuardSearch`, `ApproveOutAction`); `src/components/PassStackCard.tsx` + `PassStack.tsx` are THE stacked pass card, drawn the guard's way for every role and linking to `/pass/:id` (the HOD/admin drills and My Passes render it; `DrillPassCard`, `MyPassCard`, `PassRowBody` and `PassItemLines` are deleted); `src/components/hod/` is the HOD's dashboard — the four drillable figures, the two Raise tiles and the Approval Pending strip, drawn to the client's mock-up in the `.gb-*` skin; `src/components/board/` is the ADMIN's dashboard alone (the HOD stopped sharing it on 2026-08-19). `src/lib/` holds the
 lookup maps, derivations and formatters; `supabase/migrations/` runs `001` → `043`, with
 `005` an **optional demo seed** to skip in a real deployment.

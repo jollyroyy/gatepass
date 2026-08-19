@@ -2,17 +2,17 @@
 // so the number and the list can never disagree. Shared by the HOD and admin
 // dashboards; a drill is a list, not a register.
 //
-// Renovated 2026-08-11 (client): these were flat single-line rows, and the
-// client preferred the gate console's card view of that era. Each row is now
-// a DrillPassCard — a shadcn Card (CardHeader of identity + status,
-// CardContent of facts via PassRowBody, CardFooter of actions) — at compact
-// density. `onOpen` survives as the card's own click-through. (The guard's
-// own board moved off pass cards entirely on 2026-08-19, replaced by two
-// tables — Pending OUT and Pending RGP Return — so this card idiom is now
-// specific to the HOD/admin drills.)
+// Rebuilt 2026-08-19 (client): "all the cards across all the admin, whether
+// admin or HOD level, should mimic the exact same stacked card style of the
+// guard's view … upon clicking on those cards it should show up the exact
+// details as guard." So a drill row is now `PassStackCard` — the guard's own
+// plate — and it LINKS to `/pass/:id` instead of expanding in place. The
+// shadcn drill card (`DrillPassCard`, `PassRow variant="drill"`, `PassRowBody`)
+// is deleted, so a stale reference is a build error rather than a second card
+// style nobody notices.
 import React from 'react';
 import type { GatePassView } from '../types';
-import DrillPassCard from './DrillPassCard';
+import PassStack from './PassStack';
 import type { DrillDef } from '../lib/boardDrills';
 
 const SKELETON_ROWS = 6;
@@ -50,11 +50,7 @@ export default function DrillList({
       ) : rows.length === 0 ? (
         <div className="table-wrap empty-state">{def.empty}</div>
       ) : (
-        <div className="flex flex-col gap-2 w-full">
-          {rows.map((p, i) => (
-            <DrillPassCard key={p.id} pass={p} index={i + 1} showRaisedBy={showRaisedBy} />
-          ))}
-        </div>
+        <PassStack passes={rows} showRaisedBy={showRaisedBy} />
       )}
     </div>
   );

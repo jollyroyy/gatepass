@@ -150,6 +150,51 @@
 }
 
 @layer components {
+  /* ---- THE SKIN'S PALETTE, IN ONE PLACE --------------------------------
+   * Three islands paint with these: `.gb-board` (the mock-up screens),
+   * `.gb-main` (the guard's whole shell) and `.gb-stack` (a stacked pass list
+   * on any page, in any role). A `var()` nobody defined is not a fallback —
+   * it invalidates the declaration, and an inherited property like `color`
+   * then takes the app's own value, which on the shipped dark default is
+   * near-white ink on a white plate. So the variables are declared once, for
+   * every selector that uses them, and cannot drift apart.
+   * ---------------------------------------------------------------------- */
+  .gb-board,
+  .gb-main,
+  .gb-stack {
+    /* Mock-up palette. Named by role so a call site reads as intent. */
+    --gb-ink: #111827;
+    --gb-body: #374151;
+    --gb-muted: #6b7280;
+    --gb-line: #e5e7eb;
+    --gb-line-soft: #f3f4f6;
+    --gb-head: #f9fafb;
+
+    --gb-orange: #f97316;
+    --gb-orange-ink: #ea580c;
+    --gb-orange-tint: #ffedd5;
+    --gb-orange-soft: #fff7ed;
+    --gb-orange-line: #fdba74;
+
+    --gb-blue: #2563eb;
+    --gb-blue-tint: #dbeafe;
+    --gb-blue-soft: #eff6ff;
+    --gb-blue-line: #93c5fd;
+
+    --gb-green: #16a34a;
+    --gb-green-tint: #dcfce7;
+    --gb-green-soft: #f0fdf4;
+    --gb-green-line: #86efac;
+
+    --gb-red: #dc2626;
+    --gb-red-soft: #fef2f2;
+    --gb-red-line: #fca5a5;
+
+    --gb-purple: #9333ea;
+    --gb-purple-tint: #f3e8ff;
+
+}
+
   .dark .bg-white:not(:where(.gb-main, .gb-main *)) {
     background-color: rgb(var(--glass-bg) / 0.8);
   }
@@ -1025,37 +1070,6 @@
    ============================================================ */
 @layer components {
   .gb-board {
-    /* Mock-up palette. Named by role so a call site reads as intent. */
-    --gb-ink: #111827;
-    --gb-body: #374151;
-    --gb-muted: #6b7280;
-    --gb-line: #e5e7eb;
-    --gb-line-soft: #f3f4f6;
-    --gb-head: #f9fafb;
-
-    --gb-orange: #f97316;
-    --gb-orange-ink: #ea580c;
-    --gb-orange-tint: #ffedd5;
-    --gb-orange-soft: #fff7ed;
-    --gb-orange-line: #fdba74;
-
-    --gb-blue: #2563eb;
-    --gb-blue-tint: #dbeafe;
-    --gb-blue-soft: #eff6ff;
-    --gb-blue-line: #93c5fd;
-
-    --gb-green: #16a34a;
-    --gb-green-tint: #dcfce7;
-    --gb-green-soft: #f0fdf4;
-    --gb-green-line: #86efac;
-
-    --gb-red: #dc2626;
-    --gb-red-soft: #fef2f2;
-    --gb-red-line: #fca5a5;
-
-    --gb-purple: #9333ea;
-    --gb-purple-tint: #f3e8ff;
-
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     background: #ffffff;
     color: var(--gb-ink);
@@ -1119,22 +1133,6 @@
           fails on a new `.dark` rule that forgets it.
      Remove any one of the three and the others stop being enough. */
   .gb-main {
-    /* THE SKIN'S OWN NEUTRALS, DECLARED HERE AND NOT BORROWED FROM `.gb-board`.
-     * The rules below paint with `var(--gb-ink)` / `var(--gb-body)`, and those
-     * were defined on `.gb-board` alone — so on a guard page that has no board
-     * (the pass record, Search Pass, Verify) every one of those declarations
-     * was invalid at computed-value time and the text fell back to INHERITING
-     * the app's colour, which on the shipped dark default is near-white on a
-     * white card: the item table's cells went invisible (client, 2026-08-19:
-     * "a couple of columns are showing in light, it's not visible"). Same six
-     * values as the board, so the two islands cannot drift. */
-    --gb-ink: #111827;
-    --gb-body: #374151;
-    --gb-muted: #6b7280;
-    --gb-line: #e5e7eb;
-    --gb-line-soft: #f3f4f6;
-    --gb-head: #f9fafb;
-
     --c-navy-50: 250 249 247;
     --c-navy-100: 244 242 238;
     --c-navy-200: 231 228 222;
@@ -2148,6 +2146,33 @@
     border-left: 3px solid var(--gb-orange);
     border-radius: 10px;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  /* A STACK OF PASS CARDS ON ANY PAGE, IN ANY ROLE. Tokens and a light
+   * colour-scheme only — no ground of its own, because the cards are white
+   * plates and the page behind them stays whatever theme the reader chose. */
+  .gb-stack {
+    color-scheme: light;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    color: var(--gb-ink);
+  }
+  /* The left edge follows the stage pill, so a stack can be read by its margin
+   * before a word of it is. Orange is `.gpo-card`'s own default (overdue). */
+  .gpo-card-blue { border-left-color: var(--gb-blue); }
+  .gpo-card-green { border-left-color: var(--gb-green); }
+  .gpo-card-red { border-left-color: var(--gb-red); }
+  .gpo-card-grey { border-left-color: var(--gb-line); }
+  /* The ordinal is the card's position in THIS list, never an identity. */
+  .gpo-ordinal {
+    color: var(--gb-muted);
+    font-weight: 600;
+    margin-right: 6px;
+  }
+  .gpo-type {
+    align-self: flex-start;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--gb-muted);
   }
   .gpo-card:hover {
     box-shadow: 0 2px 10px 0 rgb(16 24 40 / 0.08);

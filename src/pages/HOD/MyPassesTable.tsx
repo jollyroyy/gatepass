@@ -1,12 +1,13 @@
 // The passes list for MyPasses.tsx: loading skeleton, empty state, and the
-// populated rows — each a PassRow (the 2026-08-08 card rule) that opens the
-// pass detail. Split out to keep MyPasses.tsx under the 300-line rule — same
+// populated rows — each one the guard's stacked pass card, opening the pass
+// record (client, 2026-08-19: every stacked list in the app draws the same
+// card). `MyPassCard` and its glass shell are deleted with that change. Split out to keep MyPasses.tsx under the 300-line rule — same
 // "extract sub-components" convention as VerifyPanels.tsx / MatchPanel /
 // FlagPanel.
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView } from '../../types';
-import MyPassCard from './MyPassCard';
+import PassStack from '../../components/PassStack';
 
 interface MyPassesTableProps {
   /** Unfiltered rows — only used to tell "nothing raised yet" apart from
@@ -44,23 +45,7 @@ export default function MyPassesTable({
     );
   }
 
-  return (
-    <div className="flex flex-col gap-2">
-      {filtered.map((p, i) => (
-        <MyPassCard
-          key={p.id}
-          pass={p}
-          index={i + 1}
-          badge={
-            p.item_count > 1 ? (
-              <>
-                <span className="w-1 h-1 rounded-full bg-navy-300 shrink-0" />
-                <span className="text-navy-600 shrink-0 tabular-nums">{p.item_count} items</span>
-              </>
-            ) : null
-          }
-        />
-      ))}
-    </div>
-  );
+  // The HOD raised every one of these, so their own name is not a fact worth a
+  // column of the card.
+  return <PassStack passes={filtered} showRaisedBy={false} />;
 }

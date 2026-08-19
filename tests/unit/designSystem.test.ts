@@ -128,9 +128,10 @@ describe('design system — the guard shell (.gb-main)', () => {
   // the skin's white card, which is how the pass record's item cells went
   // blank for a guard (client, 2026-08-19). `.gb-main` must therefore carry the
   // same six neutrals `.gb-board` does, not borrow them.
-  it('defines every --gb-* neutral it paints with', () => {
-    const block = css.match(/\.gb-main\s*{[^}]*}/)?.[0] ?? '';
-    for (const name of ['--gb-ink', '--gb-body', '--gb-muted', '--gb-line', '--gb-line-soft', '--gb-head']) {
+  it('declares the --gb-* palette for every island that paints with it', () => {
+    const block = css.match(/\.gb-board,[\s\S]*?\.gb-stack\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(block).not.toBe('');
+    for (const name of ['--gb-ink', '--gb-body', '--gb-muted', '--gb-line', '--gb-line-soft', '--gb-head', '--gb-blue', '--gb-red']) {
       expect(block).toContain(`${name}:`);
     }
   });
