@@ -23,7 +23,13 @@
 // mock draws in red: Pending Approvals and Overdue Returns are RUNNING queues.
 // An obligation does not stop being open because the window rolled past the day
 // it started in, so a window-scoped Overdue figure would print 0 while material
-// sat off site. They carry no delta for the same reason — see `deltaOf`.
+// sat off site.
+//
+// NO FIGURE COMPARES ITSELF TO A PREVIOUS WINDOW (client, 2026-08-19: "remove
+// all those comparisons"). The mock's red/green "18.6% vs last week" line, the
+// `Delta` type and `deltaOf` are DELETED, not flagged off — so is `prevStart`,
+// the only reason `windowBounds` ever looked further back than the window it
+// describes. Each card carries its scope in words instead.
 import type { GatePassView } from '../types';
 import type { BoardDrill } from './boardDrills';
 import { IS_OPEN_RETURN } from './boardDrills';
@@ -49,9 +55,6 @@ export interface WindowBounds {
   start: number;
   /** Exclusive — local midnight AFTER today. */
   end: number;
-  /** Local midnight of the first day of the window immediately before this one,
-   *  which is what every delta is measured against. */
-  prevStart: number;
 }
 
 /** `days` calendar days ending with today, in LOCAL time. Local, not UTC: a pass
@@ -59,7 +62,7 @@ export interface WindowBounds {
 export function windowBounds(days: number, now: number = Date.now()): WindowBounds {
   const today = dayStart(now);
   const start = today - (days - 1) * DAY_MS;
-  return { start, end: today + DAY_MS, prevStart: start - days * DAY_MS };
+  return { start, end: today + DAY_MS };
 }
 
 const SPAN_DAY = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' });
@@ -79,32 +82,6 @@ function raisedBetween(rows: GatePassView[], from: number, to: number): GatePass
   });
 }
 
-// ─── The delta line ──────────────────────────────────────────────────────────
-
-export interface Delta {
-  /** Whole tenths of a percent, always positive — `direction` carries the sign. */
-  pct: number;
-  direction: 'up' | 'down' | 'flat';
-}
-
-/**
- * "18.6% vs last 7 days", measured against the window immediately before this
- * one.
- *
- * NULL WHEN THERE IS NOTHING TO COMPARE AGAINST. A percentage change from zero
- * is not a number — every product that prints "100%" there is inventing a
- * baseline — so the card renders the plain grey scope line instead. That is the
- * same rule the old board followed when it deleted "vs yesterday" outright
- * rather than computing a delta it had no previous window for.
- */
-export function deltaOf(current: number, previous: number): Delta | null {
-  if (previous <= 0) return null;
-  const change = ((current - previous) / previous) * 100;
-  const pct = Math.round(Math.abs(change) * 10) / 10;
-  if (pct === 0) return { pct: 0, direction: 'flat' };
-  return { pct, direction: change > 0 ? 'up' : 'down' };
-}
-
 // ─── The five figures ────────────────────────────────────────────────────────
 
 export type OverviewKey = 'total' | 'rgp' | 'nrgp' | 'pending' | 'overdue';
@@ -115,11 +92,8 @@ export interface OverviewCard {
   glyph: HodGlyph;
   tone: HodTone;
   value: number;
-  /** Null on the two running figures, and on any figure whose previous window
-   *  was empty. The card draws `note` in that slot instead. */
-  delta: Delta | null;
-  /** What the figure is scoped to, in words — the line that replaces a delta,
-   *  and the words printed after a delta that exists. */
+  /** What the figure is scoped to, in words. It is the whole of the card's
+   *  second line now that no figure compares itself to anything. */
   note: string;
   drill: BoardDrill;
 }
@@ -139,13 +113,12 @@ export function buildOverviewCards(
 ): OverviewCard[] {
   const b = windowBounds(days, now);
   const win = raisedBetween(rows, b.start, b.end);
-  const prev = raisedBetween(rows, b.prevStart, b.start);
   const rgp = win.filter((p) => p.type === 'RGP');
   const nrgp = win.filter((p) => p.type === 'NRGP');
   // RUNNING, and unscoped by the window on purpose — see the file header.
   const pending = rows.filter(isWaitingAtGate);
   const overdue = rows.filter((p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue);
-  const since = `vs previous ${days} days`;
+  const since = `Raised in the last ${days} days`;
 
   return [
     {
@@ -154,7 +127,6 @@ export function buildOverviewCards(
       glyph: 'document',
       tone: 'blue',
       value: win.length,
-      delta: deltaOf(win.length, prev.length),
       note: since,
       drill: {
         key: 'total',
@@ -169,7 +141,6 @@ export function buildOverviewCards(
       glyph: 'exchange',
       tone: 'green',
       value: rgp.length,
-      delta: deltaOf(rgp.length, prev.filter((p) => p.type === 'RGP').length),
       note: since,
       drill: {
         key: 'rgp',
@@ -184,7 +155,6 @@ export function buildOverviewCards(
       glyph: 'send',
       tone: 'purple',
       value: nrgp.length,
-      delta: deltaOf(nrgp.length, prev.filter((p) => p.type === 'NRGP').length),
       note: since,
       drill: {
         key: 'nrgp',
@@ -199,9 +169,6 @@ export function buildOverviewCards(
       glyph: 'clock',
       tone: 'orange',
       value: pending.length,
-      // NO DELTA, EVER. Nothing in this database records how long a queue was a
-      // week ago, and a figure invented for a red arrow is worse than no arrow.
-      delta: null,
       note: 'Waiting at the gate now',
       drill: {
         key: 'pending',
@@ -216,7 +183,6 @@ export function buildOverviewCards(
       glyph: 'alert',
       tone: 'red',
       value: overdue.length,
-      delta: null,
       note: 'Still out, past its date',
       drill: {
         key: 'overdue',

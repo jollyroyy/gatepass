@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-19
 
-Full gate: **1424 tests across 118 files** (`npm run check`), green — and **`npm run build` is
+Full gate: **1423 tests across 118 files** (`npm run check`), green — and **`npm run build` is
 green again**, which it had not been since the raise-form CSS landed (see the twelfth pass).
 Migrations **`001`–`047`, `049` and `050` are applied to the live DB.** `044` was found UNAPPLIED on
 2026-08-19 — the overdue card's Contact Vendor and Add Remark had shipped against RPCs that did
@@ -63,7 +63,31 @@ notification function exists in `gatepass`. `APPLY_ALL.sql` carries all 49 secti
 | `gatepass.approval_roles` | **4 rows — ALL FOUR OFFICES ARE FILLED**, so since `046` was applied every NEWLY raised pass needs four approvals and **the gate cannot see it until it has them**. Security Head Demi · COO Sudeshna Pal · CEO Sid · Finance HOD GUARDSOHAM. One person holds one office (`049`). Admin → Users → *Gate pass approval ladder* is where they are set. |
 | `gatepass.pass_approvals` | **0 rows** — nothing has been raised since `046` landed. The 60 existing passes carry no ladder and reach the gate exactly as they did before. |
 
-**Latest change (2026-08-19, twelfth pass): THE ADMIN DASHBOARD IS THE CLIENT'S "Overview"
+**Latest change (2026-08-19, thirteenth pass): NO ADMIN FIGURE COMPARES ITSELF TO THE
+PREVIOUS WINDOW, and the stacked card's RGP/NRGP chip is the guard's own coloured pill.**
+Frontend only — no migration, no query change, no change to what any figure counts.
+
+- **EVERY DELTA IS DELETED, not flagged off** (client: "remove all those comparisons").
+  `deltaOf`, the `Delta` type, `WindowBounds.prevStart`, the arrow glyphs and the
+  `gb-ov-up/down/flat` ink are gone, so a stale reference is a build error. Each card's second
+  line is now its SCOPE in plain grey words — "Raised in the last 7 days" on the three windowed
+  figures, and the running queues keep the lines they already had. The row still reads as five
+  cards of one height. `adminOverview.test.ts` now fails on a `delta` property reappearing.
+- **The type chip on `PassStackCard` is `gb-pill` + `TYPE_PILL`** — RGP blue, NRGP green, the
+  very map the guard's Pending OUT / Pending RGP Return / search rows colour theirs with
+  (client: "whenever we are saying the NRGP and RGP in the guard's view, we make it exactly
+  [that] for the stacked card in the admin across all the tabs"). `.gpo-type`, the grey
+  lettering it replaced, is deleted from `index.css`; `.gpo-card-id > .gb-pill` keeps the pill
+  from stretching in that flex COLUMN. It changes every stack at once — the admin's drills, the
+  HOD's drills and My Passes — because there is one stacked card.
+- **The rest of the stacked card was ALREADY the guard's**: same `.gpo-*` plate, same Inter
+  from `.gb-stack`, same coloured left edge and stage pill, whole card linking to `/pass/:id`,
+  and **no action of any kind** — the return-processing and Approve OUT controls are the
+  guard's, on the record. Verified by reading it against `OverduePassCard`, not changed.
+- **NOT seen signed-in in a browser**: `npm run check` (1423 tests, 118 files) and
+  `npm run build`, both green.
+
+**Earlier (2026-08-19, twelfth pass): THE ADMIN DASHBOARD IS THE CLIENT'S "Overview"
 MOCK-UP, box for box — five figures with their change against the previous window, a Gate Pass
 Trend and a Passes by Status ring. `GateBoard` IS DELETED.** Frontend only — no migration, no
 new RPC, and ONE query where the old board made two.

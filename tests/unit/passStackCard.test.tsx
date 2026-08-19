@@ -20,6 +20,7 @@ import type { GatePassView } from '../../src/types';
 import DrillList from '../../src/components/DrillList';
 import MyPassesTable from '../../src/pages/HOD/MyPassesTable';
 import { drillDefOf } from '../../src/lib/boardDrills';
+import { TYPE_PILL } from '../../src/lib/guardBoard';
 import { STAGE_TONES, stageTone } from '../../src/lib/passStackCard';
 import { STATUS_STYLES, EXPIRED_STYLE } from '../../src/lib/statusStyles';
 import { RGP_STAGE_STYLES } from '../../src/lib/rgpLifecycle';
@@ -112,6 +113,19 @@ describe('every stacked list draws the guard’s card', () => {
     renderDrill([pass({ is_overdue: true })]);
     const value = screen.getByText('25 Aug 2026');
     expect(value.className).toContain('gpo-fact-late');
+  });
+
+  // The type chip is the GUARD's, class for class (client, 2026-08-19: "whenever
+  // we are saying the NRGP and RGP in the guard's view, we make it exactly [that]
+  // for the stacked card in the admin across all the tabs"). Read off `TYPE_PILL`
+  // itself rather than a literal, so the guard's screens and this card cannot
+  // drift to two blues.
+  it('colours RGP and NRGP with the guard’s own type pill', () => {
+    renderDrill([pass()]);
+    expect(screen.getByText('RGP').className).toBe(`gb-pill ${TYPE_PILL.RGP}`);
+    screen.getByText('RGP').remove();
+    renderDrill([pass({ type: 'NRGP', return_status: 'not_applicable' })]);
+    expect(screen.getAllByText('NRGP')[0].className).toBe(`gb-pill ${TYPE_PILL.NRGP}`);
   });
 
   it('an NRGP carries the moment it left, not a deadline it cannot miss', () => {

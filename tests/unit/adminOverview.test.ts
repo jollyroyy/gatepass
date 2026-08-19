@@ -14,9 +14,11 @@
 //   3. TWO FIGURES ARE OUTSIDE THE WINDOW ON PURPOSE — Pending Approvals and
 //      Overdue Returns are RUNNING queues. A window-scoped Overdue figure would
 //      print 0 while material sat off site.
-//   4. NO DELTA IS INVENTED. A percentage change from an empty previous window
-//      is not a number, and the two running queues have no previous window at
-//      all — both render the plain scope line instead of a fabricated arrow.
+//   4. NO FIGURE COMPARES ITSELF TO ANYTHING. The client removed the mock's
+//      "vs last week" line outright (2026-08-19), so `deltaOf`, the `Delta` type
+//      and `WindowBounds.prevStart` are gone and every card's second line is its
+//      scope in words. The cases below that used to pin the arithmetic now pin
+//      the absence — a delta creeping back in is what they fail on.
 //   5. EVERY PASS FALLS IN EXACTLY ONE STATUS BUCKET, by an ordered chain of
 //      exact equalities. The order is urgency: a stopped pass is never
 //      "approved", and a late one is never merely "returned".
@@ -28,7 +30,6 @@ import {
   OVERVIEW_STATUS_ORDER,
   OVERVIEW_WINDOWS,
   buildOverviewCards,
-  deltaOf,
   overviewStatusOf,
   rangeLabel,
   statusSlices,
@@ -81,7 +82,9 @@ describe('the window', () => {
     expect(b.end - b.start).toBe(7 * DAY);
     // The comparison window is the seven days immediately before it — adjacent,
     // never overlapping, or every delta would count some days twice.
-    expect(b.start - b.prevStart).toBe(7 * DAY);
+    // No `prevStart`: nothing on this board looks further back than the window
+    // it names, now that the comparison line is gone.
+    expect(Object.keys(b).sort()).toEqual(['end', 'start']);
   });
 
   it('prints the mock\'s header chip, with the year on the closing date only', () => {
@@ -90,19 +93,6 @@ describe('the window', () => {
 
   it('offers the three windows the header and the trend card share', () => {
     expect(OVERVIEW_WINDOWS.map((w) => w.value)).toEqual(['7', '30', '90']);
-  });
-});
-
-describe('the delta line', () => {
-  it('measures against the previous window, in tenths of a percent', () => {
-    expect(deltaOf(118, 100)).toEqual({ pct: 18, direction: 'up' });
-    expect(deltaOf(95, 100)).toEqual({ pct: 5, direction: 'down' });
-    expect(deltaOf(100, 100)).toEqual({ pct: 0, direction: 'flat' });
-  });
-
-  it('is NULL when the previous window was empty — 100% from zero is invented', () => {
-    expect(deltaOf(12, 0)).toBeNull();
-    expect(deltaOf(0, 0)).toBeNull();
   });
 });
 
@@ -146,24 +136,26 @@ describe('the five figures', () => {
     expect(cardOf(ROWS, 'total', 30).value).toBe(5);
   });
 
-  it('measures each delta against the previous window of the same length', () => {
+  it('compares itself to NOTHING — no card carries a delta, whatever the previous window held', () => {
     const rows = [
-      // Two raised inside the last 7 days…
+      // Two raised inside the last 7 days, against four in the seven before it:
+      // the halving the old board printed as "50% ↓". Nothing prints it now.
       pass({ id: 'n1', created_at: daysAgo(1, NOW) }),
       pass({ id: 'n2', created_at: daysAgo(2, NOW) }),
-      // …against four in the seven days before that: a halving.
       pass({ id: 'p1', created_at: daysAgo(8, NOW) }),
       pass({ id: 'p2', created_at: daysAgo(9, NOW) }),
       pass({ id: 'p3', created_at: daysAgo(10, NOW) }),
       pass({ id: 'p4', created_at: daysAgo(13, NOW) }),
     ];
-    expect(cardOf(rows, 'total').delta).toEqual({ pct: 50, direction: 'down' });
+    for (const card of buildOverviewCards(rows, 7, NOW)) {
+      expect(card).not.toHaveProperty('delta');
+      expect(card.note).not.toMatch(/vs |previous|%/);
+    }
   });
 
-  it('draws no delta when nothing was raised in the previous window', () => {
-    const card = cardOf([pass({ id: 'n1', created_at: daysAgo(1, NOW) })], 'total');
-    expect(card.delta).toBeNull();
-    expect(card.note).toBe('vs previous 7 days');
+  it('states each windowed figure scope in words instead', () => {
+    expect(cardOf([pass({ id: 'n1', created_at: daysAgo(1, NOW) })], 'total').note)
+      .toBe('Raised in the last 7 days');
   });
 
   describe('the two RUNNING queues', () => {
@@ -186,10 +178,7 @@ describe('the five figures', () => {
       expect(cardOf([dead], 'pending').value).toBe(0);
     });
 
-    it('never carries a delta — nothing records how long a queue was last week', () => {
-      for (const key of ['pending', 'overdue']) {
-        expect(cardOf([WAITING, LATE], key).delta).toBeNull();
-      }
+    it('says what it is, and never how it compares', () => {
       expect(cardOf([WAITING, LATE], 'pending').note).toBe('Waiting at the gate now');
       expect(cardOf([WAITING, LATE], 'overdue').note).toBe('Still out, past its date');
     });

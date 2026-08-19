@@ -2301,13 +2301,11 @@
     font-weight: 600;
     margin-right: 6px;
   }
-  .gpo-type {
-    align-self: flex-start;
-    font-size: 11.5px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    color: var(--gb-muted);
-  }
+  /* The type chip is the guard's own `gb-pill` (RGP blue / NRGP green) since
+   * 2026-08-19 — `.gpo-type`, the grey lettering it replaced, is deleted. The
+   * card's id column is a flex COLUMN, so a pill would stretch to its width
+   * without this. */
+  .gpo-card-id > .gb-pill { align-self: flex-start; }
   .gpo-card:hover {
     box-shadow: 0 2px 10px 0 rgb(16 24 40 / 0.08);
   }
@@ -2881,10 +2879,6 @@
     font-weight: 500;
     font-variant-numeric: tabular-nums;
   }
-  .gb-ov-delta svg { width: 13px; height: 13px; flex-shrink: 0; }
-  .gb-ov-up { color: var(--gb-green); }
-  .gb-ov-down { color: var(--gb-red); }
-  .gb-ov-flat { color: var(--gb-muted); }
   /* The slot a running figure takes instead of an invented percentage. */
   .gb-ov-none { color: var(--gb-muted); font-weight: 400; }
 

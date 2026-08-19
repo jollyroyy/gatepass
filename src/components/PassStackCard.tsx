@@ -29,6 +29,7 @@ import { formatDateOnly } from '../lib/formatDate';
 import { formatCurrency } from '../lib/formatCurrency';
 import { parseCompanyInfo } from '../lib/companyInfo';
 import { passStageStyle } from '../lib/passStage';
+import { TYPE_PILL } from '../lib/guardBoard';
 import { stageTone, type GbTone } from '../lib/passStackCard';
 
 /** The left edge follows the pill, so a stack can be read by its margin alone
@@ -86,7 +87,13 @@ export default function PassStackCard({
             )}
             {pass.pass_number}
           </span>
-          <span className="gpo-type">{pass.type}</span>
+          {/* RGP blue, NRGP green — `TYPE_PILL`, the very map the guard's
+              three screens colour their type chip with (client: "whenever we
+              are saying the NRGP and RGP in the guard's view, we make it exactly
+              [that] for the stacked card in the admin across all the tabs").
+              A `Record<PassType, string>`, so a third type is a compile error
+              rather than an uncoloured chip. */}
+          <span className={`gb-pill ${TYPE_PILL[pass.type]}`}>{pass.type}</span>
         </span>
 
         <div className="gpo-facts">

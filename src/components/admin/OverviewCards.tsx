@@ -9,32 +9,14 @@
 // hands each card its own rows on a `BoardDrill` and the page passes that array
 // straight to `DrillList`, so no aggregate and no second predicate can drift.
 //
-// THE DELTA IS A REAL MEASUREMENT OR IT IS NOT DRAWN. Three cards compare their
-// window against the one immediately before it. The two RUNNING queues —
-// Pending Approvals, Overdue Returns — carry no delta at all: nothing in this
-// database records how long a queue was a week ago, and the mock's red arrow is
-// not worth inventing one for. Their slot takes the plain grey scope line
-// instead, so the row still reads as five cards of one height.
+// NO CARD COMPARES ITSELF TO ANYTHING (client, 2026-08-19: "remove all those
+// comparisons"). The mock's red/green "18.6% vs last week" arrow is DELETED —
+// the arrow glyphs, the direction ink and the `Delta` type with them, so a stale
+// reference is a build error. The second line is now the card's scope in plain
+// grey words, on all five, which is what keeps the row one height.
 import React from 'react';
 import type { OverviewCard } from '../../lib/adminOverview';
 import HodIcon from '../hod/HodIcon';
-
-const ARROW: Record<'up' | 'down' | 'flat', string> = {
-  up: 'M12 5.5l5 5.5h-3.2v7h-3.6v-7H7z',
-  down: 'M12 18.5l-5-5.5h3.2v-7h3.6v7H17z',
-  // A flat window still gets a mark rather than an empty box: "no change" is a
-  // measurement, and a blank reads as a figure that failed to load.
-  flat: 'M6 10.5h12v3H6z',
-};
-
-/** Direction as INK. Up is not automatically good here — more overdue returns is
- *  worse — but the two figures where the sign would mislead carry no delta at
- *  all, so on the three that remain, up is growth and green is honest. */
-const DELTA_INK: Record<'up' | 'down' | 'flat', string> = {
-  up: 'gb-ov-up',
-  down: 'gb-ov-down',
-  flat: 'gb-ov-flat',
-};
 
 type Props = {
   cards: OverviewCard[];
@@ -66,16 +48,7 @@ export default function OverviewCards({ cards, activeKey, onSelect, loading }: P
             </span>
           </span>
 
-          {c.delta ? (
-            <span className={`gb-ov-delta ${DELTA_INK[c.delta.direction]}`}>
-              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d={ARROW[c.delta.direction]} />
-              </svg>
-              {c.delta.pct}% {c.note}
-            </span>
-          ) : (
-            <span className="gb-ov-delta gb-ov-none">{c.note}</span>
-          )}
+          <span className="gb-ov-delta gb-ov-none">{c.note}</span>
         </button>
       ))}
     </div>
