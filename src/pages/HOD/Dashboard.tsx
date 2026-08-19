@@ -99,7 +99,13 @@ export default function Dashboard(): React.ReactElement {
           so their own name back at them is noise. */}
       {drill && (
         <div ref={resultsRef} className="mt-6" role="region" aria-label="Selected passes">
-          <DrillList def={drillDefOf(drill)} rows={drill.rows} loading={loading} showRaisedBy={false} />
+          <DrillList
+            def={drillDefOf(drill)}
+            rows={drill.rows}
+            loading={loading}
+            showRaisedBy={false}
+            showHeading={false}
+          />
         </div>
       )}
 

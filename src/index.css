@@ -911,6 +911,12 @@
   .rp-hint {
     @apply text-navy-500 font-normal;
   }
+  /* The read-only Reference Number. Tabular, so the date and the #### keep
+     their columns, and visibly inert — a field the HOD must not try to type in.
+     `read-only`, not `disabled`: it stays selectable and copyable. */
+  .rp-ref {
+    @apply font-mono tracking-tight bg-surface-100 text-navy-700 cursor-default;
+  }
 
   /* Pass Type — two wide radio plates. */
   .rp-type-grid {

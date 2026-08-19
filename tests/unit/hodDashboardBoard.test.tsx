@@ -239,7 +239,9 @@ describe('the HOD dashboard is scoped to this HOD', () => {
     fireEvent.click(card('Total Passes'));
     expect(within(stack()).getByText('Alice')).toBeInTheDocument();
     expect(within(stack()).queryByText('Zara')).not.toBeInTheDocument();
-    expect(within(stack()).getByText('4 passes')).toBeInTheDocument();
+    // The drill draws no `N passes` count any more (see the case below); the
+    // scope is proved by the cards it lists, which is what it always meant.
+    expect(within(stack()).getAllByTestId('pass-ordinal').length).toBe(4);
   });
 
   it('greets the reader by name', async () => {
@@ -270,7 +272,23 @@ describe("the four figures, and the two scopes they mix", () => {
 
     fireEvent.click(card('Pending Return'));
     expect(within(stack()).getByText('Gus')).toBeInTheDocument();
-    expect(within(stack()).getByText('1 pass')).toBeInTheDocument();
+  });
+
+  // 2026-08-19, client: "I need to put zero overdue multiple times — show it
+  // only once", and "remove the bottom All types", and "remove Material past
+  // its return date / 0 passes". A figure that is already drawn once in
+  // 32px type does not need restating in a note under it, or again as a
+  // heading over the list it opens.
+  it('states each figure ONCE — no repeated note, no drill heading', async () => {
+    renderBoard();
+    await loaded();
+
+    expect(screen.queryByText('All types')).not.toBeInTheDocument();
+    expect(screen.queryByText(/\d+ overdue/)).not.toBeInTheDocument();
+
+    fireEvent.click(card('Pending Return'));
+    expect(screen.queryByText('Material past its return date')).not.toBeInTheDocument();
+    expect(within(stack()).queryByText(/\d+ passe?s?$/)).not.toBeInTheDocument();
   });
 
   it('pressing the open card again closes the stack', async () => {

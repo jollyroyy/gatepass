@@ -33,21 +33,24 @@ export default function AppShell({ session, role, isApprover = false, children }
         <Sidebar session={session} role={role} isApprover={isApprover} collapsed={collapsed} onCollapsedChange={setCollapsed} />
 
         <div className={`flex flex-col min-h-screen transition-[padding] duration-300 ease-in-out ${collapsed ? 'lg:pl-[84px]' : 'lg:pl-[264px]'}`}>
-          {/* THE GUARD'S SHELL IS THE MOCK-UP'S SKIN, ON EVERY TAB.
-              Client, 2026-08-19: the record that Approve OUT / Verify Return
-              opens must read in "the same exact typographic colour as the
-              dashboard's page", and every page in the guard's view must match.
+          {/* THE MOCK-UP'S SKIN IS THE WHOLE APP'S SKIN, ON EVERY TAB, FOR
+              EVERY ROLE. It arrived as the guard's alone (client, 2026-08-19:
+              the record Approve OUT opens must read in "the same exact
+              typographic colour as the dashboard's page"); the same client then
+              asked for it everywhere — "admin and HOD do not have the same
+              typography as the guard … keep the type and the box, everything
+              exactly the same as the guard's typography, colour."
               `.gb-main` (index.css) is that skin — white ground, Inter,
-              near-black ink, the neutral ramp pinned light — and putting it
-              HERE rather than on each page is what makes it true of Search
-              Pass, Verify, Overdue Items and the pass record without any of
-              them knowing about it. The three mock-up screens keep their own
-              `.gb-board`, which sits inside this and repaints the same ground. */}
-          <main
-            className={`flex-1 w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-20 lg:pt-8 pb-8${
-              role === 'guard' ? ' gb-main' : ''
-            }`}
-          >
+              near-black ink, the neutral ramp pinned light, and every `dark:`
+              utility inside it switched off — and putting it HERE rather than
+              on each page is what makes it true of My Passes, Reports, the
+              Admin panel and the pass record without any of them knowing about
+              it. The mock-up screens keep their own `.gb-board`, which sits
+              inside this and repaints the same ground.
+              KNOWN, FLAGGED: the notification bell and its dropdown are OUTSIDE
+              `main` (they are `fixed`), so they keep the house theme — the same
+              gap the guard's shell has had since the skin landed. */}
+          <main className="flex-1 w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-20 lg:pt-8 pb-8 gb-main">
             {children}
           </main>
 

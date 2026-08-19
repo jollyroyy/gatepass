@@ -1,8 +1,11 @@
 // RaisePass — the raise-form's submit flow and the RPC payload shape, drawn
-// to the client's 2026-08-19 "Raise Gate Pass" mock-up: ONE pass-level
-// purpose and return date, one vendor with an auto-filled address, and an
-// item table with make/model, serial, invoice and remarks per line but no
-// unit picker (every line is written `nos`).
+// to the client's 2026-08-19 "Raise Gate Pass" mock-up: ONE pass-level purpose,
+// one vendor with an auto-filled address, and an item table with make/model,
+// serial, invoice, remarks and — on an RGP — ITS OWN RETURN DATE per line, but
+// no unit picker (every line is written `nos`).
+//
+// The pass-level `p_expected_return_date` is the EARLIEST of the line dates
+// (`earliestReturnDate`): a pass is overdue as soon as its first line is.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -105,6 +108,12 @@ function fillAllRequired() {
   fireEvent.change(screen.getAllByLabelText('Quantity')[1], { target: { value: '1' } });
 }
 
+/** Every RGP line needs a date of its own now. Takes one date per row. */
+function setItemDates(dates: string[]) {
+  const inputs = screen.getAllByLabelText('Expected Return Date');
+  dates.forEach((d, i) => fireEvent.change(inputs[i], { target: { value: d } }));
+}
+
 function futureDate(daysAhead: number): string {
   const d = new Date();
   d.setDate(d.getDate() + daysAhead);
@@ -138,8 +147,7 @@ describe('RaisePass — serial number and the item table, on every line', () => 
     fireEvent.change(serials[0], { target: { value: 'SN-001' } });
     // serials[1] deliberately left untouched.
 
-    const due = futureDate(5);
-    fireEvent.change(screen.getByLabelText('Expected Return Date'), { target: { value: due } });
+    setItemDates([futureDate(5), futureDate(5)]);
     fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('raise_pass', expect.anything()));
@@ -150,24 +158,28 @@ describe('RaisePass — serial number and the item table, on every line', () => 
 });
 
 describe('RaisePass — an RGP can actually be submitted', () => {
-  it('submits with the pass-level return date, and every item carries the SAME date', async () => {
+  it('sends each line its own return date, and the pass takes the EARLIEST', async () => {
     renderRaisePass();
     await waitFor(() => expect(screen.getAllByLabelText('Item Description')).toHaveLength(2));
     fillAllRequired();
 
-    const due = futureDate(5);
-    fireEvent.change(screen.getByLabelText('Expected Return Date'), { target: { value: due } });
+    const later = futureDate(9);
+    const sooner = futureDate(3);
+    // Deliberately out of order — the pass must take the earlier of the two,
+    // whichever row it was typed into.
+    setItemDates([later, sooner]);
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('raise_pass', expect.anything()));
     const args = raisePassArgs();
     expect(args.p_type).toBe('RGP');
-    expect(args.p_expected_return_date).toBe(due);
+    expect(args.p_expected_return_date).toBe(sooner);
     expect(args.p_purpose).toBe('Servicing');
     const items = args.p_items as Record<string, unknown>[];
     expect(items).toHaveLength(2);
-    expect(items.every((i) => i.expected_return_date === due)).toBe(true);
+    expect(items[0].expected_return_date).toBe(later);
+    expect(items[1].expected_return_date).toBe(sooner);
     expect(items[0].name).toBe('Drill');
     expect(items[0].quantity).toBe(2);
     expect(items[0].unit).toBe('nos');
@@ -176,14 +188,16 @@ describe('RaisePass — an RGP can actually be submitted', () => {
     await waitFor(() => expect(screen.getByText('Pass Submitted')).toBeInTheDocument());
   });
 
-  it('blocks submit with a visible error when an RGP has no pass-level return date', async () => {
+  it('blocks submit with a visible error when an RGP line has no return date', async () => {
     renderRaisePass();
     await waitFor(() => expect(screen.getAllByLabelText('Item Description')).toHaveLength(2));
     fillAllRequired();
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
-    await waitFor(() => expect(screen.getByText(/return date is required/i)).toBeInTheDocument());
+    // One error per LINE — both rows are missing a date, and each says so under
+    // its own input rather than once at the top of a table nobody scrolls back up.
+    await waitFor(() => expect(screen.getAllByText(/return date is required/i)).toHaveLength(2));
     expect(rpc).not.toHaveBeenCalledWith('raise_pass', expect.anything());
   });
 
@@ -193,6 +207,8 @@ describe('RaisePass — an RGP can actually be submitted', () => {
     fireEvent.click(screen.getByRole('radio', { name: /NRGP/ }));
     fillAllRequired();
     fireEvent.change(screen.getAllByLabelText('Serial / Asset Tag')[0], { target: { value: 'ASSET-42' } });
+    // An NRGP draws no date column at all — nothing comes back.
+    expect(screen.queryAllByLabelText('Expected Return Date')).toHaveLength(0);
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
@@ -215,8 +231,7 @@ describe('RaisePass — an RGP can actually be submitted', () => {
     renderRaisePass();
     await waitFor(() => expect(screen.getAllByLabelText('Item Description')).toHaveLength(2));
     fillAllRequired();
-    const due = futureDate(5);
-    fireEvent.change(screen.getByLabelText('Expected Return Date'), { target: { value: due } });
+    setItemDates([futureDate(5), futureDate(5)]);
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
@@ -244,8 +259,7 @@ describe('RaisePass — the mock-up\'s Vendor Details section', () => {
     fillAllRequired();
     fireEvent.change(screen.getByLabelText('Vendor Address'), { target: { value: '9 New Road' } });
 
-    const due = futureDate(5);
-    fireEvent.change(screen.getByLabelText('Expected Return Date'), { target: { value: due } });
+    setItemDates([futureDate(5), futureDate(5)]);
     fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
     await waitFor(() =>

@@ -47,6 +47,10 @@ export default function HodKpiCards({ cards, activeKey, onSelect, loading }: Pro
             </span>
           </span>
 
+          {/* The hairline and its padding belong to the notes, so a card with
+              none draws neither — an empty bordered strip under a figure reads
+              as a line that failed to load. */}
+          {c.notes.length > 0 && (
           <span className="gb-kpi-notes">
             {c.notes.map((n) => (
               <span key={n.text} className="gb-kpi-note">
@@ -55,6 +59,7 @@ export default function HodKpiCards({ cards, activeKey, onSelect, loading }: Pro
               </span>
             ))}
           </span>
+          )}
         </button>
       ))}
     </div>

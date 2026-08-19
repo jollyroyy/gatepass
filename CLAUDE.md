@@ -63,7 +63,73 @@ notification function exists in `gatepass`. `APPLY_ALL.sql` carries all 49 secti
 | `gatepass.approval_roles` | **4 rows — ALL FOUR OFFICES ARE FILLED**, so since `046` was applied every NEWLY raised pass needs four approvals and **the gate cannot see it until it has them**. Security Head Demi · COO Sudeshna Pal · CEO Sid · Finance HOD GUARDSOHAM. One person holds one office (`049`). Admin → Users → *Gate pass approval ladder* is where they are set. |
 | `gatepass.pass_approvals` | **0 rows** — nothing has been raised since `046` landed. The 60 existing passes carry no ladder and reach the gate exactly as they did before. |
 
-**Latest change (2026-08-19, thirteenth pass): NO ADMIN FIGURE COMPARES ITSELF TO THE
+**Latest change (2026-08-19, fourteenth pass): the raise form states the pass's REFERENCE
+NUMBER and takes a return date PER ITEM, the HOD's figures say each number once, and THE
+GUARD'S SKIN IS NOW EVERY ROLE'S SKIN.** Frontend only — no migration, no RPC change, no change
+to any query.
+
+- **THE RAISE FORM CARRIES A READ-ONLY Reference Number** (client: "on top show the reference
+  number of the RGP or NRGP pass and it should be uneditable"). `passNumberPreview` in
+  `raisePassForm.ts` mirrors 042's trigger exactly — `TYPE-YYYYMMDD-` — and re-prefixes itself
+  when the pass type changes. **THE SERIAL READS `####`, DELIBERATELY**: `set_pass_number()`
+  assigns NNNN inside the INSERT under an advisory lock, so nothing outside that transaction can
+  know it; two HODs on the form at once would be shown the same number and one of them would be
+  wrong. An HOD reads only their own department's passes, so a count here could not even guess.
+  The submitted-pass modal states the real number. `readOnly`, never `disabled` — the HOD may
+  still select and copy it.
+- **THE DEPARTMENT FIELD IS GONE** (client: "no need to show the department because it will be
+  automatically captured"). It is still LOADED from `hod_departments` and still sent on
+  `p_department_id`; it is simply not asked for. The one thing that can go wrong with it — an
+  HOD assigned to no department — now reports as a whole-form `alert-error`, because a field
+  that is not drawn cannot carry an error under it.
+- **A RETURN DATE IS TAKEN AGAINST EACH ITEM AGAIN, ON AN RGP** (client: "we would expect a date
+  of return against each item in the RGP form"). This REVERSES the eighth pass's rule, which the
+  same client set the same day ("the return date of all individual items in the pass should be
+  the expected return date of the entire pass"), so read the history in `raisePassForm.ts`
+  before moving it a third time — each move has broken the form once.
+  - `NewGatePassItem.expected_return_date` is back; **`NewGatePass.expected_return_date` is
+    DELETED**, so a form that still writes a pass-level date is a type error rather than a
+    second date silently disagreeing with the lines.
+  - **THE PASS'S OWN DEADLINE IS THE EARLIEST LINE'S** (`earliestReturnDate`), computed at
+    submit. `gate_passes.expected_return_date` is the one column `v_gate_passes` grades
+    `is_overdue` / `due_state` from, and a pass is late the moment its FIRST line is; taking the
+    latest would leave material outside, past its own date, on a pass the board calls on time.
+  - The column is RGP-only, header included — `itemGridColumns(showReturnDate)` is the one
+    variant this template has, threaded from the pass type so the header and every row read the
+    same boolean. Selecting NRGP **CLEARS** every line's date rather than hiding it: a date left
+    in state under a hidden field is a date that would be submitted, and an NRGP with a return
+    date is a pass the return queue would chase forever.
+  - Validation is per line, so both blank rows say so under their own inputs. `useReraisePass`
+    copies each LINE's date and blanks only the ones already past.
+- **THE HOD'S FIGURES STATE THEMSELVES ONCE** (client: "I need to put zero overdue multiple
+  times — show it only once", "remove the bottom All types", "remove Material past its return
+  date / 0 passes"). The Total Passes and Pending Return cards carry NO note at all — `0` in
+  32px over "Pending Return · Overdue" was already the whole sentence — and `HodKpiCards` draws
+  the hairline only when there is a note, so a noteless card is not an empty bordered strip. The
+  HOD's drill passes `showHeading={false}` to `DrillList`; **the admin's still shows it**, since
+  that board's figures do not sit directly over the list. `hodDashboardBoard.test.tsx` fails if
+  any of the three comes back.
+- **`.gb-main` IS ON `<main>` FOR EVERY ROLE NOW** (client: "admin and HOD do not have the same
+  typography as the guard … keep the type and the box, everything exactly the same as the
+  guard's typography, colour"). The stacked card itself was ALREADY the guard's markup
+  everywhere — what differed was the page around it, so My Passes, Reports, the Admin panel and
+  the pass record read in gold serif on the dark surface while the guard's shell was light Inter.
+  One class on the shell fixes all of them at once. `OverduePassBoard` also gained `gb-main`
+  beside its `gb-board`: `.gb-board` paints the ground but a HOUSE component inside it still
+  took its `dark:` half, which is exactly the mismatch the client reported.
+  - **CONSEQUENCE, FLAGGED: the app is effectively light-only for content now.** The twenty
+    hand-written `.dark X:not(:where(.gb-main, .gb-main *))` rules and the `darkMode` variant in
+    `tailwind.config.ts` still exist and are still correct — they simply no longer have any
+    content subtree to apply to. The dark SIDEBAR is untouched (it is chrome, and hardcoded).
+  - **KNOWN GAP: the notification bell and its dropdown are OUTSIDE `main`** (both `fixed`), so
+    they keep the house theme. The guard's shell has had that gap since the skin landed.
+  - `appShell.test.tsx`'s four "leaves `<main>` on the house theme" cases were REWRITTEN into one
+    that walks every role, with a comment saying what they used to hold.
+- **NOT seen signed-in in a browser**: `npm run check` only. A whole-app skin change is exactly
+  the kind of thing only a real render proves — the Admin panel's modals, Reports' filter bar and
+  the printed slip are worth opening first.
+
+**Earlier (2026-08-19, thirteenth pass): NO ADMIN FIGURE COMPARES ITSELF TO THE
 PREVIOUS WINDOW, and the stacked card's RGP/NRGP chip is the guard's own coloured pill.**
 Frontend only — no migration, no query change, no change to what any figure counts.
 

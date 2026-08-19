@@ -365,6 +365,13 @@ export interface NewGatePassItem {
   /** "Remarks / Description" */
   remarks: string;
   quantity: string;
+  /** "Expected Return Date" — client, 2026-08-19: "we would expect a date of
+   *  return against each item in the RGP form." Empty on an NRGP, which never
+   *  comes back. The PASS's own `expected_return_date` — the column
+   *  `v_gate_passes` grades `is_overdue` / `due_state` from — is the EARLIEST of
+   *  these, computed at submit (`earliestReturnDate`), so there is one place to
+   *  type a date and the pass is due back when its first line is. */
+  expected_return_date: string;
 }
 
 export const EMPTY_ITEM: NewGatePassItem = {
@@ -374,6 +381,7 @@ export const EMPTY_ITEM: NewGatePassItem = {
   invoice_no: '',
   remarks: '',
   quantity: '',
+  expected_return_date: '',
 };
 
 export interface NewGatePass {
@@ -389,7 +397,11 @@ export interface NewGatePass {
   vehicle_number: string;
   /** "Purpose / Description" — ONE reason for the whole pass, max 500 chars. */
   purpose: string;
-  expected_return_date: string;
+  /** NO PASS-LEVEL RETURN DATE. It is derived from the item dates at submit —
+   *  see `NewGatePassItem.expected_return_date`. The field was here until
+   *  2026-08-19; it is deleted rather than left unused so a form that still
+   *  writes one is a type error, not a second date silently disagreeing with
+   *  the lines. */
   items: NewGatePassItem[];
 }
 

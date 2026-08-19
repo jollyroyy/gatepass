@@ -4,7 +4,7 @@
 // Pure functions over the form state — no React, no supabase. That is what lets
 // a test assert the RGP return-date rule without mounting a form and filling in
 // eight fields to reach it.
-import type { NewGatePass } from '../types';
+import type { NewGatePass, NewGatePassItem, PassType } from '../types';
 import { requiresReturnDate } from './passTypes';
 
 export type FormErrors = Record<string, string | undefined>;
@@ -18,6 +18,39 @@ export function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** The reference number this pass WILL carry, shown read-only at the top of the
+ *  form (client, 2026-08-19: "show the reference number of the RGP or NRGP pass
+ *  and it should be uneditable").
+ *
+ *  THE SERIAL IS `####`, AND THAT IS DELIBERATE. `gatepass.set_pass_number()`
+ *  (042) assigns the number inside the INSERT, under an advisory lock, as
+ *  `TYPE-YYYYMMDD-NNNN`. Nothing outside that transaction can know NNNN: two
+ *  HODs filling this form at the same moment would both be shown the same
+ *  serial and one of them would be wrong, and an HOD reads only their own
+ *  department's passes anyway, so a count here could not even be made to
+ *  guess. The prefix is exact; the four digits are honestly unknown until the
+ *  pass exists, and the modal that follows the submit states the real number.
+ *
+ *  The date is the UTC date, not the local one — that is what the trigger uses
+ *  (`(now() at time zone 'UTC')::date`), and `todayStr()` is UTC too, so the
+ *  two agree by construction. */
+export function passNumberPreview(type: PassType, today: string = todayStr()): string {
+  return `${type}-${today.replace(/-/g, '')}-####`;
+}
+
+/** The PASS's deadline, derived from its lines: the earliest date any item is
+ *  due back, or null when none carries one (every NRGP, and an RGP that has not
+ *  been filled in yet).
+ *
+ *  A pass is overdue as soon as its FIRST line is late — `v_gate_passes` grades
+ *  `is_overdue` off the pass's own column, and taking the latest date instead
+ *  would leave material sitting outside, past its own date, on a pass the board
+ *  calls on time. */
+export function earliestReturnDate(items: NewGatePassItem[]): string | null {
+  const dates = items.map((i) => i.expected_return_date).filter((d) => !!d).sort();
+  return dates[0] ?? null;
+}
+
 /** Everything wrong with the form, keyed the way the inputs are named.
  *
  *  WHICH FIELDS ARE REQUIRED IS THE MOCK'S DECISION, not this file's: the
@@ -27,7 +60,10 @@ export function todayStr(): string {
  *  draws (Vendor Address, Serial / Asset Tag, Invoice / Reference No., Remarks)
  *  carries no asterisk and is optional here.
  *
- *  THE RETURN DATE IS PASS-LEVEL, NOT PER LINE. Migration `019` replaced a
+ *  THE RETURN DATE IS PER LINE AGAIN (client, 2026-08-19: "we would expect a
+ *  date of return against each item in the RGP form"), and the pass-level
+ *  column is the earliest of them. The history below is kept because it is the
+ *  reason this rule keeps moving, and each move has broken the form once. Migration `019` replaced a
  *  pass-level field with per-item dates; for two months after it, this function
  *  still demanded a pass-level `expected_return_date` the form no longer
  *  rendered, so every RGP submit failed validation on a field nobody could see
@@ -87,12 +123,19 @@ export function validateRaiseForm(form: NewGatePass, hasDepartment: boolean, tod
 
   if (!hasDepartment) errs.department_id = 'You are not assigned to any department.';
 
+  // ONE DATE PER LINE on an RGP (client, 2026-08-19: "we would expect a date of
+  // return against each item in the RGP form"), checked against the same two
+  // rules the pass-level field used to carry. The pass's own deadline is the
+  // earliest of them (`earliestReturnDate`), so it cannot be missing or in the
+  // past once every line passes here. An NRGP never comes back and is not asked.
   if (requiresReturnDate(form.type)) {
-    if (!form.expected_return_date) {
-      errs.expected_return_date = 'Return date is required for a Returnable Gate Pass.';
-    } else if (form.expected_return_date < today) {
-      errs.expected_return_date = 'Return date cannot be in the past.';
-    }
+    form.items.forEach((item, idx) => {
+      if (!item.expected_return_date) {
+        errs[`item_${idx}_expected_return_date`] = 'Return date is required for a Returnable Gate Pass.';
+      } else if (item.expected_return_date < today) {
+        errs[`item_${idx}_expected_return_date`] = 'Return date cannot be in the past.';
+      }
+    });
   }
   return errs;
 }

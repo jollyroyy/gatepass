@@ -4,11 +4,15 @@
 // header in MaterialItemsCard.tsx via `itemGridStyle()` — this is what keeps
 // every row's fields lined up into real columns instead of drifting per row.
 //
-// WHAT THIS ROW NO LONGER ASKS FOR (client's 2026-08-19 mock-up): the return
-// date (one deadline governs the whole pass), the PURPOSE (asked once, for the
-// whole pass), the UOM (client: remove the column — every line is `nos`) and the
-// approximate value (no column on the mock). See `NewGatePassItem` for what each
-// omission costs downstream.
+// THE RETURN DATE IS BACK, PER LINE, ON AN RGP ONLY (client, 2026-08-19: "we
+// would expect a date of return against each item in the RGP form"). The PASS's
+// own deadline — the column the overdue grading reads — is the earliest of
+// them, computed at submit, so there is one place to type a date.
+//
+// WHAT THIS ROW STILL DOES NOT ASK FOR (client's 2026-08-19 mock-up): the
+// PURPOSE (asked once, for the whole pass), the UOM (client: remove the column —
+// every line is `nos`) and the approximate value (no column on the mock). See
+// `NewGatePassItem` for what each omission costs downstream.
 //
 // Below `md` the grid collapses to one column and each field shows its own
 // name via `data-label` (CSS-generated content in `.item-cell::before` —
@@ -18,11 +22,13 @@
 import React from 'react';
 import type { NewGatePassItem } from '../../types';
 import { itemGridStyle } from './materialItemGrid';
+import { todayStr } from '../../lib/raisePassForm';
 
 interface MaterialItemRowErrors {
   name?: string;
   make_model?: string;
   quantity?: string;
+  expected_return_date?: string;
 }
 
 interface MaterialItemRowProps {
@@ -32,6 +38,8 @@ interface MaterialItemRowProps {
   onChange: (field: keyof NewGatePassItem, value: string) => void;
   onRemove: () => void;
   canRemove: boolean;
+  /** RGP only — an NRGP draws no date column at all. */
+  showReturnDate: boolean;
 }
 
 export default function MaterialItemRow({
@@ -41,9 +49,10 @@ export default function MaterialItemRow({
   onChange,
   onRemove,
   canRemove,
+  showReturnDate,
 }: MaterialItemRowProps): React.ReactElement {
   return (
-    <div className="item-grid item-row" style={itemGridStyle()}>
+    <div className="item-grid item-row" style={itemGridStyle(showReturnDate)}>
       {/* The mock's leading "#" column. It is the line number a guard reads off
           the slip over radio, so it is drawn, not implied by position. */}
       <div className="item-cell item-line-no" data-label="#">
@@ -118,6 +127,20 @@ export default function MaterialItemRow({
           onChange={(e) => onChange('remarks', e.target.value)}
         />
       </div>
+
+      {showReturnDate && (
+        <div className="item-cell" data-label="Expected Return Date">
+          <input
+            type="date"
+            className="input text-sm w-full"
+            aria-label="Expected Return Date"
+            value={item.expected_return_date}
+            min={todayStr()}
+            onChange={(e) => onChange('expected_return_date', e.target.value)}
+          />
+          {errors.expected_return_date && <p className="field-error">{errors.expected_return_date}</p>}
+        </div>
+      )}
 
       {/* Remove control's own fixed-width column — always occupies the
           slot so it never floats after variable-width content, even when

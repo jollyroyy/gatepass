@@ -24,6 +24,12 @@ type Props = {
   /** Defaults to true (the admin board, which oversees every department). The
    *  HOD dashboard passes false — they raised these passes themselves. */
   showRaisedBy?: boolean;
+  /** The heading over the list, and the `N passes` count beside it. Defaults to
+   *  true; the HOD dashboard passes false (client, 2026-08-19: "remove Material
+   *  past its return date / 0 passes"). There, the list opens directly under the
+   *  very card that was pressed, so its name and its figure are already on
+   *  screen an inch above — the heading restated both. */
+  showHeading?: boolean;
 };
 
 export default function DrillList({
@@ -31,15 +37,18 @@ export default function DrillList({
   rows,
   loading,
   showRaisedBy = true,
+  showHeading = true,
 }: Props): React.ReactElement {
   return (
     <div className="mb-8">
-      <div className="flex items-baseline gap-3 mb-3">
-        <h2 className="section-title mb-0">{def.heading}</h2>
-        <span className="text-xs font-medium text-navy-500 tabular">
-          {rows.length} {rows.length === 1 ? 'pass' : 'passes'}
-        </span>
-      </div>
+      {showHeading && (
+        <div className="flex items-baseline gap-3 mb-3">
+          <h2 className="section-title mb-0">{def.heading}</h2>
+          <span className="text-xs font-medium text-navy-500 tabular">
+            {rows.length} {rows.length === 1 ? 'pass' : 'passes'}
+          </span>
+        </div>
+      )}
 
       {loading ? (
         <div className="table-wrap p-4 flex flex-col gap-2">

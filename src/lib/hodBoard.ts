@@ -111,7 +111,10 @@ export function buildHodKpis(
       glyph: 'document',
       tone: 'blue',
       value: today.length,
-      notes: [{ text: 'All types' }],
+      // NO NOTE. Client, 2026-08-19: "remove the bottom All types" — the figure
+      // is every type by definition, and a line saying so under it is a second
+      // statement of the same fact.
+      notes: [],
       drill: {
         key: 'total',
         heading: 'Passes raised today',
@@ -159,7 +162,11 @@ export function buildHodKpis(
       glyph: 'clock',
       tone: 'orange',
       value: overdue.length,
-      notes: [{ text: `${overdue.length} overdue` }],
+      // NO NOTE, for the same reason and on the same instruction ("I need to
+      // put zero overdue multiple times — show it only once"): the card already
+      // reads `0` in 32px type over the words Pending Return · Overdue, and
+      // "0 overdue" under it made the same zero appear three times.
+      notes: [],
       drill: {
         key: 'pendingReturn',
         heading: 'Material past its return date',

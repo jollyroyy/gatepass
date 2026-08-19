@@ -3,16 +3,23 @@
 //
 //   Pass Type · Pass Details · Vendor Details · Carrier / Person Details · Purpose
 //
-// PASS DETAILS IS NOT ON THE MOCK, and is here on the client's instruction the
-// same day: "department, vehicle number and expected date of return — all this
-// should be for the entire pass … mentioned on top of it. No need to give it
-// that for each individual item." So the three pass-wide facts sit together,
-// once, above the vendor.
+// PASS DETAILS IS NOT ON THE MOCK, and is here on the client's instruction. It
+// carries TWO things now (2026-08-19):
+//
+//   Reference Number — read-only, at the top: "show the reference number of the
+//                      RGP or NRGP pass and it should be uneditable". See
+//                      `passNumberPreview` for why the serial reads `####`.
+//   Vehicle Number   — one vehicle for the whole pass.
+//
+// THE DEPARTMENT FIELD IS GONE (client: "no need to show the department because
+// it will be automatically captured") — the form still resolves it from the
+// HOD's own `hod_departments` assignment and sends it, it is simply not asked
+// for. THE PASS-LEVEL RETURN DATE IS GONE TOO: a date is taken against each ITEM
+// now, and the pass's deadline is the earliest of them.
 import React from 'react';
-import type { DeptOption, NewGatePass, PassType, VendorProfile } from '../../types';
+import type { NewGatePass, PassType, VendorProfile } from '../../types';
 import PassTypeSelector from './PassTypeSelector';
-import { requiresReturnDate } from '../../lib/passTypes';
-import { todayStr, PURPOSE_MAX } from '../../lib/raisePassForm';
+import { passNumberPreview, PURPOSE_MAX } from '../../lib/raisePassForm';
 import { DIAL_CODES, joinMobile, splitMobile } from '../../lib/mobileNumber';
 
 /** The sentinel the vendor select carries when the HOD is typing a vendor this
@@ -23,7 +30,6 @@ export const NEW_VENDOR = '__new';
 interface PassDetailsCardsProps {
   form: NewGatePass;
   errors: Record<string, string | undefined>;
-  depts: DeptOption[];
   vendors: VendorProfile[];
   vendorId: string;
   onTypeChange: (type: PassType) => void;
@@ -42,7 +48,6 @@ function Req(): React.ReactElement {
 export default function PassDetailsCards({
   form,
   errors,
-  depts,
   vendors,
   vendorId,
   onTypeChange,
@@ -66,20 +71,20 @@ export default function PassDetailsCards({
         <Legend>Pass Details</Legend>
         <div className="rp-grid">
           <div>
-            <label className="label" htmlFor="rp-dept">Department</label>
-            <select
-              id="rp-dept"
-              className="input"
-              value={form.department_id}
-              onChange={(e) => onUpdate('department_id', e.target.value)}
-              disabled={depts.length <= 1}
-            >
-              {depts.length === 0 && <option value="">No department assigned</option>}
-              {depts.map((d) => (
-                <option key={d.id} value={d.id}>{`${d.name} (${d.code})`}</option>
-              ))}
-            </select>
-            {errors.department_id && <p className="field-error">{errors.department_id}</p>}
+            <label className="label" htmlFor="rp-ref">Reference Number</label>
+            {/* READ-ONLY, never `disabled`: a disabled input is skipped by the
+                keyboard and greys the very characters the HOD is being asked to
+                note down. The number itself is assigned by the database when
+                the pass is inserted — the modal after the submit states it in
+                full. */}
+            <input
+              id="rp-ref"
+              className="input rp-ref"
+              aria-label="Reference Number"
+              value={passNumberPreview(form.type)}
+              readOnly
+            />
+            <p className="rp-hint mt-1">The serial is assigned when the pass is submitted.</p>
           </div>
 
           <div>
@@ -92,29 +97,6 @@ export default function PassDetailsCards({
               placeholder="Optional — e.g. KA01AB1234"
             />
           </div>
-
-          {/* ONE deadline for the whole pass — client, 2026-08-19: "the return
-              date of all individual items in the pass should be the expected
-              return date of the entire pass." Every item is written with this
-              same date at submit; there is no per-item input any more. An NRGP
-              never comes back, so the field is not drawn at all for one. */}
-          {requiresReturnDate(form.type) && (
-            <div>
-              <label className="label" htmlFor="rp-return">
-                Expected Return Date<Req />
-              </label>
-              <input
-                id="rp-return"
-                type="date"
-                className="input"
-                aria-label="Expected Return Date"
-                value={form.expected_return_date}
-                onChange={(e) => onUpdate('expected_return_date', e.target.value)}
-                min={todayStr()}
-              />
-              {errors.expected_return_date && <p className="field-error">{errors.expected_return_date}</p>}
-            </div>
-          )}
         </div>
       </section>
 

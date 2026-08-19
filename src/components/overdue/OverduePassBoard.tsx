@@ -95,11 +95,18 @@ export default function OverduePassBoard({
   // page every second for a fact that changes by the day.
   const [stamp] = useState(() => new Date().toISOString());
 
+  // `gb-main` rides alongside `gb-board` below, exactly as it does on the HOD
+  // and admin dashboards. `.gb-board` paints the white ground, but any HOUSE
+  // component inside it still takes its `dark:` half — the shipped default — so
+  // on an HOD's or an admin's screen this page did not read as the guard's
+  // (client, 2026-08-19: "admin and HOD do not have the same typography as the
+  // guard"). A guard gets `gb-main` from AppShell already; naming it here is
+  // what makes the page identical for the other two.
   const view = pageOf(rows, page, size);
   const total = rows.length;
 
   return (
-    <div className="gb-board">
+    <div className="gb-board gb-main">
       <GuardPageHeader
         title="Overdue RGP Gate Passes"
         subtitle={subtitle}

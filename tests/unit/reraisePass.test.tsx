@@ -12,11 +12,12 @@
 // be raised at all. A stale date is therefore dropped, which is a question
 // rather than a fault.
 //
-// 2026-08-19: the return date is PASS-LEVEL again (client: "the return date of
-// all individual items in the pass should be the expected return date of the
-// entire pass"), so it is the source PASS's own `expected_return_date` that is
-// carried or dropped here — never a per-item one. Each item's `serial_no` is
-// carried across unconditionally; it has no "in the past" problem to guard.
+// 2026-08-19 (later the same day): the return date is PER ITEM again (client:
+// "we would expect a date of return against each item in the RGP form"), so it
+// is each LINE's own `expected_return_date` that is carried or dropped here,
+// line by line — a source pass with one stale line and one live one re-raises
+// with exactly one blank date. Each item's `serial_no` is carried across
+// unconditionally; it has no "in the past" problem to guard.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
@@ -46,17 +47,22 @@ const SOURCE_ITEMS = [
     id: 'i1', gate_pass_id: 'p-flagged', line_no: 1, name: 'Ladder',
     make_model: 'Aluminium 12ft', quantity: 3, unit: 'nos',
     invoice_no: null, remarks: null, serial_no: 'SN-LADDER-1',
+    expected_return_date: TOMORROW,
   },
   {
     id: 'i2', gate_pass_id: 'p-flagged', line_no: 2, name: 'Drill',
     make_model: 'Bosch GSB 13mm', quantity: 1, unit: 'nos',
     invoice_no: null, remarks: null, serial_no: null,
+    expected_return_date: TOMORROW,
   },
 ];
 
 /** The dead pass being replaced. Mutable so one case can swap the flagged
  *  source for an EXPIRED one — the two are voided by different RPCs. */
 let sourceRow: GatePassView = SOURCE;
+/** The dead pass's LINES. Mutable for the same reason — one case ages a single
+ *  line's return date past today. */
+let sourceItems: unknown[] = SOURCE_ITEMS;
 
 const rpcCalls: { fn: string; args: Record<string, unknown> }[] = [];
 let supersedeError: { message: string } | null = null;
@@ -80,7 +86,7 @@ vi.mock('../../src/supabaseClient', () => ({
   gp: () => ({
     from: (table: string) =>
       table === 'v_gate_pass_items'
-        ? thenable(SOURCE_ITEMS)
+        ? thenable(sourceItems)
         : table === 'hod_departments'
           ? thenable([{ department_id: 'd1' }])
           : thenable(sourceRow),
@@ -134,6 +140,7 @@ beforeEach(() => {
   rpcCalls.length = 0;
   supersedeError = null;
   sourceRow = SOURCE;
+  sourceItems = SOURCE_ITEMS;
 });
 
 describe('the raise form, arrived at from a mismatch', () => {
@@ -167,20 +174,24 @@ describe('the raise form, arrived at from a mismatch', () => {
     expect(serials.map((s) => s.value)).toEqual(['SN-LADDER-1', '']);
   });
 
-  it('carries the pass-level return date when it is still ahead', async () => {
+  it("carries each line's own return date when it is still ahead", async () => {
     renderReraise();
     await waitFor(() => expect(screen.getByDisplayValue('Ladder')).toBeInTheDocument());
 
-    expect((screen.getByLabelText('Expected Return Date') as HTMLInputElement).value).toBe(TOMORROW);
+    const dates = screen.getAllByLabelText('Expected Return Date') as HTMLInputElement[];
+    expect(dates.map((d) => d.value)).toEqual([TOMORROW, TOMORROW]);
   });
 
-  it('blanks the pass-level return date when the source pass has already passed it', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    sourceRow = { ...SOURCE, expected_return_date: '2026-01-02' } as any;
+  it('blanks ONLY the line whose date has already passed', async () => {
+    sourceItems = [
+      { ...SOURCE_ITEMS[0], expected_return_date: '2026-01-02' },
+      SOURCE_ITEMS[1],
+    ];
     renderReraise();
     await waitFor(() => expect(screen.getByDisplayValue('Ladder')).toBeInTheDocument());
 
-    expect((screen.getByLabelText('Expected Return Date') as HTMLInputElement).value).toBe('');
+    const dates = screen.getAllByLabelText('Expected Return Date') as HTMLInputElement[];
+    expect(dates.map((d) => d.value)).toEqual(['', TOMORROW]);
   });
 
   it('voids the mismatched pass ONLY after the replacement is in the database', async () => {

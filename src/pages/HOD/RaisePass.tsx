@@ -13,7 +13,7 @@ import { gp, pub, supabase } from '../../supabaseClient';
 import type { DeptOption, GatePassView, NewGatePass, NewGatePassItem, PassType, VendorProfile } from '../../types';
 import { EMPTY_ITEM } from '../../types';
 import { requiresReturnDate } from '../../lib/passTypes';
-import { validateRaiseForm, packVendor, todayStr, type FormErrors } from '../../lib/raisePassForm';
+import { validateRaiseForm, packVendor, todayStr, earliestReturnDate, type FormErrors } from '../../lib/raisePassForm';
 import { safeErrorMessage } from '../../lib/errors';
 import { notifyApproval } from '../../lib/notifyApproval';
 import { useReraisePass, voidSupersededPass } from './useReraisePass';
@@ -45,7 +45,6 @@ export default function RaisePass(): React.ReactElement {
     company_address: '',
     vehicle_number: '',
     purpose: '',
-    expected_return_date: '',
     items: Array.from({ length: STARTING_ITEMS }, () => ({ ...EMPTY_ITEM })),
   });
   const [errors, setErrors] = useState<FormErrors>({});
@@ -119,13 +118,22 @@ export default function RaisePass(): React.ReactElement {
     setForm((f) => ({
       ...f,
       type,
-      // NRGP is permanent — nothing comes back, so the pass-level deadline is
-      // cleared the moment it's selected. Item rows carry no date of their own
-      // any more (every line takes the pass-level date), so there is nothing
-      // per-item left to clear here.
-      expected_return_date: requiresReturnDate(type) ? f.expected_return_date : '',
+      // NRGP is permanent — nothing comes back, so every line's return date is
+      // cleared the moment it is selected. Clearing rather than merely hiding
+      // the column: a date left in state under a hidden field is a date that
+      // would be submitted, and an NRGP with a return date is a pass the return
+      // queue would then chase forever.
+      items: requiresReturnDate(type)
+        ? f.items
+        : f.items.map((item) => ({ ...item, expected_return_date: '' })),
     }));
-    setErrors((e) => ({ ...e, expected_return_date: undefined }));
+    setErrors((e) => {
+      const next = { ...e };
+      Object.keys(next).forEach((key) => {
+        if (key.endsWith('_expected_return_date')) delete next[key];
+      });
+      return next;
+    });
   }
 
   function update<K extends keyof NewGatePass>(key: K, value: NewGatePass[K]) {
@@ -188,7 +196,10 @@ export default function RaisePass(): React.ReactElement {
     try {
       if (!userId) throw new Error('Could not determine your user account. Please sign in again.');
       const departmentId = form.department_id || depts[0].id;
-      const returnDate = requiresReturnDate(form.type) ? (form.expected_return_date || null) : null;
+      // THE PASS'S DEADLINE IS THE EARLIEST LINE'S. `v_gate_passes` grades
+      // `is_overdue` / `due_state` off this one column, and a pass is late the
+      // moment its first line is — see `earliestReturnDate`.
+      const returnDate = requiresReturnDate(form.type) ? earliestReturnDate(form.items) : null;
       const { data, error } = await gp().rpc('raise_pass', {
         p_type: form.type,
         p_direction: 'out',
@@ -217,11 +228,11 @@ export default function RaisePass(): React.ReactElement {
           serial_no: item.serial_no.trim() || null,
           invoice_no: item.invoice_no.trim() || null,
           remarks: item.remarks.trim() || null,
-          // Every line carries the SAME date as the pass — client, 2026-08-19:
-          // "the return date of all individual items in the pass should be the
-          // expected return date of the entire pass." There is no per-item
-          // input any more to disagree with it.
-          expected_return_date: returnDate,
+          // EACH LINE CARRIES ITS OWN DATE — client, 2026-08-19: "we would
+          // expect a date of return against each item in the RGP form." The
+          // pass-level date above is the earliest of these, so the two can
+          // never disagree about when the FIRST piece of material is due.
+          expected_return_date: requiresReturnDate(form.type) ? item.expected_return_date : null,
         })),
       });
       if (error) throw error;
@@ -292,7 +303,6 @@ export default function RaisePass(): React.ReactElement {
         <PassDetailsCards
           form={form}
           errors={errors}
-          depts={depts}
           vendors={vendors}
           vendorId={vendorId}
           onTypeChange={handleTypeChange}
@@ -306,7 +316,15 @@ export default function RaisePass(): React.ReactElement {
           onItemChange={updateItem}
           onRemoveItem={removeItem}
           onAddItem={addItem}
+          showReturnDate={requiresReturnDate(form.type)}
         />
+
+        {/* The department is no longer a field on this form (client: "it will
+            be automatically captured"), so the one thing that can go wrong with
+            it — an HOD assigned to none — has nowhere of its own to report.
+            It is a whole-form failure anyway: without a department there is no
+            pass to raise. */}
+        {errors.department_id && <div className="alert-error">{errors.department_id}</div>}
 
         {submitError && <div className="alert-error">{submitError}</div>}
 
