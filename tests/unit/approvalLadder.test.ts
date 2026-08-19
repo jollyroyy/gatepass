@@ -113,6 +113,33 @@ describe('buildApprovalSteps', () => {
     expect(coo?.note).toMatch(/not designated/i);
   });
 
+  // Client, 2026-08-19: "only the approved ones will be appearing in the
+  // guard's view — mark them so that they have been approved by those
+  // approvers." The signed slip travels with the material, so at the barrier
+  // the four offices are settled whether or not anybody has been designated.
+  it('reads every level as approved for a GUARD, even a vacant office', () => {
+    const steps = buildApprovalSteps(pass(), [], 'guard');
+    const levels = steps.filter((s) => s.key.startsWith('level-'));
+    expect(levels).toHaveLength(4);
+    expect(levels.every((s) => s.state === 'done')).toBe(true);
+    expect(levels.every((s) => /signed on the printed pass/i.test(s.note ?? ''))).toBe(true);
+    expect(levels.map((s) => s.who)).toEqual(['Security Head', 'COO', 'CEO', 'Finance HOD']);
+  });
+
+  it('still names the holder for a guard when the office IS held', () => {
+    const coo = buildApprovalSteps(pass(), FULL, 'guard').find((s) => s.label === 'Level 2 Approval');
+    expect(coo?.who).toBe('COO (Vikram Singh)');
+    expect(coo?.state).toBe('done');
+  });
+
+  it.each(['hod', 'admin', null] as const)(
+    'keeps a vacant office unset for %s — their fix is a designation, not a truck at the gate',
+    (role) => {
+      const coo = buildApprovalSteps(pass(), [], role).find((s) => s.label === 'Level 2 Approval');
+      expect(coo?.state).toBe('unset');
+    }
+  );
+
   it('counts a cleared gate as its own step, naming the guard', () => {
     const gate = buildApprovalSteps(pass(), FULL).find((s) => s.key === 'gate');
     expect(gate?.label).toBe('Cleared by Security');
@@ -173,6 +200,12 @@ describe('approvalProgress', () => {
   it('drops one for every vacant office', () => {
     expect(approvalProgress([FULL[0], FULL[3]])).toEqual({ approved: 3, total: 5 });
     expect(approvalProgress([])).toEqual({ approved: 1, total: 5 });
+  });
+
+  // The strip and the rail beside it must never disagree about one pass.
+  it('is 5 of 5 for a guard whatever the designation table holds', () => {
+    expect(approvalProgress([], 'guard')).toEqual({ approved: 5, total: 5 });
+    expect(approvalProgress([FULL[0]], 'guard')).toEqual({ approved: 5, total: 5 });
   });
 });
 

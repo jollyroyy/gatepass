@@ -169,26 +169,41 @@ describe('a returned pass is closed for good', () => {
 });
 
 describe('the approval ladder on the record', () => {
+  const TWO_HELD = [
+    { role_key: 'security_head' as const, user_id: 'a', full_name: 'Arun Kumar', department_name: 'Security', designated_at: '2026-08-01T00:00:00Z' },
+    { role_key: 'coo' as const, user_id: 'b', full_name: 'Vikram Singh', department_name: 'Operations', designated_at: '2026-08-01T00:00:00Z' },
+  ];
+
   it('names each office and its holder, and counts them in the fact strip', async () => {
-    ladder = [
-      { role_key: 'security_head', user_id: 'a', full_name: 'Arun Kumar', department_name: 'Security', designated_at: '2026-08-01T00:00:00Z' },
-      { role_key: 'coo', user_id: 'b', full_name: 'Vikram Singh', department_name: 'Operations', designated_at: '2026-08-01T00:00:00Z' },
-    ];
-    await renderAs('guard');
+    ladder = TWO_HELD;
+    await renderAs('hod');
 
     const rail = within(await screen.findByTestId('approval-timeline'));
     await waitFor(() => expect(rail.getByText('Security Head (Arun Kumar)')).toBeInTheDocument());
     expect(rail.getByText('COO (Vikram Singh)')).toBeInTheDocument();
-    // Two offices vacant — said out loud, never implied signed.
+    // Two offices vacant — said out loud to a reader at a desk, never implied
+    // signed. The raising HOD is the first of the five and is always approved.
     expect(rail.getByText('CEO')).toBeInTheDocument();
     expect(rail.getAllByText('Not designated yet')).toHaveLength(2);
-    // The raising HOD is the first of the five and is always approved.
     expect(screen.getByText('3 of 5 levels approved')).toBeInTheDocument();
+  });
+
+  // Client, 2026-08-19: only approved passes reach the guard's view, so mark
+  // them approved by those approvers. The signed slip is in the guard's hand.
+  it('reads every office as approved for a GUARD, held or not', async () => {
+    ladder = TWO_HELD;
+    await renderAs('guard');
+
+    const rail = within(await screen.findByTestId('approval-timeline'));
+    await waitFor(() => expect(rail.getByText('Security Head (Arun Kumar)')).toBeInTheDocument());
+    expect(rail.queryByText('Not designated yet')).not.toBeInTheDocument();
+    expect(rail.getAllByText('Signed on the printed pass')).toHaveLength(4);
+    expect(screen.getByText('5 of 5 levels approved')).toBeInTheDocument();
   });
 
   it('renders the record perfectly well when the ladder cannot be read', async () => {
     rpc.mockImplementationOnce(() => Promise.reject(new Error('nope')));
-    await renderAs('guard');
+    await renderAs('hod');
     expect(screen.getByTestId('approval-timeline')).toBeInTheDocument();
     expect(screen.getByText('1 of 5 levels approved')).toBeInTheDocument();
   });

@@ -111,6 +111,16 @@ describe('/pass/:id renders the Search Pass record, not a second format', () => 
     expect(screen.getByText('9876543210')).toBeInTheDocument();
   });
 
+  // Client, 2026-08-19: "don't put any extra words other than the ones I gave
+  // you." The strip explaining that the four approval signatures are collected
+  // on paper is gone; the ladder's own states say it.
+  it('carries no explanatory strip under the material table', async () => {
+    renderDetail();
+    await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
+    expect(screen.queryByText(/multi-level approval chain/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/signs the printed pass/i)).not.toBeInTheDocument();
+  });
+
   it('still offers the raising HOD the flagged override, above the record', async () => {
     row = pass({ status: 'flagged', flag_reason: 'Count did not match', verified_at: '2026-08-18T08:00:00Z' });
     renderDetail();

@@ -28,18 +28,18 @@ describe('dark-mode dropdowns are actually readable', () => {
     // Without this the OS draws the popup's scrollbar and hover highlight from
     // the LIGHT scheme when the user's system theme is light — which it often
     // is, because this app forces `class="dark"` in index.html regardless.
-    expect(flat).toMatch(/\.dark select\s*\{[^}]*color-scheme:\s*dark/);
+    expect(flat).toMatch(/\.dark select[^{]*\{[^}]*color-scheme:\s*dark/);
   });
 
   it('gives the select control an OPAQUE background in dark mode', () => {
     // Opaque is the whole point. A translucent value here is the bug.
-    expect(flat).toMatch(/\.dark select\.input\s*\{[^}]*background-color:\s*rgb\(var\(--c-surface-100\)\)/);
+    expect(flat).toMatch(/\.dark select\.input[^{]*\{[^}]*background-color:\s*rgb\(var\(--c-surface-100\)\)/);
   });
 
   it('paints option and optgroup rows explicitly', () => {
     // Chrome on Windows inherits the control's background into the list only
     // sometimes; Firefox does not. Naming the rows removes the guesswork.
-    const optionRule = flat.match(/\.dark select option,\s*\.dark select optgroup\s*\{([^}]*)\}/);
+    const optionRule = flat.match(/\.dark select[^{]*option,\s*\.dark select[^{]*optgroup\s*\{([^}]*)\}/);
     expect(optionRule, 'no `.dark select option, .dark select optgroup` rule found').not.toBeNull();
     expect(optionRule![1]).toMatch(/background-color:\s*rgb\(var\(--c-surface-100\)\)/);
     expect(optionRule![1]).toMatch(/color:\s*rgb\(var\(--c-navy-900\)\)/);

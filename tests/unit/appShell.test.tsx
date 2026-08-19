@@ -86,6 +86,32 @@ describe('AppShell', () => {
     expect(mockedFetchDisplayName).not.toHaveBeenCalled();
   });
 
+  // The guard's shell is the mock-up's fixed-light skin, on EVERY tab (client,
+  // 2026-08-19). It is put on <main> here rather than on each page, which is
+  // the only thing that makes Verify, Search Pass, Overdue Items and the gate
+  // pass record read the same as the dashboard without knowing about it.
+  it('skins <main> with .gb-main for a guard', () => {
+    const { container } = render(
+      <AppShell session={fakeSession('guard@x.com')} role="guard">
+        <div>content</div>
+      </AppShell>
+    );
+    const main = container.querySelector('main');
+    expect(main?.className).toContain('gb-main');
+  });
+
+  it.each(['hod', 'admin', 'super_admin', null] as const)(
+    'leaves <main> on the house theme for %s',
+    (role) => {
+      const { container } = render(
+        <AppShell session={fakeSession('someone@x.com')} role={role}>
+          <div>content</div>
+        </AppShell>
+      );
+      expect(container.querySelector('main')?.className).not.toContain('gb-main');
+    }
+  );
+
   it('renders regardless of role, including null while the role is still resolving', () => {
     render(
       <AppShell session={fakeSession('someone@x.com')} role={null}>

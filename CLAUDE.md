@@ -39,7 +39,10 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-19
 
-Full gate: **1314 tests across 117 files** (`npm run check`), `npm run build` clean.
+Full gate: **1341 tests across 118 files** (`npm run check`), `npm run build` clean.
+**Migration `044_overdue_guard_actions.sql` landed on disk and in `APPLY_ALL.sql` in commit
+`7d249c8`, from a parallel session — its live state is NOT recorded here. Check before
+assuming it is applied.**
 Migrations **`001`–`043` are all applied to the live DB**; `039`, `040`, `041` and `043` were
 each verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs` — `043` is
 **9/9**, and it left the ladder empty exactly as it found it), and `042` with a rolled-back
@@ -53,7 +56,62 @@ each verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs` �
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 | `gatepass.approval_roles` | **0 rows** — nobody is designated yet, so every pass record reads "Not designated yet" on all four levels. Admin → Users → *Gate pass approval ladder* is where they are set. |
 
-**Latest change (2026-08-19, fifth pass): the gate pass record IS the mock-up — a fact
+**Latest change (2026-08-19, sixth pass): the guard's SHELL is the mock-up's skin, so
+every tab a guard opens — including the record that Approve OUT and Verify Return lead to —
+is one white ground, one Inter ladder and one near-black ink. The type went up a rung, the
+approval ladder reads APPROVED for a guard, and the record's explanatory strip is gone.**
+Frontend only — no migration, no new RPC, no query change.
+
+- **`.gb-main` is the skin, and `AppShell` puts it on `<main>` for a guard alone.** Client:
+  "the approval after clicking on Approve or Verify returns the page you are showing … the
+  same exact typographic colour as the dashboard's page … make all the pages in the guard's
+  view the same across all the tabs and everywhere." Putting it on the SHELL rather than on
+  each page is the whole point — Search Pass, Verify, Overdue Items, Returns Due Today and
+  `/pass/:id` inherit it without knowing it exists. The three mock-up screens keep their own
+  `.gb-board`, which sits inside it and repaints the same ground.
+- **A LIGHT ISLAND TAKES THREE MECHANISMS, and all three are load-bearing.** (1) `.gb-main`
+  re-declares the neutral ramp (`--c-navy-*`, `--c-surface-*`, the status tints, `--glass-bg`)
+  to its LIGHT values, so `text-navy-700` / `bg-surface-50` stop inverting under `.dark` —
+  the shipped default. (2) A `dark:` utility is a literal class no var can reach, so
+  `tailwind.config.ts`'s `darkMode` is now
+  `['variant', '&:where(.dark, .dark *):not(:where(.gb-main, .gb-main *))']` — the same
+  zero-specificity shape Tailwind v4 ships, so a `dark:` utility still beats its light pair
+  everywhere else by SOURCE ORDER (verified in `dist`: the dark utilities emit at ~90k, the
+  base ones from ~8k). (3) index.css's twenty hand-written `.dark X` rules — the input, the
+  secondary button, the card, the modal, the skeleton — are plain CSS that neither of the
+  first two touches, so each carries the same `:not(:where(.gb-main, .gb-main *))` tail.
+  Without (3), Print Pass on the guard's record renders white-on-white.
+  `designSystem.test.ts` fails on a new `.dark` rule that forgets the tail.
+- **The heading ladder is restated in Inter ink inside the skin** (`.gb-main .page-title` and
+  the other four rungs), the house table takes the mock's grey title-case column heads, and
+  `.card` loses its glass blur. The RUNGS are unchanged — this is family and colour, not size.
+- **Every `font-size` in the `.gb-*` skin went up one rung** (client: "increase the font, all
+  kinds of font, respective to the ratio by one, across all the tabs"): 10.5→11.5, 11→12,
+  11.5→12.5, 12→13, 12.5→13.5, 13→14, 14→15, 15→16, 24→26, 26→28, 30→32. 51 declarations,
+  bumped together so the ratios stay the mock's.
+- **For a GUARD, all four approval levels read APPROVED — even a vacant office.** Client:
+  "only the approved ones will be appearing in the guard's view — mark them so that they have
+  been approved by those approvers." `buildApprovalSteps` and `approvalProgress` now take the
+  reader's role: a guard sees `done` / "Signed on the printed pass" on all four and "5 of 5
+  levels approved", because the signed A5 slip travels with the material and a pass would not
+  be at the barrier without it. **An HOD or an admin still sees `unset` / "Not designated
+  yet"** — they read from a desk with no paper in hand, and for them the fix is a designation.
+  `gatepass.approval_roles` is still empty, and this change does not fill it.
+- **The record's explanatory strip is deleted** (client: "don't put any extra words other than
+  the ones I gave you"). The sentence about the four signatures being collected on paper is
+  gone from `PassRecordView`; the ladder's own states say it. `.alert-info` now has no caller
+  and was kept — it is one of four alert variants in the design system, not dead schema.
+- **Approve OUT and Verify Return already opened `/pass/:id`** (fifth pass) and are unchanged.
+  What changed is what that page LOOKS like to a guard.
+- Pinned by two new cases in `appShell.test.tsx`, five in `designSystem.test.ts` (the three
+  mechanisms plus the `.dark`-tail sweep), five in `approvalLadder.test.ts`, one in
+  `passRecordEverywhere.test.tsx` (no explanatory strip) and a rewritten ladder block in
+  `passRecordReturns.test.tsx`. `darkModeDropdown` and `passPrintDarkMode` grep index.css for
+  those `.dark` rules and were widened to allow the tail.
+- **NOT seen signed-in in a browser**: `npm run check` (1341 tests) and `npm run build` only.
+  The three-mechanism light lock is exactly the kind of thing only a real render proves.
+
+**Earlier (2026-08-19, fifth pass): the gate pass record IS the mock-up — a fact
 strip, the material table with issued/returned/pending quantities, and the printed slip's own
 APPROVAL LADDER down the right; a return is entered ON it; a returned pass is closed for good;
 and the guard's Approve OUT / Verify Return open it.** One migration (**`043`, APPLIED**), no

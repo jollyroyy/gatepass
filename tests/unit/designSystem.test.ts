@@ -113,3 +113,56 @@ describe('design system — no element combines font-display with a synthesised 
     expect(offenders).toEqual([]);
   });
 });
+
+// THE GUARD'S SHELL IS A FIXED-LIGHT ISLAND, and it takes TWO mechanisms to be
+// one. `.gb-main` re-declares the neutral ramp light (so `text-navy-700` and
+// friends stop inverting), and the dark VARIANT in tailwind.config.ts excludes
+// the subtree (so a literal `dark:` utility, which no var can reach, stops
+// applying). Delete either and the other is not enough — the record a guard
+// opens would go back to dark cards on a white ground.
+describe('design system — the guard shell (.gb-main)', () => {
+  const config = readFileSync(join(__dirname, '../../tailwind.config.ts'), 'utf-8');
+
+  it('re-declares the light neutral ramp so house components stop inverting', () => {
+    const block = css.match(/\.gb-main\s*{[^}]*}/)?.[0] ?? '';
+    expect(block).toMatch(/--c-navy-700:\s*69 64 57/);
+    expect(block).toMatch(/--c-surface-200:\s*231 228 222/);
+    expect(block).toMatch(/color-scheme:\s*light/);
+  });
+
+  it('sets the mock-up type and ground on the shell itself', () => {
+    const block = css.match(/\.gb-main\s*{[^}]*}/)?.[0] ?? '';
+    expect(block).toMatch(/font-family:\s*'Inter'/);
+    expect(block).toMatch(/background:\s*#ffffff/);
+    expect(block).toMatch(/color:\s*var\(--gb-ink\)/);
+  });
+
+  it('restates the heading ladder in Inter ink inside the guard shell', () => {
+    expect(css).toMatch(/\.gb-main \.page-title/);
+    expect(css).toMatch(/\.gb-main \.card-title/);
+  });
+
+  it('is excluded from the dark variant in tailwind.config.ts', () => {
+    expect(config).toMatch(/darkMode:\s*\['variant'/);
+    expect(config).toMatch(/:not\(:where\(\.gb-main, \.gb-main \*\)\)/);
+  });
+});
+
+// A hand-written `.dark X` rule in index.css is plain CSS: neither the light
+// ramp `.gb-main` re-declares nor the dark VARIANT can hold it back, so each
+// one has to opt out of the guard's shell itself. Forget the tail on a new
+// rule and something on the guard's record page — Print Pass was the one that
+// showed it — renders its dark-theme treatment on a white ground.
+describe('design system — every .dark rule opts out of the guard shell', () => {
+  it('carries the :not(:where(.gb-main, .gb-main *)) tail', () => {
+    // The var block itself (`.dark {`), the selection colour, and the printed
+    // slip's own opt-out are exempt: none of them is a component treatment.
+    const EXEMPT = /::selection|\.pass-sheet/;
+    const offenders = css
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => /^\.dark\s+[^{\s]/.test(line) && !EXEMPT.test(line))
+      .filter((line) => !line.includes(':not(:where(.gb-main, .gb-main *))'));
+    expect(offenders).toEqual([]);
+  });
+});

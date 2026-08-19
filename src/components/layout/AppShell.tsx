@@ -30,7 +30,21 @@ export default function AppShell({ session, role, children }: Props): React.Reac
         <Sidebar session={session} role={role} collapsed={collapsed} onCollapsedChange={setCollapsed} />
 
         <div className={`flex flex-col min-h-screen transition-[padding] duration-300 ease-in-out ${collapsed ? 'lg:pl-[84px]' : 'lg:pl-[264px]'}`}>
-          <main className="flex-1 w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-20 lg:pt-8 pb-8">
+          {/* THE GUARD'S SHELL IS THE MOCK-UP'S SKIN, ON EVERY TAB.
+              Client, 2026-08-19: the record that Approve OUT / Verify Return
+              opens must read in "the same exact typographic colour as the
+              dashboard's page", and every page in the guard's view must match.
+              `.gb-main` (index.css) is that skin — white ground, Inter,
+              near-black ink, the neutral ramp pinned light — and putting it
+              HERE rather than on each page is what makes it true of Search
+              Pass, Verify, Overdue Items and the pass record without any of
+              them knowing about it. The three mock-up screens keep their own
+              `.gb-board`, which sits inside this and repaints the same ground. */}
+          <main
+            className={`flex-1 w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-20 lg:pt-8 pb-8${
+              role === 'guard' ? ' gb-main' : ''
+            }`}
+          >
             {children}
           </main>
 

@@ -150,13 +150,13 @@
 }
 
 @layer components {
-  .dark .bg-white {
+  .dark .bg-white:not(:where(.gb-main, .gb-main *)) {
     background-color: rgb(var(--glass-bg) / 0.8);
   }
-  .dark .bg-white\/70 {
+  .dark .bg-white\/70:not(:where(.gb-main, .gb-main *)) {
     background-color: rgb(var(--glass-bg) / 0.6);
   }
-  .dark .bg-white\/90 {
+  .dark .bg-white\/90:not(:where(.gb-main, .gb-main *)) {
     background-color: rgb(var(--glass-bg) / 0.88);
   }
 
@@ -407,12 +407,12 @@
            hover:border-surface-300
            transition-all duration-200;
   }
-  .dark .input {
+  .dark .input:not(:where(.gb-main, .gb-main *)) {
     background: rgb(255 255 255 / 0.04);
     border-color: rgb(255 255 255 / 0.1);
     color: rgb(var(--c-navy-900));
   }
-  .dark .input:focus {
+  .dark .input:not(:where(.gb-main, .gb-main *)):focus {
     border-color: rgb(216 184 120 / 0.55);
     box-shadow: 0 0 0 4px rgb(198 161 91 / 0.18);
   }
@@ -425,14 +425,14 @@
      forces `class="dark"` in index.html even when the OS theme is light.
      jsdom paints no native widgets, so only tests/unit/darkModeDropdown.test.ts
      can catch a regression here. Ported from VMS, which already had it. */
-  .dark select {
+  .dark select:not(:where(.gb-main, .gb-main *)) {
     color-scheme: dark;
   }
-  .dark select.input {
+  .dark select.input:not(:where(.gb-main, .gb-main *)) {
     background-color: rgb(var(--c-surface-100));
   }
-  .dark select option,
-  .dark select optgroup {
+  .dark select:not(:where(.gb-main, .gb-main *)) option,
+  .dark select:not(:where(.gb-main, .gb-main *)) optgroup {
     background-color: rgb(var(--c-surface-100));
     color: rgb(var(--c-navy-900));
   }
@@ -459,12 +459,12 @@
            disabled:opacity-50 disabled:cursor-not-allowed
            transition-all duration-200;
   }
-  .dark .btn-secondary {
+  .dark .btn-secondary:not(:where(.gb-main, .gb-main *)) {
     background: rgb(255 255 255 / 0.05);
     border-color: rgb(255 255 255 / 0.1);
     color: rgb(var(--c-navy-700));
   }
-  .dark .btn-secondary:hover {
+  .dark .btn-secondary:not(:where(.gb-main, .gb-main *)):hover {
     background: rgb(255 255 255 / 0.09);
   }
   .btn-find {
@@ -479,12 +479,12 @@
     background: rgb(var(--c-brand-600) / 0.14);
     border-color: rgb(var(--c-brand-500) / 0.5);
   }
-  .dark .btn-find {
+  .dark .btn-find:not(:where(.gb-main, .gb-main *)) {
     background: rgb(var(--c-brand-500) / 0.12);
     color: rgb(var(--c-brand-300));
     border-color: rgb(var(--c-brand-500) / 0.25);
   }
-  .dark .btn-find:hover {
+  .dark .btn-find:not(:where(.gb-main, .gb-main *)):hover {
     background: rgb(var(--c-brand-500) / 0.2);
     border-color: rgb(var(--c-brand-400) / 0.4);
   }
@@ -538,7 +538,7 @@
     -webkit-backdrop-filter: blur(20px) saturate(140%);
     border: 1px solid rgb(0 0 0 / 0.06);
   }
-  .dark .card {
+  .dark .card:not(:where(.gb-main, .gb-main *)) {
     border-color: rgb(255 255 255 / 0.07);
     box-shadow: 0 4px 20px 0 rgb(0 0 0 / 0.3);
   }
@@ -548,7 +548,7 @@
   .card-hover:hover {
     border-color: rgb(198 161 91 / 0.45);
   }
-  .dark .card-hover:hover {
+  .dark .card-hover:not(:where(.gb-main, .gb-main *)):hover {
     border-color: rgb(208 173 104 / 0.35);
     box-shadow: 0 12px 32px -8px rgb(0 0 0 / 0.55);
   }
@@ -559,7 +559,7 @@
     -webkit-backdrop-filter: blur(24px) saturate(160%);
     border: 1px solid rgb(var(--c-surface-200) / 0.8);
   }
-  .dark .card-glass {
+  .dark .card-glass:not(:where(.gb-main, .gb-main *)) {
     border-color: rgb(255 255 255 / 0.08);
   }
 
@@ -725,7 +725,7 @@
   .tab-active {
     @apply bg-white shadow-soft text-navy-900 font-semibold tab-item;
   }
-  .dark .tab-active {
+  .dark .tab-active:not(:where(.gb-main, .gb-main *)) {
     background: rgb(255 255 255 / 0.1);
   }
   .tab-inactive {
@@ -759,7 +759,7 @@
   .table-base tbody tr:hover {
     @apply bg-surface-50;
   }
-  .dark .table-base tbody tr:hover {
+  .dark .table-base:not(:where(.gb-main, .gb-main *)) tbody tr:hover {
     background: rgb(255 255 255 / 0.03);
   }
 
@@ -847,7 +847,7 @@
     box-shadow: 0 25px 80px -12px rgb(0 0 0 / 0.35);
     animation: scaleIn 0.2s ease-out;
   }
-  .dark .modal-content {
+  .dark .modal-content:not(:where(.gb-main, .gb-main *)) {
     border-color: rgb(255 255 255 / 0.1);
   }
   /* Consistent top-right × across every popup — see ModalShell.tsx, the one
@@ -859,7 +859,7 @@
            text-navy-500 hover:text-navy-700 hover:bg-surface-100 active:scale-95
            transition-all duration-150 z-10;
   }
-  .dark .modal-close-btn:hover {
+  .dark .modal-close-btn:not(:where(.gb-main, .gb-main *)):hover {
     background: rgb(255 255 255 / 0.08);
   }
 
@@ -909,7 +909,7 @@
     background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.45), transparent);
     animation: shimmer 1.8s ease-in-out infinite;
   }
-  .dark .skeleton::after {
+  .dark .skeleton:not(:where(.gb-main, .gb-main *))::after {
     background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.07), transparent);
   }
 
@@ -1007,6 +1007,14 @@
       names only, so `tests/unit/themeAudit.test.ts` still holds absolutely
       over every .tsx in the repo.
 
+   THE TYPE IS ONE STEP UP FROM THE MOCK-UP (client, 2026-08-19: "increase the
+   font, all kinds of font, respective to the ratio by one, across all the
+   tabs"). Every `font-size` below moved one rung — 10.5→11.5, 11→12, 11.5→12.5,
+   12→13, 12.5→13.5, 13→14, 14→15, 15→16, 24→26, 26→28, 30→32 — so the ratios
+   between a heading, a column head and a cell are the mock's, read at arm's
+   length from a tablet at a barrier. Bump the whole table together or the
+   ladder flattens.
+
    The house classes are untouched — `.card`, `.table-base`, `.page-title`
    and the gold heading ladder are exactly as they were, and every other
    screen still uses them.
@@ -1077,6 +1085,125 @@
     }
   }
 
+  /* ---- THE SAME SKIN, ON EVERY PAGE A GUARD OPENS ----
+     Client, 2026-08-19: the gate pass record a guard reaches through Approve
+     OUT / Verify Return must be "the same exact typographic colour as the
+     dashboard's page", and every tab in the guard's view must match it.
+
+     `.gb-board` skins the three screens written against the mock-up. THIS
+     skins the SHELL: `AppShell` puts `gb-main` on `<main>` when the signed-in
+     role is `guard`, so the pages that are not mock-up-specific — the gate
+     pass record, Verify, Search Pass, Overdue Items, Returns Due Today — land
+     on the same white ground, in the same Inter, with the same near-black ink,
+     instead of the house's warm stone and gold display serif. `.gb-board` sits
+     INSIDE it and repaints the same ground, so the two cannot disagree.
+
+     TWO MECHANISMS, AND BOTH ARE LOAD-BEARING:
+       1. The neutral ramp is re-declared to its LIGHT values below, so every
+          `text-navy-700` / `bg-surface-50` / `border-surface-200` in a house
+          component reads light even though `.dark` is set on <html> — the
+          shipped default.
+       2. A utility written `dark:…` is a literal class, not a var, so the ramp
+          above cannot reach it. `tailwind.config.ts` therefore builds the dark
+          variant as `&:where(.dark, .dark *):not(:where(.gb-main, .gb-main *))`
+          — inside this subtree a `dark:` utility does not apply at all.
+       3. index.css's own hand-written `.dark X` rules (the input, the secondary
+          button, the card, the modal, the skeleton shimmer…) are plain CSS, so
+          neither of the above touches them. Each one carries the SAME
+          `:not(:where(.gb-main, .gb-main *))` tail, which is what keeps Print
+          Pass from rendering as white-on-white here. `designSystem.test.ts`
+          fails on a new `.dark` rule that forgets it.
+     Remove any one of the three and the others stop being enough. */
+  .gb-main {
+    --c-navy-50: 250 249 247;
+    --c-navy-100: 244 242 238;
+    --c-navy-200: 231 228 222;
+    --c-navy-300: 213 209 201;
+    --c-navy-400: 168 163 154;
+    --c-navy-500: 124 118 108;
+    --c-navy-600: 92 87 79;
+    --c-navy-700: 69 64 57;
+    --c-navy-800: 51 48 43;
+    --c-navy-900: 38 36 33;
+    --c-navy-950: 22 22 26;
+
+    --c-surface-50: 250 249 247;
+    --c-surface-100: 244 242 238;
+    --c-surface-200: 231 228 222;
+    --c-surface-300: 213 209 201;
+    --c-surface-400: 168 163 154;
+
+    --c-brand-50: 251 247 239;
+    --c-brand-100: 243 233 212;
+
+    --c-pending-50: 255 251 235;
+    --c-pending-100: 254 243 199;
+    --c-pending-700: 180 83 9;
+    --c-matched-50: 236 253 245;
+    --c-matched-100: 209 250 229;
+    --c-matched-700: 4 120 87;
+    --c-flagged-50: 254 242 242;
+    --c-flagged-100: 254 226 226;
+    --c-flagged-700: 185 28 28;
+    --c-overdue-50: 255 247 237;
+    --c-overdue-100: 255 237 213;
+    --c-overdue-700: 194 65 12;
+
+    --glass-bg: 255 255 255;
+    --glass-bg-opacity: 1;
+    --glass-border-opacity: 0.6;
+    --glass-border: 255 255 255;
+
+    color-scheme: light;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background: #ffffff;
+    color: var(--gb-ink);
+  }
+
+  /* The heading ladder, restated in the mock-up's type. The RUNGS are
+   * unchanged — 28 > 22 > 18 is still the ladder, and a page that used
+   * `.page-title` keeps its size — but the family is Inter and the ink is
+   * near-black, which is the whole of what the client asked for. */
+  .gb-main .page-title,
+  .gb-main .section-title,
+  .gb-main .modal-title,
+  .gb-main .card-title,
+  .gb-main .board-section-title {
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 600;
+    color: var(--gb-ink);
+    letter-spacing: -0.01em;
+  }
+  .gb-main .page-subtitle,
+  .gb-main .kpi-label {
+    color: var(--gb-muted);
+  }
+  .gb-main .kpi-value {
+    color: var(--gb-ink);
+  }
+  /* A house table inside the guard's shell takes the mock's heading treatment
+   * — grey and title case — for the same reason `.gb-table` does: uppercase
+   * gold ink is the house's column heading, and two column treatments on one
+   * screen is what the client is asking us to stop doing. */
+  .gb-main .table-base thead th {
+    color: var(--gb-body);
+    background: var(--gb-head);
+    text-transform: none;
+    letter-spacing: 0;
+    border-bottom-color: var(--gb-line);
+  }
+  .gb-main .table-base tbody td {
+    color: var(--gb-body);
+    border-bottom-color: var(--gb-line-soft);
+  }
+  .gb-main .card,
+  .gb-main .table-wrap {
+    border-color: var(--gb-line);
+    box-shadow: 0 1px 2px rgb(16 24 40 / 0.04);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
   /* Header. The right padding is not decoration: the notification bell is
    * `fixed top-4 right-4`, so a date stamp flush to the content edge sits
    * underneath it and loses its time on a narrow window. */
@@ -1094,7 +1221,7 @@
    * display serif. In the mock-up the heading face is the body face. */
   .gb-hello {
     font-family: inherit;
-    font-size: 26px;
+    font-size: 28px;
     line-height: 32px;
     font-weight: 700;
     letter-spacing: -0.02em;
@@ -1102,7 +1229,7 @@
   }
   .gb-sub {
     margin-top: 6px;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 20px;
     font-weight: 400;
     color: var(--gb-muted);
@@ -1112,7 +1239,7 @@
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     color: var(--gb-body);
     font-variant-numeric: tabular-nums;
@@ -1151,7 +1278,7 @@
   }
   .gb-sum-title {
     font-family: inherit;
-    font-size: 15px;
+    font-size: 16px;
     line-height: 22px;
     font-weight: 700;
     text-align: center;
@@ -1174,12 +1301,12 @@
     padding: 0 34px;
   }
   .gb-figure-label {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     letter-spacing: 0.01em;
   }
   .gb-figure-value {
-    font-size: 30px;
+    font-size: 32px;
     line-height: 38px;
     font-weight: 700;
     color: var(--gb-ink);
@@ -1214,14 +1341,14 @@
   .gb-panel-head svg { width: 18px; height: 18px; flex-shrink: 0; }
   .gb-panel-title {
     font-family: inherit;
-    font-size: 14.5px;
+    font-size: 15.5px;
     line-height: 20px;
     font-weight: 700;
     flex: 1 1 auto;
     min-width: 0;
   }
   .gb-link {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     color: var(--gb-blue);
     flex-shrink: 0;
@@ -1235,7 +1362,7 @@
   .gb-empty {
     padding: 28px 18px 34px;
     text-align: center;
-    font-size: 13px;
+    font-size: 14px;
     color: var(--gb-muted);
   }
   .gb-skeleton {
@@ -1258,7 +1385,7 @@
     border-bottom: 1px solid var(--gb-line);
     padding: 9px 10px;
     text-align: left;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     color: var(--gb-body);
     text-transform: none;
@@ -1267,7 +1394,7 @@
   .gb-table tbody td {
     padding: 10px 10px;
     border-bottom: 1px solid var(--gb-line-soft);
-    font-size: 11.5px;
+    font-size: 12.5px;
     line-height: 18px;
     font-weight: 500;
     color: var(--gb-body);
@@ -1308,13 +1435,13 @@
   .gb-subline {
     display: block;
     margin-top: 2px;
-    font-size: 11.5px;
+    font-size: 12.5px;
     color: var(--gb-muted);
   }
   .gb-late {
     display: block;
     margin-top: 2px;
-    font-size: 11.5px;
+    font-size: 12.5px;
     font-weight: 500;
     color: var(--gb-red);
   }
@@ -1327,7 +1454,7 @@
     border-radius: 6px;
     border: 1px solid transparent;
     padding: 3px 7px;
-    font-size: 10.5px;
+    font-size: 11.5px;
     font-weight: 600;
     line-height: 14px;
     white-space: nowrap;
@@ -1371,7 +1498,7 @@
     border-radius: 6px;
     border: 1px solid;
     padding: 5px 10px;
-    font-size: 11.5px;
+    font-size: 12.5px;
     font-weight: 600;
     line-height: 16px;
     white-space: nowrap;
@@ -1395,7 +1522,7 @@
   .gb-quick { padding: 18px; }
   .gb-quick-title {
     font-family: inherit;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 700;
     color: var(--gb-ink);
     margin-bottom: 14px;
@@ -1434,14 +1561,14 @@
   .gb-tile-plate svg { width: 20px; height: 20px; }
   .gb-tile-title {
     display: block;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--gb-ink);
   }
   .gb-tile-note {
     display: block;
     margin-top: 2px;
-    font-size: 11.5px;
+    font-size: 12.5px;
     font-weight: 400;
     color: var(--gb-muted);
   }
@@ -1451,7 +1578,7 @@
   .gb-tile-count {
     display: block;
     margin-top: 4px;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 700;
     color: var(--gb-ink);
   }
@@ -1478,7 +1605,7 @@
     border-radius: 10px;
     padding: 12px 16px;
     margin-bottom: 18px;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     color: var(--gb-orange-ink);
   }
@@ -1503,7 +1630,7 @@
     align-items: center;
     gap: 10px;
     font-family: inherit;
-    font-size: 24px;
+    font-size: 26px;
     line-height: 30px;
     font-weight: 700;
     letter-spacing: -0.02em;
@@ -1528,7 +1655,7 @@
   .gb-tab {
     padding: 8px 2px 10px;
     border-bottom: 2px solid transparent;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     color: var(--gb-muted);
     white-space: nowrap;
@@ -1570,7 +1697,7 @@
     border-radius: 8px;
     background: #ffffff;
     padding: 8px 12px 8px 34px;
-    font-size: 12.5px;
+    font-size: 13.5px;
     font-weight: 400;
     color: var(--gb-ink);
   }
@@ -1589,7 +1716,7 @@
     border-radius: 8px;
     background: #ffffff;
     padding: 8px 12px;
-    font-size: 12.5px;
+    font-size: 13.5px;
     font-weight: 600;
     color: var(--gb-blue);
     white-space: nowrap;
@@ -1612,7 +1739,7 @@
     border-radius: 8px;
     background: #ffffff;
     padding: 7px 28px 7px 11px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
     color: var(--gb-body);
     /* The chevron is drawn, not an icon font — inline so it cannot 404. */
@@ -1630,7 +1757,7 @@
     border-radius: 8px;
     background: #ffffff;
     padding: 7px 11px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
     color: var(--gb-body);
   }
@@ -1667,7 +1794,7 @@
     overflow: hidden;
   }
   .gb-detail-title {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     color: var(--gb-body);
     padding: 10px 12px;
@@ -1678,14 +1805,14 @@
   .gb-meta-row svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--gb-muted); margin-top: 1px; }
   .gb-meta-label {
     display: block;
-    font-size: 11.5px;
+    font-size: 12.5px;
     font-weight: 600;
     color: var(--gb-body);
   }
   .gb-meta-value {
     display: block;
     margin-top: 2px;
-    font-size: 11.5px;
+    font-size: 12.5px;
     font-weight: 400;
     line-height: 17px;
     color: var(--gb-muted);
@@ -1702,7 +1829,7 @@
     gap: 12px;
     padding: 12px 16px;
     border-top: 1px solid var(--gb-line);
-    font-size: 12px;
+    font-size: 13px;
     color: var(--gb-muted);
   }
   .gb-pages { display: flex; align-items: center; gap: 6px; }
@@ -1713,7 +1840,7 @@
     border: 1px solid var(--gb-line);
     border-radius: 7px;
     background: #ffffff;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
     color: var(--gb-body);
   }
@@ -1744,7 +1871,7 @@
     border-radius: 6px;
     border: 1px solid var(--gb-blue-line);
     background: #ffffff;
-    font-size: 11.5px;
+    font-size: 12.5px;
     font-weight: 600;
     color: var(--gb-blue);
     white-space: nowrap;
@@ -1778,20 +1905,20 @@
     }
   }
   .gb-returnbox-title {
-    font-size: 13.5px;
+    font-size: 14.5px;
     font-weight: 600;
     color: var(--gb-ink);
     margin-bottom: 4px;
   }
   .gb-returnbox-note {
-    font-size: 11.5px;
+    font-size: 12.5px;
     color: var(--gb-muted);
     margin-bottom: 12px;
   }
   .gb-field { margin-bottom: 10px; }
   .gb-field-label {
     display: block;
-    font-size: 11.5px;
+    font-size: 12.5px;
     font-weight: 500;
     color: var(--gb-body);
     margin-bottom: 4px;
@@ -1802,7 +1929,7 @@
     border: 1px solid var(--gb-line);
     border-radius: 7px;
     padding: 0 10px;
-    font-size: 13px;
+    font-size: 14px;
     color: var(--gb-ink);
   }
   .gb-input::placeholder { color: var(--gb-muted); }
@@ -1822,12 +1949,12 @@
     background: var(--gb-head);
     border: 1px solid var(--gb-line);
     border-radius: 7px;
-    font-size: 12.5px;
+    font-size: 13.5px;
     color: var(--gb-body);
     white-space: nowrap;
   }
   .gb-field-error {
-    font-size: 11.5px;
+    font-size: 12.5px;
     color: var(--gb-red);
     margin-top: 4px;
   }
@@ -1843,7 +1970,7 @@
     border-radius: 7px;
     border: 1px solid var(--gb-line);
     background: #ffffff;
-    font-size: 12.5px;
+    font-size: 13.5px;
     font-weight: 500;
     color: var(--gb-body);
   }
@@ -1854,7 +1981,7 @@
     border-radius: 7px;
     border: 0;
     background: var(--gb-blue);
-    font-size: 12.5px;
+    font-size: 13.5px;
     font-weight: 600;
     color: #ffffff;
   }
@@ -1875,7 +2002,7 @@
     border: 1px solid var(--gb-blue-line);
     border-radius: 8px;
   }
-  .gb-commit-text { font-size: 12.5px; color: var(--gb-body); }
+  .gb-commit-text { font-size: 13.5px; color: var(--gb-body); }
 
   /* The legend strip under the table, reusing the tint/dot vocabulary above. */
   .gb-legend {
@@ -1885,7 +2012,7 @@
     gap: 18px;
     padding: 12px 16px;
     border-top: 1px solid var(--gb-line);
-    font-size: 11.5px;
+    font-size: 12.5px;
     color: var(--gb-muted);
   }
   .gb-legend-item {
@@ -1946,14 +2073,14 @@
   .gpo-total-body { min-width: 0; flex: 1 1 auto; }
   .gpo-total-title {
     display: block;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--gb-body);
   }
   .gpo-total-figure {
     display: block;
     margin-top: 2px;
-    font-size: 30px;
+    font-size: 32px;
     line-height: 36px;
     font-weight: 700;
     color: var(--gb-ink);
@@ -1962,7 +2089,7 @@
   .gpo-total-note {
     display: block;
     margin-top: 2px;
-    font-size: 11.5px;
+    font-size: 12.5px;
     color: var(--gb-muted);
   }
   .gpo-chev {
@@ -2026,7 +2153,7 @@
     min-width: 140px;
   }
   .gpo-pass-no {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 700;
     color: var(--gb-blue);
     font-variant-numeric: tabular-nums;
@@ -2037,7 +2164,7 @@
     background: var(--gb-red-soft);
     color: var(--gb-red);
     padding: 2px 8px;
-    font-size: 10.5px;
+    font-size: 11.5px;
     font-weight: 600;
     white-space: nowrap;
   }
@@ -2060,7 +2187,7 @@
   .gpo-fact { min-width: 0; }
   .gpo-fact-label {
     display: block;
-    font-size: 10.5px;
+    font-size: 11.5px;
     font-weight: 500;
     letter-spacing: 0.02em;
     text-transform: uppercase;
@@ -2069,7 +2196,7 @@
   .gpo-fact-value {
     display: block;
     margin-top: 2px;
-    font-size: 12.5px;
+    font-size: 13.5px;
     font-weight: 500;
     color: var(--gb-ink);
     overflow: hidden;
@@ -2130,7 +2257,7 @@
     text-align: left;
     padding: 8px 9px;
     border-radius: 7px;
-    font-size: 12.5px;
+    font-size: 13.5px;
     font-weight: 600;
     color: var(--gb-ink);
   }
@@ -2152,7 +2279,7 @@
   .gpo-menu-note {
     display: block;
     margin-top: 1px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 400;
     color: var(--gb-muted);
     overflow: hidden;

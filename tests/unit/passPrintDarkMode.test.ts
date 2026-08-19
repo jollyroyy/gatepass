@@ -27,7 +27,7 @@ const RULES = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
 
 describe('the printed slip stays light under the dark theme', () => {
   it('index.css still darkens .bg-white app-wide (the rule this exemption exists for)', () => {
-    expect(RULES).toMatch(/\.dark\s+\.bg-white\s*\{/);
+    expect(RULES).toMatch(/\.dark\s+\.bg-white[^{]*\{/);
   });
 
   it('exempts .pass-sheet from that override with a literal white', () => {

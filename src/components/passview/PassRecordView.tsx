@@ -9,7 +9,10 @@
 // FOUR PARTS, IN THE MOCK'S ORDER: the title row with the pass's live badge and
 // its ONE action; the fact strip; the material table (which is also where a
 // return is entered); and the approval ladder down the right, with the gate's
-// own activity trail under it.
+// own activity trail under it. NOTHING ELSE — the explanatory strip under the
+// table saying the four signatures are collected on paper was deleted at the
+// client's word (2026-08-19: "don't put any extra words other than the ones I
+// gave you"). The ladder's own states are the statement.
 //
 // THE ACTION IS SINGULAR AND ROLE-SHAPED. A guard standing at the barrier gets
 // Approve OUT while the gate can still act (`canVerifyAtGate`, the rule
@@ -61,8 +64,10 @@ export default function PassRecordView({
   const { pass, items, activity } = record;
   const roles = useApprovalRoles();
 
-  const steps = buildApprovalSteps(pass, roles);
-  const approval = approvalProgress(roles);
+  // The reader's role decides how a vacant office reads: for a guard the
+  // signed slip is in hand, so all four levels are approved (client).
+  const steps = buildApprovalSteps(pass, roles, role);
+  const approval = approvalProgress(roles, role);
   const canRecord = canRecordReturns(pass, role);
   const canApprove = role === 'guard' && canVerifyAtGate(pass);
 
@@ -114,19 +119,6 @@ export default function PassRecordView({
             canRecord={canRecord}
             onRecorded={() => onRecorded?.()}
           />
-
-          {/* The mock's note strip. It states the one thing the ladder beside it
-              cannot: those four signatures are collected on PAPER, before the
-              material moves — this app records who holds each office, not a
-              click. Saying so is what stops a reader treating a green tick as
-              an approval this system witnessed. */}
-          <div className="alert-info">
-            <span>
-              This gate pass carries a multi-level approval chain. Every level signs the printed pass
-              before the material leaves the premises; the gate records only the clearance and the
-              return.
-            </span>
-          </div>
         </div>
 
         <div className="flex flex-col gap-5">

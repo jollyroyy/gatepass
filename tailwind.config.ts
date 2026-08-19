@@ -43,7 +43,15 @@ import type { Config } from 'tailwindcss';
  */
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
-  darkMode: 'class',
+  // `.dark` on <html> is the shipped default, and it is still what every theme
+  // switch toggles — but the GUARD'S SHELL is a fixed-light island (`.gb-main`
+  // in index.css, put on <main> by AppShell for a guard), because the client's
+  // mock-up is a light design. A `dark:` utility is a literal class, so the
+  // light neutral ramp `.gb-main` re-declares cannot reach one; this variant is
+  // what stops it applying inside that subtree at all. It is the same
+  // zero-specificity shape Tailwind v4 ships by default, so a `dark:` utility
+  // still wins over its base pair by source order, not by specificity.
+  darkMode: ['variant', '&:where(.dark, .dark *):not(:where(.gb-main, .gb-main *))'],
   theme: {
     extend: {
       colors: {
