@@ -313,7 +313,10 @@ export interface NewGatePassItem {
   name: string;
   description: string;
   purpose: string;
-  expected_return_date: string;
+  /** Optional, free-text — client, 2026-08-19: "put the serial number against
+   *  all the items, in both the passes." `raise_pass` has always accepted this
+   *  per element of `p_items`; the form simply never collected it. */
+  serial_no: string;
   quantity: string;
   unit: string;
   approx_value: string;
@@ -323,7 +326,7 @@ export const EMPTY_ITEM: NewGatePassItem = {
   name: '',
   description: '',
   purpose: '',
-  expected_return_date: '',
+  serial_no: '',
   quantity: '1',
   unit: 'nos',
   approx_value: '',

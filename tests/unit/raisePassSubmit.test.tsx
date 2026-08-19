@@ -1,19 +1,18 @@
-// RaisePass had two defects that together made an RGP unsubmittable:
+// RaisePass had two defects that together made an RGP unsubmittable, both
+// from the same root cause: migration 019 moved the return date onto each
+// item, but the form kept demanding (and never rendering) a pass-level
+// field. Fixed on 2026-08-17 by moving to per-item dates end to end.
 //
-//  1. validate() required a PASS-LEVEL `expected_return_date` for RGP, but the
-//     form never rendered a pass-level date input (per-item dates replaced it in
-//     migration 019). So every RGP submit failed validation on a field the user
-//     could not see or fix, and the error was never rendered either — the button
-//     simply did nothing.
-//  2. handleSubmit never sent `p_expected_return_date` to raise_pass. The view's
-//     `is_overdue` / `due_state` read the PASS-level column, so even a pass that
-//     did get through would never have gone overdue.
+// 2026-08-19: the client reversed the decision — "the return date of all
+// individual items in the pass should be the expected return date of the
+// entire pass." The date is collected ONCE, on the pass, and every item in
+// `p_items` is written with that same value. There is no per-item date
+// input left at all.
 //
-// The fix: per-item return dates are the source of truth for RGP, and the
-// pass-level date is derived as the EARLIEST of them (a pass is due when its
-// first line is due).
-//
-// Serial number was also dropped from the HOD forms entirely.
+// The client also asked, in the same pass, for a serial number on every
+// line ("put the serial number against all the items, in both the
+// passes") — `raise_pass` has always read `serial_no` off each element of
+// `p_items`; the form simply never sent it. This file pins both.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -84,7 +83,7 @@ function renderRaisePass() {
   );
 }
 
-/** Fill everything an RGP needs except the per-item return date. */
+/** Fill everything an RGP needs except the pass-level return date. */
 function fillRequiredFields() {
   fireEvent.change(screen.getByPlaceholderText('Person authorized to collect material'), {
     target: { value: 'Ravi Kumar' },
@@ -115,50 +114,14 @@ beforeEach(() => {
   rpc.mockClear();
 });
 
-describe('RaisePass — serial number is gone', () => {
-  it('renders no serial number input', async () => {
+describe('RaisePass — serial number, on every line', () => {
+  it('renders a Serial / ID input for every item row', async () => {
     renderRaisePass();
     await waitFor(() => expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument());
-    expect(screen.queryByPlaceholderText(/serial/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Serial / ID')).toBeInTheDocument();
   });
 
-  it('does not send serial_no in the raise_pass item payload', async () => {
-    renderRaisePass();
-    await waitFor(() => expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument());
-    fillRequiredFields();
-    const due = futureDate(5);
-    fireEvent.change(screen.getByLabelText('Expected Return Date'), { target: { value: due } });
-    fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
-
-    await waitFor(() => expect(rpc).toHaveBeenCalledWith('raise_pass', expect.anything()));
-    const items = raisePassArgs().p_items as Record<string, unknown>[];
-    expect(items[0]).not.toHaveProperty('serial_no');
-  });
-});
-
-describe('RaisePass — an RGP can actually be submitted', () => {
-  it('submits with the per-item return date and derives the pass-level date from it', async () => {
-    renderRaisePass();
-    await waitFor(() => expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument());
-    fillRequiredFields();
-    const due = futureDate(5);
-    fireEvent.change(screen.getByLabelText('Expected Return Date'), { target: { value: due } });
-
-    fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
-
-    await waitFor(() => expect(rpc).toHaveBeenCalledWith('raise_pass', expect.anything()));
-    const args = raisePassArgs();
-    expect(args.p_type).toBe('RGP');
-    expect(args.p_expected_return_date).toBe(due);
-    const items = args.p_items as Record<string, unknown>[];
-    expect(items[0].expected_return_date).toBe(due);
-    expect(items[0].name).toBe('Drill');
-    expect(items[0].quantity).toBe(2);
-
-    await waitFor(() => expect(screen.getByText('Pass Submitted')).toBeInTheDocument());
-  });
-
-  it('uses the EARLIEST item return date as the pass-level date', async () => {
+  it('sends a typed serial as serial_no, and an untouched line as null', async () => {
     renderRaisePass();
     await waitFor(() => expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument());
     fillRequiredFields();
@@ -174,17 +137,56 @@ describe('RaisePass — an RGP can actually be submitted', () => {
     });
     fireEvent.change(screen.getAllByPlaceholderText('Qty')[1], { target: { value: '1' } });
 
-    const dates = screen.getAllByLabelText('Expected Return Date');
-    fireEvent.change(dates[0], { target: { value: futureDate(9) } });
-    fireEvent.change(dates[1], { target: { value: futureDate(3) } });
+    const serials = screen.getAllByLabelText('Serial / ID');
+    fireEvent.change(serials[0], { target: { value: 'SN-001' } });
+    // serials[1] deliberately left untouched.
+
+    const due = futureDate(5);
+    fireEvent.change(screen.getByLabelText('Expected Return Date'), { target: { value: due } });
+    fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
+
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith('raise_pass', expect.anything()));
+    const items = raisePassArgs().p_items as Record<string, unknown>[];
+    expect(items[0].serial_no).toBe('SN-001');
+    expect(items[1].serial_no).toBeNull();
+  });
+});
+
+describe('RaisePass — an RGP can actually be submitted', () => {
+  it('submits with the pass-level return date, and every item carries the SAME date', async () => {
+    renderRaisePass();
+    await waitFor(() => expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument());
+    fillRequiredFields();
+    fireEvent.click(screen.getByRole('button', { name: /\+ Add Item/ }));
+    const names = screen.getAllByPlaceholderText('Item name');
+    fireEvent.change(names[1], { target: { value: 'Ladder' } });
+    fireEvent.change(screen.getAllByPlaceholderText('Description (brand, model, details)')[1], {
+      target: { value: 'Aluminium 8ft' },
+    });
+    fireEvent.change(screen.getAllByPlaceholderText('Reason for taking out')[1], {
+      target: { value: 'Repair' },
+    });
+    fireEvent.change(screen.getAllByPlaceholderText('Qty')[1], { target: { value: '1' } });
+
+    const due = futureDate(5);
+    fireEvent.change(screen.getByLabelText('Expected Return Date'), { target: { value: due } });
 
     fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
 
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('raise_pass', expect.anything()));
-    expect(raisePassArgs().p_expected_return_date).toBe(futureDate(3));
+    const args = raisePassArgs();
+    expect(args.p_type).toBe('RGP');
+    expect(args.p_expected_return_date).toBe(due);
+    const items = args.p_items as Record<string, unknown>[];
+    expect(items).toHaveLength(2);
+    expect(items.every((i) => i.expected_return_date === due)).toBe(true);
+    expect(items[0].name).toBe('Drill');
+    expect(items[0].quantity).toBe(2);
+
+    await waitFor(() => expect(screen.getByText('Pass Submitted')).toBeInTheDocument());
   });
 
-  it('blocks submit with a visible per-item error when an RGP line has no return date', async () => {
+  it('blocks submit with a visible error when an RGP has no pass-level return date', async () => {
     renderRaisePass();
     await waitFor(() => expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument());
     fillRequiredFields();
@@ -195,11 +197,12 @@ describe('RaisePass — an RGP can actually be submitted', () => {
     expect(rpc).not.toHaveBeenCalledWith('raise_pass', expect.anything());
   });
 
-  it('submits an NRGP with no return date at all', async () => {
+  it('submits an NRGP with no return date at all, but still sends serials', async () => {
     renderRaisePass();
     await waitFor(() => expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /NRGP/ }));
     fillRequiredFields();
+    fireEvent.change(screen.getByLabelText('Serial / ID'), { target: { value: 'ASSET-42' } });
 
     fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
 
@@ -207,7 +210,9 @@ describe('RaisePass — an RGP can actually be submitted', () => {
     const args = raisePassArgs();
     expect(args.p_type).toBe('NRGP');
     expect(args.p_expected_return_date).toBeNull();
-    expect((args.p_items as Record<string, unknown>[])[0].expected_return_date).toBeNull();
+    const items = args.p_items as Record<string, unknown>[];
+    expect(items[0].expected_return_date).toBeNull();
+    expect(items[0].serial_no).toBe('ASSET-42');
   });
 
   it('surfaces the blacklist refusal with the reason — the HOD learns WHY it was blocked', async () => {

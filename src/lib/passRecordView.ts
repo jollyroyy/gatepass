@@ -56,6 +56,20 @@ export function returnProgress(items: GatePassItemView[], passType: PassType): R
   return { returned, total, percent: total === 0 ? 0 : Math.round((returned / total) * 100) };
 }
 
+/** How many lines still owe material — the count in the mock-up's amber strip
+ *  under the table ("2 items still need attention before this pass can be
+ *  closed"). It counts PENDING **and** PARTIAL: a line with 800 of 1,000 litres
+ *  back is still an open obligation, and a strip that ignored it would say the
+ *  pass is ready to close while the database refuses to close it.
+ *
+ *  Zero for an NRGP, which owes nothing by construction. */
+export function pendingItemCount(items: GatePassItemView[], passType: PassType): number {
+  return items.filter((i) => {
+    const stage = itemReturnStage(i, passType);
+    return stage === 'pending' || stage === 'partial';
+  }).length;
+}
+
 /** "2 min ago" / "3 hr ago" / "4 days ago" — the "Last updated" line under the
  *  QR code. Never negative, and never the bare "0 min ago" that reads as a
  *  broken clock. */

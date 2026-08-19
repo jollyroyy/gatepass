@@ -39,8 +39,8 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-19
 
-Full gate: **1358 tests across 120 files** (`npm run check`) — a parallel session is editing
-`src/components/layout/*` at the same time, so that count moves.
+Full gate: **1369 tests across 121 files** (`npm run check`) — a parallel session is editing
+`src/components/layout/*` and `src/lib/boardKpis.ts` at the same time, so that count moves.
 **Migration `044_overdue_guard_actions.sql` landed on disk and in `APPLY_ALL.sql` in commit
 `7d249c8`, from a parallel session — its live state is NOT recorded here. Check before
 assuming it is applied.**
@@ -57,7 +57,47 @@ each verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs` �
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 | `gatepass.approval_roles` | **0 rows** — nobody is designated yet, so every pass record reads "Not designated yet" on all four levels. Admin → Users → *Gate pass approval ladder* is where they are set. |
 
-**Latest change (2026-08-19, seventh pass): a counted unit takes no fraction, a pass has ONE
+**Latest change (2026-08-19, eighth pass): the gate pass record is the client's newest
+mock-up — ONE Quantity column naming its own unit, a real Serial / ID on every line, the
+system's own return date and time, and the amber "items still need attention" strip. The
+raise form now takes ONE return date for the whole pass and a serial per line.**
+
+- **Quantity is ONE column** (client: "the column heading should be Quantity and under that the
+  values would be 3 L or 3 kg as per the item"). The Unit, Qty Returned and Pending Qty columns
+  are gone; the cell reads `3 Litre`, and under it the SECOND number the client asked for —
+  `Returned 2 Litre`, plus `Pending 1 Litre` while any is still owed. **A deliberate exception to
+  `quantityHeading`/`quantityCell`**: lines on one pass can be in different units and a heading
+  cannot govern a column of mixed ones. `nos` is still never spelled out.
+- **`serial_no` is written at last.** `raise_pass` has always read `serial_no` out of `p_items`
+  (019) and a trigger upper-cases it — the client simply never sent one, which is why the column
+  used to print em dashes. The raise form now has a Serial / ID field per line and the record
+  prints it **on both pass types** (client). No migration.
+- **The return date is the SYSTEM's.** The status cell carries `returned_at`'s date and time,
+  stamped by `apply_item_returns` only when a line goes FULLY back (029) — so a partly returned
+  line shows no date rather than borrowing the pass's — and a recorded return still cannot be
+  undone anywhere in this app.
+- **The Total row is gone; a progress line replaces it** ("3 of 5 items returned · 60%",
+  `returnProgress`), and **`pendingItemCount` is back** behind the mock's amber strip: "2 items
+  still need attention before this pass can be closed", whose *Review pending items* button opens
+  the first line still owing — drawn for a guard alone, because nobody else may record a return.
+- **An NRGP keeps its Status column ("Closed") and loses the Action one** — the 2026-08-18 call
+  stands.
+- **ONE return date governs the whole pass** (client: "the return date of all individual items in
+  the pass should be the expected return date of the entire pass"). The per-item date input is
+  gone from the raise form and **`earliestReturnDate` is deleted**: the pass-level field is the
+  INPUT now, and `raise_pass` is sent that same date on `p_expected_return_date` AND on every
+  element of `p_items`. `gate_passes.expected_return_date` never moved — it is still what
+  `v_gate_passes` grades `is_overdue` / `due_state` from. The Material Items grid is one template
+  again (no `showReturnDate` variant): **Item Name · Description · Serial / ID · Purpose · Qty ·
+  Unit · Value (₹)**. The printed slip states the deadline once instead of listing it per line,
+  and `useReraisePass` copies the PASS's date (blanked when it has already passed) plus each
+  line's serial.
+- Pinned by `passRecordItemsTable.test.tsx` (11) plus rewrites in `nrgpItemAction`,
+  `gateConsoleSearch`, `passRecordEverywhere` and `passRecordReturns` (which gained two cases for
+  the attention strip).
+- **NOT seen signed-in in a browser**: `npm run check` only.
+
+**Earlier (2026-08-19, seventh pass): a counted unit takes no fraction, a pass has ONE
 timeline, and the guard's Approve OUT is at the FOOT of the record.** Frontend only — no
 migration, no new RPC, no query change.
 

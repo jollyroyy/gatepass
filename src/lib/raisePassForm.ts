@@ -16,12 +16,18 @@ export function todayStr(): string {
 
 /** Everything wrong with the form, keyed the way the inputs are named.
  *
- *  THE RETURN DATE IS PER LINE, NOT PER PASS. Migration `019` replaced the
- *  pass-level field with per-item dates; for two months after it, this function
- *  still demanded a pass-level `expected_return_date` that the form no longer
- *  rendered, so every RGP submit failed validation on a field nobody could see
- *  or fill. Never reintroduce a pass-level check here — the pass-level column is
- *  DERIVED (see `earliestReturnDate`). */
+ *  THE RETURN DATE IS PASS-LEVEL AGAIN, NOT PER LINE. Migration `019` replaced
+ *  a pass-level field with per-item dates; for two months after it, this
+ *  function still demanded a pass-level `expected_return_date` the form no
+ *  longer rendered, so every RGP submit failed validation on a field nobody
+ *  could see or fill — that bug is why the per-item shape existed here at all.
+ *  The client has now decided the OPPOSITE: one deadline governs the whole
+ *  pass ("the return date of all individual items in the pass should be the
+ *  expected return date of the entire pass", 2026-08-19), so the pass-level
+ *  field is once again the INPUT, and every item is written with the same
+ *  date rather than collecting its own. The database column this validates —
+ *  `gate_passes.expected_return_date` — never moved; it is still the one
+ *  `gatepass.v_gate_passes` grades `is_overdue` / `due_state` from. */
 export function validateRaiseForm(form: NewGatePass, hasDepartment: boolean, today: string): FormErrors {
   const errs: FormErrors = {};
   if (!form.visitor_name.trim()) errs.visitor_name = "Authorized person's name is required.";
@@ -50,24 +56,13 @@ export function validateRaiseForm(form: NewGatePass, hasDepartment: boolean, tod
   if (!hasDepartment) errs.department_id = 'You are not assigned to any department.';
 
   if (requiresReturnDate(form.type)) {
-    form.items.forEach((item, idx) => {
-      if (!item.expected_return_date) {
-        errs[`item_${idx}_expected_return_date`] = 'Return date is required for a Returnable Gate Pass.';
-      } else if (item.expected_return_date < today) {
-        errs[`item_${idx}_expected_return_date`] = 'Return date cannot be in the past.';
-      }
-    });
+    if (!form.expected_return_date) {
+      errs.expected_return_date = 'Return date is required for a Returnable Gate Pass.';
+    } else if (form.expected_return_date < today) {
+      errs.expected_return_date = 'Return date cannot be in the past.';
+    }
   }
   return errs;
-}
-
-/** The pass is due when its FIRST line is due. `gatepass.v_gate_passes` computes
- *  `is_overdue` and `due_state` off the pass-level column, so it must be
- *  populated even though the authoritative dates now live per item. */
-export function earliestReturnDate(form: NewGatePass): string | null {
-  if (!requiresReturnDate(form.type)) return null;
-  const dates = form.items.map((i) => i.expected_return_date).filter(Boolean);
-  return dates.length > 0 ? dates.slice().sort()[0] : null;
 }
 
 /** The `{"n","a","v"}` blob for `visitor_company`, or null when the HOD filled in

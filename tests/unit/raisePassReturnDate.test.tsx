@@ -1,8 +1,13 @@
 // NRGP is outward-only, permanent material — nothing ever comes back, so it
 // has no return date to set (see requiresReturnDate() in lib/passTypes.ts).
-// RaisePass must hide the Expected Return Date card and each item's per-item return
-// date input the moment NRGP is selected, not just for the RGP-only backend
-// validation that already existed.
+// RaisePass must hide the pass-level Expected Return Date field the moment
+// NRGP is selected, not just for the RGP-only backend validation that
+// already existed.
+//
+// 2026-08-19: the date is pass-level again, not per item (client: "the
+// return date of all individual items in the pass should be the expected
+// return date of the entire pass"), so there is exactly ONE such input to
+// show or hide.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -54,19 +59,19 @@ beforeEach(() => {
 });
 
 describe('RaisePass — return date visibility by pass type', () => {
-  it('shows the Expected Return Date card and a per-item return date input for RGP (the default type)', async () => {
-    const { container } = renderRaisePass();
-    await waitFor(() => expect(screen.getByText('Expected Return Date')).toBeInTheDocument());
-    expect(container.querySelectorAll('input[type="date"]').length).toBeGreaterThan(0);
+  it('shows exactly one Expected Return Date input for RGP (the default type)', async () => {
+    renderRaisePass();
+    await waitFor(() => expect(screen.getByLabelText('Expected Return Date')).toBeInTheDocument());
+    expect(document.querySelectorAll('input[type="date"]').length).toBe(1);
   });
 
-  it('hides the Expected Return Date card and every per-item return date input once NRGP is selected', async () => {
-    const { container } = renderRaisePass();
-    await waitFor(() => expect(screen.getByText('Expected Return Date')).toBeInTheDocument());
+  it('hides the Expected Return Date input once NRGP is selected', async () => {
+    renderRaisePass();
+    await waitFor(() => expect(screen.getByLabelText('Expected Return Date')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: /NRGP/ }));
 
-    await waitFor(() => expect(screen.queryByText('Expected Return Date')).not.toBeInTheDocument());
-    expect(container.querySelectorAll('input[type="date"]').length).toBe(0);
+    await waitFor(() => expect(screen.queryByLabelText('Expected Return Date')).not.toBeInTheDocument());
+    expect(document.querySelectorAll('input[type="date"]').length).toBe(0);
   });
 });

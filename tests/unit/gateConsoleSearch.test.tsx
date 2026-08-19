@@ -185,7 +185,7 @@ describe('Search Pass — an exact query opens the whole record in place', () =>
     expect(rpcCalls).not.toContain('lookup_pass');
   });
 
-  it('sums the total row off the very rows printed above it', async () => {
+  it('lists every material line, and offers the gate the entry', async () => {
     await renderConsole();
     search('RGP-OUT-20260818-0481');
 
@@ -193,13 +193,10 @@ describe('Search Pass — an exact query opens the whole record in place', () =>
     expect(screen.getByText('Dell Precision Laptop 5570')).toBeInTheDocument();
     expect(screen.getByText('Bosch Cordless Drill')).toBeInTheDocument();
 
-    const total = within(screen.getByRole('table')).getAllByRole('row').at(-1)!;
-    expect(within(total).getByText('Total')).toBeInTheDocument();
-
     // A guard is the only reader who may record a return; the console is a
     // guard's screen, so the open line offers the entry and the closed one
     // offers nothing.
-    expect(screen.getByRole('button', { name: '+ Add Return' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mark return' })).toBeInTheDocument();
   });
 
   // One rail now (2026-08-19): the approval ladder and the gate's activity are

@@ -3,18 +3,16 @@
 // One `.item-grid` per row, sharing the exact same column template as the
 // header in MaterialItemsCard.tsx via `itemGridStyle()` — this is what keeps
 // every row's fields lined up into real columns instead of drifting per row.
-// The Expected Return Date column HOLDS ITS PLACE for RGP and is simply omitted (not
-// rendered blank) for NRGP, so it is never the reason two rows disagree on
-// width; `showReturnDate` is passed straight through to the shared grid
-// template so the row and the header can never disagree about it either.
+// THERE IS NO RETURN-DATE COLUMN HERE ANY MORE (client, 2026-08-19: "the
+// return date of all individual items in the pass should be the expected
+// return date of the entire pass") — the deadline is collected once, on
+// PassDetailsCards, and every item is written with that same date at submit.
 //
 // Below `md` the grid collapses to one column and each field shows its own
 // name via `data-label` (CSS-generated content in `.item-cell::before` —
 // see index.css for why this is not a real `<label>` element). The
 // accessible name for every input comes from `aria-label` regardless of
-// breakpoint, which is also what lets `getByLabelText('Expected Return Date')` find
-// each row's date input without a per-row visible label duplicating the
-// column header's text.
+// breakpoint.
 import React from 'react';
 import type { NewGatePassItem } from '../../types';
 import { isWholeUnit, unitLabel } from '../../lib/units';
@@ -31,36 +29,31 @@ interface MaterialItemRowErrors {
   name?: string;
   description?: string;
   purpose?: string;
-  expected_return_date?: string;
   quantity?: string;
 }
 
 interface MaterialItemRowProps {
   item: NewGatePassItem;
   idx: number;
-  showReturnDate: boolean;
   errors: MaterialItemRowErrors;
   onChange: (field: keyof NewGatePassItem, value: string) => void;
   onRemove: () => void;
   canRemove: boolean;
-  todayStr: string;
 }
 
 export default function MaterialItemRow({
   item,
   idx,
-  showReturnDate,
   errors,
   onChange,
   onRemove,
   canRemove,
-  todayStr,
 }: MaterialItemRowProps): React.ReactElement {
   return (
     <div className="flex flex-col gap-1.5 p-3 bg-surface-50 rounded-lg">
       <span className="text-xs font-bold text-navy-500">Item #{idx + 1}</span>
 
-      <div className="item-grid" style={itemGridStyle(showReturnDate)}>
+      <div className="item-grid" style={itemGridStyle()}>
         <div className="item-cell" data-label="Item Name">
           <input
             className="input text-sm w-full"
@@ -81,6 +74,16 @@ export default function MaterialItemRow({
             onChange={(e) => onChange('description', e.target.value)}
           />
           {errors.description && <p className="field-error">{errors.description}</p>}
+        </div>
+
+        <div className="item-cell" data-label="Serial / ID">
+          <input
+            className="input text-sm w-full"
+            aria-label="Serial / ID"
+            placeholder="Serial / ID (optional)"
+            value={item.serial_no}
+            onChange={(e) => onChange('serial_no', e.target.value)}
+          />
         </div>
 
         <div className="item-cell" data-label="Purpose">
@@ -142,20 +145,6 @@ export default function MaterialItemRow({
             </span>
           </div>
         </div>
-
-        {showReturnDate && (
-          <div className="item-cell" data-label="Expected Return Date">
-            <input
-              type="date"
-              className="input text-sm w-full"
-              aria-label="Expected Return Date"
-              value={item.expected_return_date}
-              onChange={(e) => onChange('expected_return_date', e.target.value)}
-              min={todayStr}
-            />
-            {errors.expected_return_date && <p className="field-error">{errors.expected_return_date}</p>}
-          </div>
-        )}
 
         {/* Remove control's own fixed-width column — always occupies the
             slot so it never floats after variable-width content, even when

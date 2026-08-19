@@ -188,29 +188,14 @@ export default function PassPrint(): React.ReactElement {
             </table>
           </div>
 
-          {/* Per-item Return Dates (RGP only) */}
-          {isRgp && items.some((i) => i.expected_return_date) && (
-            <div className="mb-4">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-black mb-1">Return Dates</p>
-              <table className="w-full border-collapse text-[11px]">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border border-black px-2 py-1 font-semibold text-black text-left w-5">#</th>
-                    <th className="border border-black px-2 py-1 font-semibold text-black text-left">Item</th>
-                    <th className="border border-black px-2 py-1 font-semibold text-black text-left">Expected Return Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.filter((i) => i.expected_return_date).map((item) => (
-                    <tr key={item.id}>
-                      <td className="border border-black px-2 py-1 text-black text-center">{item.line_no}</td>
-                      <td className="border border-black px-2 py-1 text-black">{item.name}</td>
-                      <td className="border border-black px-2 py-1 text-black font-mono">{formatDateOnly(item.expected_return_date)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {/* ONE deadline for the whole pass (client, 2026-08-19: every item
+              now carries the pass's own date, so a per-item breakdown would
+              only repeat the same date once per row). Stated once, plainly —
+              the slip must read on a cheap mono laser with no colour. */}
+          {isRgp && pass.expected_return_date && (
+            <p className="text-[11px] font-bold text-black mb-4">
+              Expected Return Date: <span className="font-mono font-normal">{formatDateOnly(pass.expected_return_date)}</span>
+            </p>
           )}
 
           {/* Seven signatures over three rows — the approval chain, then the

@@ -30,6 +30,7 @@ import {
 } from '../../lib/returnDraft';
 import { recordDraftedReturns } from '../../lib/recordReturns';
 import { isReturnClosed } from '../../lib/approvalLadder';
+import { pendingItemCount } from '../../lib/passRecordView';
 import { safeErrorMessage } from '../../lib/errors';
 import PassRecordItems from './PassRecordItems';
 import PassReturnBox from './PassReturnBox';
@@ -52,6 +53,13 @@ export default function PassRecordReturns({
   const [error, setError] = useState<string | null>(null);
 
   const staged = stagedCount(draft);
+  // Counted on the draft-inclusive quantities, so staging the last line drops
+  // the strip immediately — the guard is looking at what the press will do.
+  const stillOpen = pendingItemCount(
+    items.map((i) => ({ ...i, returned_qty: effectiveReturned(i, draft) })),
+    pass.type,
+  );
+  const firstOpen = items.find((i) => effectiveOutstanding(i, draft) > 0) ?? null;
 
   async function commit(): Promise<void> {
     setBusy(true);
@@ -88,6 +96,25 @@ export default function PassRecordReturns({
           <span className="font-semibold">
             Fully returned and closed — nothing on this pass can be edited.
           </span>
+        </div>
+      )}
+
+      {/* The mock-up's amber strip. It states the one condition that keeps this
+          pass open, and its button goes straight to the first line holding it
+          up — drawn only for a guard, because nobody else can record a return
+          and a button that always fails is worse than no button. */}
+      {stillOpen > 0 && !isReturnClosed(pass) && (
+        <div className="alert-warning flex flex-wrap items-center justify-between gap-3" data-testid="items-need-attention">
+          <span>
+            <span className="font-semibold">{stillOpen}</span>{' '}
+            {stillOpen === 1 ? 'item still needs' : 'items still need'} attention before this pass
+            can be closed
+          </span>
+          {canRecord && firstOpen && (
+            <button type="button" className="btn-primary" onClick={() => setOpen(firstOpen)}>
+              Review pending items
+            </button>
+          )}
         </div>
       )}
 

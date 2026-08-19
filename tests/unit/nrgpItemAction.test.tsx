@@ -7,7 +7,7 @@
 //
 // Client, 2026-08-19: the record is where a return is ENTERED, per line and per
 // quantity, and "once it is marked as returned, nothing can be edited anymore".
-// So the Action column carries exactly one thing — "+ Add Return" — and it is
+// So the Action column carries exactly one thing — "Mark return" — and it is
 // drawn only for a guard, only on an RGP line that still owes material.
 // Everything else reads NA.
 //
@@ -97,22 +97,23 @@ describe('an RGP line carries its own return entry', () => {
   it('draws the mock-up\'s quantity columns, with the unit on every line', () => {
     renderItems(RGP, [line()]);
     const heads = screen.getAllByRole('columnheader').map((h) => h.textContent);
+    // The client's latest mock-up (2026-08-19): ONE Quantity column naming the
+    // line's own unit, a real Serial / ID column, and no Unit column at all.
     expect(heads).toEqual([
-      '#', 'Item Name', 'Description', 'Unit', 'Qty Issued',
-      'Qty Returned', 'Pending Qty', 'Value', 'Status', 'Action',
+      '#', 'Item', 'Description', 'Serial / ID', 'Quantity', 'Value',
+      'Return Status', 'Action',
     ]);
-    expect(screen.getByText('Numbers')).toBeInTheDocument();
   });
 
-  it('offers + Add Return to a GUARD on a line that still owes material', () => {
+  it('offers Mark return to a GUARD on a line that still owes material', () => {
     renderItems(RGP, [line({ returned_qty: 0 }), line({ id: 'i2', returned_qty: 1 })], true);
-    expect(screen.getAllByRole('button', { name: '+ Add Return' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Mark return' })).toHaveLength(2);
     expect(screen.queryByText('NA')).not.toBeInTheDocument();
   });
 
   it('offers nobody else anything — apply_item_returns refuses them', () => {
     renderItems(RGP, [line({ returned_qty: 0 })], false);
-    expect(screen.queryByRole('button', { name: /Add Return/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mark return/ })).not.toBeInTheDocument();
     expect(screen.getByText('NA')).toBeInTheDocument();
   });
 
@@ -122,15 +123,13 @@ describe('an RGP line carries its own return entry', () => {
     expect(screen.getByText('NA')).toBeInTheDocument();
   });
 
-  it('totals the same figures it printed above them', () => {
+  it('draws no Total row — the mock-up carries a progress line instead', () => {
     renderItems(RGP, [
       line({ id: 'a', quantity: 10, returned_qty: 4, approx_value: 1000 }),
       line({ id: 'b', quantity: 5, returned_qty: 0, approx_value: 500 }),
     ]);
-    const total = within(screen.getByRole('table')).getAllByRole('row').at(-1)!;
-    expect(within(total).getByText('15')).toBeInTheDocument();
-    expect(within(total).getByText('4')).toBeInTheDocument();
-    expect(within(total).getByText('11')).toBeInTheDocument();
-    expect(within(total).getByText('₹1,500')).toBeInTheDocument();
+    const last = within(screen.getByRole('table')).getAllByRole('row').at(-1)!;
+    expect(within(last).queryByText('Total')).not.toBeInTheDocument();
+    expect(screen.getByText('0 of 2 items returned')).toBeInTheDocument();
   });
 });

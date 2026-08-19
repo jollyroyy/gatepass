@@ -105,7 +105,7 @@ beforeEach(() => {
 describe('recording a return on the pass record', () => {
   it('stages a PARTIAL quantity without touching the database', async () => {
     await renderAs('guard');
-    fireEvent.click(screen.getByRole('button', { name: '+ Add Return' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mark return' }));
 
     fireEvent.change(screen.getByLabelText('Return Now*'), { target: { value: '800' } });
     fireEvent.change(screen.getByLabelText('Remarks (optional)'), { target: { value: 'two drums short' } });
@@ -114,14 +114,16 @@ describe('recording a return on the pass record', () => {
     // 800 of 1,000 litres is the whole point — and none of it has been sent.
     await waitFor(() => expect(screen.getByText('Not recorded yet')).toBeInTheDocument());
     expect(rpc).not.toHaveBeenCalledWith('apply_item_returns', expect.anything());
+    // One Quantity column now (client, 2026-08-19): the issued figure, then the
+    // second number under it — what has actually come back — and what is left.
     const table = within(screen.getByRole('table'));
-    expect(table.getAllByText('800').length).toBeGreaterThan(0);
-    expect(table.getAllByText('200').length).toBeGreaterThan(0);
+    expect(table.getByText('Returned 800 ltr')).toBeInTheDocument();
+    expect(table.getByText('Pending 200 ltr')).toBeInTheDocument();
   });
 
   it('sends exactly one call, carrying the line and a remark naming it', async () => {
     await renderAs('guard');
-    fireEvent.click(screen.getByRole('button', { name: '+ Add Return' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mark return' }));
     fireEvent.change(screen.getByLabelText('Return Now*'), { target: { value: '800' } });
     fireEvent.change(screen.getByLabelText('Remarks (optional)'), { target: { value: 'two drums short' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirm Return' }));
@@ -141,7 +143,7 @@ describe('recording a return on the pass record', () => {
 
   it('refuses more than the line still owes, before the press rather than after', async () => {
     await renderAs('guard');
-    fireEvent.click(screen.getByRole('button', { name: '+ Add Return' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mark return' }));
     fireEvent.change(screen.getByLabelText('Return Now*'), { target: { value: '1200' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirm Return' }));
 
@@ -153,6 +155,25 @@ describe('recording a return on the pass record', () => {
     await renderAs('hod');
     expect(screen.queryByRole('button', { name: /Add Return/ })).not.toBeInTheDocument();
     expect(screen.getByText('NA')).toBeInTheDocument();
+  });
+});
+
+describe('the attention strip', () => {
+  // The mock-up's amber strip: the one condition keeping this pass open, said
+  // in words, with the way to clear it beside it — and only for the guard, who
+  // is the only reader `apply_item_returns` accepts.
+  it('names how many lines still owe material, and sends a guard to the first', async () => {
+    await renderAs('guard');
+    const strip = within(await screen.findByTestId('items-need-attention'));
+    expect(strip.getByText(/still needs attention before this pass can be closed/)).toBeInTheDocument();
+    fireEvent.click(strip.getByRole('button', { name: 'Review pending items' }));
+    expect(screen.getByLabelText('Return Now*')).toBeInTheDocument();
+  });
+
+  it('offers an HOD no button — nobody but the gate can record a return', async () => {
+    await renderAs('hod');
+    const strip = within(await screen.findByTestId('items-need-attention'));
+    expect(strip.queryByRole('button')).not.toBeInTheDocument();
   });
 });
 

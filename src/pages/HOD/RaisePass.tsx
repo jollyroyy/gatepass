@@ -7,13 +7,13 @@
 // AFTER the replacement is in the database — see that module's header for why
 // the order matters.
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { gp, pub, supabase } from '../../supabaseClient';
 import type { GatePassView, NewGatePass, NewGatePassItem, PassType, VendorProfile } from '../../types';
 import { EMPTY_ITEM } from '../../types';
 import { requiresReturnDate } from '../../lib/passTypes';
 import {
   validateRaiseForm,
-  earliestReturnDate,
   packVendor,
   todayStr,
   type FormErrors,
@@ -33,8 +33,17 @@ interface DeptOption {
 }
 
 export default function RaisePass(): React.ReactElement {
+  // The dashboard's two Quick Action tiles are this one screen opened two ways
+  // (`/raise?type=NRGP`, `/raise?type=RGP`), so a tile that says "Raise NRGP"
+  // lands on an NRGP form. Read ONCE, as the initial state: the reader may
+  // change the type with the selector afterwards, and a `useEffect` that kept
+  // resetting it from the URL would fight them. Anything other than the two
+  // legal codes falls back to RGP rather than seeding an illegal pass.
+  const [params] = useSearchParams();
+  const initialType: PassType = params.get('type') === 'NRGP' ? 'NRGP' : 'RGP';
+
   const [form, setForm] = useState<NewGatePass>({
-    type: 'RGP',
+    type: initialType,
     direction: 'out',
     department_id: '',
     visitor_name: '',
@@ -117,11 +126,11 @@ export default function RaisePass(): React.ReactElement {
     setForm((f) => ({
       ...f,
       type,
+      // NRGP is permanent — nothing comes back, so the pass-level deadline is
+      // cleared the moment it's selected. Item rows carry no date of their own
+      // any more (every line takes the pass-level date), so there is nothing
+      // per-item left to clear here.
       expected_return_date: requiresReturnDate(type) ? f.expected_return_date : '',
-      items: f.items.map((item) => ({
-        ...item,
-        expected_return_date: requiresReturnDate(type) ? item.expected_return_date : '',
-      })),
     }));
     setErrors((e) => ({ ...e, expected_return_date: undefined }));
   }
@@ -176,7 +185,7 @@ export default function RaisePass(): React.ReactElement {
         p_visitor_name: form.visitor_name.trim(),
         p_visitor_company: packVendor(form),
         p_vehicle_number: form.vehicle_number.trim() || null,
-        p_expected_return_date: earliestReturnDate(form),
+        p_expected_return_date: requiresReturnDate(form.type) ? (form.expected_return_date || null) : null,
         p_items: form.items.map((item) => ({
           name: item.name.trim(),
           description: item.description.trim(),
@@ -184,7 +193,12 @@ export default function RaisePass(): React.ReactElement {
           quantity: Number(item.quantity),
           unit: item.unit,
           approx_value: item.approx_value ? Number(item.approx_value) : null,
-          expected_return_date: requiresReturnDate(form.type) ? (item.expected_return_date || null) : null,
+          // Every line carries the SAME date as the pass — client, 2026-08-19:
+          // "the return date of all individual items in the pass should be the
+          // expected return date of the entire pass." There is no per-item
+          // input any more to disagree with it.
+          expected_return_date: requiresReturnDate(form.type) ? (form.expected_return_date || null) : null,
+          serial_no: item.serial_no.trim() || null,
         })),
       });
       if (error) throw error;
@@ -265,11 +279,9 @@ export default function RaisePass(): React.ReactElement {
         <MaterialItemsCard
           items={form.items}
           errors={errors}
-          showReturnDate={requiresReturnDate(form.type)}
           onItemChange={updateItem}
           onRemoveItem={removeItem}
           onAddItem={addItem}
-          todayStr={todayStr()}
         />
 
         {submitError && <div className="alert-error">{submitError}</div>}

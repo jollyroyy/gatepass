@@ -20,9 +20,9 @@
 //                 re-raise into a department this person no longer heads.
 //   a return date that has already passed — `validate()` refuses one, so
 //                 copying it would hand the HOD a form that cannot be submitted
-//                 and an error under a field they did not fill in. The line is
-//                 copied with the date blank instead, which is a question, not
-//                 a fault.
+//                 and an error under a field they did not fill in. The
+//                 pass-level date is left blank instead, which is a question,
+//                 not a fault.
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { gp } from '../../supabaseClient';
@@ -72,11 +72,7 @@ export function useReraisePass(todayStr: string): ReraiseSource & { sourceId: st
           name: i.name ?? '',
           description: i.description ?? '',
           purpose: i.purpose ?? '',
-          // A date in the past is dropped rather than copied — see the header.
-          expected_return_date:
-            requiresReturnDate(p.type) && i.expected_return_date && i.expected_return_date >= todayStr
-              ? i.expected_return_date
-              : '',
+          serial_no: i.serial_no ?? '',
           quantity: String(i.quantity ?? 1),
           unit: i.unit ?? 'nos',
           approx_value: i.approx_value === null || i.approx_value === undefined ? '' : String(i.approx_value),
@@ -90,6 +86,13 @@ export function useReraisePass(todayStr: string): ReraiseSource & { sourceId: st
           company_address: vendor.address,
           visitor_phone: vendor.phone,
           vehicle_number: p.vehicle_number ?? '',
+          // A date in the past is dropped rather than copied — see the header.
+          // This is now the PASS's own deadline, not a line's — one field, not
+          // one per item.
+          expected_return_date:
+            requiresReturnDate(p.type) && p.expected_return_date && p.expected_return_date >= todayStr
+              ? p.expected_return_date
+              : '',
           // A pass with no lines is not a thing this app can create, but a read
           // that returned none must still leave the form usable rather than
           // rendering zero rows and no way to add one.

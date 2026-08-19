@@ -3,6 +3,8 @@
 import React from 'react';
 import type { NewGatePass, PassType, VendorProfile } from '../../types';
 import PassTypeSelector from './PassTypeSelector';
+import { requiresReturnDate } from '../../lib/passTypes';
+import { todayStr } from '../../lib/raisePassForm';
 
 interface PassDetailsCardsProps {
   form: NewGatePass;
@@ -32,6 +34,24 @@ export default function PassDetailsCards({
           <label className="label">Pass Type</label>
           <PassTypeSelector value={form.type} onChange={onTypeChange} />
         </div>
+        {/* ONE deadline for the whole pass — client, 2026-08-19: "the return
+            date of all individual items in the pass should be the expected
+            return date of the entire pass." Every item is written with this
+            same date at submit; there is no per-item input any more. */}
+        {requiresReturnDate(form.type) && (
+          <div className="mt-4">
+            <label className="label">Expected Return Date</label>
+            <input
+              type="date"
+              className="input"
+              aria-label="Expected Return Date"
+              value={form.expected_return_date}
+              onChange={(e) => onUpdate('expected_return_date', e.target.value)}
+              min={todayStr()}
+            />
+            {errors.expected_return_date && <p className="field-error">{errors.expected_return_date}</p>}
+          </div>
+        )}
       </div>
 
       {/* Authorized Person Details */}

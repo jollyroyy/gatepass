@@ -11,6 +11,12 @@
 // never touched — the exact shape of the 2026-08-04 bug where an RGP could not
 // be raised at all. A stale date is therefore dropped, which is a question
 // rather than a fault.
+//
+// 2026-08-19: the return date is PASS-LEVEL again (client: "the return date of
+// all individual items in the pass should be the expected return date of the
+// entire pass"), so it is the source PASS's own `expected_return_date` that is
+// carried or dropped here — never a per-item one. Each item's `serial_no` is
+// carried across unconditionally; it has no "in the past" problem to guard.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
@@ -29,6 +35,7 @@ const SOURCE: GatePassView = {
   visitor_name: 'Alice Contractor',
   visitor_company: JSON.stringify({ n: 'BSC Services', a: '12 Park St', v: '9876543210' }),
   vehicle_number: 'WB 12 3456',
+  expected_return_date: TOMORROW,
   created_at: new Date().toISOString(),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any;
@@ -37,14 +44,12 @@ const SOURCE_ITEMS = [
   {
     id: 'i1', gate_pass_id: 'p-flagged', line_no: 1, name: 'Ladder',
     description: 'Aluminium 12ft', purpose: 'Signage work', quantity: 3, unit: 'nos',
-    approx_value: 4500, expected_return_date: TOMORROW,
+    approx_value: 4500, serial_no: 'SN-LADDER-1',
   },
   {
     id: 'i2', gate_pass_id: 'p-flagged', line_no: 2, name: 'Drill',
     description: 'Bosch GSB 13mm', purpose: 'Signage work', quantity: 1, unit: 'nos',
-    approx_value: 7200,
-    // Already due — a faithful copy would hand back an unsubmittable form.
-    expected_return_date: '2026-01-02',
+    approx_value: 7200, serial_no: null,
   },
 ];
 
@@ -141,7 +146,7 @@ describe('the raise form, arrived at from a mismatch', () => {
     expect(screen.getByText(/Two ladders loaded, three on the slip/)).toBeInTheDocument();
   });
 
-  it('fills in the vendor, the authorized person and every material line', async () => {
+  it('fills in the vendor, the authorized person, every material line and its serial', async () => {
     renderReraise();
     await waitFor(() => expect(screen.getByDisplayValue('Alice Contractor')).toBeInTheDocument());
     // `visitor_company` is a packed `{n,a,v}` blob — unpacked back into three
@@ -154,24 +159,33 @@ describe('the raise form, arrived at from a mismatch', () => {
     expect(screen.getByDisplayValue('Ladder')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Drill')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Aluminium 12ft')).toBeInTheDocument();
+
+    // The first line's serial carries across; the second's null becomes ''.
+    expect(screen.getByDisplayValue('SN-LADDER-1')).toBeInTheDocument();
+    const serials = screen.getAllByLabelText('Serial / ID') as HTMLInputElement[];
+    expect(serials.map((s) => s.value)).toEqual(['SN-LADDER-1', '']);
   });
 
-  it('carries a return date that is still ahead and BLANKS one that has passed', async () => {
+  it('carries the pass-level return date when it is still ahead', async () => {
     renderReraise();
     await waitFor(() => expect(screen.getByDisplayValue('Ladder')).toBeInTheDocument());
 
-    const dates = screen.getAllByLabelText(/Expected Return Date/i) as HTMLInputElement[];
-    expect(dates.map((d) => d.value)).toEqual([TOMORROW, '']);
+    expect((screen.getByLabelText('Expected Return Date') as HTMLInputElement).value).toBe(TOMORROW);
+  });
+
+  it('blanks the pass-level return date when the source pass has already passed it', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sourceRow = { ...SOURCE, expected_return_date: '2026-01-02' } as any;
+    renderReraise();
+    await waitFor(() => expect(screen.getByDisplayValue('Ladder')).toBeInTheDocument());
+
+    expect((screen.getByLabelText('Expected Return Date') as HTMLInputElement).value).toBe('');
   });
 
   it('voids the mismatched pass ONLY after the replacement is in the database', async () => {
     renderReraise();
     await waitFor(() => expect(screen.getByDisplayValue('Ladder')).toBeInTheDocument());
 
-    // The stale line needs a date before the form will submit — which is the
-    // point of blanking it.
-    const dates = screen.getAllByLabelText(/Expected Return Date/i) as HTMLInputElement[];
-    fireEvent.change(dates[1], { target: { value: TOMORROW } });
     fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
 
     await waitFor(() => expect(rpcCalls.some((c) => c.fn === 'hod_review_flagged_pass')).toBe(true));
@@ -192,8 +206,6 @@ describe('the raise form, arrived at from a mismatch', () => {
     supersedeError = { message: 'permission denied' };
     renderReraise();
     await waitFor(() => expect(screen.getByDisplayValue('Ladder')).toBeInTheDocument());
-    const dates = screen.getAllByLabelText(/Expected Return Date/i) as HTMLInputElement[];
-    fireEvent.change(dates[1], { target: { value: TOMORROW } });
     fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
 
     expect(await screen.findByText(/could not be closed/)).toBeInTheDocument();
@@ -222,8 +234,6 @@ describe('the raise form, arrived at from an EXPIRED pass', () => {
     renderReraise();
     await waitFor(() => expect(screen.getByDisplayValue('Ladder')).toBeInTheDocument());
 
-    const dates = screen.getAllByLabelText(/Expected Return Date/i) as HTMLInputElement[];
-    fireEvent.change(dates[1], { target: { value: TOMORROW } });
     fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
 
     await waitFor(() => expect(rpcCalls.some((c) => c.fn === 'hod_void_expired_pass')).toBe(true));
