@@ -9,48 +9,100 @@
 // button that cannot be pressed. The whole backlog of any date is one click
 // away on Overdue Items.
 //
+// THIS IS WHERE A RETURN IS ACTUALLY RECORDED, line by line and quantity by
+// quantity: 800 of the 1,000 litres that went out is a complete answer, and the
+// row's own panel takes it. The commit is a deliberate second press inside that
+// panel — `apply_item_returns` has no undo — and once it resolves, `reload`
+// re-reads both queues so the list agrees with the database rather than with a
+// client-side patch of it.
+//
 // There is no type tab strip and no Type filter: only an RGP comes back, so a
-// control with one live option is a control that teaches nothing. The search is
-// the same GLOBAL one the Pending OUT page carries — it is not a filter over
-// these rows, and a pass number typed here reaches the whole register.
+// control with one live option is a control that teaches nothing. The tabs are
+// STATUS instead. The search is the same GLOBAL one the Pending OUT page
+// carries — it is not a filter over these rows, and a pass number typed here
+// reaches the whole register.
 import React, { useMemo, useState } from 'react';
 import GuardPageHeader from '../../components/guard/GuardPageHeader';
 import GuardPager from '../../components/guard/GuardPager';
 import GuardToolbar from '../../components/guard/GuardToolbar';
+import PendingReturnFilterBar from '../../components/guard/PendingReturnFilterBar';
 import PendingReturnTable from '../../components/guard/PendingReturnTable';
+import ReturnLegend from '../../components/guard/ReturnLegend';
 import { useGuardSearch } from '../../components/guard/useGuardSearch';
 import { pendingReturnsOf } from '../../lib/guardBoard';
-import { DEFAULT_ROWS_PER_PAGE } from '../../lib/pendingOutFilters';
+import { DEFAULT_ROWS_PER_PAGE, scopeOptions } from '../../lib/pendingOutFilters';
+import {
+  applyReturnFilters,
+  DEFAULT_RETURN_FILTERS,
+  RETURN_TABS,
+  RETURN_TAB_LABELS,
+  returnTabCounts,
+  type PendingReturnFilters,
+  type ReturnTab,
+} from '../../lib/pendingReturnFilters';
 import { pageOf } from '../../lib/scheduledReturns';
 import { useGuardQueues } from '../../lib/useGuardQueues';
 
 export default function PendingReturnsPage(): React.ReactElement {
-  const { openReturns, loading, error } = useGuardQueues('returns');
+  const { openReturns, loading, error, reload } = useGuardQueues('returns');
+  const [filters, setFilters] = useState<PendingReturnFilters>(DEFAULT_RETURN_FILTERS);
   const [page, setPage] = useState(1);
   const [size, setSize] = useState<number>(DEFAULT_ROWS_PER_PAGE);
+  // Stamped once, at mount: a clock that ticks re-renders the whole table every
+  // second for a fact that changes by the minute.
   const [stamp] = useState(() => new Date().toISOString());
 
-  const search = useGuardSearch('Search by Pass No., Party, Mobile No.…');
+  const search = useGuardSearch('Search by Pass No., Vendor, Mobile No.…');
 
   const rows = useMemo(() => pendingReturnsOf(openReturns), [openReturns]);
-  const current = pageOf(rows, page, size);
+  const counts = useMemo(() => returnTabCounts(rows), [rows]);
+  const { parties, departments } = useMemo(() => scopeOptions(rows), [rows]);
+  const filtered = useMemo(() => applyReturnFilters(rows, filters), [rows, filters]);
+  const current = pageOf(filtered, page, size);
+
+  // Narrowing must not leave the reader on page 9 of 2 — `pageOf` clamps, and
+  // this puts the control back in step with what it clamped to.
+  function narrow(next: PendingReturnFilters): void {
+    setFilters(next);
+    setPage(1);
+  }
 
   return (
     <div className="gb-board">
       <GuardPageHeader
         title="Pending RGP Return (Needs Verification)"
-        subtitle="Verify material coming back that is due today or already late."
+        subtitle="Verify returned materials for RGP passes."
         glyph="returned"
         tone="blue"
         stamp={stamp}
       />
 
-      <GuardToolbar search={search.bar} />
+      <GuardToolbar
+        tabs={{
+          label: 'Return status',
+          items: RETURN_TABS.map((t) => ({
+            key: t,
+            label: RETURN_TAB_LABELS[t],
+            count: counts[t],
+          })),
+          active: filters.tab,
+          onSelect: (tab) => narrow({ ...filters, tab: tab as ReturnTab }),
+        }}
+        search={search.bar}
+      />
 
       {search.notice}
 
       {search.results ?? (
         <>
+          <PendingReturnFilterBar
+            filters={filters}
+            parties={parties}
+            departments={departments}
+            onChange={narrow}
+            onReset={() => narrow(DEFAULT_RETURN_FILTERS)}
+          />
+
           {error && <div className="gb-alert">{error}</div>}
 
           <section className="gb-card gb-panel">
@@ -59,11 +111,15 @@ export default function PendingReturnsPage(): React.ReactElement {
                 <div className="gb-skeleton" />
               </div>
             ) : current.total === 0 ? (
-              <div className="gb-empty">Nothing is due back today, and nothing is late.</div>
+              <div className="gb-empty">
+                {rows.length === 0
+                  ? 'Nothing is due back today, and nothing is late.'
+                  : 'No pass matches these filters.'}
+              </div>
             ) : (
               <>
                 <div className="gb-scroll">
-                  <PendingReturnTable rows={current.rows} />
+                  <PendingReturnTable rows={current.rows} onRecorded={reload} />
                 </div>
                 <GuardPager
                   page={current}
@@ -74,6 +130,7 @@ export default function PendingReturnsPage(): React.ReactElement {
                     setPage(1);
                   }}
                 />
+                <ReturnLegend />
               </>
             )}
           </section>

@@ -62,21 +62,21 @@ Frontend only — no migration, no new RPC, no query the guard screens did not a
   `/pending-returns`. `GuardPanel.tsx` was DELETED, so a stale reference is a build error.
 - **`/pending-out` — Pending OUT (Needs Approval)**, drawn to the client's mock-up:
   tab strip `All (n) · RGP (n) · NRGP (n)`, the global search and **Scan QR** top right, a
-  filter bar (Type · Party · Department · Sort by · Reset), and a table of
-  Pass No. · Type · Party · Items · Total Qty · Vehicle No. · **Department** · Requested By ·
+  filter bar (Type · Vendor · Department · Sort by · Reset), and a table of
+  Pass No. · Type · Vendor · Items · Total Qty · Vehicle No. · **Department** · Requested By ·
   Requested Time · Action, each row opening its own material lines in place beside Pass
   Validity / Purpose / Authorised By / Carried By. Footer is "Showing 1 to 10 of N entries",
   numbered pages and Rows per page (10/25/50).
-  - **The mock's GATE column is DEPARTMENT** — there is no gate entity in this schema — and its
-    **UOM column is gone**: a shared unit is named once in the quantity heading and `nos` is
-    never named at all (`src/lib/units.ts`, a settled client call). Same rule the record view
-    follows: a column this app cannot fill takes the fact it does have, never an em dash.
+  - **The mock's GATE column is DEPARTMENT** — there is no gate entity in this schema. Same rule
+    the record view follows: a column this app cannot fill takes the fact it does have, never an
+    em dash. **Its UOM column IS drawn** on the opened item lines (see below) — the one screen in
+    the app that names a unit on every line.
   - Lines load **on demand**, one row at a time (`src/lib/usePassItems.ts`).
 - **`/pending-returns` — Pending RGP Return (Needs Verification)**: the same chrome and the same
-  global search, no tab strip (only an RGP comes back), rows of Pass No. · Type · Material ·
-  From (Party) · Department · Expected Back (with the Due Today / Overdue badge) · Returned Qty ·
-  **Record Return** → `/overdue` or `/returns`. Its scope is unchanged —
-  `needsReturnVerification`, i.e. due today or already late, never every open obligation.
+  global search. Its scope is unchanged — `needsReturnVerification`, i.e. due today or already
+  late, never every open obligation — but **the page itself was rebuilt to the client's mock-up
+  the same day, and a return is now RECORDED ON IT, line by line and quantity by quantity**. See
+  the entry below.
 - **The action is "Approve OUT"** (`src/components/guard/ApproveOutAction.tsx`, one file so the
   client's word has one spelling). It replaces "Verify at Gate" everywhere a guard sees it. The
   destination is unchanged (`/verify/:id`, which offers Match, Flag and Hold) and it is still
@@ -109,6 +109,69 @@ Frontend only — no migration, no new RPC, no query the guard screens did not a
   that the dashboard renders no table and every figure is a link). `hodReviewGateFlow.test.tsx`
   moved its two queue cases onto the Pending OUT page — the only list a guard picks a waiting
   pass from — and `sidebarOrder` / `guardBoardNoExpired` / `navLinksResolve` follow the new tabs.
+- **Pending OUT's item lines carry a UNIT column** (client, 2026-08-19: "put unit beside the
+  quantity so guard can verify the exact quantity being taken out"), so the mock's UOM slot is
+  back — but **on that page ONLY**, by the client's own narrowing a moment later. It is a
+  deliberate exception to `quantityHeading`/`quantityCell`: the unit is named on every line,
+  `nos` included ("Numbers"), because the guard is counting a physical load against one line at
+  a time. The return panel and every other quantity table still name a shared unit once in the
+  heading and never name `nos`. `.gb-unit` in `src/index.css` is the cell.
+- **`bag` · `drum` · `lot` are new unit codes** (`UNIT_LABELS` → Bags / Drums / Lots, and
+  `UNITS` in `MaterialItemRow` so an HOD can raise in them) — the mock-up's own vocabulary; a
+  gate that counts cement in bags cannot record it as a bare number.
+- **"Party" is "Vendor" on both guard list pages** (client) — the column heading, the filter
+  select, the Sort by option and the search placeholder, on Pending OUT, Pending RGP Return and
+  the guard search's result table. The state key and `partyOf` are unchanged: it is a label
+  change, not a data one.
+
+**Also 2026-08-19: Pending RGP Return takes a MICRO-LEVEL return — each line, its own
+quantity, its own remark.** Frontend only — no migration, no new RPC. `apply_item_returns` has
+always accepted a partial quantity per line; until now nothing in the UI offered one, so 800 of
+1,000 litres coming back could not be recorded at all.
+
+- **The page is the mock-up**: status tabs `All (n) · Due Today (n) · Overdue (n) · Returned
+  Partially (n)`, a filter bar (Vendor · Department · Status · Sort by · Reset), the table
+  Pass No. · Vendor · Items · Expected Back · Status · Returned Summary · Action, the pager, and
+  a **legend** strip naming the four states. `src/lib/pendingReturnFilters.ts` holds the tabs and
+  filters, the same all-client-side shape `pendingOutFilters.ts` has.
+  - **The mock's fifth tab, "Returned", is deliberately absent**: this page loads open returns
+    only, so a closed one has left the queue by definition, and a tab for it would need a second
+    query with an invented window ("returned when?"). **`dueToday`/`overdue` are disjoint but
+    `partial` CUTS ACROSS both**, so the counts do not sum to All — four questions, not four
+    buckets, and `pendingReturnFilters.test.ts` pins exactly that.
+- **A row opens its own material lines** (`PendingReturnRow` + `PendingReturnItems`), one row at
+  a time. Each line still owing material carries **+ Add Return**, which opens **`AddReturnBox`**
+  — the mock's small box, `position: fixed` **bottom right**, a side box and NOT a modal, so the
+  row stays readable underneath while the figure is typed into it.
+- **TWO PRESSES, AND ONLY THE SECOND ONE IS REAL.** Confirm Return STAGES the line in
+  `src/lib/returnDraft.ts` (in memory, keyed by item id); the **Record N Returns** bar at the
+  foot of the panel is the commit, one `apply_item_returns` call for the whole set, through
+  `recordDraftedReturns`. That shape is forced by the database — a recorded return cannot be
+  undone — and it is the same rule the old `ItemReturnList` followed. Discard, Cancel, or closing
+  the row throws the draft away. A staged line is **tinted, keeps its button, and says "Not
+  recorded yet"** even when the quantity closes it, so "looks done" is never read as "is done".
+- **The ceiling is the line's OUTSTANDING quantity**, checked by `checkReturnQty` — the same rule
+  the RPC raises on. The quantity input carries **no `min`/`max` attribute on purpose**: the
+  browser would then block submission with its own native tooltip and this app's message would
+  never be reached, so the rule would live in two places.
+- **Every figure in the open panel is RECORDED + STAGED** (`effectiveReturned`), so the panel
+  already looks the way it will after the press. **Nothing recomputes lateness**: `due_state`
+  grades the row, `lateNote` only says how late an already-late row is, in whole calendar days —
+  the same arithmetic `buildOverdueRows` uses.
+- **The Returned Summary cell counts QUANTITY, not lines** ("1,625 of 1,962 returned (82.8%)"),
+  off the view's own roll-ups: a line count would call an 800-of-1,000-litre pass 0 of 1
+  returned, which is the whole point of this screen.
+- **After the RPC the list is RE-READ, never patched** — `useGuardQueues` gained `reload`. Only
+  the database knows whether that movement was the last line, and the parent closes itself.
+- **`GuardToolbar`'s tabs are now a plain `{key,label,count}[]`** rather than the `TypeTab`
+  union, because the two pages tab by different things; each page keeps its own exhaustive
+  `Record` in its own filters module, which is where a missing tab should be a compile error.
+- Pinned by `returnDraft.test.ts` (35), `pendingReturnFilters.test.ts` (12) and
+  `itemLevelReturns.test.tsx` (9 — staging without an RPC, the exact `p_lines` payload, two lines
+  in one call, the outstanding ceiling, Cancel and Discard). `pendingReturnsPage.test.tsx` was
+  rewritten where the new page supersedes it.
+- **NOT seen signed-in in a browser**: `npm run check` (1271 tests) and `npm run build` only.
+
 - **NOT seen in a browser**: the suite and a typecheck only. The three-column `.gb-detail` panel,
   the tab underline and the pager are unverified against a real render.
 

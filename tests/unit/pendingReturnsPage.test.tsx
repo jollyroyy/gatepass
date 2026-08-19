@@ -6,14 +6,17 @@
 //     open obligation: material due in October cannot be recorded on either
 //     `/returns` or `/overdue` today, so a row for it would be a button that
 //     cannot be pressed.
-//   * Lateness is in WORDS ("Due Today" / "Overdue"), from the database's own
-//     `due_state`, never from colour alone.
-//   * Each row's action goes to the page that can RECORD it line by line.
+//   * Lateness is in WORDS ("(Due Today)" / "(3 Days Overdue)" under the date,
+//     plus the Status pill), from the database's own `due_state`, never from
+//     colour alone.
+//   * Each row's action OPENS the pass's own material lines, which is where a
+//     return is recorded line by line and quantity by quantity (2026-08-19,
+//     second pass — it used to be a link to /returns or /overdue).
 //   * The same GLOBAL search sits top right — a pass number typed here reaches
 //     the whole register, not these rows.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { GatePassView } from '../../src/types';
 
@@ -117,21 +120,37 @@ describe('What is on the page', () => {
 
   it('states lateness in words, never in colour alone', async () => {
     await renderPage();
-    expect(screen.getByText('Overdue')).toBeInTheDocument();
-    expect(screen.getByText('Due Today')).toBeInTheDocument();
+    // The Status pill on the late row, and the note under its date. A partly
+    // returned pass reads "Partial" — that outranks lateness on the pill,
+    // which is exactly why the date carries the day count as well.
+    // Scoped to the table: the legend under it names the same four states, and
+    // that is the point of a legend — the words appear twice on purpose.
+    const table = within(screen.getByRole('table'));
+    expect(table.getByText('Partial')).toBeInTheDocument();
+    expect(table.getByText(/Days Overdue/)).toBeInTheDocument();
+    expect(table.getByText('(Due Today)')).toBeInTheDocument();
   });
 
   it('shows what has come back against what went out', async () => {
     await renderPage();
-    expect(screen.getByText('50 / 150')).toBeInTheDocument();
-    expect(screen.getByText('0 / 200')).toBeInTheDocument();
+    // Quantity, not lines: this page's whole subject is that 50 of 150 is a
+    // real answer, and a line count would call that pass 0 of 1 returned.
+    expect(screen.getByText('50 of 150 returned')).toBeInTheDocument();
+    expect(screen.getByText('(33.3%)')).toBeInTheDocument();
+    expect(screen.getByText('0 of 200 returned')).toBeInTheDocument();
   });
 
-  it('sends each row to the page that can record it, oldest date first', async () => {
+  it('opens the material lines rather than sending the guard to another page', async () => {
     await renderPage();
-    const actions = screen.getAllByRole('link', { name: 'Record Return' });
-    expect(actions[0]).toHaveAttribute('href', '/overdue');
-    expect(actions[1]).toHaveAttribute('href', '/returns');
+    // The return is recorded HERE, per line, so the action expands the row.
+    // A link to /returns or /overdue would be a page load between a guard and
+    // the material standing in front of them.
+    const actions = screen.getAllByRole('button', { name: /Verify \/ Update Return/ });
+    expect(actions).toHaveLength(2);
+    expect(screen.queryByRole('link', { name: 'Record Return' })).not.toBeInTheDocument();
+    fireEvent.click(actions[0]);
+    await waitFor(() =>
+      expect(screen.getByText(/Items in this Pass/)).toBeInTheDocument());
   });
 
   it('says so plainly when nothing is due', async () => {
@@ -148,12 +167,25 @@ describe('What is on the page', () => {
 
 describe('The toolbar', () => {
   // Only an RGP comes back, so a type tab strip with one live option would be
-  // a control that teaches nothing.
-  it('carries the global search and Scan QR, and no type tabs', async () => {
+  // a control that teaches nothing. The tabs here are STATUS instead, and
+  // their counts are over the whole list — never the filtered one.
+  it('carries the global search and Scan QR, and status tabs rather than type tabs', async () => {
     await renderPage();
     expect(screen.getByLabelText(/Search any pass/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Scan QR/ })).toBeInTheDocument();
-    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'All (2)' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Due Today (1)' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Overdue (1)' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Returned Partially (1)' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /NRGP/ })).not.toBeInTheDocument();
+  });
+
+  it('narrows to one tab without changing the counts beside the others', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('tab', { name: 'Overdue (1)' }));
+    await waitFor(() => expect(screen.queryByText('RGP-00056')).not.toBeInTheDocument());
+    expect(screen.getByText('RGP-00055')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'All (2)' })).toBeInTheDocument();
   });
 
   it('reaches a pass that is not on this page at all', async () => {

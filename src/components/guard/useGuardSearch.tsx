@@ -199,7 +199,7 @@ function PhoneMatches({
               <tr>
                 <th>Pass No.</th>
                 <th>Type</th>
-                <th>Party</th>
+                <th>Vendor</th>
                 <th>Material</th>
                 <th>Action</th>
               </tr>

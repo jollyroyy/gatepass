@@ -20,7 +20,12 @@ import type { NewGatePassItem } from '../../types';
 import { unitLabel } from '../../lib/units';
 import { itemGridStyle } from './materialItemGrid';
 
-export const UNITS = ['nos', 'kg', 'box', 'roll', 'litre', 'metre', 'set'] as const;
+// The units a line can be raised in. `bag`, `drum` and `lot` were added on
+// 2026-08-19 from the client's Pending RGP Return mock-up — a gate that counts
+// cement in bags and paint in drums cannot record either as a bare number.
+export const UNITS = [
+  'nos', 'kg', 'box', 'roll', 'litre', 'metre', 'set', 'bag', 'drum', 'lot',
+] as const;
 
 interface MaterialItemRowErrors {
   name?: string;

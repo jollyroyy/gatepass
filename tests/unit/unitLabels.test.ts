@@ -15,6 +15,14 @@ describe('unitLabel', () => {
     expect(unitLabel('set')).toBe('Set');
   });
 
+  // From the client's Pending RGP Return mock-up (2026-08-19) — a gate that
+  // counts cement in bags and paint in drums cannot record either as a count.
+  it('carries the unit vocabulary the clients mock-up uses', () => {
+    expect(unitLabel('bag')).toBe('Bags');
+    expect(unitLabel('drum')).toBe('Drums');
+    expect(unitLabel('lot')).toBe('Lots');
+  });
+
   it('passes an unknown unit through unchanged', () => {
     expect(unitLabel('pc')).toBe('pc');
   });

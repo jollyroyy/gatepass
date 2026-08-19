@@ -20,7 +20,7 @@ export default function PendingOutTable({ rows }: { rows: GatePassView[] }): Rea
           <th><span className="sr-only">Show items</span></th>
           <th>Pass No.</th>
           <th>Type</th>
-          <th>Party</th>
+          <th>Vendor</th>
           <th>Items</th>
           <th>Total Qty</th>
           <th>Vehicle No.</th>

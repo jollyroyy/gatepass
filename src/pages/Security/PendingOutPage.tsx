@@ -56,7 +56,7 @@ export default function PendingOutPage(): React.ReactElement {
   // every second for a fact that changes by the minute.
   const [stamp] = useState(() => new Date().toISOString());
 
-  const search = useGuardSearch('Search by Pass No., Party, Mobile No.…');
+  const search = useGuardSearch('Search by Pass No., Vendor, Mobile No.…');
 
   const rows = useMemo(() => pendingOutOf(queue), [queue]);
   const counts = useMemo(() => tabCounts(rows), [rows]);

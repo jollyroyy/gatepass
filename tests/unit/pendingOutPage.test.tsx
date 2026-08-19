@@ -219,6 +219,26 @@ describe('A row opens its own material lines', () => {
     expect(screen.getByText('Pass Validity')).toBeInTheDocument();
     expect(screen.getByText('Formwork Support')).toBeInTheDocument();
   });
+
+  // The mock-up's UOM column, and the client's own reason for it: a guard
+  // verifying what leaves the gate counts a physical load against the line in
+  // front of them, so each quantity is read with its unit — including `nos`,
+  // which every other screen in this app leaves unnamed.
+  it('names the unit beside every quantity, a plain count included', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Show items in RGP-00057' }));
+    await waitFor(() =>
+      expect(screen.getByText('Adjustable Steel Prop 3.0m')).toBeInTheDocument());
+
+    const heads = screen.getAllByRole('columnheader').map((h) => h.textContent);
+    expect(heads).toContain('Unit');
+    expect(heads).toContain('Quantity');
+
+    const line = screen.getByText('Adjustable Steel Prop 3.0m').closest('tr') as HTMLElement;
+    expect(within(line).getAllByRole('cell').map((c) => c.textContent)).toEqual([
+      '1', 'Steel Props', 'Adjustable Steel Prop 3.0m', '150', 'Numbers',
+    ]);
+  });
 });
 
 describe('The search is global, and is not this list', () => {

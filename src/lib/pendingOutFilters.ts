@@ -67,7 +67,7 @@ export function tabCounts(rows: GatePassView[]): Record<TypeTab, number> {
   return counts;
 }
 
-/** Sorted, de-duplicated option lists for the Party and Department selects.
+/** Sorted, de-duplicated option lists for the Vendor and Department selects.
  *  Built from the rows themselves, so an option that would return nothing can
  *  never be offered. */
 export function scopeOptions(rows: GatePassView[]): { parties: string[]; departments: string[] } {

@@ -1284,6 +1284,15 @@
     text-overflow: ellipsis;
   }
 
+  /* The UOM cell beside a quantity. Quieter than the figure it qualifies and
+   * never wrapped — "Numbers" broken over two lines would push the row taller
+   * than the number it belongs to. */
+  .gb-unit {
+    white-space: nowrap;
+    color: var(--gb-muted);
+    font-weight: 500;
+  }
+
   /* The Total row on an items table — sits above the pager, so it earns the
    * header's own background rather than the body's white. */
   .gb-table tfoot td {
@@ -1323,6 +1332,11 @@
     line-height: 14px;
     white-space: nowrap;
   }
+  /* A pill may carry a leading glyph ("✓ Returned"). Sized here, next to the
+   * pill itself, for the same reason `.gb-action svg` is: an unsized inline
+   * SVG inherits the viewport's width and blows the cell open. */
+  .gb-pill svg { width: 12px; height: 12px; }
+
   .gb-pill-blue {
     background: var(--gb-blue-soft);
     border-color: var(--gb-blue-line);
@@ -1443,6 +1457,9 @@
   .gb-tint-blue { background: var(--gb-blue-tint); color: var(--gb-blue); }
   .gb-tint-green { background: var(--gb-green-tint); color: var(--gb-green); }
   .gb-tint-purple { background: var(--gb-purple-tint); color: var(--gb-purple); }
+  /* Grey is a tint like the others so the legend's four dots are one device:
+   * "Not Returned" is a state, not the absence of one. */
+  .gb-tint-grey { background: var(--gb-line); color: var(--gb-muted); }
   .gb-tint-red { background: var(--gb-red-soft); color: var(--gb-red); }
 
   .gb-alert {

@@ -38,3 +38,39 @@ export async function recordItemReturns(lines: ReturnableLine[]): Promise<void> 
     if (error) throw error;
   }
 }
+
+/** One line of a staged, micro-level return: the guard's own quantity for that
+ *  item rather than its whole outstanding balance. Named as the RPC names it,
+ *  so the payload is passed through rather than re-mapped — a second spelling
+ *  of `item_id` is a second place to get it wrong. */
+export interface DraftedLine {
+  item_id: string;
+  qty: number;
+}
+
+/**
+ * Records a PARTIAL set for one pass — 800 of the 1,000 litres that went out,
+ * and only the lines the guard actually staged.
+ *
+ * ONE CALL, ONE PASS. `apply_item_returns` locks the parent, applies each line
+ * against its own outstanding quantity and rolls the result back up, so the
+ * whole movement is atomic and the pass closes itself if the last line came
+ * back. Splitting it into a call per line would let a guard's shift end halfway
+ * through one truckload.
+ *
+ * `remarks` is written to the single `verifications` row this movement makes,
+ * so the per-line notes must already be composed into it (`draftRemarks`).
+ */
+export async function recordDraftedReturns(
+  passId: string,
+  lines: DraftedLine[],
+  remarks: string
+): Promise<void> {
+  if (lines.length === 0) return;
+  const { error } = await gp().rpc('apply_item_returns', {
+    p_pass_id: passId,
+    p_lines: lines,
+    p_remarks: remarks,
+  });
+  if (error) throw error;
+}

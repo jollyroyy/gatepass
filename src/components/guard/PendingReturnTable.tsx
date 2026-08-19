@@ -2,84 +2,52 @@
 // them, oldest first. Drawn to the client's mock-up (2026-08-19), and since
 // that day a page of its own rather than a preview panel on the dashboard.
 //
-// EXPECTED BACK CARRIES A BADGE, NOT A COLOUR. "Due Today" and "Overdue" come
-// straight from `v_gate_passes.due_state` through `DUE_STATE_STYLES`; the fact
-// is in the words, so it survives a screenshot, a mono print and a reader who
-// does not separate orange from amber. The mock-up prints a bare date here —
-// the badge is kept deliberately, because lateness is the only reason half
-// these rows are on the list at all.
+// ONE ROW OPEN AT A TIME. Each open row holds a draft of unrecorded returns and
+// a live item query; two of them open at once means two sets of unsaved figures
+// on a screen where only one truck is being unloaded. Closing a row discards
+// its draft, which is why the row owns that state and this table only says
+// which one is open.
 //
-// The ACTION goes to the page that can RECORD the return line by line —
-// `/overdue` for a missed date, `/returns` for today's — because
-// `apply_item_returns` is per line and no table on any board records a return.
-import React from 'react';
-import { Link } from 'react-router-dom';
+// EXPECTED BACK CARRIES ITS LATENESS IN WORDS. "(2 Days Overdue)" under the
+// date, and the Status pill beside it, come from `due_state` — graded by the
+// database in `site_tz()`, never recomputed here — so the fact survives a
+// screenshot, a mono print and a reader who does not separate orange from red.
+import React, { useState } from 'react';
 import type { GatePassView } from '../../types';
-import { formatDateOnly } from '../../lib/formatDate';
-import { partyOf, returnActionPath, returnedQtyLabel, TYPE_PILL } from '../../lib/guardBoard';
-import { DUE_STATE_STYLES } from '../../lib/statusStyles';
+import PendingReturnRow from './PendingReturnRow';
 
-const CheckGlyph = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2.4}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M5 12.5l4.5 4.5L19 7" />
-  </svg>
-);
+type Props = {
+  rows: GatePassView[];
+  /** Re-read the queues once a return reaches the database. */
+  onRecorded: () => void;
+};
 
-export default function PendingReturnTable({ rows }: { rows: GatePassView[] }): React.ReactElement {
+export default function PendingReturnTable({ rows, onRecorded }: Props): React.ReactElement {
+  const [openId, setOpenId] = useState<string | null>(null);
+
   return (
     <table className="gb-table">
       <thead>
         <tr>
+          <th><span className="sr-only">Show items</span></th>
           <th>Pass No.</th>
-          <th>Type</th>
-          <th>Material</th>
-          <th>From (Party)</th>
-          <th>Department</th>
+          <th>Vendor</th>
+          <th>Items</th>
           <th>Expected Back</th>
-          <th>Returned Qty</th>
+          <th>Status</th>
+          <th>Returned Summary</th>
           <th>Action</th>
         </tr>
       </thead>
       <tbody>
         {rows.map((p) => (
-          <tr key={p.id}>
-            <td>
-              <Link to={`/pass/${p.id}`} className={`gb-pill ${TYPE_PILL[p.type]}`}>
-                {p.pass_number}
-              </Link>
-            </td>
-            <td>
-              <span className={`gb-pill ${TYPE_PILL[p.type]}`}>{p.type}</span>
-            </td>
-            <td className="gb-truncate" title={p.material_summary ?? undefined}>
-              {p.material_summary ?? '—'}
-            </td>
-            <td className="gb-truncate">{partyOf(p)}</td>
-            <td className="gb-truncate">{p.department_name}</td>
-            <td>
-              <span className="inline-flex items-center gap-2 whitespace-nowrap">
-                {formatDateOnly(p.expected_return_date)}
-                <span className={`gb-pill ${p.due_state === 'overdue' ? 'gb-pill-orange' : 'gb-pill-grey'}`}>
-                  {DUE_STATE_STYLES[p.due_state].label}
-                </span>
-              </span>
-            </td>
-            <td>{returnedQtyLabel(p)}</td>
-            <td>
-              <Link to={returnActionPath(p)} className="gb-action gb-action-blue">
-                {CheckGlyph}
-                Record Return
-              </Link>
-            </td>
-          </tr>
+          <PendingReturnRow
+            key={p.id}
+            pass={p}
+            open={openId === p.id}
+            onToggle={() => setOpenId((id) => (id === p.id ? null : p.id))}
+            onRecorded={onRecorded}
+          />
         ))}
       </tbody>
     </table>

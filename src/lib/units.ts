@@ -14,6 +14,9 @@ const UNIT_LABELS: Record<string, string> = {
   litre: 'Litre',
   metre: 'Metre',
   set: 'Set',
+  bag: 'Bags',
+  drum: 'Drums',
+  lot: 'Lots',
 };
 
 /** Human-readable label for a stored unit code; unknown codes pass through. */

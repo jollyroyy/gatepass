@@ -5,12 +5,18 @@
 // — everything a guard needs to decide before pressing Approve OUT, without
 // leaving the queue and losing their place in it.
 //
-// TWO COLUMNS OF THE MOCK-UP ARE THIS APP'S OWN. Its GATE is DEPARTMENT (there
-// is no gate entity in this schema — a pass belongs to a department), and its
-// UOM column is gone, because a unit that every line shares is named once in
-// the quantity heading and `nos` is never named at all (`src/lib/units.ts`, a
-// settled client call). Same rule the record view follows: a column this app
-// cannot fill is given the fact it does have, never an em dash top to bottom.
+// THE MOCK-UP'S GATE COLUMN IS DEPARTMENT — there is no gate entity in this
+// schema, a pass belongs to a department. Same rule the record view follows: a
+// column this app cannot fill is given the fact it does have, never an em dash
+// top to bottom.
+//
+// THE MOCK-UP'S UOM COLUMN IS HERE, on every line (client, 2026-08-19: "put
+// unit beside the quantity so guard can verify the exact quantity being taken
+// out"). It is a deliberate EXCEPTION to `quantityHeading`/`quantityCell`, the
+// rule the record view and the printed slip follow — there a shared unit is
+// named once above the column and `nos` is never named. At the barrier the
+// guard counts a physical load against one line at a time, so the unit belongs
+// in the row being read, a plain count included.
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView } from '../../types';
@@ -18,7 +24,7 @@ import { formatDateTime, formatTime } from '../../lib/formatDate';
 import { partyOf, TYPE_PILL } from '../../lib/guardBoard';
 import { itemsLabel } from '../../lib/pendingOutFilters';
 import { canVerifyAtGate } from '../../lib/phoneSearch';
-import { quantityCell, quantityHeading } from '../../lib/units';
+import { unitLabel } from '../../lib/units';
 import { usePassItems } from '../../lib/usePassItems';
 import ApproveOutAction from './ApproveOutAction';
 
@@ -92,7 +98,6 @@ export default function PendingOutRow({ pass, open, onToggle }: Props): React.Re
   // Loaded only while the row is open — the id goes null on close, which is
   // what throws the lines away.
   const { items, error } = usePassItems(open ? pass.id : null);
-  const units = (items ?? []).map((i) => i.unit);
 
   return (
     <>
@@ -160,7 +165,8 @@ export default function PendingOutRow({ pass, open, onToggle }: Props): React.Re
                           <th>#</th>
                           <th>Item Name</th>
                           <th>Description</th>
-                          <th>{quantityHeading('Quantity', units)}</th>
+                          <th>Quantity</th>
+                          <th>Unit</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -171,7 +177,8 @@ export default function PendingOutRow({ pass, open, onToggle }: Props): React.Re
                             <td className="gb-truncate" title={item.description || undefined}>
                               {item.description || '—'}
                             </td>
-                            <td>{quantityCell(item.quantity, item.unit, units)}</td>
+                            <td>{item.quantity}</td>
+                            <td className="gb-unit">{unitLabel(item.unit)}</td>
                           </tr>
                         ))}
                       </tbody>
