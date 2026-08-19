@@ -877,6 +877,160 @@
     }
   }
 
+  /* --- Raise Gate Pass sheet (client's 2026-08-19 mock-up) ------------------
+     ONE sheet, not a stack of cards. The mock draws the whole form as a single
+     bordered plate with titled sections divided by hairlines, so `.rp-sheet`
+     is the plate and `.rp-section` is a band inside it — the previous screen
+     used four separate `.card`s, which put a gap and a shadow between Vendor
+     Details and the Carrier details the mock rules together.
+
+     EVERY COLOUR HERE IS A TOKEN (navy-*/surface-*/accent-*), never a literal.
+     This sheet is page content, not chrome: the tokens invert under `.dark`,
+     so the same markup reads on the app's dark theme instead of drawing the
+     mock's white on white. */
+  .rp-sheet {
+    @apply rounded-2xl shadow-card-premium px-5 py-5 md:px-7 md:py-6 flex flex-col;
+    background: rgb(var(--glass-bg) / var(--glass-bg-opacity));
+    border: 1px solid rgb(0 0 0 / 0.06);
+  }
+  .dark .rp-sheet:not(:where(.gb-main, .gb-main *)) {
+    border-color: rgb(255 255 255 / 0.07);
+    box-shadow: 0 4px 20px 0 rgb(0 0 0 / 0.3);
+  }
+  .rp-head {
+    @apply pb-4;
+  }
+  .rp-title {
+    @apply text-h2 font-bold text-navy-900 leading-tight;
+  }
+  .rp-subtitle {
+    @apply text-caption text-navy-500 mt-1;
+  }
+  /* A band of the sheet. The hairline belongs to the TOP of each band rather
+     than the bottom of the one before it, so the last band never draws a rule
+     with nothing under it. */
+  .rp-section {
+    @apply border-t border-surface-200 pt-4 pb-4;
+  }
+  .rp-section:first-of-type {
+    @apply border-t-0 pt-0;
+  }
+  .rp-legend {
+    @apply text-sm font-bold text-accent-600 mb-3;
+  }
+  .rp-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 gap-4;
+  }
+  /* The mock's red asterisk. `aria-hidden` at every call site — the field's
+     own error message is what tells a screen reader it is required, and a bare
+     "*" read aloud after a label is noise. */
+  .rp-req {
+    @apply text-flagged-500;
+  }
+  .rp-hint {
+    @apply text-navy-500 font-normal;
+  }
+
+  /* Pass Type — two wide radio plates. */
+  .rp-type-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 gap-4;
+  }
+  .rp-type-plate {
+    @apply flex items-center gap-3.5 p-4 rounded-xl border border-surface-200 cursor-pointer transition-colors;
+  }
+  .rp-type-plate:hover {
+    @apply border-accent-300;
+  }
+  .rp-type-plate.is-selected {
+    @apply border-accent-500 bg-accent-50;
+  }
+  .rp-type-radio {
+    @apply w-4 h-4 shrink-0;
+    accent-color: theme('colors.accent.600');
+  }
+  .rp-type-icon {
+    @apply w-12 h-12 shrink-0 rounded-xl grid place-items-center;
+  }
+  .rp-type-icon svg {
+    @apply w-6 h-6;
+  }
+  .rp-tint-blue {
+    @apply bg-accent-50 text-accent-600;
+  }
+  .rp-tint-green {
+    @apply bg-matched-50 text-matched-600;
+  }
+  .rp-type-text {
+    @apply flex flex-col gap-1 min-w-0;
+  }
+  .rp-type-name {
+    @apply text-sm font-semibold text-navy-900;
+  }
+  .is-selected .rp-type-name {
+    @apply text-accent-700;
+  }
+  .rp-type-note {
+    @apply text-caption text-navy-500;
+  }
+
+  /* Mobile number — dial code welded to the number box. */
+  .rp-phone {
+    @apply grid gap-2;
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+  .rp-purpose {
+    @apply min-h-[88px] resize-y;
+  }
+  .rp-counter {
+    @apply text-micro text-navy-500 text-right mt-1;
+  }
+
+  /* Item-wise Details — a real table frame, headed and ruled, because the mock
+     draws one and because eight columns of bare inputs have nothing to read
+     down. The grid template itself still comes from materialItemGrid.ts. */
+  .rp-table {
+    @apply border border-surface-200 rounded-lg;
+  }
+  .rp-table-head {
+    @apply bg-surface-100 px-3 py-2.5 rounded-t-lg;
+  }
+  .rp-th {
+    @apply text-micro font-semibold text-navy-600;
+  }
+  .rp-table-body {
+    @apply flex flex-col;
+  }
+  .item-row {
+    @apply px-3 py-2.5 border-t border-surface-200;
+  }
+  .rp-table-body > .item-row:first-child {
+    @apply border-t-0 md:border-t;
+  }
+  .item-line-no {
+    @apply text-sm text-navy-500 md:pt-2;
+  }
+  .rp-trash {
+    @apply w-8 h-8 grid place-items-center rounded-md border border-flagged-100 text-flagged-500 transition-colors;
+  }
+  .rp-trash:hover {
+    @apply bg-flagged-50 text-flagged-700;
+  }
+  .rp-trash svg {
+    @apply w-4 h-4;
+  }
+  .rp-add-row {
+    @apply w-full mt-3 py-2.5 rounded-lg border border-dashed border-surface-300 text-sm font-medium text-accent-600 flex items-center justify-center gap-2 transition-colors;
+  }
+  .rp-add-row:hover {
+    @apply bg-accent-50 border-accent-300;
+  }
+  .rp-add-row svg {
+    @apply w-4 h-4;
+  }
+  .rp-actions {
+    @apply flex justify-end gap-3 border-t border-surface-200 pt-4 mt-1;
+  }
+
   /* --- Empty state --- */
   .empty-state {
     @apply text-center py-16 text-sm text-navy-500;
@@ -2485,11 +2639,14 @@
     gap: 16px;
     margin-top: 16px;
   }
+  /* ONE tile since 2026-08-19 (client: "instead of two gate passes, just create
+     one icon"). The template is a single track of the width the two used to
+     share, NOT `repeat(2, …)` with one child — that left the tile at half width
+     with an empty column and a 14px gap beside it. */
   .gb-raise-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 223px);
     gap: 14px;
-    max-width: 460px;
   }
   .gb-raise-tile {
     display: flex;

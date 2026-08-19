@@ -1,12 +1,9 @@
-// Overdue Items is a LINE-level page, and every figure on it is derived here.
-// The three roles differ only in which rows arrive — nothing else on the page
-// knows the role, and there is no day cut left in this module.
+// The line-level derivations `overduePasses.ts` groups into the pass-level
+// cards every role's /overdue renders. The three roles differ only in which
+// rows arrive — nothing here knows the role, and there is no day cut left in
+// this module.
 import { describe, it, expect } from 'vitest';
-import {
-  buildOverdueRows, overdueStats, overdueTrend, filterOverdue,
-  departmentsOf, hasActiveFilters, formatDelay, CRITICAL_DAYS,
-  EMPTY_FILTERS,
-} from '../../src/lib/overdueItems';
+import { buildOverdueRows, CRITICAL_DAYS } from '../../src/lib/overdueItems';
 import type { GatePassItemView, GatePassView } from '../../src/types';
 
 /** 18 Aug 2026, local noon — the same "today" every case below reads. */
@@ -120,66 +117,5 @@ describe('the line inherits the pass deadline when the pass is the earlier one',
       buildOverdueRows([pass({ expected_return_date: '2026-08-15' })], [item({ expected_return_date: null })], NOW)[0]
         .expectedReturn,
     ).toBe('2026-08-15');
-  });
-});
-
-describe('the stat tiles', () => {
-  const passes = [pass({}), pass({ id: 'p2', expected_return_date: '2026-08-10' })];
-  const items = [item({}), item({ id: 'i2', gate_pass_id: 'p2' })];
-
-  it('counts the rows and grades the critical ones', () => {
-    expect(overdueStats(buildOverdueRows(passes, items, NOW))).toEqual({ total: 2, critical: 1 });
-    expect(overdueStats([])).toEqual({ total: 0, critical: 0 });
-  });
-
-  it('names a delay in days, singular and plural', () => {
-    expect(formatDelay(1)).toBe('1 day');
-    expect(formatDelay(6)).toBe('6 days');
-  });
-});
-
-describe('overdueTrend', () => {
-  it('plots how much of this backlog was already late on each of the last days', () => {
-    const rows = buildOverdueRows(
-      [pass({}), pass({ id: 'p2', expected_return_date: '2026-08-14' })],
-      [item({}), item({ id: 'i2', gate_pass_id: 'p2' })],
-      NOW,
-    );
-    const bars = overdueTrend(rows, NOW, 7);
-    expect(bars).toHaveLength(7);
-    expect(bars[bars.length - 1].count).toBe(2);
-    // The window is 12–18 Aug. On 15 Aug only the 14 Aug line was past its date.
-    expect(bars[3].count).toBe(1);
-    expect(bars[0].count).toBe(0);
-  });
-});
-
-describe('filters', () => {
-  const rows = buildOverdueRows(
-    [
-      pass({}),
-      pass({ id: 'p2', department_id: 'd2', department_name: 'Housekeeping', expected_return_date: '2026-08-05' }),
-    ],
-    [item({}), item({ id: 'i2', gate_pass_id: 'p2' })],
-    NOW,
-  );
-
-  it('narrows by department', () => {
-    expect(filterOverdue(rows, { department: 'd2', delay: 'any' })).toHaveLength(1);
-  });
-
-  it('narrows by delay band, using the one critical threshold', () => {
-    expect(filterOverdue(rows, { department: 'all', delay: 'critical' }).map((r) => r.daysLate)).toEqual([13]);
-    expect(filterOverdue(rows, { department: 'all', delay: 'lt3' }).map((r) => r.daysLate)).toEqual([1]);
-    expect(filterOverdue(rows, EMPTY_FILTERS)).toHaveLength(2);
-  });
-
-  it('offers only departments that are actually in the rows', () => {
-    expect(departmentsOf(rows).map((d) => d.name)).toEqual(['Engineering', 'Housekeeping']);
-  });
-
-  it('knows when anything is narrowing the list', () => {
-    expect(hasActiveFilters(EMPTY_FILTERS)).toBe(false);
-    expect(hasActiveFilters({ department: 'all', delay: 'week' })).toBe(true);
   });
 });

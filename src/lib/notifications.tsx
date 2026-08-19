@@ -28,7 +28,7 @@ import { gp, supabase } from '../supabaseClient';
 import { factKey, readDismissed, writeDismissed } from './notificationDismissals';
 import type { GatePassView, UserRole } from '../types';
 
-export type NotificationType = 'flagged' | 'expired' | 'matched' | 'new_pass';
+export type NotificationType = 'flagged' | 'expired' | 'matched' | 'new_pass' | 'rejected';
 
 export interface AppNotification {
   id: string;
@@ -94,6 +94,16 @@ export function mismatchMessage(passNumber: string, reason: string | null, by: s
  *  pass will never be cleared now, whatever the gate does. */
 export function expiredMessage(passNumber: string): string {
   return `${passNumber} expired without reaching the gate and is now null and void. Review it: raise it again, or void it permanently.`;
+}
+
+/** The words the HOD reads when an approval office rejects their pass
+ *  (migration 046). It does NOT quote the reason: the reason lives on the
+ *  pass's own approval ladder, where the office that wrote it is named beside
+ *  it, and a sentence repeated in the bell is a sentence that can be read
+ *  without knowing who said it. Rejection is terminal — the pass is closed and
+ *  a fresh one is the only way forward, which is why the line says so. */
+export function rejectedMessage(passNumber: string): string {
+  return `${passNumber} was rejected during approval and is now closed. Open it to see which level rejected it and why, then raise a new pass if the material still needs to go out.`;
 }
 
 type Props = {
@@ -171,7 +181,7 @@ export function NotificationProvider({ session, role, children }: Props): React.
 
     void (async () => {
       try {
-        const [flaggedRes, expiredRes] = await Promise.all([
+        const [flaggedRes, expiredRes, rejectedRes] = await Promise.all([
           gp()
             .from('v_gate_passes')
             .select('*')
@@ -188,6 +198,20 @@ export function NotificationProvider({ session, role, children }: Props): React.
             .eq('raised_by', userId)
             .eq('status', 'pending')
             .eq('is_expired', true)
+            .order('created_at', { ascending: false }),
+          // REJECTED AT AN APPROVAL LEVEL (046). `cancelled` is the state a
+          // rejection leaves a pass in — and it is also where
+          // `hod_void_expired_pass` and an HOD upholding a security flag leave
+          // one. Those two are the HOD's OWN decisions, so announcing them back
+          // to the person who made them would be noise; `flag_reason is null`
+          // separates them, because a pass rejected on the ladder never reached
+          // the gate and so never carried one.
+          gp()
+            .from('v_gate_passes')
+            .select('*')
+            .eq('raised_by', userId)
+            .eq('status', 'cancelled')
+            .is('flag_reason', null)
             .order('created_at', { ascending: false }),
         ]);
         if (cancelled) return;
@@ -218,6 +242,21 @@ export function NotificationProvider({ session, role, children }: Props): React.
               // Dated by the expiry itself, not by the read: "3h ago" must mean
               // the pass died three hours ago, not that the bell noticed now.
               timestamp: p.expires_at ?? p.created_at,
+            });
+          }
+        }
+        if (!rejectedRes.error) {
+          for (const p of (rejectedRes.data as GatePassView[] | null) ?? []) {
+            addNotification({
+              id: genId(),
+              type: 'rejected',
+              title: 'Gate Pass Rejected',
+              message: rejectedMessage(p.pass_number),
+              passId: p.id,
+              passNumber: p.pass_number,
+              // `updated_at` is when the rejection landed — the raise date would
+              // say "2 days ago" about something that happened this morning.
+              timestamp: p.updated_at ?? p.created_at,
             });
           }
         }

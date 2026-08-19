@@ -9,12 +9,15 @@ import { NotificationProvider } from '../../lib/notifications';
 type Props = {
   session: Session;
   role: UserRole | null;
+  /** Does this person hold one of the four approval offices (046)? It is not a
+   *  role, so it travels beside one — see src/lib/approverAccess.ts. */
+  isApprover?: boolean;
   children: React.ReactNode;
 };
 
 const COLLAPSE_KEY = 'gatepass-sidebar-collapsed';
 
-export default function AppShell({ session, role, children }: Props): React.ReactElement {
+export default function AppShell({ session, role, isApprover = false, children }: Props): React.ReactElement {
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try { return window.localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
   });
@@ -27,7 +30,7 @@ export default function AppShell({ session, role, children }: Props): React.Reac
     <NotificationProvider session={session} role={role}>
       <SessionTimeout />
       <div className="min-h-screen bg-surface-50">
-        <Sidebar session={session} role={role} collapsed={collapsed} onCollapsedChange={setCollapsed} />
+        <Sidebar session={session} role={role} isApprover={isApprover} collapsed={collapsed} onCollapsedChange={setCollapsed} />
 
         <div className={`flex flex-col min-h-screen transition-[padding] duration-300 ease-in-out ${collapsed ? 'lg:pl-[84px]' : 'lg:pl-[264px]'}`}>
           {/* THE GUARD'S SHELL IS THE MOCK-UP'S SKIN, ON EVERY TAB.

@@ -1,18 +1,18 @@
-// Two department bar charts the client asked for on 2026-08-18:
+// The admin dashboard's department bar chart (client, 2026-08-18):
+// "make a vertical bar chart showing the departments who are raising the most
+// number of passes".
 //
-//   * the admin dashboard — "make a vertical bar chart showing the departments
-//     who are raising the most number of passes";
-//   * the Overdue tab, admin scope — "a bar chart of which department has the
-//     department-wise overdue items".
+// `ColumnChart` over a `Slice[]`, obeying the board's standing invariant: a
+// bar carries the rows it counted, so its height and the list its click opens
+// can never disagree.
 //
-// Both are `ColumnChart` over a `Slice[]`, and both obey the board's standing
-// invariant: a bar carries the rows it counted, so its height and the list its
-// click opens can never disagree.
+// The admin's Overdue-tab department chart (`overdueByDepartment`) was
+// deleted on 2026-08-19 along with the rest of the item-level Overdue board —
+// every role now gets the guard's card-stack screen at /overdue instead.
 import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { departmentSlices } from '../../src/lib/boardAnalytics';
-import { overdueByDepartment } from '../../src/lib/overdueItems';
 import ColumnChart from '../../src/components/charts/ColumnChart';
 import type { GatePassView } from '../../src/types';
 
@@ -61,24 +61,6 @@ describe('departmentSlices — who raises the most passes', () => {
     const rows = ['A', 'B', 'C', 'D'].map((d, i) =>
       pass({ id: `p${i}`, department_id: `d${i}`, department_name: d }));
     expect(departmentSlices(rows, 2)).toHaveLength(2);
-  });
-});
-
-describe('overdueByDepartment — where the late material is', () => {
-  it('counts overdue LINES per department, biggest first', () => {
-    const rows = [
-      { pass: pass({ department_id: 'd1', department_name: 'Engineering' }), daysLate: 2 },
-      { pass: pass({ department_id: 'd1', department_name: 'Engineering' }), daysLate: 5 },
-      { pass: pass({ department_id: 'd2', department_name: 'F&B' }), daysLate: 1 },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ] as any[];
-    expect(overdueByDepartment(rows).map((s) => [s.label, s.value])).toEqual([
-      ['Engineering', 2], ['F&B', 1],
-    ]);
-  });
-
-  it('is empty when nothing is overdue — never a chart of zeroes', () => {
-    expect(overdueByDepartment([])).toEqual([]);
   });
 });
 

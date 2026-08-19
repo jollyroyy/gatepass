@@ -1,4 +1,5 @@
-// "Material Items" card for RaisePass.tsx — wraps the MaterialItemRow repeater.
+// "Item-wise Details" — the repeater table at the foot of the raise form,
+// drawn to the client's 2026-08-19 mock-up.
 //
 // The header row below is the ONE place each column's name is written — see
 // MaterialItemRow.tsx / materialItemGrid.ts / index.css's `.item-grid` for
@@ -18,7 +19,19 @@ interface MaterialItemsCardProps {
   onAddItem: () => void;
 }
 
-const HEADER_LABELS = ['Item Name', 'Description', 'Serial / ID', 'Purpose', 'Qty', 'Unit', 'Value (₹)'] as const;
+/** Column name, and whether the mock marks it required. Same order as
+ *  `itemGridColumns()`; the trailing Action column is the header's own last
+ *  cell, not a spacer, because the mock names it. */
+const HEADERS: { label: string; required?: boolean }[] = [
+  { label: '#' },
+  { label: 'Item Description', required: true },
+  { label: 'Quantity', required: true },
+  { label: 'Make / Model / Size', required: true },
+  { label: 'Serial / Asset Tag' },
+  { label: 'Invoice / Reference No.' },
+  { label: 'Remarks / Description' },
+  { label: 'Action' },
+];
 
 export default function MaterialItemsCard({
   items,
@@ -28,31 +41,28 @@ export default function MaterialItemsCard({
   onAddItem,
 }: MaterialItemsCardProps): React.ReactElement {
   return (
-    <div className="card p-5">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="card-title mb-0">Material Items</h2>
-        <span className="text-xs font-medium text-navy-500 bg-surface-100 px-2 py-1 rounded-full">{items.length} item{items.length !== 1 ? 's' : ''}</span>
-      </div>
+    <section className="rp-section">
+      <h2 className="rp-legend">Item-wise Details</h2>
 
       {/* ONE horizontal scroll container for the header AND every row — they
           must scroll together or the columns would stop lining up the moment
           the card is narrower than the grid. `.item-grid-track`'s min-width is
           the grid's own minimum (itemGridMinWidth), which is what makes each
-          row's grey frame at least as wide as the fields inside it; without it
-          the fields overflowed the frame. Below `md` the min-width is dropped
+          row's frame at least as wide as the fields inside it; without it the
+          fields overflowed the frame. Below `md` the min-width is dropped
           (index.css) because the grid collapses to a single stacked column. */}
-      <div className="item-grid-scroll">
+      <div className="item-grid-scroll rp-table">
         <div className="item-grid-track" style={{ minWidth: itemGridMinWidth() }}>
-          <div className="item-grid hidden md:grid mb-1 px-3" style={itemGridStyle()}>
-            {HEADER_LABELS.map((label) => (
-              <span key={label} className="text-micro text-navy-500 uppercase">
-                {label}
+          <div className="item-grid rp-table-head hidden md:grid" style={itemGridStyle()}>
+            {HEADERS.map((h) => (
+              <span key={h.label} className="rp-th">
+                {h.label}
+                {h.required && <span className="rp-req" aria-hidden="true"> *</span>}
               </span>
             ))}
-            <span aria-hidden="true" />
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="rp-table-body">
             {items.map((item, idx) => (
               <MaterialItemRow
                 key={idx}
@@ -60,8 +70,7 @@ export default function MaterialItemsCard({
                 idx={idx}
                 errors={{
                   name: errors[`item_${idx}_name`],
-                  description: errors[`item_${idx}_description`],
-                  purpose: errors[`item_${idx}_purpose`],
+                  make_model: errors[`item_${idx}_make_model`],
                   quantity: errors[`item_${idx}_quantity`],
                 }}
                 onChange={(field, value) => onItemChange(idx, field, value)}
@@ -72,10 +81,15 @@ export default function MaterialItemsCard({
           </div>
         </div>
       </div>
-      <button type="button" className="btn-secondary mt-3 w-full" onClick={onAddItem}>
-        + Add Item
+
+      <button type="button" className="rp-add-row" onClick={onAddItem}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 8v8M8 12h8" strokeLinecap="round" />
+        </svg>
+        Add Another Item
       </button>
       {errors.items && <p className="field-error mt-2">{errors.items}</p>}
-    </div>
+    </section>
   );
 }

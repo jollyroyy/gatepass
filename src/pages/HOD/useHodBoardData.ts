@@ -15,14 +15,23 @@
 // Nothing here aggregates. ONE read of `v_gate_passes`, and the page derives
 // every figure from that one array with `buildHodKpis`, so a figure and the
 // stacked list its click opens are the same array by construction.
+//
+// A SECOND, NARROWED READ carries the approval strip: `pass_approvals` rows for
+// exactly the pass ids the first read returned — the same shape
+// `useOpenReturns.ts` uses for its items query, because `pass_approvals` has no
+// `raised_by` of its own to scope by. `hodApprovals.ts` turns the pair into the
+// four office counts; this hook only fetches.
 import { useCallback, useEffect, useState } from 'react';
 import { supabase, gp } from '../../supabaseClient';
 import type { GatePassView } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
 import { fetchMyProfile } from '../../lib/profiles';
+import type { PendingApprovalRow } from '../../lib/hodApprovals';
 
 export type HodBoardData = {
   rows: GatePassView[];
+  /** `gatepass.pass_approvals` rows for this HOD's passes — see the header. */
+  approvals: PendingApprovalRow[];
   /** The reader's own full name, for the greeting. Null until it resolves, and
    *  null forever if it never does — the greeting falls back to "HOD" rather
    *  than surfacing an error for a cosmetic read. */
@@ -35,6 +44,7 @@ export function useHodBoardData(): HodBoardData {
   const [userId, setUserId] = useState<string | null>(null);
   const [noUser, setNoUser] = useState(false);
   const [rows, setRows] = useState<GatePassView[]>([]);
+  const [approvals, setApprovals] = useState<PendingApprovalRow[]>([]);
   const [name, setName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +84,22 @@ export function useHodBoardData(): HodBoardData {
           .eq('raised_by', userId)
           .order('created_at', { ascending: false });
         if (passRes.error) throw passRes.error;
-        setRows((passRes.data as GatePassView[] | null) ?? []);
+        const passes = (passRes.data as GatePassView[] | null) ?? [];
+        setRows(passes);
+
+        if (passes.length === 0) {
+          setApprovals([]);
+          return;
+        }
+        const approvalRes = await gp()
+          .from('pass_approvals')
+          .select('gate_pass_id, role_key, status')
+          .in('gate_pass_id', passes.map((p) => p.id));
+        // A page that refuses to render because this read failed is worse than
+        // one whose strip reads all zero — the four cards above still work.
+        setApprovals(
+          approvalRes.error ? [] : ((approvalRes.data as PendingApprovalRow[] | null) ?? []),
+        );
       } catch (err) {
         setError(safeErrorMessage(err));
       } finally {
@@ -136,5 +161,5 @@ export function useHodBoardData(): HodBoardData {
     };
   }, [load]);
 
-  return { rows, name, loading, error };
+  return { rows, approvals, name, loading, error };
 }

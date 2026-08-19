@@ -69,7 +69,7 @@ describe('RaisePass — return date visibility by pass type', () => {
     renderRaisePass();
     await waitFor(() => expect(screen.getByLabelText('Expected Return Date')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: /NRGP/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /NRGP/ }));
 
     await waitFor(() => expect(screen.queryByLabelText('Expected Return Date')).not.toBeInTheDocument());
     expect(document.querySelectorAll('input[type="date"]').length).toBe(0);

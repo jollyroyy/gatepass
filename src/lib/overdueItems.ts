@@ -1,4 +1,5 @@
-// Overdue Items — the derivations behind the page all three roles get.
+// Overdue Items — the line-level derivations `overduePasses.ts` groups into
+// the pass-level cards every role's `/overdue` renders.
 //
 // ONE ROW IS ONE MATERIAL LINE, never a pass. A pass with three lines can have
 // one back and two still outside; the thing somebody has to chase is the line.
@@ -18,26 +19,15 @@
 // only what went late in the last 24 hours read "0 overdue" while a pass sat
 // late in the return queue, which is the bug this scope was creating).
 import type { GatePassItemView, GatePassView } from '../types';
-import type { StatusStyle } from './statusStyles';
 import { itemReturnStage } from './passRecordView';
-import type { Slice } from './boardAnalytics';
-import { dayStart, daysBetween, parseLocalDay, DAY_MS } from './localDay';
+import { dayStart, daysBetween, parseLocalDay } from './localDay';
 
 /** Days late at which a line stops being a chase and becomes an escalation.
- *  One threshold, used by the tile, the badge, the filter and the escalation
- *  panel — so the four can never disagree about what "critical" means. */
+ *  One threshold, so a line's severity here and the card stack's severity
+ *  pill can never disagree about what "critical" means. */
 export const CRITICAL_DAYS = 3;
 
 export type OverdueSeverity = 'overdue' | 'critical';
-
-/** Direct lookup, never an includes() chain. The hues are the app's status
- *  hues: orange is what an overdue pass badge already is, and red is what a
- *  pass demanding a decision already is — a line that has been out a week
- *  should not introduce a third vocabulary. */
-export const OVERDUE_STYLES: Record<OverdueSeverity, StatusStyle> = {
-  overdue: { bg: 'bg-overdue-50', text: 'text-overdue-700', dot: 'bg-overdue-500', label: 'Overdue' },
-  critical: { bg: 'bg-flagged-50', text: 'text-flagged-700', dot: 'bg-flagged-500', label: 'Critical' },
-};
 
 export interface OverdueRow {
   item: GatePassItemView;
@@ -124,146 +114,3 @@ export function buildOverdueRows(
   });
 }
 
-/** The page's two counts. `total` is the one FIGURE on screen; `critical` is
- *  not a tile any more (client, 2026-08-18) but is still what the escalation
- *  panel and the delay filter read, so it stays. Both are `rows.length` of an
- *  array the page also holds — the board's invariant. */
-export interface OverdueStats {
-  total: number;
-  critical: number;
-}
-
-export function overdueStats(rows: OverdueRow[]): OverdueStats {
-  return {
-    total: rows.length,
-    critical: rows.filter((r) => r.severity === 'critical').length,
-  };
-}
-
-/** "3 days" / "1 day". Days, because days are what the data holds. */
-export function formatDelay(days: number): string {
-  return `${days} ${days === 1 ? 'day' : 'days'}`;
-}
-
-export interface TrendBar {
-  /** Local midnight of the day. */
-  day: number;
-  /** "13 Aug" — the axis label. */
-  label: string;
-  count: number;
-}
-
-/**
- * How many of these lines were already past their date on each of the last
- * `days` days, oldest first.
- *
- * Built from the rows themselves — no second query, and no history table.
- * A line still outstanding today was outstanding on every earlier day too
- * (`returned_qty` only ever increases), so "was it past its date on day D" is
- * decided by its date alone. A line returned before today is therefore absent
- * from every bar, including the ones where it was genuinely late: this is a
- * picture of the CURRENT backlog's age, not an archive of past lateness.
- */
-export function overdueTrend(rows: OverdueRow[], now: number = Date.now(), days = 7): TrendBar[] {
-  const today = dayStart(now);
-  const out: TrendBar[] = [];
-  for (let i = days - 1; i >= 0; i -= 1) {
-    const day = today - i * DAY_MS;
-    const count = rows.filter((r) => {
-      const d = parseLocalDay(r.expectedReturn);
-      return d !== null && d < day;
-    }).length;
-    out.push({
-      day,
-      label: new Date(day).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
-      count,
-    });
-  }
-  return out;
-}
-
-/** The delay bands of the filter bar. `critical` is the same threshold the
- *  severity badge uses — one definition, four readers. */
-export type DelayFilter = 'any' | 'lt3' | 'critical' | 'week';
-
-export const DELAY_FILTER_LABELS: Record<DelayFilter, string> = {
-  any: 'Delay: Any',
-  lt3: 'Under 3 days',
-  critical: '3 days or more',
-  week: 'A week or more',
-};
-
-const DELAY_MATCH: Record<DelayFilter, (days: number) => boolean> = {
-  any: () => true,
-  lt3: (d) => d < CRITICAL_DAYS,
-  critical: (d) => d >= CRITICAL_DAYS,
-  week: (d) => d >= 7,
-};
-
-export interface OverdueFilterState {
-  /** A `public.departments` id, or 'all'. */
-  department: string;
-  delay: DelayFilter;
-}
-
-export const EMPTY_FILTERS: OverdueFilterState = { department: 'all', delay: 'any' };
-
-export function filterOverdue(rows: OverdueRow[], f: OverdueFilterState): OverdueRow[] {
-  return rows.filter(
-    (r) =>
-      (f.department === 'all' || r.pass.department_id === f.department) &&
-      DELAY_MATCH[f.delay](r.daysLate),
-  );
-}
-
-export function hasActiveFilters(f: OverdueFilterState): boolean {
-  return f.department !== 'all' || f.delay !== 'any';
-}
-
-/** Departments present in a set of rows, named, for the filter select. Built
- *  from the rows themselves so the select can never offer a department that
- *  filters to nothing. */
-export function departmentsOf(rows: OverdueRow[]): { id: string; name: string }[] {
-  const map = new Map<string, string>();
-  for (const r of rows) map.set(r.pass.department_id, r.pass.department_name);
-  return [...map.entries()]
-    .map(([id, name]) => ({ id, name }))
-    .sort((a, b) => (a.name < b.name ? -1 : 1));
-}
-
-/**
- * Overdue LINES per department, biggest first — the bar chart on the admin's
- * Overdue tab (client, 2026-08-18: "a bar chart of which department has the
- * department-wise overdue items").
- *
- * Counts ROWS, which on this page are material lines, not passes: a pass with
- * three lines still out is three things to chase, and the table beside the
- * chart is counted the same way. Returns an empty array when nothing is
- * overdue — a chart of zeroes says less than a sentence does.
- */
-export function overdueByDepartment(rows: OverdueRow[]): Slice[] {
-  const buckets = new Map<string, Slice>();
-  for (const r of rows) {
-    const key = r.pass.department_id ?? 'unassigned';
-    const slice = buckets.get(key)
-      ?? { key, label: r.pass.department_name ?? 'Unassigned', value: 0, rows: [] };
-    slice.value += 1;
-    slice.rows.push(r.pass);
-    buckets.set(key, slice);
-  }
-  return [...buckets.values()]
-    .sort((a, b) => (b.value - a.value) || (a.label < b.label ? -1 : 1));
-}
-
-/**
- * Which return desk a pass belongs on right now — the destination of every
- * "record this return" link outside these two pages.
- *
- * `due_state` is the DATABASE's grading, in `site_tz()`; never compare
- * `expected_return_date` to the browser clock. A pass that is neither overdue
- * nor due today still lands on Returns Due Today, which says plainly that
- * nothing is expected back — better than an Overdue page that does not list it.
- */
-export function returnDeskFor(pass: Pick<GatePassView, 'due_state'>): string {
-  return pass.due_state === 'overdue' ? '/overdue' : '/returns';
-}

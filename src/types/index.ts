@@ -72,7 +72,13 @@ export type ScanOutcome =
   | 'expired'
   | 'cancelled'
   | 'already_matched'
-  | 'already_flagged';
+  | 'already_flagged'
+  /** Migration 046: the pass is real, but it has not finished climbing the
+   *  approval ladder, so RLS hides it from the gate. `lookup_pass` deliberately
+   *  returns no `pass_id` with this one — the record is the very thing a guard
+   *  may not read — and saying 'not_found' instead would send them hunting for
+   *  a typo when the answer is "tell the driver to wait". */
+  | 'awaiting_approval';
 
 // ─── public schema (shared with VMS) ───────────────────────────────────────
 export interface Profile {
@@ -188,6 +194,16 @@ export interface GatePassItem {
   unit: string;
   serial_no: string | null;
   approx_value: number | null;
+  /** Make / Model / Size (migration 045) — the raise mock-up's own column, kept
+   *  apart from `description` because `description` is what
+   *  `normalize_material` keys the one-open-line-per-material index on. Null on
+   *  every line raised before 045. */
+  make_model: string | null;
+  /** Invoice / Reference No. (045) — the paper the material came in on. */
+  invoice_no: string | null;
+  /** Free remarks for the line (045). NOT `description`, which is the material
+   *  itself and is NOT NULL. */
+  remarks: string | null;
   returned_qty: number;
   /** When THIS line was fully returned (migration 029). Null while any quantity
    *  is still outstanding — including a partially-returned line, which still
@@ -309,38 +325,69 @@ export interface Verification {
 /** One row of the Raise Pass item repeater. Numbers stay as strings while the
  * user is typing — an <input type="number"> mid-edit is legitimately "" or
  * "1." and coercing early turns that into NaN. Parsed once, on submit. */
-export interface NewGatePassItem {
+/** A department the signed-in HOD may raise a pass for. Shared by RaisePass and
+ *  its Pass Details section, which draws the department the client asked to see
+ *  on the pass rather than only implied by the account. */
+export interface DeptOption {
+  id: string;
   name: string;
-  description: string;
-  purpose: string;
-  /** Optional, free-text — client, 2026-08-19: "put the serial number against
-   *  all the items, in both the passes." `raise_pass` has always accepted this
-   *  per element of `p_items`; the form simply never collected it. */
+  code: string;
+}
+
+/** One line of the raise form's "Item-wise Details" table, drawn to the client's
+ *  mock-up (2026-08-19).
+ *
+ *  WHAT IS NOT HERE, and why. The mock's table has six data columns, and three
+ *  fields the old grid collected are absent from all of them:
+ *
+ *   * `purpose` — asked ONCE now, for the whole pass. `raise_pass` (045) falls
+ *     back to the pass purpose for every line, so a record screen still prints a
+ *     real reason.
+ *   * `unit` — the client asked for the UOM column to go. Every line is written
+ *     in the column default, `nos`, so every quantity is a whole count.
+ *     **KNOWN COST, FLAGGED**: material genuinely counted in bags, drums, kg or
+ *     litres cannot be raised in its own unit from this form any more.
+ *   * `approx_value` — no column on the mock, so no new pass carries a value and
+ *     "Total Value" reads "—" on every card and record from here on.
+ */
+export interface NewGatePassItem {
+  /** "Item Description" — the ONE name field on the mock. Written to both
+   *  `name` and `description`; the latter is what the open-material index keys
+   *  on, so it must be the material itself and nothing else. */
+  name: string;
+  /** "Make / Model / Size" — required by the form, nullable in the column. */
+  make_model: string;
+  /** "Serial / Asset Tag" — client, 2026-08-19: "put the serial number against
+   *  all the items, in both the passes." */
   serial_no: string;
+  /** "Invoice / Reference No." */
+  invoice_no: string;
+  /** "Remarks / Description" */
+  remarks: string;
   quantity: string;
-  unit: string;
-  approx_value: string;
 }
 
 export const EMPTY_ITEM: NewGatePassItem = {
   name: '',
-  description: '',
-  purpose: '',
+  make_model: '',
   serial_no: '',
-  quantity: '1',
-  unit: 'nos',
-  approx_value: '',
+  invoice_no: '',
+  remarks: '',
+  quantity: '',
 };
 
 export interface NewGatePass {
   type: PassType;
   direction: PassDirection;
   department_id: string;
+  /** "Person Who Will Carry" on the mock. */
   visitor_name: string;
+  /** Mobile number, dial code included — packed into `visitor_company`'s `v`. */
   visitor_phone: string;
   visitor_company: string;
   company_address: string;
   vehicle_number: string;
+  /** "Purpose / Description" — ONE reason for the whole pass, max 500 chars. */
   purpose: string;
   expected_return_date: string;
   items: NewGatePassItem[];
@@ -354,6 +401,8 @@ export interface VendorProfile {
   phone: string | null;
   vehicle_number: string | null;
   typical_material: string | null;
+  /** Migration 045 — what the mock's "Vendor Address (Auto-filled)" reads. */
+  address: string | null;
   department_id: string;
   created_by: string;
   created_at: string;

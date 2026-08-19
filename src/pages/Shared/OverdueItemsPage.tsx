@@ -1,59 +1,49 @@
-// /overdue — Overdue, for all three roles. SCOPE AND ROUTING, NOTHING ELSE.
+// /overdue — Overdue RGP Gate Passes, ONE screen for all three roles (client,
+// 2026-08-19).
 //
-// TWO PAGES BEHIND ONE ROUTE, and the split is by what the reader does:
+// This used to fork: a guard got a single count-and-stack card, the HOD and
+// the admin got an item-level board with a filter bar, a department chart and
+// a seven-day trend. The client asked for the card-stack screen everywhere —
+// "make the overdue page the same for everyone, the card view" — so the older
+// board is gone and `OverduePassBoard` is what every role renders now.
 //
-//   guard  `GuardOverdueBoard` — one count of overdue PASSES, opening into a
-//          stack of them, each card a link to the pass's own record (client,
-//          2026-08-19). A guard chases a slip at the barrier: they need which
-//          five passes, and the four actions on each. They do not need the
-//          department chart or the seven-day trend, and both were asked for by
-//          name to go.
-//   HOD    `OverdueBoard` — the item-level board, own passes only. Department
-//          scope is RLS's; person scope is `.eq('raised_by', …)` inside
-//          useOpenReturns — server-side, the same rule the HOD board applies.
-//   admin  `OverdueBoard`, site-wide. RLS gives an admin every department.
-//
-// THE TWO COUNT THE SAME BACKLOG. `buildOverduePasses` groups exactly the rows
-// `buildOverdueRows` produces, so the guard's "5 passes" and the admin's "12
-// items" are two readings of one set and cannot contradict each other. There is
-// no day cut on either: it was deleted on 2026-08-19 after this page read
-// "Total overdue 0" while the return queue showed a late pass.
-//
-// ONLY THE GUARD CAN RECORD A RETURN, which is the database's rule, not a
-// courtesy: `apply_item_returns` refuses anyone else.
+// SCOPE IS STILL THREE DIFFERENT THINGS, and that has not changed: HOD is
+// their own raised passes (`.eq('raised_by', …)`, inside `useOpenReturns`,
+// server-side), guard and admin are site-wide (RLS gives an admin every
+// department). This page's only job is to pick the right `subtitle` — which
+// states the scope in words, since the board no longer carries a filter bar
+// that would otherwise say it — and to decide `canProcessReturn`: true for a
+// guard alone, because `apply_item_returns` refuses anyone else.
 import React from 'react';
 import type { UserRole } from '../../types';
 import { useOpenReturns } from '../../lib/useOpenReturns';
-import OverdueBoard from '../../components/overdue/OverdueBoard';
-import GuardOverdueBoard from '../../components/guard/GuardOverdueBoard';
+import OverduePassBoard from '../../components/overdue/OverduePassBoard';
 
-const SUBTITLES: Record<'hod' | 'admin', string> = {
-  hod: 'Material you sent out that has passed its expected return date — all time.',
-  admin: 'Material that has passed its expected return date, across every department — all time.',
+// A `Record<UserRole, …>`, not an includes() chain — a fifth role would be a
+// type error here rather than a silent fallback to the guard's wording.
+// `staff` never reaches this page (no route access) but must still be total.
+const SUBTITLES: Record<UserRole, string> = {
+  guard: 'RGP gate passes that are past their return deadline.',
+  hod: "Your department's RGP gate passes that are past their return deadline — the passes you raised.",
+  admin: 'RGP gate passes past their return deadline, across every department.',
+  super_admin: 'RGP gate passes past their return deadline, across every department.',
+  staff: 'RGP gate passes that are past their return deadline.',
 };
 
 type Props = { role: UserRole | null };
 
 export default function OverdueItemsPage({ role }: Props): React.ReactElement {
-  const isGuard = role === 'guard';
   const isHod = role === 'hod';
-  const { passes, items, loading, error, reload } = useOpenReturns(isHod);
-
-  if (isGuard) {
-    return <GuardOverdueBoard passes={passes} items={items} loading={loading} error={error} />;
-  }
+  const { passes, items, loading, error } = useOpenReturns(isHod);
 
   return (
-    <OverdueBoard
-      subtitle={SUBTITLES[isHod ? 'hod' : 'admin']}
+    <OverduePassBoard
       passes={passes}
       items={items}
-      canRecord={false}
-      showDepartments={!isHod}
-      showTrend
       loading={loading}
       error={error}
-      onRecorded={() => void reload()}
+      subtitle={SUBTITLES[role ?? 'guard']}
+      canProcessReturn={role === 'guard'}
     />
   );
 }

@@ -53,6 +53,13 @@ async function renderTab() {
   await waitFor(() => expect(screen.getByText('Active Guard')).toBeInTheDocument());
 }
 
+/** Every tab but Inactive is active-only since 2026-08-19, so a suspended or
+ *  roleless person is reached through that tab and nowhere else. */
+async function renderInactiveTab() {
+  await renderTab();
+  fireEvent.click(screen.getByRole('button', { name: 'Inactive' }));
+}
+
 describe('UsersTab — Role and Status are separate columns', () => {
   it('the table has both headers', async () => {
     await renderTab();
@@ -61,14 +68,14 @@ describe('UsersTab — Role and Status are separate columns', () => {
   });
 
   it('a suspended guard still reads Guard in the Role column', async () => {
-    await renderTab();
+    await renderInactiveTab();
     const row = rowFor('Benched Guard');
     expect(within(row).getByText('Guard')).toBeInTheDocument();
     expect(within(row).getByText('Inactive')).toBeInTheDocument();
   });
 
   it('a suspended HOD keeps their role too — 040 stopped erasing it', async () => {
-    await renderTab();
+    await renderInactiveTab();
     const row = rowFor('Suspended Hod');
     expect(within(row).getByText('HOD')).toBeInTheDocument();
     expect(within(row).getByText('Inactive')).toBeInTheDocument();
@@ -84,7 +91,7 @@ describe('UsersTab — Role and Status are separate columns', () => {
   // A legacy `staff` row is honest about both facts: VMS's role, and the fact
   // that such an account can reach nothing here.
   it('a legacy staff row reads Staff / Inactive', async () => {
-    await renderTab();
+    await renderInactiveTab();
     const row = rowFor('Legacy Staff');
     expect(within(row).getByText('Staff')).toBeInTheDocument();
     expect(within(row).getByText('Inactive')).toBeInTheDocument();
@@ -92,11 +99,16 @@ describe('UsersTab — Role and Status are separate columns', () => {
 });
 
 describe('UsersTab — staff is not an assignable role', () => {
-  it('the Add User role select offers Guard and HOD only', async () => {
+  // Migration 046: the Add User control also offers the four gate pass
+  // approval offices (Security Head/COO/CEO/Finance HOD), which are created
+  // as VMS `staff` under the hood — see tests/unit/createApproverUser.test.tsx
+  // for that behaviour. This case only pins that plain `staff` itself is
+  // still not a selectable option.
+  it('the Add User role select never offers bare "staff"', async () => {
     await renderTab();
     fireEvent.click(screen.getByRole('button', { name: 'Add User' }));
     const select = screen.getByLabelText('Role') as HTMLSelectElement;
-    expect([...select.options].map((o) => o.value)).toEqual(['guard', 'hod']);
+    expect([...select.options].map((o) => o.value)).not.toContain('staff');
   });
 
   it('the Edit User role select offers Guard and HOD only — no "Deactivate (Staff)"', async () => {
@@ -111,7 +123,7 @@ describe('UsersTab — staff is not an assignable role', () => {
   // column is the only thing that reactivates, so an admin fixing a typo in a
   // name cannot hand back access by accident.
   it('saving the Edit modal never sends a role of staff', async () => {
-    await renderTab();
+    await renderInactiveTab();
     fireEvent.click(within(rowFor('Benched Guard')).getByRole('button', { name: 'Edit' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     await waitFor(() => expect(rpcSpy).toHaveBeenCalledWith('admin_update_user', expect.anything()));
@@ -122,19 +134,24 @@ describe('UsersTab — staff is not an assignable role', () => {
 
 describe('UsersTab — reactivation flips the status, it does not invent a role', () => {
   it('a suspended guard offers Reactivate, and it calls the RPC directly', async () => {
-    await renderTab();
+    await renderInactiveTab();
     fireEvent.click(within(rowFor('Benched Guard')).getByRole('button', { name: 'Reactivate' }));
     await waitFor(() =>
       expect(rpcSpy).toHaveBeenCalledWith('admin_reactivate_user', { p_user_id: 'u2' })
     );
   });
 
-  // With no role to restore, flipping the flag would report someone as Active
-  // who still cannot sign in to anything — the server refuses it too.
-  it('a legacy staff row offers Edit rather than Reactivate', async () => {
-    await renderTab();
+  // SUPERSEDED 2026-08-19: this used to hold that a legacy `staff` row offers
+  // Edit and no Reactivate, because flipping the flag on a roleless account
+  // would report someone Active who still cannot sign in — which the server
+  // refuses too. The client asked for the button on every inactive row, so it
+  // is there now and opens the role choice the RPC is demanding. The refusal
+  // is unchanged; what changed is that the portal answers it instead of
+  // hiding the control. See tests/unit/usersTabActiveOnly.test.tsx.
+  it('a legacy staff row now offers Reactivate as well as Edit', async () => {
+    await renderInactiveTab();
     const row = rowFor('Legacy Staff');
-    expect(within(row).queryByRole('button', { name: 'Reactivate' })).not.toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: 'Reactivate' })).toBeInTheDocument();
     expect(within(row).getByRole('button', { name: 'Edit' })).toBeInTheDocument();
   });
 
@@ -163,11 +180,15 @@ describe('UsersTab — the Inactive filter is a status filter now', () => {
     expect(screen.queryByText('Active Guard')).not.toBeInTheDocument();
   });
 
-  it('the Guard filter still shows a suspended guard — they are still a guard', async () => {
+  // SUPERSEDED 2026-08-19: the Guard filter used to list a suspended guard too
+  // ("they are still a guard"). The client asked for every tab but Inactive to
+  // be active-only, so the role tabs are now a filter over people who can
+  // actually sign in. Pinned in tests/unit/usersTabActiveOnly.test.tsx.
+  it('the Guard filter shows active guards only', async () => {
     await renderTab();
     fireEvent.click(screen.getByRole('button', { name: 'Guard' }));
     expect(screen.getByText('Active Guard')).toBeInTheDocument();
-    expect(screen.getByText('Benched Guard')).toBeInTheDocument();
+    expect(screen.queryByText('Benched Guard')).not.toBeInTheDocument();
     expect(screen.queryByText('Suspended Hod')).not.toBeInTheDocument();
   });
 });

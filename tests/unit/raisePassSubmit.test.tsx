@@ -1,18 +1,8 @@
-// RaisePass had two defects that together made an RGP unsubmittable, both
-// from the same root cause: migration 019 moved the return date onto each
-// item, but the form kept demanding (and never rendering) a pass-level
-// field. Fixed on 2026-08-17 by moving to per-item dates end to end.
-//
-// 2026-08-19: the client reversed the decision — "the return date of all
-// individual items in the pass should be the expected return date of the
-// entire pass." The date is collected ONCE, on the pass, and every item in
-// `p_items` is written with that same value. There is no per-item date
-// input left at all.
-//
-// The client also asked, in the same pass, for a serial number on every
-// line ("put the serial number against all the items, in both the
-// passes") — `raise_pass` has always read `serial_no` off each element of
-// `p_items`; the form simply never sent it. This file pins both.
+// RaisePass — the raise-form's submit flow and the RPC payload shape, drawn
+// to the client's 2026-08-19 "Raise Gate Pass" mock-up: ONE pass-level
+// purpose and return date, one vendor with an auto-filled address, and an
+// item table with make/model, serial, invoice and remarks per line but no
+// unit picker (every line is written `nos`).
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -30,6 +20,10 @@ function thenable(result: { data: unknown; error: unknown }) {
   return obj;
 }
 
+const VENDORS = [
+  { id: 'v1', company_name: 'BSC Services', address: '12 Park St', vehicle_number: 'WB01AB1234' },
+];
+
 const TABLE_DATA: Record<string, { data: unknown; error: unknown }> = {
   hod_departments: { data: [{ department_id: 'd1' }], error: null },
   departments: { data: [{ id: 'd1', name: 'IT', code: 'IT' }], error: null },
@@ -39,15 +33,19 @@ function fakeFrom(table: string) {
   return { select: () => thenable(TABLE_DATA[table] ?? { data: [], error: null }) };
 }
 
+/** Set by the blacklist case only, and reset every test — `rpc`'s implementation
+ *  is shared across the file, so a lingering override from one test would
+ *  otherwise leak into every test that runs after it. */
+let raiseError: { message: string } | null = null;
+
 const rpc = vi.fn((name: string) => {
+  if (name === 'list_vendor_profiles') return thenable({ data: VENDORS, error: null });
   if (name === 'raise_pass') {
-    // A realistic slice of what `raise_pass` actually returns (a full
-    // gate_passes row) — PassSubmittedModal reads status/direction/vehicle
-    // off it now, not just the four fields this fixture used to carry.
+    if (raiseError) return thenable({ data: null, error: raiseError });
     return thenable({
       data: {
         id: 'p1',
-        pass_number: 'RGP-OUT-20260804-0001',
+        pass_number: 'RGP-20260804-0001',
         type: 'RGP',
         direction: 'out',
         status: 'pending',
@@ -83,19 +81,28 @@ function renderRaisePass() {
   );
 }
 
-/** Fill everything an RGP needs except the pass-level return date. */
-function fillRequiredFields() {
-  fireEvent.change(screen.getByPlaceholderText('Person authorized to collect material'), {
-    target: { value: 'Ravi Kumar' },
-  });
-  fireEvent.change(screen.getByPlaceholderText('Item name'), { target: { value: 'Drill' } });
-  fireEvent.change(screen.getByPlaceholderText('Description (brand, model, details)'), {
-    target: { value: 'Bosch GSB 13mm' },
-  });
-  fireEvent.change(screen.getByPlaceholderText('Reason for taking out'), {
-    target: { value: 'Servicing' },
-  });
-  fireEvent.change(screen.getByPlaceholderText('Qty'), { target: { value: '2' } });
+function typeVendor(name: string) {
+  fireEvent.change(screen.getByRole('combobox', { name: /Vendor Name/ }), { target: { value: '__new' } });
+  fireEvent.change(screen.getByLabelText('New vendor name'), { target: { value: name } });
+}
+
+function fillFirstItem(name: string, makeModel: string, qty: string) {
+  fireEvent.change(screen.getAllByLabelText('Item Description')[0], { target: { value: name } });
+  fireEvent.change(screen.getAllByLabelText('Make / Model / Size')[0], { target: { value: makeModel } });
+  fireEvent.change(screen.getAllByLabelText('Quantity')[0], { target: { value: qty } });
+}
+
+function fillAllRequired() {
+  typeVendor('Acme Co');
+  fireEvent.change(screen.getByLabelText(/Person Who Will Carry/), { target: { value: 'Ravi Kumar' } });
+  fireEvent.change(screen.getByLabelText('Country code'), { target: { value: '+91' } });
+  fireEvent.change(screen.getByPlaceholderText('Enter mobile number'), { target: { value: '9876543210' } });
+  fireEvent.change(screen.getByLabelText(/Purpose \/ Description/), { target: { value: 'Servicing' } });
+  fillFirstItem('Drill', 'Bosch GSB 13mm', '2');
+  // Second (blank) starter row.
+  fireEvent.change(screen.getAllByLabelText('Item Description')[1], { target: { value: 'Ladder' } });
+  fireEvent.change(screen.getAllByLabelText('Make / Model / Size')[1], { target: { value: 'Aluminium 8ft' } });
+  fireEvent.change(screen.getAllByLabelText('Quantity')[1], { target: { value: '1' } });
 }
 
 function futureDate(daysAhead: number): string {
@@ -112,38 +119,28 @@ function raisePassArgs(): Record<string, unknown> {
 
 beforeEach(() => {
   rpc.mockClear();
+  raiseError = null;
 });
 
-describe('RaisePass — serial number, on every line', () => {
-  it('renders a Serial / ID input for every item row', async () => {
+describe('RaisePass — serial number and the item table, on every line', () => {
+  it('renders a Serial / Asset Tag input for every item row', async () => {
     renderRaisePass();
-    await waitFor(() => expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument());
-    expect(screen.getByLabelText('Serial / ID')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByLabelText('Item Description')).toHaveLength(2));
+    expect(screen.getAllByLabelText('Serial / Asset Tag')).toHaveLength(2);
   });
 
   it('sends a typed serial as serial_no, and an untouched line as null', async () => {
     renderRaisePass();
-    await waitFor(() => expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument());
-    fillRequiredFields();
-    fireEvent.click(screen.getByRole('button', { name: /\+ Add Item/ }));
+    await waitFor(() => expect(screen.getAllByLabelText('Item Description')).toHaveLength(2));
+    fillAllRequired();
 
-    const names = screen.getAllByPlaceholderText('Item name');
-    fireEvent.change(names[1], { target: { value: 'Ladder' } });
-    fireEvent.change(screen.getAllByPlaceholderText('Description (brand, model, details)')[1], {
-      target: { value: 'Aluminium 8ft' },
-    });
-    fireEvent.change(screen.getAllByPlaceholderText('Reason for taking out')[1], {
-      target: { value: 'Repair' },
-    });
-    fireEvent.change(screen.getAllByPlaceholderText('Qty')[1], { target: { value: '1' } });
-
-    const serials = screen.getAllByLabelText('Serial / ID');
+    const serials = screen.getAllByLabelText('Serial / Asset Tag');
     fireEvent.change(serials[0], { target: { value: 'SN-001' } });
     // serials[1] deliberately left untouched.
 
     const due = futureDate(5);
     fireEvent.change(screen.getByLabelText('Expected Return Date'), { target: { value: due } });
-    fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('raise_pass', expect.anything()));
     const items = raisePassArgs().p_items as Record<string, unknown>[];
@@ -155,43 +152,36 @@ describe('RaisePass — serial number, on every line', () => {
 describe('RaisePass — an RGP can actually be submitted', () => {
   it('submits with the pass-level return date, and every item carries the SAME date', async () => {
     renderRaisePass();
-    await waitFor(() => expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument());
-    fillRequiredFields();
-    fireEvent.click(screen.getByRole('button', { name: /\+ Add Item/ }));
-    const names = screen.getAllByPlaceholderText('Item name');
-    fireEvent.change(names[1], { target: { value: 'Ladder' } });
-    fireEvent.change(screen.getAllByPlaceholderText('Description (brand, model, details)')[1], {
-      target: { value: 'Aluminium 8ft' },
-    });
-    fireEvent.change(screen.getAllByPlaceholderText('Reason for taking out')[1], {
-      target: { value: 'Repair' },
-    });
-    fireEvent.change(screen.getAllByPlaceholderText('Qty')[1], { target: { value: '1' } });
+    await waitFor(() => expect(screen.getAllByLabelText('Item Description')).toHaveLength(2));
+    fillAllRequired();
 
     const due = futureDate(5);
     fireEvent.change(screen.getByLabelText('Expected Return Date'), { target: { value: due } });
 
-    fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('raise_pass', expect.anything()));
     const args = raisePassArgs();
     expect(args.p_type).toBe('RGP');
     expect(args.p_expected_return_date).toBe(due);
+    expect(args.p_purpose).toBe('Servicing');
     const items = args.p_items as Record<string, unknown>[];
     expect(items).toHaveLength(2);
     expect(items.every((i) => i.expected_return_date === due)).toBe(true);
     expect(items[0].name).toBe('Drill');
     expect(items[0].quantity).toBe(2);
+    expect(items[0].unit).toBe('nos');
+    expect(items[0].make_model).toBe('Bosch GSB 13mm');
 
     await waitFor(() => expect(screen.getByText('Pass Submitted')).toBeInTheDocument());
   });
 
   it('blocks submit with a visible error when an RGP has no pass-level return date', async () => {
     renderRaisePass();
-    await waitFor(() => expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument());
-    fillRequiredFields();
+    await waitFor(() => expect(screen.getAllByLabelText('Item Description')).toHaveLength(2));
+    fillAllRequired();
 
-    fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
     await waitFor(() => expect(screen.getByText(/return date is required/i)).toBeInTheDocument());
     expect(rpc).not.toHaveBeenCalledWith('raise_pass', expect.anything());
@@ -199,12 +189,12 @@ describe('RaisePass — an RGP can actually be submitted', () => {
 
   it('submits an NRGP with no return date at all, but still sends serials', async () => {
     renderRaisePass();
-    await waitFor(() => expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /NRGP/ }));
-    fillRequiredFields();
-    fireEvent.change(screen.getByLabelText('Serial / ID'), { target: { value: 'ASSET-42' } });
+    await waitFor(() => expect(screen.getAllByLabelText('Item Description')).toHaveLength(2));
+    fireEvent.click(screen.getByRole('radio', { name: /NRGP/ }));
+    fillAllRequired();
+    fireEvent.change(screen.getAllByLabelText('Serial / Asset Tag')[0], { target: { value: 'ASSET-42' } });
 
-    fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('raise_pass', expect.anything()));
     const args = raisePassArgs();
@@ -220,28 +210,49 @@ describe('RaisePass — an RGP can actually be submitted', () => {
     // (company). Reason: not good' — that exact message must reach the form so
     // the HOD can tell a deliberate ban from a typo. safeErrorMessage passes
     // P0001 through verbatim; this pins the whole chain.
-    rpc.mockImplementation((name: string) => {
-      if (name === 'raise_pass') {
-        return thenable({
-          data: null,
-          error: { message: 'Blocked: company BSC is blacklisted (company). Reason: not good' },
-        });
-      }
-      return thenable({ data: [], error: null });
-    });
+    raiseError = { message: 'Blocked: company BSC is blacklisted (company). Reason: not good' };
 
     renderRaisePass();
-    await waitFor(() => expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument());
-    fillRequiredFields();
-    fireEvent.change(screen.getByPlaceholderText('Vendor name'), { target: { value: 'BSC' } });
+    await waitFor(() => expect(screen.getAllByLabelText('Item Description')).toHaveLength(2));
+    fillAllRequired();
     const due = futureDate(5);
     fireEvent.change(screen.getByLabelText('Expected Return Date'), { target: { value: due } });
 
-    fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
     await waitFor(() => {
       expect(screen.getByText(/Blocked: company BSC is blacklisted \(company\)\. Reason: not good/)).toBeInTheDocument();
     });
     expect(screen.queryByText('Pass Submitted')).not.toBeInTheDocument();
+  });
+});
+
+describe('RaisePass — the mock-up\'s Vendor Details section', () => {
+  it('picking a stored vendor auto-fills the address', async () => {
+    renderRaisePass();
+    await waitFor(() => expect(screen.getAllByLabelText('Item Description')).toHaveLength(2));
+
+    fireEvent.change(screen.getByRole('combobox', { name: /Vendor Name/ }), { target: { value: 'v1' } });
+
+    expect(screen.getByLabelText('Vendor Address')).toHaveValue('12 Park St');
+    expect((screen.getByLabelText('Vendor Address') as HTMLInputElement).readOnly).toBe(true);
+  });
+
+  it('a hand-typed new vendor triggers save_vendor_profile with p_address', async () => {
+    renderRaisePass();
+    await waitFor(() => expect(screen.getAllByLabelText('Item Description')).toHaveLength(2));
+    fillAllRequired();
+    fireEvent.change(screen.getByLabelText('Vendor Address'), { target: { value: '9 New Road' } });
+
+    const due = futureDate(5);
+    fireEvent.change(screen.getByLabelText('Expected Return Date'), { target: { value: due } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
+
+    await waitFor(() =>
+      expect(rpc).toHaveBeenCalledWith(
+        'save_vendor_profile',
+        expect.objectContaining({ p_company_name: 'Acme Co', p_address: '9 New Road' }),
+      ),
+    );
   });
 });

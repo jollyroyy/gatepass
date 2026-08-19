@@ -1,21 +1,28 @@
-// APPROVAL PENDING — the mock-up's foot strip, kept exactly as drawn (client,
-// 2026-08-19, asked and answered in the same pass).
+// APPROVAL PENDING — the mock-up's foot strip. Its four figures are real
+// (migration 046): each is how many signatures are still owed at that office,
+// across THIS HOD's passes — see `src/lib/hodApprovals.ts` for the office
+// mapping and why "HOD Approval" alone stays structurally zero.
 //
-// ALL FOUR FIGURES ARE HARD ZEROS AND WILL STAY ZERO until a real multi-level
-// approval workflow exists in the database. The reason is in `hodApprovals.ts`,
-// which owns the numbers; do not "fix" them here by counting some other queue,
-// because every queue this app does have already has a card of its own above.
+// `waiting` is a prop, not an import: the page reads `pass_approvals` once
+// and derives the map with `approvalWaiting`, then hands the same map to this
+// strip and to the KPI cards' "N pending approval" notes, so the two cannot
+// disagree.
 //
-// There is deliberately NO "View all" link. The mock draws one; it would have to
-// open a screen listing passes waiting at an approval level, and no such list
-// can exist while no pass ever waits at one. A link to nowhere is worse than no
-// link — the same rule that took the mock's fourth quick-action tile off the
-// guard's board.
+// There is deliberately NO "View all" link. The mock draws one; this page's
+// own drillable KPI cards already open the very passes an office is waiting
+// on — Security/Finance/Other approvals only ever apply to a pass this HOD
+// raised, and every such pass is already one card-press away above this
+// strip. A second link to the same passes would be a control that duplicates
+// one already on the page.
 import React from 'react';
-import { APPROVAL_SLOTS, APPROVAL_WAITING } from '../../lib/hodApprovals';
+import { APPROVAL_SLOTS, type ApprovalOffice } from '../../lib/hodApprovals';
 import HodIcon from './HodIcon';
 
-export default function HodApprovalPending(): React.ReactElement {
+type Props = {
+  waiting: Record<ApprovalOffice, number>;
+};
+
+export default function HodApprovalPending({ waiting }: Props): React.ReactElement {
   return (
     <div className="gb-card gb-approvals">
       <div className="gb-approvals-head">
@@ -32,7 +39,7 @@ export default function HodApprovalPending(): React.ReactElement {
             <HodIcon glyph={s.glyph} tone={s.tone} shape="chip" />
             <span className="min-w-0">
               <span className="gb-approval-label">{s.label}</span>
-              <span className="gb-approval-value">{APPROVAL_WAITING[s.key]}</span>
+              <span className="gb-approval-value">{waiting[s.key]}</span>
               <span className="gb-approval-note">Waiting</span>
             </span>
           </div>

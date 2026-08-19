@@ -1110,3 +1110,199 @@ describe('043 — the gate pass approval ladder', () => {
     expect(body).toMatch(/gatepass\.app_role\(\) is not null/i);
   });
 });
+
+describe('046 — the approval ladder becomes a workflow, and the gate stops seeing unapproved passes', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('046'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(allMigrationsText());
+  const bodyOf = (name: string): string => fns.filter((f) => f.name === `gatepass.${name}`).slice(-1)[0].body;
+
+  it('touches nothing in `public` — the two-schema rule', () => {
+    expect(/create\s+(table|view|function|type)\s+public\./i.test(bare)).toBe(false);
+    expect(/alter\s+table\s+public\./i.test(bare)).toBe(false);
+  });
+
+  it('adds no enum and no enum label — APPLY_ALL.sql is pasted as ONE transaction', () => {
+    expect(/create\s+type/i.test(bare)).toBe(false);
+    expect(/alter\s+type[^;]*add value/i.test(bare)).toBe(false);
+  });
+
+  it('hands out SELECT on pass_approvals and nothing else', () => {
+    expect(bare).toMatch(/alter table gatepass\.pass_approvals enable row level security/i);
+    expect(bare).toMatch(/grant select on gatepass\.pass_approvals to authenticated/i);
+    expect(/grant\s+(insert|update|delete|all)[^;]*pass_approvals/i.test(bare)).toBe(false);
+  });
+
+  it('has exactly one policy on pass_approvals, and it defers to the pass', () => {
+    // Restating gate_passes_select here in a second form is how the two drift
+    // apart — `can_see_pass` (044) is SECURITY INVOKER, so the pass's own
+    // policy decides.
+    const policies = [...bare.matchAll(/create policy\s+(\w+)\s+on gatepass\.pass_approvals for (\w+)/gi)];
+    expect(policies).toHaveLength(1);
+    expect(policies[0][2].toLowerCase()).toBe('select');
+    expect(bare).toMatch(/using \(gatepass\.can_see_pass\(gate_pass_id\)\)/i);
+  });
+
+  it('THE CLIENT RULE: a guard cannot select a pass that still owes a signature', () => {
+    // Not a screen filter. Without this arm, the Pending OUT queue, the search,
+    // a scanned QR code and a hand-typed /pass/<uuid> would all still resolve.
+    const policy = bare.match(/create policy\s+gate_passes_select[\s\S]*?;/i)![0];
+    expect(policy).toMatch(/gatepass\.app_role\(\) = 'guard' and not gatepass\.pass_awaits_approval\(id\)/i);
+    // …and an admin is deliberately NOT subject to it: somebody has to be able
+    // to see a pass stuck at level 2, and it is not the guard.
+    expect(policy).toMatch(/gatepass\.is_admin\(\)/i);
+    // `is_security()` means guard-or-admin and those two now differ, so it must
+    // not be what decides this policy any more.
+    expect(/is_security\(\)/i.test(policy)).toBe(false);
+  });
+
+  it('says the same thing on the material lines, or an approver could not read what they are signing', () => {
+    const policy = bare.match(/create policy\s+gate_pass_items_select[\s\S]*?;/i)![0];
+    expect(policy).toMatch(/gatepass\.app_role\(\) = 'guard' and not gatepass\.pass_awaits_approval\(gate_pass_id\)/i);
+    expect(policy).toMatch(/gatepass\.pass_routed_to_me\(gate_pass_id\)/i);
+  });
+
+  it('backs the policy with a trigger, because every state transition is SECURITY DEFINER', () => {
+    // match_pass bypasses RLS entirely. The policy hides the pass; this refuses
+    // the move.
+    expect(bare).toMatch(/create trigger gate_passes_block_unapproved[\s\S]*?before update on gatepass\.gate_passes/i);
+    const body = bodyOf('block_unapproved_gate_move');
+    expect(body).toMatch(/new\.status in \('matched', 'flagged', 'held'\)/i);
+    expect(body).toMatch(/gatepass\.pass_awaits_approval\(old\.id\)/i);
+    // 'cancelled' must NOT be refused — rejection moves a still-climbing pass
+    // to exactly that state.
+    expect(/new\.status in \([^)]*'cancelled'/i.test(body)).toBe(false);
+  });
+
+  it('snapshots the ladder on INSERT, so a later designation cannot reopen a cleared pass', () => {
+    expect(bare).toMatch(/create trigger gate_passes_snapshot_approvals[\s\S]*?after insert on gatepass\.gate_passes/i);
+    const body = bodyOf('snapshot_pass_approvals');
+    expect(body).toMatch(/from gatepass\.approval_roles/i);
+    expect(body).toMatch(/security definer/i);
+  });
+
+  it('every new function is SECURITY DEFINER with a pinned search_path', () => {
+    for (const fn of [
+      'my_approval_role',
+      'pass_awaits_approval',
+      'pass_routed_to_me',
+      'snapshot_pass_approvals',
+      'block_unapproved_gate_move',
+      'get_pass_approvals',
+      'approve_pass_level',
+      'reject_pass_level',
+    ]) {
+      const body = bodyOf(fn);
+      expect(body, fn).toMatch(/security definer/i);
+      expect(body, fn).toMatch(/set search_path = ''/i);
+    }
+  });
+
+  it('a suspended office holder holds no office (040)', () => {
+    // Otherwise deactivating an approver would leave passes addressed to
+    // somebody who cannot sign in.
+    expect(bodyOf('my_approval_role')).toMatch(/gatepass\.is_user_active\(auth\.uid\(\)\)/i);
+  });
+
+  it('both decisions are the caller`s own office, and in slip order', () => {
+    for (const fn of ['approve_pass_level', 'reject_pass_level']) {
+      const body = bodyOf(fn);
+      expect(body, fn).toMatch(/gatepass\.my_approval_role\(\)/i);
+      // The caller's level must be the LOWEST still-pending one.
+      expect(body, fn).toMatch(/min\(a\.level_no\)/i);
+      expect(body, fn).toMatch(/v_mine <> v_lowest/i);
+      // And the pass must still be waiting.
+      expect(body, fn).toMatch(/v_status <> 'pending'/i);
+    }
+  });
+
+  it('a rejection is closed, reasoned and recorded — never deleted', () => {
+    const body = bodyOf('reject_pass_level');
+    expect(body).toMatch(/status = 'cancelled'::gatepass\.pass_status/i);
+    expect(body).toMatch(/insert into gatepass\.verifications/i);
+    expect(body).toMatch(/'cancelled'::gatepass\.verify_action/i);
+    expect(body).toMatch(/A rejection needs a reason/i);
+    // The reason is required by the TABLE too, not only by the RPC.
+    expect(bare).toMatch(/status = 'rejected'[\s\S]*?length\(btrim\(coalesce\(reason, ''\)\)\) between 1 and 500/i);
+    // A raised pass is permanent (024): nothing here deletes one.
+    expect(/delete from gatepass\.gate_passes/i.test(bare)).toBe(false);
+  });
+
+  it('the scanner tells the guard the truth rather than "not_found", and hands over no id', () => {
+    const body = bodyOf('lookup_pass');
+    expect(body).toMatch(/awaiting_approval/i);
+    // pass_id is withheld on that outcome: the screen opens the record for any
+    // outcome carrying an id, and this is precisely the pass a guard may not read.
+    expect(body).toMatch(/case when v_outcome = 'awaiting_approval' then null else v_pass\.id end/i);
+  });
+
+  it('an approver account is VMS `staff`, in the profile AND in the JWT', () => {
+    // A value VMS has never seen appearing in a field VMS also reads is exactly
+    // the drift the two-schema rule exists to prevent.
+    const body = bodyOf('admin_create_user');
+    expect(body).toMatch(/v_profile_role text := p_role/i);
+    expect(body).toMatch(/v_profile_role := 'staff'/i);
+    expect(body).toMatch(/'role', v_profile_role/i);
+    expect(body).toMatch(/insert into gatepass\.approval_roles/i);
+    // It still refuses to mint an admin.
+    expect(body).toMatch(/Cannot create an admin user/i);
+  });
+});
+
+describe('048 — an admin-set password must actually let the person sign in', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('048'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(allMigrationsText());
+  const bodyOf = (name: string): string => fns.filter((f) => f.name === `gatepass.${name}`).slice(-1)[0].body;
+
+  it('the LAST definition of admin_reset_user_password confirms the address', () => {
+    // GoTrue refuses an unconfirmed address before it ever checks the password,
+    // so 036's reset set a credential the account could not use. `slice(-1)`
+    // matters here: 036 still defines the function earlier in the paste, and
+    // the one that survives the transaction is the one that must carry this.
+    const body = bodyOf('admin_reset_user_password');
+    expect(body).toMatch(/email_confirmed_at\s*=\s*coalesce\(email_confirmed_at,/i);
+  });
+
+  it('it coalesces rather than assigns — a reset never restates when ownership was proved', () => {
+    const body = bodyOf('admin_reset_user_password');
+    // `v_now` is the FUNCTION's timestamp variable, so this is a test about the
+    // function and not about the one-off backfill at the foot of the file —
+    // that one assigns `now()` outright, correctly, to addresses that have no
+    // confirmation timestamp at all to preserve.
+    expect(/email_confirmed_at\s*=\s*v_now/i.test(bare)).toBe(false);
+  });
+
+  it('everything 034 and 036 hard-won is still in the body', () => {
+    const body = bodyOf('admin_reset_user_password');
+    // The four GoTrue token columns: omit one and sign-in 500s (034). Written
+    // out rather than built from a loop — a regex assembled in a template
+    // literal loses its own backslashes, and the weakened pattern still passes.
+    expect(body).toMatch(/confirmation_token\s*=\s*coalesce\(confirmation_token, ''\)/i);
+    expect(body).toMatch(/recovery_token\s*=\s*coalesce\(recovery_token, ''\)/i);
+    expect(body).toMatch(/email_change\s*=\s*coalesce\(email_change, ''\)/i);
+    expect(body).toMatch(/email_change_token_new\s*=\s*coalesce\(email_change_token_new, ''\)/i);
+    expect(body).toMatch(/Only an admin can reset a password/i);
+    expect(body).toMatch(/Admin passwords cannot be reset from the panel/i);
+    expect(body).toMatch(/must_change_password = true/i);
+    expect(body).toMatch(/delete from auth\.sessions/i);
+    expect(body).toMatch(/delete from auth\.refresh_tokens/i);
+  });
+
+  it('the backfill is narrow, idempotent, and never touches an admin', () => {
+    // "accounts an admin has ALREADY reset", not "every unconfirmed address in
+    // a directory this app shares with VMS".
+    expect(bare).toMatch(/update auth\.users[\s\S]*?email_confirmed_at is null/i);
+    expect(bare).toMatch(/p\.must_change_password/i);
+    expect(bare).toMatch(/p\.role not in \('admin', 'super_admin'\)/i);
+  });
+
+  it('touches nothing in `public` — the two-schema rule', () => {
+    // It writes auth.users, which is the same allowance admin_create_user has
+    // had since 021; it adds and alters nothing anybody else owns.
+    expect(/create\s+(table|view|function|type)\s+public\./i.test(bare)).toBe(false);
+    expect(/alter\s+table\s+(public|auth)\./i.test(bare)).toBe(false);
+  });
+});

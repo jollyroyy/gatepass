@@ -43,17 +43,22 @@ import HodQuickActions from '../../components/hod/HodQuickActions';
 import { drillDefOf, type BoardDrill } from '../../lib/boardDrills';
 import { formatDateOnly } from '../../lib/formatDate';
 import { buildHodKpis, greetingFor, hodGreetingName, type HodKpiCard } from '../../lib/hodBoard';
+import { approvalWaiting, approvalWaitingTotal } from '../../lib/hodApprovals';
 import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 import { useHodBoardData } from './useHodBoardData';
 
 export default function Dashboard(): React.ReactElement {
-  const { rows, name, loading, error } = useHodBoardData();
+  const { rows, approvals, name, loading, error } = useHodBoardData();
   const [drill, setDrill] = useState<BoardDrill | null>(null);
   // Stamped ONCE, at mount. A ticking clock would re-render four cards every
   // second for a greeting that changes twice a day and a date that changes once.
   const [stamp] = useState(() => Date.now());
 
-  const cards = useMemo(() => buildHodKpis(rows, stamp), [rows, stamp]);
+  // ONE map, read by both the strip and the KPI cards' "N pending approval"
+  // notes below — see hodApprovals.ts.
+  const waiting = useMemo(() => approvalWaiting(rows, approvals), [rows, approvals]);
+  const pendingTotal = useMemo(() => approvalWaitingTotal(waiting), [waiting]);
+  const cards = useMemo(() => buildHodKpis(rows, stamp, pendingTotal), [rows, stamp, pendingTotal]);
 
   // Toggling: pressing the card already open closes it. Compared by `key`, not
   // by object identity — every render builds fresh drill objects.
@@ -100,7 +105,7 @@ export default function Dashboard(): React.ReactElement {
 
       <div className="gb-stack">
         <HodQuickActions />
-        <HodApprovalPending />
+        <HodApprovalPending waiting={waiting} />
       </div>
     </div>
   );

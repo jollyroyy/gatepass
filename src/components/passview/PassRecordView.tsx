@@ -37,6 +37,7 @@ import { OVERDUE_STYLE } from '../../lib/statusStyles';
 import { canVerifyAtGate } from '../../lib/phoneSearch';
 import { buildApprovalSteps, canRecordReturns } from '../../lib/approvalLadder';
 import { useApprovalRoles } from '../../lib/useApprovalRoles';
+import { usePassApprovals } from '../../lib/usePassApprovals';
 import Badge from '../Badge';
 import PassRecordSummary from './PassRecordSummary';
 import PassRecordReturns from './PassRecordReturns';
@@ -64,10 +65,15 @@ export default function PassRecordView({
 }: Props): React.ReactElement {
   const { pass, items, activity } = record;
   const roles = useApprovalRoles();
+  // What THIS pass actually owes, and who has decided (046). A pass raised
+  // before any office was designated carries none, and the ladder falls back to
+  // grading the org chart — see approvalLadder.ts.
+  const approvals = usePassApprovals(pass.id);
 
-  // The reader's role decides how a vacant office reads: for a guard the
-  // signed slip is in hand, so all four levels are approved (client).
-  const steps = buildApprovalSteps(pass, roles, role);
+  // The reader's role decides how a vacant office reads on a pass with no
+  // ladder of its own: for a guard the signed slip is in hand, so all four
+  // levels are approved (client). A real pending row outranks that.
+  const steps = buildApprovalSteps(pass, roles, role, approvals);
   const canRecord = canRecordReturns(pass, role);
   const canApprove = role === 'guard' && canVerifyAtGate(pass);
 

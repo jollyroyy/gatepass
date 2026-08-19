@@ -128,8 +128,29 @@ export default function PassRecordItems({
                 return (
                   <tr key={item.id} className={draftLine ? 'bg-accent-50/60' : undefined}>
                     <td className="tabular text-navy-500">{index + 1}</td>
-                    <td className="font-semibold text-navy-900">{item.name}</td>
-                    <td className="text-navy-500">{item.description || ''}</td>
+                    <td className="font-semibold text-navy-900">
+                      {item.name}
+                      {/* Make / Model / Size (045) — no column of its own here
+                          either; it rides under the item's identity the same
+                          way the print slip carries it, since it is a fact
+                          about the item, not the line's status. */}
+                      {item.make_model && (
+                        <span className="block text-caption font-normal text-navy-500">{item.make_model}</span>
+                      )}
+                    </td>
+                    <td className="text-navy-500">
+                      {item.description || ''}
+                      {/* Invoice/Reference No. and Remarks (045) — free text with
+                          no column of its own on the mock-up, so each folds in
+                          here only when the HOD actually typed one. Existing
+                          rows have neither and print exactly as before. */}
+                      {item.invoice_no && (
+                        <span className="block text-caption text-navy-500">Inv/Ref: {item.invoice_no}</span>
+                      )}
+                      {item.remarks && (
+                        <span className="block text-caption text-navy-500">Note: {item.remarks}</span>
+                      )}
+                    </td>
                     <td className="text-navy-700 tabular">{item.serial_no || ''}</td>
                     <td className="tabular">
                       {qtyWithUnit(item.quantity, item.unit)}

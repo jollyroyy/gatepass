@@ -39,8 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-19
 
-Full gate: **1367 tests across 118 files** (`npm run check`) — four test files were deleted
-with the card idiom they pinned (see the latest change) and one new one replaced them.
+Full gate: **1473 tests across 125 files** (`npm run check`), green.
 **Migration `044_overdue_guard_actions.sql` landed on disk and in `APPLY_ALL.sql` in commit
 `7d249c8`, from a parallel session — its live state is NOT recorded here. Check before
 assuming it is applied.**
@@ -53,11 +52,196 @@ each verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs` �
 |---|---|
 | `gatepass.gate_passes` | **60 rows** — real user data. **Not a scratch DB; do not wipe it.** |
 | `public.departments` | **12 rows** (VMS-owned, shared) — do not wipe |
-| Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
+| Demo accounts | the `@demo.vms` accounts share password `demo123` and are email-confirmed; shared with VMS. **"all email-confirmed" was WRONG** — 7 real accounts carried `email_confirmed_at is null` and none of them had ever signed in (see the 048 entry). 6 still do, and a password reset is now what confirms them. |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 | `gatepass.approval_roles` | **0 rows** — nobody is designated yet, so every pass record reads "Not designated yet" on all four levels. Admin → Users → *Gate pass approval ladder* is where they are set. |
 
-**Latest change (2026-08-19, tenth pass): ONE stacked pass card for every role, the
+**Latest change (2026-08-19, eleventh pass): the raise form IS the client's new "Raise Gate
+Pass" mock-up, and the HOD dashboard offers ONE Raise tile instead of two — migration `045`,
+APPLIED via psql (every statement returned; not yet probed with a real anon-key JWT).**
+
+- **ONE QUICK ACTION** (client: "instead of two gate passes, just create one icon"). The tile
+  goes to `/raise` and the TYPE is chosen on the form itself, which is where the mock puts it.
+  `/raise` still honours `?type=RGP|NRGP` as initial state, so an old bookmark still lands right.
+  `.gb-raise-grid` is a single 223px track now — `repeat(2, …)` with one child left the tile at
+  half width beside an empty column.
+- **`RaisePass` is ONE `.rp-sheet`, not four cards**: Pass Type · Pass Details · Vendor Details ·
+  Carrier / Person Details · Purpose · Item-wise Details, then **Cancel / Submit Request**. The
+  submit button is no longer called "Raise Gate Pass". `PassIdentityPanel.tsx` is **DELETED** —
+  the mock draws no Serial / Date / Raised By banner.
+- **Pass Type is a real `role="radiogroup"`**, two wide plates with a radio, a tinted glyph and a
+  blurb. **The mock's second plate said "Energy Pay Gate Pass"; the client corrected it on sight
+  — it is NRGP**, and it keeps the mock's green skin.
+- **Department, Vehicle Number and Expected Return Date are PASS-LEVEL and sit on top** (client:
+  "all this should be for the entire pass … no need to give it that for each individual item").
+  The mock draws none of the three; they are here on that instruction.
+- **THREE FIELDS THE FORM NO LONGER COLLECTS, each a real cost, each flagged:**
+  - **UOM** (client: remove the column) — every new line is written `nos`, so **material counted
+    in bags, drums, kg or litres can no longer be raised in its own unit**. `isWholeUnit` still
+    governs the return box; the raise form now just refuses every fraction.
+  - **Approx. value** — no column on the mock, so **"Total Value" reads "—" on every card and
+    record from here on** and the record's item table foots nothing. Old passes keep theirs.
+  - **Per-item purpose** — asked ONCE for the whole pass (500 chars, with the mock's counter).
+    `raise_pass` falls back to the pass purpose per line, so a record prints the reason that was
+    authorised instead of the literal 'Material movement'.
+- **Migration `045`**: `gate_pass_items` gains `make_model` · `invoice_no` · `remarks` (all
+  nullable, one blank-vs-null check); `vendor_profiles` gains `address`; `save_vendor_profile`
+  grows a 7th parameter (**the 6-arg overload is dropped in the same migration** — two overloads
+  reachable by named args is exactly the ambiguity PostgREST guesses at); `raise_pass` keeps its
+  **019 9-arg signature** and reads the three new keys out of each `p_items` element. No
+  `gate_passes` column, so `v_gate_passes` is untouched (TRAP 2 does not apply).
+- **"Vendor Address (Auto-filled)" is why `vendor_profiles.address` exists.** The address had
+  only ever lived inside `visitor_company`'s packed `{"n","a","v"}` JSON, which is a record of
+  ONE pass and is not queryable by vendor. **The pass still keeps its own copy** — a slip printed
+  last month must not change because somebody corrected a pincode this morning. A hand-typed
+  vendor is saved on submit, fire-and-forget, which is the only way the auto-fill ever comes true.
+- **The mobile field is a dial-code select welded to a number box** (`src/lib/mobileNumber.ts`),
+  joined into the one string the packed blob stores. Longest dial code wins on the way back out,
+  so `+91` cannot claim a `+971…` number. Validation is 7–15 digits, **not an India-only 10** —
+  the form carries a dial code and a Gulf supplier is an ordinary vendor here.
+- **THE ATTACHMENT COLUMN IS NOT BUILT** (client, mid-flight: "remove the attachment part"). No
+  storage bucket, no per-line upload.
+- Downstream, `make_model` now shows on the printed slip (a second line under the item name),
+  on the pass record, and on the guard's Verify table; `invoice_no` and `remarks` show on the
+  slip and the record but **deliberately not to the guard** — an invoice number is an accounts
+  fact, not something checked against material at a barrier.
+- Pinned by rewritten `materialItemsGrid` · `raisePassSubmit` · `raisePassReturnDate` ·
+  `reraisePass` · `wholeUnitQuantity` (raise half only) · `authorizedPersonLabel` ·
+  `hodDashboardBoard` (Quick Actions block) · `themeAudit`, plus a new `mobileNumber.test.ts`.
+- **NOT seen signed-in in a browser**: `npm run check` (1473 tests, 125 files) only.
+
+**Also 2026-08-19 (parallel session): the Users tab lists ACTIVE people only, every inactive
+row offers Reactivate, and an admin-set password can actually be signed in with — migration
+`048`, APPLIED and probed with real anon-key JWTs (`scripts/verify-048.mjs`, 8/8, throwaway
+account cleaned up).**
+
+- **EVERY TAB BUT "Inactive" IS ACTIVE-ONLY** (client: "when you are showing all users, it
+  should only show the active users and move all the inactive users to the inactive tab").
+  `matchesFilter` in `UsersTab.tsx` tests the status FIRST, so activeness decides listing in
+  exactly one place. **This reverses the rule this file used to carry**: the Guard and HOD tabs
+  deliberately listed suspended people too, on the grounds that "they are still a guard". The
+  client overruled it by name. Cost, accepted: a suspended guard is reachable through one tab
+  now rather than two.
+- **AN INACTIVE ROW ALWAYS OFFERS REACTIVATE** (client: "I don't see any reactivate option when
+  we are seeing the inactive users. Besides there I'm only seeing that edit"). It used to be
+  hidden on a `staff` row because `admin_reactivate_user` (040) *refuses* a target with no role
+  to restore. **That refusal is unchanged — the portal answers it instead of hiding the
+  control**: such a row opens `ReactivateUserModal.tsx`, which picks Guard/HOD (+ department),
+  calls `admin_update_user` and then `admin_reactivate_user`. **In that order, because the
+  second is illegal until the first lands.** A suspended guard/HOD still reactivates in one
+  click — 040 kept their role, so there is nothing to ask.
+- **`isDirectoryActive` (in `userStatus.ts`) is the directory's version of the question**, and
+  it exists because of 046: an office holder's VMS role really is `staff`, and
+  `isAccountActive` would file a COO under Inactive on the strength of a role that was never
+  meant to describe them. It is a SECOND function, not a third parameter — App.tsx's gate asks
+  about the signed-in user and has no office map to hand. An office holder gets no
+  Deactivate/Reactivate at all; their office moves on the ladder card.
+- **MIGRATION 048 — an admin-set password now CONFIRMS THE EMAIL** (client: "when the admin
+  resets the password for a user then he should be able to log in with that password and with
+  the email that is being shown in the user"). 036's reset wrote the bcrypt hash, killed the
+  sessions and raised the must-change flag — and never touched `email_confirmed_at`, which
+  **GoTrue checks BEFORE it looks at the password**. Measured on the live DB as `postgres`
+  before writing it: 7 accounts unconfirmed, **every one with `last_sign_in_at is null`**,
+  while every account that had signed in was confirmed; one of the 7 already carried
+  `must_change_password`, i.e. an admin had reset it and it still could not be used.
+  **`profiles.email` and `auth.users.email` agree on every row** — the address the portal shows
+  was never the problem. `verify-048.mjs` reproduces it end to end and GoTrue names it:
+  *"Email not confirmed"*.
+  - `coalesce(email_confirmed_at, v_now)`, never a bare assignment: a reset must not restate
+    when someone proved they owned the address. Pinned by `sqlInvariants`.
+  - The **backfill is narrowed to `must_change_password` accounts** — the flag is written by
+    that RPC alone, so the set is "accounts an admin has ALREADY reset and expects to work"
+    (1 row: `demi@vms.com`). It is deliberately NOT a blanket confirmation of every unconfirmed
+    address in a directory shared with VMS; the other 6 get confirmed the day their password is
+    reset.
+- Pinned by `usersTabActiveOnly.test.tsx` (9) and 5 new `sqlInvariants` cases. Two cases in
+  `usersTabStatus.test.tsx` were REWRITTEN, not deleted — each says in its own comment what it
+  used to hold and which client instruction superseded it.
+- **NOT seen signed-in in a browser**: the suite, a typecheck and the live 048 probe only.
+
+**Latest change (2026-08-19, eleventh pass): THE APPROVAL LADDER IS A REAL WORKFLOW —
+migration `046`, WRITTEN AND IN `APPLY_ALL.sql` BUT *NOT APPLIED* TO THE LIVE DB.** An admin
+creates a Security Head / COO / CEO / Finance HOD user; that person signs in to a Pending
+Approvals queue and approves or rejects with a written reason; and **a guard cannot SEE a pass
+that has not finished climbing the ladder.**
+
+- **`046_approval_workflow.sql` — READ ITS HEADER BEFORE TOUCHING ANY OF THIS.** New table
+  `gatepass.pass_approvals`, one row per office a pass owes, **snapshotted by an AFTER INSERT
+  TRIGGER on `gate_passes`** from whatever `approval_roles` holds that day. It is a trigger and
+  not a change to `raise_pass` on purpose — every insert path gets it, and the parallel session
+  rewriting `raise_pass` in `045` cannot drop it by forgetting a line.
+  - **A VACANT OFFICE IS NEVER SNAPSHOTTED**, which is the whole rollout: `approval_roles` is
+    empty today, so nothing blocks until an admin designates somebody, and the **60 live passes
+    are grandfathered with no backfill**.
+  - **A pass's requirements FREEZE the day it is raised.** Designating a new CEO tomorrow does
+    not reopen a pass that already cleared. Authority, though, follows the OFFICE: who may press
+    Approve is resolved from `approval_roles` at the moment of the press, so a CEO who leaves
+    does not take a queue of undecided passes with them.
+  - **THE CLIENT RULE IS RLS, NOT A SCREEN FILTER** ("the guard cannot see any partially
+    approved or unapproved gate passes"). `gate_passes_select` and `gate_pass_items_select` are
+    rewritten: admin sees everything at every stage, **guard sees everything EXCEPT a pass still
+    owing a signature**, HOD sees their own department at every stage, and an office holder sees
+    only what is routed to their office. `is_security()` is no longer what decides that policy —
+    it means guard-or-admin and those two now differ. A **BEFORE UPDATE trigger says it again**,
+    because `match_pass` is SECURITY DEFINER and bypasses every policy.
+  - `lookup_pass` gained an **`awaiting_approval`** outcome and **returns no `pass_id` with it** —
+    the record is the very thing the guard may not read, and 'not_found' would send them hunting
+    for a typo.
+  - **Rejection is terminal** and reuses 027's shape: `status` to `cancelled`, a `verifications`
+    row with who and why, no undo. The remaining levels are left `pending` rather than
+    back-filled with an invented state — nobody below signed anything.
+- **AN APPROVAL OFFICE IS NOT A ROLE**, and that is the load-bearing decision. `profiles.role`
+  is VMS's enum and this app never adds to it, so `admin_create_user` now accepts the four
+  office keys, creates the account as VMS **`staff`** (in the profile AND in
+  `raw_app_meta_data.role`) and writes the `approval_roles` row in the same transaction. The
+  office is a SECOND, INDEPENDENT grant carried beside the role — `isForbidden(path, role,
+  isApprover)` and `homeFor(role, isApprover)` in `roleRoutes.ts`, `APPROVER_ROUTES` /
+  `APPROVER_HOME`, and `src/lib/approverAccess.ts` for the argument. **043 explicitly allows the
+  Security Head to be a `guard` account**: such a person keeps every gate tab and gains
+  `/approvals`; a `staff` account with an office has `/approvals` as its home and nothing else.
+- **`/approvals` is the client's mock-up**: `src/pages/Approver/PendingApprovals.tsx` over
+  `src/components/approver/*` and `src/lib/pendingApprovals.ts` (pure) + `usePendingApprovals.ts`
+  (two reads, no aggregate). A row is actionable only when the pass is `pending`, my office's row
+  is `pending`, and **my level is the LOWEST still-pending one** — the slip order, enforced
+  server-side too, so the screen never draws a button the RPC will refuse. Passes routed to my
+  office but waiting on somebody below me render read-only underneath, naming the office they are
+  actually with. Reject opens the mock's modal (reason required, 500 characters, `N/500`).
+- **The record's ladder is graded from the pass's own rows now** (`buildApprovalSteps` takes a
+  fourth argument; `src/lib/passApprovalState.ts` holds the shape and the two status maps).
+  A pass with rows reads approved / waiting / rejected with a real name and a real moment, and the
+  **guard's "signed on the printed pass" fiction no longer applies to it** — a pass that owes a
+  signature is one a guard cannot see, so drawing it as signed would contradict the policy that
+  hid it. **A pass with NO rows reads exactly as it did before** — all 60 of them.
+- **The HOD dashboard's four approval figures are REAL** (`src/lib/hodApprovals.ts`): security
+  from `security_head`, finance from `finance_head`, other from `coo` and `ceo`. **`hod` is still
+  structurally zero** — the issuing HOD's approval is the act of raising. A rejected pass's
+  leftover `pending` rows count nowhere, which is why the count is gated on the PASS's own status.
+- **The bell tells the raising HOD a pass was rejected**, derived on mount from
+  `status = 'cancelled' and flag_reason is null` — that null is what separates an approval
+  rejection from the HOD's OWN decisions (voiding an expired pass, upholding a flag), which
+  never reached the gate and so never carried a flag reason.
+- **Admin → Users creates an office holder**, with the Department control hidden and a note
+  saying which office it MOVES (an office has one holder, by primary key). The Edit modal still
+  offers Guard and HOD only — `admin_update_user` cannot move an office; the ladder card does.
+  `UsersTab.tsx` was split into `AddUserModal` / `EditUserModal` / `DeactivateUserModal` /
+  `UsersTable` and is **260 lines**, so the 478-line debt in "Known, not fixed" is settled.
+- **`/overdue` IS ONE SCREEN FOR ALL THREE ROLES** (client, same day): the guard's card stack,
+  scoped — HOD to their own raised passes (`.eq('raised_by', ...)`, server-side), admin site-wide.
+  `src/components/overdue/` now holds `OverduePassBoard` / `OverduePassCard` / `OverdueCardMenu` /
+  `RemarkBox`; **`OverdueBoard`, `OverdueTable`, `OverdueFilters`, `OverdueStats`,
+  `OverdueTrendPanel` and `OverdueDeptChart` are DELETED**, and with them `overdueStats`,
+  `overdueTrend`, `filterOverdue`, `departmentsOf`, `overdueByDepartment`, `formatDelay`,
+  `OVERDUE_STYLES` and `returnDeskFor` in `overdueItems.ts`. **KNOWN COST, FLAGGED**: the admin
+  loses the overdue department chart and the 7-day trend. "Process RGP Return" is drawn for a
+  guard alone (only `apply_item_returns` can act) and the remark item reads "Add Remark" for
+  everyone else; Contact Vendor and Export Pass PDF are drawn for every role, because
+  `pass_contact` / `add_pass_remark` are already RLS-scoped.
+- **NOT APPLIED, NOT PROBED, NOT SEEN IN A BROWSER.** `046` is on disk and in `APPLY_ALL.sql`
+  only. **Nothing here has been verified against the live database, and the RLS change is
+  exactly the kind that only a real anon-key JWT can prove** — write `scripts/verify-046.mjs`
+  before believing the guard's queue narrows correctly.
+
+**Earlier (2026-08-19, tenth pass): ONE stacked pass card for every role, the
 timeline ends with the return, value is totalled everywhere, and the guard's record stopped
 rendering white-on-white.** Frontend only — no migration, no new RPC. One DATA fix.
 
@@ -1026,9 +1210,12 @@ the query and `GateConsole` renders the results full width above the queue.
 - **The HOD's "Mismatches needing review" queue is GONE** (2026-08-19, with the old board). The
   bell's mismatch notice is now the only route to `/mismatch/:id`. Accepted with the client, who
   asked for the dashboard to be their mock-up exactly.
-- **The HOD dashboard's four approval figures are HARD ZEROS** and cannot be anything else until
-  a real multi-level approval workflow exists (`src/lib/hodApprovals.ts` says why). Kept exactly
-  as the mock draws them, on the client's own instruction after the gap was put to them.
+- **`src/lib/notifications.tsx` is 386 lines**, over the 300-line cap. It was already 347 before
+  the rejection notice was added to it; the honest fix is extracting the mount-time derivation
+  into its own hook.
+- **The admin lost the overdue DEPARTMENT CHART and the 7-day TREND** when `/overdue` became one
+  screen for all three roles (2026-08-19). Accepted with the client, who asked for the guard's
+  screen everywhere; the admin dashboard's own department chart is untouched.
 
 - **⚠ `touch_updated_at` (001/008/010) pins `new.expires_at := old.expires_at` on EVERY
   update**, so `hod_review_flagged_pass(approve)`'s refresh of `expires_at` (035) **cannot

@@ -57,10 +57,16 @@ const expiredRows: GatePassView[] = [
 /** Records the filters every read applied, so a test can prove each query is
  *  scoped to this reader's own passes rather than to everything RLS allows.
  *
- *  The provider now fires TWO reads in parallel — flagged, and expired-pending —
- *  so the mock answers PER QUERY from the filters that query applied. A mock
- *  that returned the same array to both would invent an expiry notice for every
- *  mismatch and hide the bug where one query's filters went missing. */
+ *  The provider fires THREE reads in parallel — flagged, expired-pending, and
+ *  rejected-at-approval (046) — so the mock answers PER QUERY from the filters
+ *  that query applied. A mock that returned the same array to all three would
+ *  invent an expiry notice for every mismatch and hide the bug where one
+ *  query's filters went missing.
+ *
+ *  `.is()` is as load-bearing as `.eq()` here: the rejection read narrows on
+ *  `flag_reason is null`, and a mock missing that method throws inside the
+ *  Promise.all, which the provider catches — leaving the bell silent and every
+ *  case below failing for a reason that has nothing to do with what it tests. */
 const filters: [string, unknown][] = [];
 
 function rowsFor(own: [string, unknown][]): unknown[] {
@@ -68,6 +74,8 @@ function rowsFor(own: [string, unknown][]): unknown[] {
   if (!has('raised_by', 'hod-1')) return [];
   if (has('status', 'flagged')) return flaggedRows;
   if (has('status', 'pending') && has('is_expired', true)) return expiredRows;
+  // The approval-rejection read (046). No fixture: these cases are about the
+  // mismatch and expiry notices, and rejection has its own file.
   return [];
 }
 
@@ -86,6 +94,7 @@ function thenable() {
     filters.push([col, val]);
     return obj;
   };
+  obj.is = obj.eq;
   return obj;
 }
 

@@ -70,7 +70,13 @@ function pass(over: Partial<GatePassView> = {}): GatePassView {
 const LABEL = "Authorized Person's Name";
 
 describe(`"${LABEL}" is the label everywhere visitor_name is shown`, () => {
-  it('the raise-pass form (RGP and NRGP alike) labels the field, under an "Authorized Person Details" card', async () => {
+  // 2026-08-19: the raise form was rebuilt to the client's "Raise Gate Pass"
+  // mock-up. The mock's own words for this field are "Person Who Will Carry",
+  // under a "Carrier / Person Details" card — this form no longer uses
+  // "Authorized Person's Name" or "Authorized Person Details" at all; those
+  // stay the words the success popup, the pass-detail page and the printed
+  // slip use, which is what the rest of this file still pins.
+  it('the raise-pass form (RGP and NRGP alike) labels the field "Person Who Will Carry", under a "Carrier / Person Details" card', async () => {
     const PassDetailsCards = (await import('../../src/pages/HOD/PassDetailsCards')).default;
     render(
       <PassDetailsCards
@@ -80,17 +86,20 @@ describe(`"${LABEL}" is the label everywhere visitor_name is shown`, () => {
           vehicle_number: '', purpose: '', expected_return_date: '', items: [],
         }}
         errors={{}}
+        depts={[]}
         vendors={[]}
-        saveVendor={false}
+        vendorId=""
         onTypeChange={() => {}}
         onUpdate={() => {}}
-        onSaveVendorChange={() => {}}
+        onVendorPick={() => {}}
       />
     );
-    expect(screen.getByText(LABEL)).toBeInTheDocument();
-    expect(screen.getByText('Authorized Person Details')).toBeInTheDocument();
+    expect(screen.getByText('Carrier / Person Details')).toBeInTheDocument();
+    expect(screen.getByText('Person Who Will Carry', { exact: false })).toBeInTheDocument();
     // The placeholder stays descriptive — it is form guidance, not the label.
-    expect(screen.getByPlaceholderText('Person authorized to collect material')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Enter person name')).toBeInTheDocument();
+    expect(screen.queryByText(LABEL)).not.toBeInTheDocument();
+    expect(screen.queryByText('Authorized Person Details')).not.toBeInTheDocument();
     expect(screen.queryByText('Visitor Name')).not.toBeInTheDocument();
     expect(screen.queryByText('Visitor Details')).not.toBeInTheDocument();
   });

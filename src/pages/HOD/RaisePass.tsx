@@ -1,5 +1,6 @@
-// Pass-creation form. Type is chosen first (biggest control on the page) via
-// PassTypeSelector; everything else follows in reading order.
+// Pass-creation form, drawn to the client's 2026-08-19 "Raise Gate Pass"
+// mock-up: one white sheet, five titled sections in reading order, the
+// item-wise table, and Cancel / Submit Request at the foot.
 //
 // IT IS ALSO THE "RAISE IT AGAIN" SCREEN. A mismatch review or an expired-pass
 // review sends the HOD here with `state.copyFrom`, and `useReraisePass` fills the
@@ -7,39 +8,31 @@
 // AFTER the replacement is in the database — see that module's header for why
 // the order matters.
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { gp, pub, supabase } from '../../supabaseClient';
-import type { GatePassView, NewGatePass, NewGatePassItem, PassType, VendorProfile } from '../../types';
+import type { DeptOption, GatePassView, NewGatePass, NewGatePassItem, PassType, VendorProfile } from '../../types';
 import { EMPTY_ITEM } from '../../types';
 import { requiresReturnDate } from '../../lib/passTypes';
-import {
-  validateRaiseForm,
-  packVendor,
-  todayStr,
-  type FormErrors,
-} from '../../lib/raisePassForm';
-import { fetchMyProfile } from '../../lib/profiles';
+import { validateRaiseForm, packVendor, todayStr, type FormErrors } from '../../lib/raisePassForm';
 import { safeErrorMessage } from '../../lib/errors';
+import { notifyApproval } from '../../lib/notifyApproval';
 import { useReraisePass, voidSupersededPass } from './useReraisePass';
-import PassIdentityPanel from './PassIdentityPanel';
 import PassSubmittedModal from './PassSubmittedModal';
-import PassDetailsCards from './PassDetailsCards';
+import PassDetailsCards, { NEW_VENDOR } from './PassDetailsCards';
 import MaterialItemsCard from './MaterialItemsCard';
 
-interface DeptOption {
-  id: string;
-  name: string;
-  code: string;
-}
+/** The mock draws TWO blank lines before anything is typed — a gate pass for a
+ *  single item is the exception here, and one empty row reads as a limit. */
+const STARTING_ITEMS = 2;
 
 export default function RaisePass(): React.ReactElement {
-  // The dashboard's two Quick Action tiles are this one screen opened two ways
-  // (`/raise?type=NRGP`, `/raise?type=RGP`), so a tile that says "Raise NRGP"
-  // lands on an NRGP form. Read ONCE, as the initial state: the reader may
-  // change the type with the selector afterwards, and a `useEffect` that kept
-  // resetting it from the URL would fight them. Anything other than the two
+  // `/raise` is one screen; the pass TYPE may still arrive in the query string
+  // from an older link or bookmark. Read ONCE, as the initial state: the reader
+  // may change the type with the selector afterwards, and a `useEffect` that
+  // kept resetting it from the URL would fight them. Anything other than the two
   // legal codes falls back to RGP rather than seeding an illegal pass.
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const initialType: PassType = params.get('type') === 'NRGP' ? 'NRGP' : 'RGP';
 
   const [form, setForm] = useState<NewGatePass>({
@@ -53,34 +46,34 @@ export default function RaisePass(): React.ReactElement {
     vehicle_number: '',
     purpose: '',
     expected_return_date: '',
-    items: [{ ...EMPTY_ITEM }],
+    items: Array.from({ length: STARTING_ITEMS }, () => ({ ...EMPTY_ITEM })),
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [depts, setDepts] = useState<DeptOption[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
-  const [hodName, setHodName] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submittedPass, setSubmittedPass] = useState<GatePassView | null>(null);
   const [vendors, setVendors] = useState<VendorProfile[]>([]);
-  const [saveVendor, setSaveVendor] = useState(false);
+  const [vendorId, setVendorId] = useState('');
   const [supersedeWarning, setSupersedeWarning] = useState<string | null>(null);
-  const deptName = depts.length > 0 ? `${depts[0].name} (${depts[0].code})` : '';
+  const chosenDept = depts.find((d) => d.id === form.department_id) ?? depts[0];
+  const deptName = chosenDept ? `${chosenDept.name} (${chosenDept.code})` : '';
   const { sourceId, source, prefill } = useReraisePass(todayStr());
 
-  // Merged, never assigned wholesale: the department effect above may already
+  // Merged, never assigned wholesale: the department effect below may already
   // have chosen a department by the time the pre-fill arrives, and replacing the
-  // whole form would drop it.
+  // whole form would drop it. A re-raise names its vendor by hand, so the select
+  // moves to the free-text branch rather than silently showing "Select…" over a
+  // filled-in name.
   useEffect(() => {
     if (!prefill) return;
     setForm((f) => ({ ...f, ...prefill }));
+    if (prefill.visitor_company) setVendorId(NEW_VENDOR);
   }, [prefill]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
-    fetchMyProfile()
-      .then((p) => setHodName(p?.full_name ?? null))
-      .catch(() => setHodName(null));
   }, []);
 
   useEffect(() => {
@@ -102,7 +95,7 @@ export default function RaisePass(): React.ReactElement {
         if (!cancelled) {
           const list = (deptRows ?? []) as DeptOption[];
           setDepts(list);
-          if (list.length > 0) setForm((f) => ({ ...f, department_id: list[0].id }));
+          if (list.length > 0) setForm((f) => (f.department_id ? f : { ...f, department_id: list[0].id }));
         }
       } catch (err) {
         if (!cancelled) setSubmitError(safeErrorMessage(err));
@@ -138,6 +131,23 @@ export default function RaisePass(): React.ReactElement {
   function update<K extends keyof NewGatePass>(key: K, value: NewGatePass[K]) {
     setForm((f) => ({ ...f, [key]: value }));
     setErrors((e) => ({ ...e, [key]: undefined }));
+  }
+
+  /** The mock's "Vendor Address (Auto-filled)" — the whole point of migration
+   *  045's `vendor_profiles.address`. Picking a stored vendor fills the name,
+   *  the address and the vehicle it usually comes in; choosing "a new vendor"
+   *  clears all three so the HOD is typing into empty fields, not over
+   *  somebody else's. */
+  function pickVendor(id: string) {
+    setVendorId(id);
+    const v = vendors.find((x) => x.id === id);
+    setForm((f) => ({
+      ...f,
+      visitor_company: v ? v.company_name : '',
+      company_address: v ? (v.address ?? '') : '',
+      vehicle_number: v?.vehicle_number ?? f.vehicle_number,
+    }));
+    setErrors((e) => ({ ...e, visitor_company: undefined }));
   }
 
   function updateItem(idx: number, field: keyof NewGatePassItem, value: string) {
@@ -177,7 +187,8 @@ export default function RaisePass(): React.ReactElement {
     setSubmitError(null);
     try {
       if (!userId) throw new Error('Could not determine your user account. Please sign in again.');
-      const departmentId = depts[0].id;
+      const departmentId = form.department_id || depts[0].id;
+      const returnDate = requiresReturnDate(form.type) ? (form.expected_return_date || null) : null;
       const { data, error } = await gp().rpc('raise_pass', {
         p_type: form.type,
         p_direction: 'out',
@@ -185,25 +196,44 @@ export default function RaisePass(): React.ReactElement {
         p_visitor_name: form.visitor_name.trim(),
         p_visitor_company: packVendor(form),
         p_vehicle_number: form.vehicle_number.trim() || null,
-        p_expected_return_date: requiresReturnDate(form.type) ? (form.expected_return_date || null) : null,
+        // ONE reason for the whole pass (the mock asks once). `raise_pass` (045)
+        // also uses it as each line's `purpose`, which is NOT NULL — so the
+        // record and the printed slip show the reason that was authorised
+        // instead of the literal 'Material movement' fallback.
+        p_purpose: form.purpose.trim() || null,
+        p_expected_return_date: returnDate,
         p_items: form.items.map((item) => ({
+          // ONE "Item Description" on the mock, two NOT NULL columns behind it.
+          // `description` is what `normalize_material` keys the one-open-line-
+          // per-material index on, so it must be the material and nothing else.
           name: item.name.trim(),
-          description: item.description.trim(),
-          purpose: item.purpose.trim(),
+          description: item.name.trim(),
           quantity: Number(item.quantity),
-          unit: item.unit,
-          approx_value: item.approx_value ? Number(item.approx_value) : null,
+          // No UOM column on the mock (client: remove it), so every line is the
+          // column default. Sent explicitly rather than left to the RPC so the
+          // payload says what the row will hold.
+          unit: 'nos',
+          make_model: item.make_model.trim() || null,
+          serial_no: item.serial_no.trim() || null,
+          invoice_no: item.invoice_no.trim() || null,
+          remarks: item.remarks.trim() || null,
           // Every line carries the SAME date as the pass — client, 2026-08-19:
           // "the return date of all individual items in the pass should be the
           // expected return date of the entire pass." There is no per-item
           // input any more to disagree with it.
-          expected_return_date: requiresReturnDate(form.type) ? (form.expected_return_date || null) : null,
-          serial_no: item.serial_no.trim() || null,
+          expected_return_date: returnDate,
         })),
       });
       if (error) throw error;
       const created = data as unknown as GatePassView;
       setSubmittedPass(created);
+      // The pass is raised. Now tell the office it landed on, and copy this HOD.
+      // NOT AWAITED, and it cannot throw: `notifyApproval` swallows everything,
+      // because a mail provider having a bad afternoon must not put a red
+      // message on the screen that just confirmed a gate pass. The whole
+      // decision — who is written to, and what the letter claims — is made
+      // server-side from the pass's own approval rows; see that module.
+      void notifyApproval(created.id);
       // The replacement exists now, so the pass it replaces can be closed. A
       // failure here is reported as a WARNING and never as a submit error: the
       // new pass is raised either way, and telling the HOD "that failed" would
@@ -216,11 +246,17 @@ export default function RaisePass(): React.ReactElement {
             : null,
         );
       }
-      if (saveVendor && form.visitor_company.trim()) {
+      // A vendor typed by hand is REMEMBERED, so the next pass to the same
+      // supplier auto-fills its address instead of asking for it again — which
+      // is the only way the mock's "(Auto-filled)" can ever come true. Fire and
+      // forget: the pass is raised, and a failed profile write must not read as
+      // a failed submit.
+      if (vendorId === NEW_VENDOR && form.visitor_company.trim()) {
         gp().rpc('save_vendor_profile', {
           p_company_name: form.visitor_company.trim(),
           p_department_id: departmentId,
           p_vehicle_number: form.vehicle_number.trim() || null,
+          p_address: form.company_address.trim() || null,
         });
       }
     } catch (err) {
@@ -230,50 +266,38 @@ export default function RaisePass(): React.ReactElement {
     }
   }
 
-  // TYPE-YYYYMMDD, mirroring `gatepass.set_pass_number` since migration 042.
-  // The direction is NOT in the number any more (client, 2026-08-18) — it is
-  // still on the pass, in `direction`. If this ever disagrees with the trigger
-  // the HOD is shown a number the database will not issue.
-  const passNumberPrefix = `${form.type}-${todayStr().replace(/-/g, '')}`;
-
   return (
     <div>
-      <div className="page-header">
-        <h1 className="page-title">{sourceId ? 'Raise Gate Pass Again' : 'Raise Gate Pass'}</h1>
-        <p className="page-subtitle">Create a new material gate pass for security to verify.</p>
-      </div>
-
-      {/* The mismatch reason is repeated here on purpose. The HOD read it one
-          screen ago, but this form is where they act on it, and a correction made
-          from memory is how the same pass gets flagged twice. */}
-      {sourceId && (
-        <div className="bg-flagged-500/10 border-l-4 border-flagged-500 rounded-r-lg px-4 py-3 mb-6">
-          <p className="text-sm font-semibold text-flagged-700">
-            Correcting {source?.pass_number ?? 'a mismatched gate pass'}
-            {source?.flag_reason ? ` — ${source.flag_reason}` : ''}
-          </p>
-          <p className="text-caption text-navy-600 mt-1">
-            Check every line before submitting. The mismatched pass is voided once this one is raised.
-          </p>
+      <form onSubmit={handleSubmit} className="rp-sheet">
+        <div className="rp-head">
+          <h1 className="rp-title">{sourceId ? 'Raise Gate Pass Again' : 'Raise Gate Pass'}</h1>
+          <p className="rp-subtitle">Fill in the details to raise a new gate pass request.</p>
         </div>
-      )}
 
-      <PassIdentityPanel passNumberPrefix={passNumberPrefix} hodName={hodName} />
+        {/* The mismatch reason is repeated here on purpose. The HOD read it one
+            screen ago, but this form is where they act on it, and a correction made
+            from memory is how the same pass gets flagged twice. */}
+        {sourceId && (
+          <div className="bg-flagged-500/10 border-l-4 border-flagged-500 rounded-r-lg px-4 py-3 mb-6">
+            <p className="text-sm font-semibold text-flagged-700">
+              Correcting {source?.pass_number ?? 'a mismatched gate pass'}
+              {source?.flag_reason ? ` — ${source.flag_reason}` : ''}
+            </p>
+            <p className="text-caption text-navy-600 mt-1">
+              Check every line before submitting. The mismatched pass is voided once this one is raised.
+            </p>
+          </div>
+        )}
 
-      {/* max-w-6xl, not 3xl: the Material Items grid's own minimum width (see
-          itemGridMinWidth) is wider than a 3xl form, so at 3xl the section
-          scrolled horizontally on every screen. 6xl clears it on a normal
-          laptop; narrower viewports still scroll, with the row frame carrying
-          the full field width either way. */}
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5 max-w-6xl">
         <PassDetailsCards
           form={form}
           errors={errors}
+          depts={depts}
           vendors={vendors}
-          saveVendor={saveVendor}
+          vendorId={vendorId}
           onTypeChange={handleTypeChange}
           onUpdate={update}
-          onSaveVendorChange={setSaveVendor}
+          onVendorPick={pickVendor}
         />
 
         <MaterialItemsCard
@@ -286,9 +310,12 @@ export default function RaisePass(): React.ReactElement {
 
         {submitError && <div className="alert-error">{submitError}</div>}
 
-        <div className="flex justify-end">
+        <div className="rp-actions">
+          <button type="button" className="btn-secondary px-6" onClick={() => navigate('/dashboard')}>
+            Cancel
+          </button>
           <button type="submit" className="btn-primary px-8" disabled={submitting}>
-            {submitting ? 'Submitting…' : 'Raise Gate Pass'}
+            {submitting ? 'Submitting…' : 'Submit Request'}
           </button>
         </div>
       </form>

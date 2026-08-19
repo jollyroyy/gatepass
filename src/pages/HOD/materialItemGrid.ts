@@ -1,4 +1,4 @@
-// Shared grid-column template for the Material Items section of RaisePass.tsx
+// Shared grid-column template for the "Item-wise Details" table on RaisePass.tsx
 // — ONE source of truth for MaterialItemsCard's header row and every
 // MaterialItemRow, so the columns can never drift out of alignment with each
 // other. This is the fix for "the date and item fields are not properly
@@ -6,17 +6,22 @@
 // hoc `flex-*`/`min-w-*` widths, so no two rows (or the header) agreed on
 // where a column started.
 //
-// Column order: Item Name, Description, Serial / ID, Purpose, Qty, Unit,
-// Value, then a fixed-width remove column. THERE IS NO VARIANT ANY MORE
-// (client, 2026-08-19: the return date moved to the pass level, off this
-// grid entirely) — one template for RGP and NRGP alike, so a stale
-// `showReturnDate` branch cannot silently reappear. `.item-grid`
-// (src/index.css) reads this off the `--item-grid-cols` custom property and
-// collapses to a single column below the `md` breakpoint.
+// Column order is the client's mock-up (2026-08-19), left to right:
+//
+//   #  ·  Item Description  ·  Quantity  ·  Make / Model / Size  ·
+//   Serial / Asset Tag  ·  Invoice / Reference No.  ·  Remarks / Description  ·
+//   Action
+//
+// THE UOM COLUMN IS GONE (client: remove it) and so are Purpose and Value —
+// purpose is asked once for the whole pass, and the mock has no value column.
+// There is no variant of this template: one layout for RGP and NRGP alike, so
+// a stale `showReturnDate`/`showUnit` branch cannot silently reappear.
+// `.item-grid` (src/index.css) reads this off the `--item-grid-cols` custom
+// property and collapses to a single column below the `md` breakpoint.
 import type React from 'react';
 
 const COLUMNS =
-  'minmax(140px,1.6fr) minmax(180px,2fr) minmax(120px,1.2fr) minmax(140px,1.6fr) 72px 88px 110px 40px';
+  '36px minmax(160px,1.8fr) minmax(90px,0.9fr) minmax(150px,1.5fr) minmax(140px,1.4fr) minmax(150px,1.5fr) minmax(150px,1.5fr) 56px';
 
 export function itemGridColumns(): string {
   return COLUMNS;
@@ -30,10 +35,10 @@ const COLUMN_GAP_PX = 16;
  *  own minimum: every track's minimum, plus the gaps between them.
  *
  *  This exists because of the 2026-08-11 report that "the background frame is
- *  a bit shorter" than the fields. The row's grey frame is a plain block, so
- *  it spans only the CARD's width — but the grid inside it cannot draw
- *  narrower than this sum, so the fields overflowed the frame and sat on the
- *  page background. The frame is now given this as a `min-width` and the whole
+ *  a bit shorter" than the fields. The row's frame is a plain block, so it
+ *  spans only the CARD's width — but the grid inside it cannot draw narrower
+ *  than this sum, so the fields overflowed the frame and sat on the page
+ *  background. The frame is now given this as a `min-width` and the whole
  *  section scrolls horizontally as one, so the frame is never narrower than
  *  what it contains and the columns still share one line. */
 export function itemGridMinWidth(): string {

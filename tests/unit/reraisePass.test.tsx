@@ -32,6 +32,7 @@ const SOURCE: GatePassView = {
   direction: 'out',
   status: 'flagged',
   flag_reason: 'Two ladders loaded, three on the slip',
+  purpose: 'Signage work',
   visitor_name: 'Alice Contractor',
   visitor_company: JSON.stringify({ n: 'BSC Services', a: '12 Park St', v: '9876543210' }),
   vehicle_number: 'WB 12 3456',
@@ -43,13 +44,13 @@ const SOURCE: GatePassView = {
 const SOURCE_ITEMS = [
   {
     id: 'i1', gate_pass_id: 'p-flagged', line_no: 1, name: 'Ladder',
-    description: 'Aluminium 12ft', purpose: 'Signage work', quantity: 3, unit: 'nos',
-    approx_value: 4500, serial_no: 'SN-LADDER-1',
+    make_model: 'Aluminium 12ft', quantity: 3, unit: 'nos',
+    invoice_no: null, remarks: null, serial_no: 'SN-LADDER-1',
   },
   {
     id: 'i2', gate_pass_id: 'p-flagged', line_no: 2, name: 'Drill',
-    description: 'Bosch GSB 13mm', purpose: 'Signage work', quantity: 1, unit: 'nos',
-    approx_value: 7200, serial_no: null,
+    make_model: 'Bosch GSB 13mm', quantity: 1, unit: 'nos',
+    invoice_no: null, remarks: null, serial_no: null,
   },
 ];
 
@@ -162,7 +163,7 @@ describe('the raise form, arrived at from a mismatch', () => {
 
     // The first line's serial carries across; the second's null becomes ''.
     expect(screen.getByDisplayValue('SN-LADDER-1')).toBeInTheDocument();
-    const serials = screen.getAllByLabelText('Serial / ID') as HTMLInputElement[];
+    const serials = screen.getAllByLabelText('Serial / Asset Tag') as HTMLInputElement[];
     expect(serials.map((s) => s.value)).toEqual(['SN-LADDER-1', '']);
   });
 
@@ -186,7 +187,7 @@ describe('the raise form, arrived at from a mismatch', () => {
     renderReraise();
     await waitFor(() => expect(screen.getByDisplayValue('Ladder')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
     await waitFor(() => expect(rpcCalls.some((c) => c.fn === 'hod_review_flagged_pass')).toBe(true));
     const order = rpcCalls.map((c) => c.fn).filter((f) => f === 'raise_pass' || f === 'hod_review_flagged_pass');
@@ -206,7 +207,7 @@ describe('the raise form, arrived at from a mismatch', () => {
     supersedeError = { message: 'permission denied' };
     renderReraise();
     await waitFor(() => expect(screen.getByDisplayValue('Ladder')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
     expect(await screen.findByText(/could not be closed/)).toBeInTheDocument();
     expect(screen.getByText(/could not be closed/).textContent).toMatch(/RGP-OUT-20260817-0009/);
@@ -234,7 +235,7 @@ describe('the raise form, arrived at from an EXPIRED pass', () => {
     renderReraise();
     await waitFor(() => expect(screen.getByDisplayValue('Ladder')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: /Raise Gate Pass/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
     await waitFor(() => expect(rpcCalls.some((c) => c.fn === 'hod_void_expired_pass')).toBe(true));
     const order = rpcCalls.map((c) => c.fn).filter((f) => f === 'raise_pass' || f === 'hod_void_expired_pass');

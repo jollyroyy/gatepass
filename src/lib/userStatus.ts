@@ -6,6 +6,7 @@
 // and the person's real role was destroyed by the act of suspending them.
 // Now the role is a role, and the suspension is `gatepass.user_status`.
 import type { UserRole } from '../types';
+import { APPROVAL_ROLE_TITLES, type ApprovalRoleKey } from './approvalLadder';
 
 /**
  * What a role is called on screen. `staff` is VMS's role for someone who does
@@ -47,6 +48,42 @@ export function isAssignableRole(role: UserRole): role is AssignableRole {
 }
 
 /**
+ * Migration 046: an admin creates a Security Head / COO / CEO / Finance HOD
+ * account exactly like a guard or HOD one — `admin_create_user` now accepts
+ * the office key directly as `p_role`, creates the account as VMS `staff`
+ * (they use no VMS screen) and designates them in `gatepass.approval_roles`
+ * in the same transaction. So the ADD-USER role control offers six things,
+ * not two; the EDIT-USER one is unchanged (see `AssignableRole` above) —
+ * `admin_update_user` was not extended, and moving an office is still only
+ * `set_approval_role` / `clear_approval_role`, behind the "Gate pass approval
+ * ladder" card.
+ */
+export type CreatableRole = AssignableRole | ApprovalRoleKey;
+
+/** Labels are read from `APPROVAL_ROLE_TITLES` (the printed-slip words), never
+ *  restated here — a name in two places is a name that can drift. */
+export const CREATABLE_ROLES: { key: CreatableRole; label: string; kind: 'role' | 'office' }[] = [
+  ...ASSIGNABLE_ROLES.map((r) => ({ ...r, kind: 'role' as const })),
+  { key: 'security_head', label: APPROVAL_ROLE_TITLES.security_head, kind: 'office' },
+  { key: 'coo', label: APPROVAL_ROLE_TITLES.coo, kind: 'office' },
+  { key: 'ceo', label: APPROVAL_ROLE_TITLES.ceo, kind: 'office' },
+  { key: 'finance_head', label: APPROVAL_ROLE_TITLES.finance_head, kind: 'office' },
+];
+
+const APPROVAL_OFFICE_KEYS: Record<ApprovalRoleKey, true> = {
+  security_head: true,
+  coo: true,
+  ceo: true,
+  finance_head: true,
+};
+
+/** A `Record` lookup, not an `includes()` chain — a fifth office added to
+ *  `ApprovalRoleKey` without a matching entry here is a compile error. */
+export function isApprovalOffice(role: string): role is ApprovalRoleKey {
+  return Object.prototype.hasOwnProperty.call(APPROVAL_OFFICE_KEYS, role);
+}
+
+/**
  * Can this account reach the app at all?
  *
  * Two independent reasons it cannot, and both have to be here or a screen
@@ -64,6 +101,36 @@ export function isAssignableRole(role: UserRole): role is AssignableRole {
 export function isAccountActive(role: UserRole, flag: boolean | null | undefined): boolean {
   if (flag === false) return false;
   return role !== 'staff';
+}
+
+/**
+ * The same question, asked by the admin DIRECTORY, which knows one more fact
+ * than `isAccountActive` can see from a role and a flag.
+ *
+ * Migration 046 creates a Security Head / COO / CEO / Finance HOD as VMS
+ * `staff` — the role for "does not use VMS" — and their row in
+ * `gatepass.approval_roles` is what grants them their route and their queue.
+ * So an office holder is a `staff` row who signs in perfectly well, and
+ * `isAccountActive` would file them under Inactive on the strength of a role
+ * that was never meant to describe them.
+ *
+ * It is a SECOND function rather than a third parameter on the first: the app
+ * gate in App.tsx asks about the signed-in user and has no office map to hand,
+ * and widening the signature there would make every caller answer a question
+ * only this screen is asking.
+ *
+ * @param hasOffice  does this person hold one of the four approval offices?
+ */
+export function isDirectoryActive(
+  role: UserRole,
+  flag: boolean | null | undefined,
+  hasOffice: boolean,
+): boolean {
+  // A suspension outranks an office: the flag is what app_role() reads, so a
+  // suspended office holder reaches nothing either.
+  if (flag === false) return false;
+  if (hasOffice) return true;
+  return isAccountActive(role, flag);
 }
 
 export function accountStatusLabel(role: UserRole, flag: boolean | null | undefined): string {

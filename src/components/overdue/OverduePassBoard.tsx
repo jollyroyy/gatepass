@@ -1,11 +1,18 @@
-// OVERDUE RGP GATE PASSES — the guard's overdue screen (client, 2026-08-19).
+// OVERDUE RGP GATE PASSES — one screen, all three roles (client, 2026-08-19).
+//
+// This started as the guard's own overdue screen and is now what every role
+// gets at `/overdue`: OverdueItemsPage no longer forks between a card stack for
+// a guard and an item-level board with a filter bar, a department chart and a
+// trend panel for the HOD and the admin. The client asked for the guard's
+// screen to be the one screen — "make the overdue page the same for everyone,
+// the card view" — so that older board and its parts are deleted, not kept
+// behind a role check.
 //
 // ONE COUNT, AND THE STACK IT OPENS. The client stripped this page back to a
 // single card: "just keep the main total overdue ... only keep that card and
 // count and make that reliable ... once it is clicked all the cards will be
 // stacked". So there are no other KPI tiles, no filter bar, no export button
-// and no Guard Actions block at the foot — every one of those was on the
-// screen this replaces, and every one of them was asked for by name to go.
+// and no Guard Actions block at the foot.
 //
 // THE COUNT IS PASSES, NOT LINES, and it is derived rather than re-asked:
 // `buildOverduePasses` groups exactly the rows `buildOverdueRows` produces, so
@@ -13,10 +20,11 @@
 // It cannot say 5 over a stack of 4, and it cannot disagree with Overdue Items
 // or with the return queue about what "late" means — see overduePasses.ts.
 //
-// THE HOD'S AND THE ADMIN'S PAGE IS UNCHANGED. This is the guard's screen
-// alone; OverdueItemsPage still hands those two roles the item-level board,
-// which carries the filters, the department chart and the trend they read it
-// for. The guard chases a slip, not a backlog's shape.
+// SCOPE IS THE CALLER'S. `subtitle` states it in words (guard: the whole
+// site; HOD: their own raised passes; admin: every department) and
+// `canProcessReturn` is true for a guard alone — the one role
+// `apply_item_returns` will actually let record a line, so it is the one role
+// whose card menu offers "Process RGP Return" at all.
 //
 // IT IS SPELLED RGP. The client's mock-up says "RJP"; the schema, the pass
 // numbers, the printed slip and every other screen in this app say RGP, and a
@@ -26,9 +34,11 @@ import React, { useMemo, useState } from 'react';
 import type { GatePassItemView, GatePassView } from '../../types';
 import { buildOverduePasses } from '../../lib/overduePasses';
 import { pageOf } from '../../lib/scheduledReturns';
-import GuardPageHeader from './GuardPageHeader';
-import GuardIcon from './GuardIcon';
-import GuardPager from './GuardPager';
+// Shared chrome, not guard-only behaviour: every guard list page uses these
+// three, and this board is no longer one of the guard's own screens.
+import GuardPageHeader from '../guard/GuardPageHeader';
+import GuardIcon from '../guard/GuardIcon';
+import GuardPager from '../guard/GuardPager';
 import OverduePassCard from './OverduePassCard';
 
 /** Ten cards is about a screen and a half on the tablet at the gate. Unlike a
@@ -57,13 +67,22 @@ type Props = {
   items: GatePassItemView[];
   loading: boolean;
   error: string | null;
+  /** States the scope in words — differs by role, so the page hands it in
+   *  rather than this board guessing from a role prop it does not otherwise
+   *  need. */
+  subtitle: string;
+  /** True for a guard alone. Passed down to every card's menu, which is where
+   *  it decides whether "Process RGP Return" exists at all. */
+  canProcessReturn: boolean;
 };
 
-export default function GuardOverdueBoard({
+export default function OverduePassBoard({
   passes,
   items,
   loading,
   error,
+  subtitle,
+  canProcessReturn,
 }: Props): React.ReactElement {
   const rows = useMemo(() => buildOverduePasses(passes, items), [passes, items]);
   // OPEN BY DEFAULT ONCE THERE IS SOMETHING TO SHOW. The card is a toggle, as
@@ -83,7 +102,7 @@ export default function GuardOverdueBoard({
     <div className="gb-board">
       <GuardPageHeader
         title="Overdue RGP Gate Passes"
-        subtitle="RGP gate passes that are past their return deadline."
+        subtitle={subtitle}
         glyph="alert"
         tone="red"
         stamp={stamp}
@@ -131,7 +150,7 @@ export default function GuardOverdueBoard({
               <div id="overdue-stack">
                 <ul className="gpo-stack">
                   {view.rows.map((row) => (
-                    <OverduePassCard key={row.pass.id} row={row} />
+                    <OverduePassCard key={row.pass.id} row={row} canProcessReturn={canProcessReturn} />
                   ))}
                 </ul>
                 <div className="gb-card gb-panel gpo-stack-foot">

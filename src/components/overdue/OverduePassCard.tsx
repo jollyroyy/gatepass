@@ -17,7 +17,12 @@ import { partyOf } from '../../lib/guardBoard';
 import { formatOverdueBy, pendingItemsLabel, type OverduePassRow } from '../../lib/overduePasses';
 import OverdueCardMenu from './OverdueCardMenu';
 
-type Props = { row: OverduePassRow };
+type Props = {
+  row: OverduePassRow;
+  /** True for a guard alone — passed through to the menu, which is where it
+   *  decides whether "Process RGP Return" exists at all. */
+  canProcessReturn: boolean;
+};
 
 function Fact({ label, value, tone }: { label: string; value: string; tone?: 'late' }): React.ReactElement {
   return (
@@ -28,7 +33,7 @@ function Fact({ label, value, tone }: { label: string; value: string; tone?: 'la
   );
 }
 
-export default function OverduePassCard({ row }: Props): React.ReactElement {
+export default function OverduePassCard({ row, canProcessReturn }: Props): React.ReactElement {
   const { pass } = row;
   const party = partyOf(pass);
 
@@ -57,7 +62,12 @@ export default function OverduePassCard({ row }: Props): React.ReactElement {
         <span className={`gb-pill ${row.severity === 'critical' ? 'gb-pill-red' : 'gb-pill-orange'}`}>
           {row.severity === 'critical' ? 'Critical' : 'Overdue'}
         </span>
-        <OverdueCardMenu passId={pass.id} passNumber={pass.pass_number} partyName={party} />
+        <OverdueCardMenu
+          passId={pass.id}
+          passNumber={pass.pass_number}
+          partyName={party}
+          canProcessReturn={canProcessReturn}
+        />
       </div>
     </li>
   );

@@ -26,6 +26,15 @@ function SignatureBox({ label, caption }: SignatureBlock): React.ReactElement {
   );
 }
 
+// A LOCAL formatter, not the shared `lib/formatCurrency` — the column header
+// here already carries "Value (₹)", so a second ₹ in every cell would repeat
+// itself down the whole table. It still has to be null-safe on its own terms
+// though: `approx_value` is optional and, since 045, unset on every new line
+// (no Value field on the client's mock-up), so most rows on a fresh pass will
+// have none. Printing "0" for a null would tell the guard holding this slip
+// the item is worth nothing, which is not what "no value was declared" means —
+// so a bare item.approx_value ?? 0 here would be wrong the same way
+// Math.round(null) is wrong in the shared helper.
 function formatCurrency(n: number | null | undefined): string {
   if (n == null) return '—';
   return n.toLocaleString('en-IN');
@@ -168,9 +177,26 @@ export default function PassPrint(): React.ReactElement {
                     <td className="border border-black px-2 py-1 text-black text-center font-extrabold">
                       {items.length > 1 ? i + 1 : item.line_no}
                     </td>
-                    <td className="border border-black px-2 py-1 text-black font-semibold">{item.name}</td>
+                    <td className="border border-black px-2 py-1 text-black font-semibold">
+                      {item.name}
+                      {/* Make / Model / Size (045) rides under the name rather than
+                          its own column — an A5 slip has no width to spare, and this
+                          is the fact a guard needs beside the item's identity, not
+                          apart from it. */}
+                      {item.make_model && (
+                        <span className="block text-[10px] font-normal text-gray-700">{item.make_model}</span>
+                      )}
+                    </td>
                     <td className="border border-black px-2 py-1 text-black">{item.description}</td>
-                    <td className="border border-black px-2 py-1 text-black text-[10px]">{item.purpose}</td>
+                    <td className="border border-black px-2 py-1 text-black text-[10px]">
+                      {item.purpose}
+                      {/* Invoice/Reference No. and Remarks (045) also have no column
+                          on the mock-up — they fold into the Purpose cell, each only
+                          when the HOD actually typed one, so an old priced-only pass
+                          prints exactly as it always did. */}
+                      {item.invoice_no && <span className="block text-gray-700">Inv/Ref: {item.invoice_no}</span>}
+                      {item.remarks && <span className="block text-gray-700">Note: {item.remarks}</span>}
+                    </td>
                     <td className="border border-black px-2 py-1 text-black text-right">
                       {quantityCell(item.quantity, item.unit, itemUnits)}
                     </td>

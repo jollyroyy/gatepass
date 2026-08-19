@@ -11,6 +11,17 @@
 // Indian digit grouping stays — `en-IN` gives ₹1,10,000, which separates digits
 // without losing any. Values are rounded to whole rupees; paise are not entered
 // anywhere in this system.
-export function formatCurrency(n: number): string {
+//
+// NULL-SAFE ON THE HELPER, NOT ON EVERY CALLER (045). `approx_value` has always
+// been optional, and the raise form drops it from every new line as of the
+// client's mock-up — so an unpriced item is now the common case, not the rare
+// one. `Math.round(null)` is 0, and printing "₹0" on a slip or a pass record
+// reads as "this is worth nothing", which is a different claim from "no value
+// was declared". Every existing caller already guards this by hand (`> 0 ? … :
+// '—'`, or an inline `!= null` check) before calling in; centralising the
+// check here means a caller who forgets to guard gets the right answer anyway,
+// and it costs the guarded callers nothing since they never pass null through.
+export function formatCurrency(n: number | null | undefined): string {
+  if (n == null) return '—';
   return '₹' + Math.round(n).toLocaleString('en-IN');
 }

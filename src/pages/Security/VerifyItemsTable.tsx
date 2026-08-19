@@ -61,6 +61,14 @@ export default function VerifyItemsTable({ items, showReturnDates, totalQuantity
                 <div className="min-w-0 flex items-center gap-2.5">
                   <ItemOrdinal index={i + 1} total={items.length} />
                   <span className="font-semibold text-navy-900">{item.name}</span>
+                  {/* Make / Model / Size (045) — shown here, unlike Invoice/Ref
+                      or Remarks, because it is the one new field that helps a
+                      guard match the physical item against the pass at the
+                      barrier ("Dell Latitude 5420" vs. just "Laptop"); an
+                      invoice number is an accounts fact, not a barrier one. */}
+                  {item.make_model && (
+                    <span className="text-sm text-navy-500">({item.make_model})</span>
+                  )}
                   <span className="text-navy-300 mx-1.5" aria-hidden="true">·</span>
                   <span className="text-sm text-navy-500">{item.description}</span>
                 </div>

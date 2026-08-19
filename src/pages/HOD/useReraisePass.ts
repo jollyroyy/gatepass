@@ -68,14 +68,17 @@ export function useReraisePass(todayStr: string): ReraiseSource & { sourceId: st
 
         const p = passRes.data as GatePassView;
         const vendor = parseCompanyInfo(p.visitor_company);
+        // Only what the form still ASKS FOR. A line's `unit`, its own purpose
+        // and its approximate value are no longer on the raise form (the
+        // client's 2026-08-19 mock-up), so copying them here would put fields
+        // into the form state that nothing renders and nothing submits.
         const lines = ((itemRes.data as GatePassItemView[] | null) ?? []).map((i) => ({
           name: i.name ?? '',
-          description: i.description ?? '',
-          purpose: i.purpose ?? '',
+          make_model: i.make_model ?? '',
           serial_no: i.serial_no ?? '',
+          invoice_no: i.invoice_no ?? '',
+          remarks: i.remarks ?? '',
           quantity: String(i.quantity ?? 1),
-          unit: i.unit ?? 'nos',
-          approx_value: i.approx_value === null || i.approx_value === undefined ? '' : String(i.approx_value),
         }));
 
         setSource(p);
@@ -86,6 +89,9 @@ export function useReraisePass(todayStr: string): ReraiseSource & { sourceId: st
           company_address: vendor.address,
           visitor_phone: vendor.phone,
           vehicle_number: p.vehicle_number ?? '',
+          // The pass-level reason is now a required field, so a correction
+          // starts from the reason that was authorised rather than blank.
+          purpose: p.purpose ?? '',
           // A date in the past is dropped rather than copied — see the header.
           // This is now the PASS's own deadline, not a line's — one field, not
           // one per item.

@@ -4,6 +4,8 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase, getUserRole } from './supabaseClient';
 import type { UserRole } from './types/index';
 import { homeFor, isForbidden } from './lib/roleRoutes';
+import { fetchMyApprovalRole } from './lib/approverAccess';
+import type { ApprovalRoleKey } from './lib/approvalLadder';
 import { fetchAccessState } from './lib/profiles';
 import { ThemeProvider } from './lib/theme';
 import AppShell from './components/layout/AppShell';
@@ -30,6 +32,7 @@ import PassDetail from './pages/Shared/PassDetail';
 import PassPrint from './pages/Shared/PassPrint';
 import ProfilePage from './pages/Shared/Profile';
 import OverdueItemsPage from './pages/Shared/OverdueItemsPage';
+import PendingApprovals from './pages/Approver/PendingApprovals';
 import ReturnsDueTodayPage from './pages/Shared/ReturnsDueTodayPage';
 
 /**
@@ -41,14 +44,16 @@ import ReturnsDueTodayPage from './pages/Shared/ReturnsDueTodayPage';
  */
 function RouteGuard({
   role,
+  isApprover,
   children,
 }: {
   role: UserRole | null;
+  isApprover: boolean;
   children: React.ReactNode;
 }): React.ReactElement {
   const { pathname } = useLocation();
-  if (isForbidden(pathname, role)) {
-    return <Navigate to={homeFor(role)} replace />;
+  if (isForbidden(pathname, role, isApprover)) {
+    return <Navigate to={homeFor(role, isApprover)} replace />;
   }
   return <>{children}</>;
 }
@@ -80,6 +85,11 @@ export default function App(): React.ReactElement {
   // not evidence of a suspension, and RLS refuses a genuinely suspended
   // person's reads whatever this flag says.
   const [deactivated, setDeactivated] = useState(false);
+  // Which of the four approval offices, if any, this person holds (046). It is
+  // NOT a role — it is an extra grant read alongside one, which is why it has
+  // its own piece of state rather than being folded into `role`. See
+  // src/lib/approverAccess.ts.
+  const [office, setOffice] = useState<ApprovalRoleKey | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,11 +100,13 @@ export default function App(): React.ReactElement {
           setRole(null);
           setMustChangePassword(false);
           setDeactivated(false);
+          setOffice(null);
           setResolving(false);
         }
         return;
       }
       const r = await getUserRole();
+      const held = await fetchMyApprovalRole();
       let mustChange = false;
       let active = true;
       try {
@@ -107,6 +119,7 @@ export default function App(): React.ReactElement {
       }
       if (!cancelled) {
         setRole((r as UserRole | null) ?? null);
+        setOffice(held);
         setMustChangePassword(mustChange);
         setDeactivated(!active);
         setResolving(false);
@@ -178,8 +191,17 @@ export default function App(): React.ReactElement {
     return <NoAccess deactivated />;
   }
 
-  // Signed in, but the role has no place in this app (e.g. VMS `staff`).
-  if (isForbidden('/dashboard', role) && isForbidden('/console', role) && isForbidden('/admin', role)) {
+  // Signed in, but the role has no place in this app (e.g. VMS `staff`) AND no
+  // approval office either. The office is checked here rather than in a fourth
+  // `isForbidden` call because it is what an approver's whole account is: their
+  // VMS role really is `staff`, and without this line the one screen they exist
+  // to use would be unreachable.
+  if (
+    !office
+    && isForbidden('/dashboard', role)
+    && isForbidden('/console', role)
+    && isForbidden('/admin', role)
+  ) {
     return <NoAccess />;
   }
 
@@ -194,10 +216,10 @@ export default function App(): React.ReactElement {
   }
 
   return (
-    <AppShell session={session} role={role}>
-      <RouteGuard role={role}>
+    <AppShell session={session} role={role} isApprover={office !== null}>
+      <RouteGuard role={role} isApprover={office !== null}>
         <Routes>
-          <Route path="/login" element={<Navigate to={homeFor(role)} replace />} />
+          <Route path="/login" element={<Navigate to={homeFor(role, office !== null)} replace />} />
 
           {/* HOD */}
           <Route path="/dashboard" element={<HodDashboard />} />
@@ -224,11 +246,15 @@ export default function App(): React.ReactElement {
           <Route path="/overdue" element={<OverdueItemsPage role={role} />} />
           <Route path="/returns" element={<ReturnsDueTodayPage role={role} />} />
 
+          {/* The four approval offices (046). One screen, and it is the whole
+              of what an office holder does here. */}
+          <Route path="/approvals" element={<PendingApprovals office={office} />} />
+
           {/* Shared */}
           <Route path="/pass/:id" element={<PassDetail role={role} />} />
           <Route path="/profile" element={<ProfilePage session={session} role={role} />} />
 
-          <Route path="*" element={<Navigate to={homeFor(role)} replace />} />
+          <Route path="*" element={<Navigate to={homeFor(role, office !== null)} replace />} />
         </Routes>
       </RouteGuard>
     </AppShell>

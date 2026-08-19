@@ -1,16 +1,28 @@
-// The three-dot menu on an overdue pass card (client, 2026-08-19).
+// The three-dot menu on an overdue pass card, now drawn for every role
+// (client, 2026-08-19: this screen and its menu were the guard's alone until
+// the whole card-stack board became the one `/overdue` for HOD and admin too).
 //
-// FOUR ACTIONS, AND NO "VIEW PASS DETAILS". The card itself is the link to the
-// record — every one of them is clickable — so a menu item pointing at the same
-// screen would be a second door onto one destination. That item is deliberately
-// gone; the four below are the ones the client kept.
+// NO "VIEW PASS DETAILS". The card itself is the link to the record — every
+// one of them is clickable — so a menu item pointing at the same screen would
+// be a second door onto one destination. That item is deliberately gone.
 //
-//   Process RGP Return      /pass/:id — where the line-by-line return entry is.
+//   Process RGP Return      /pass/:id — where the line-by-line return entry
+//                           is. GUARD ONLY (`canProcessReturn`): only a guard
+//                           can record a return — `apply_item_returns` refuses
+//                           anyone else — and a menu item that leads to a
+//                           screen where the reader cannot act is a button
+//                           that always fails. An HOD or admin does not get
+//                           this item at all.
 //   Contact Vendor / Person the number off the vendor profile, via
-//                           `pass_contact` (044). A guard cannot read
-//                           vendor_profiles directly and should not be able to;
-//                           the RPC hands over ONE row for ONE pass.
-//   Add Guard Remark        `add_pass_remark` (044). Append-only.
+//                           `pass_contact` (044). Drawn for every role — the
+//                           RPC is already scoped to passes the caller can
+//                           see, so an HOD gets their own department's and an
+//                           admin gets the site's.
+//   Add Guard Remark /      `add_pass_remark` (044). Append-only, and drawn
+//   Add Remark              for every role for the same RLS-scoping reason.
+//                           The label stays "Add Guard Remark" for a guard —
+//                           it is their word for the note — and reads plain
+//                           "Add Remark" for anyone else.
 //   Export Pass PDF         /pass/:id/print, the existing printable slip.
 //
 // THE CONTACT IS FETCHED WHEN THE MENU OPENS, not with the list. A page of ten
@@ -69,9 +81,17 @@ type Props = {
   /** The name printed on the pass — what the menu falls back to when no vendor
    *  profile carries a contact person. */
   partyName: string;
+  /** True for a guard alone — the one role that can actually record a
+   *  return. */
+  canProcessReturn: boolean;
 };
 
-export default function OverdueCardMenu({ passId, passNumber, partyName }: Props): React.ReactElement {
+export default function OverdueCardMenu({
+  passId,
+  passNumber,
+  partyName,
+  canProcessReturn,
+}: Props): React.ReactElement {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [remarking, setRemarking] = useState(false);
@@ -126,21 +146,23 @@ export default function OverdueCardMenu({ passId, passNumber, partyName }: Props
 
       {open && (
         <div className="gpo-menu" role="menu">
-          <button
-            type="button"
-            role="menuitem"
-            className="gpo-menu-item"
-            onClick={() => {
-              setOpen(false);
-              navigate(`/pass/${passId}`);
-            }}
-          >
-            <span className="gpo-menu-glyph gb-ink-blue">{ReturnGlyph}</span>
-            <span>
-              Process RGP Return
-              <span className="gpo-menu-note">Return pending items</span>
-            </span>
-          </button>
+          {canProcessReturn && (
+            <button
+              type="button"
+              role="menuitem"
+              className="gpo-menu-item"
+              onClick={() => {
+                setOpen(false);
+                navigate(`/pass/${passId}`);
+              }}
+            >
+              <span className="gpo-menu-glyph gb-ink-blue">{ReturnGlyph}</span>
+              <span>
+                Process RGP Return
+                <span className="gpo-menu-note">Return pending items</span>
+              </span>
+            </button>
+          )}
 
           {tel ? (
             <a role="menuitem" className="gpo-menu-item" href={tel} onClick={() => setOpen(false)}>
@@ -174,7 +196,7 @@ export default function OverdueCardMenu({ passId, passNumber, partyName }: Props
           >
             <span className="gpo-menu-glyph gb-ink-orange">{RemarkGlyph}</span>
             <span>
-              Add Guard Remark
+              {canProcessReturn ? 'Add Guard Remark' : 'Add Remark'}
               <span className="gpo-menu-note">Add a follow-up remark</span>
             </span>
           </button>

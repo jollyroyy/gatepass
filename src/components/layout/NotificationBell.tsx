@@ -133,6 +133,19 @@ export default function NotificationBell(): React.ReactElement {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l3.5 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         </span>
+                      ) : n.type === 'rejected' ? (
+                        // Red, like the mismatch above: both are somebody
+                        // refusing this pass. A cross rather than the warning
+                        // triangle, because nothing here is in doubt — the pass
+                        // is closed. There is no decision screen for it, so the
+                        // notice falls through DECISION_ROUTE to the record,
+                        // which is where the ladder names the office that
+                        // rejected it and prints their reason.
+                        <span className="inline-flex h-6 w-6 rounded-full bg-red-100 dark:bg-red-900/30 items-center justify-center">
+                          <svg className="w-3.5 h-3.5 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </span>
                       ) : n.type === 'matched' ? (
                         <span className="inline-flex h-6 w-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 items-center justify-center">
                           <svg className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

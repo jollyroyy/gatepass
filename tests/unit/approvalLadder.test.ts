@@ -21,6 +21,7 @@ import {
   canRecordReturns,
   isReturnClosed,
   type ApprovalRoleRow,
+  type PassApprovalRow,
 } from '../../src/lib/approvalLadder';
 
 function pass(over: Partial<GatePassView> = {}): GatePassView {
@@ -209,5 +210,99 @@ describe('what may still be edited', () => {
     expect(isReturnClosed(pass({ return_status: 'returned' }))).toBe(true);
     expect(isReturnClosed(pass({ return_status: 'partially_returned' }))).toBe(false);
     expect(isReturnClosed(pass({ type: 'NRGP', return_status: 'not_applicable' }))).toBe(false);
+  });
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Migration 046: a pass that carries its OWN ladder is graded from it.
+//
+// Before 046 this module could only ask "is the seat filled?", because nothing
+// in the database recorded a decision. Now `gatepass.pass_approvals` holds one
+// row per office the pass actually owes, snapshotted the day it was raised, and
+// those rows outrank every inference below.
+// ─────────────────────────────────────────────────────────────────────────────
+function approval(over: Partial<PassApprovalRow> = {}): PassApprovalRow {
+  return {
+    role_key: 'security_head',
+    level_no: 1,
+    status: 'pending',
+    routed_name: 'Sanjay Rao',
+    decided_name: null,
+    decided_at: null,
+    reason: null,
+    ...over,
+  };
+}
+
+const HELD: ApprovalRoleRow[] = [
+  { role_key: 'security_head', user_id: 'u9', full_name: 'Sanjay Rao', department_name: 'Security', designated_at: '2026-08-19T04:00:00Z' },
+];
+
+describe('buildApprovalSteps — a pass with a real ladder of its own (046)', () => {
+  it('grades an approved level from the decision, naming who pressed it and when', () => {
+    // `decided_name` and not the current office holder: the person who signed
+    // is the fact, and the office may have changed hands since.
+    const steps = buildApprovalSteps(pass({ status: 'pending' }), HELD, 'hod', [
+      approval({ status: 'approved', decided_name: 'Sanjay Rao', decided_at: '2026-08-19T05:30:00Z' }),
+    ]);
+    const level = steps.find((s) => s.key === 'level-1')!;
+    expect(level.state).toBe('done');
+    expect(level.note).toBe('Approved');
+    expect(level.who).toBe(approverLine(APPROVAL_ROLE_TITLES.security_head, 'Sanjay Rao'));
+    // A real moment, unlike the paper signature this module used to infer.
+    expect(level.at).toBe('2026-08-19T05:30:00Z');
+  });
+
+  it('an undecided level says it is waiting, and carries no time', () => {
+    const steps = buildApprovalSteps(pass({ status: 'pending' }), HELD, 'hod', [approval()]);
+    const level = steps.find((s) => s.key === 'level-1')!;
+    expect(level.state).toBe('pending');
+    expect(level.note).toBe('Waiting for this approval');
+    expect(level.at).toBeNull();
+  });
+
+  it('a rejected level is blocked and its NOTE IS THE REASON somebody typed', () => {
+    // The reason is the only answer the raising HOD gets, so it must be the
+    // sentence on the rung rather than a generic "Rejected".
+    const steps = buildApprovalSteps(pass({ status: 'cancelled' }), HELD, 'hod', [
+      approval({
+        status: 'rejected',
+        decided_name: 'Sanjay Rao',
+        decided_at: '2026-08-19T06:00:00Z',
+        reason: 'Vendor invoice does not match the material listed.',
+      }),
+    ]);
+    const level = steps.find((s) => s.key === 'level-1')!;
+    expect(level.state).toBe('blocked');
+    expect(level.note).toBe('Vendor invoice does not match the material listed.');
+  });
+
+  it('an office this pass was never routed to is NOT DRAWN AT ALL', () => {
+    // It was vacant the day the pass was raised, so nothing waits on it.
+    // "Not designated yet" there would describe a problem that does not exist.
+    const steps = buildApprovalSteps(pass({ status: 'pending' }), HELD, 'hod', [approval()]);
+    expect(steps.filter((s) => s.key.startsWith('level-'))).toHaveLength(1);
+    expect(steps.some((s) => s.note === 'Not designated yet')).toBe(false);
+  });
+
+  it('THE GUARD`S PAPER FICTION DOES NOT OVERRIDE A REAL PENDING ROW', () => {
+    // A pass that still owes a signature under 046 is one a guard cannot even
+    // see. Drawing its levels as signed would be a screen contradicting the
+    // policy that hid it.
+    const steps = buildApprovalSteps(pass({ status: 'pending' }), HELD, 'guard', [approval()]);
+    const level = steps.find((s) => s.key === 'level-1')!;
+    expect(level.state).toBe('pending');
+    expect(level.note).not.toBe('Signed on the printed pass');
+  });
+
+  it('a pass with NO ladder still reads exactly as it did before 046', () => {
+    // Every one of the 60 passes on this database predates the workflow.
+    // Nobody signed those levels in this system, and back-filling them would be
+    // inventing an audit trail.
+    const steps = buildApprovalSteps(pass({ status: 'pending' }), [], 'hod', []);
+    const levels = steps.filter((s) => s.key.startsWith('level-'));
+    expect(levels).toHaveLength(APPROVAL_LADDER.length);
+    expect(levels.every((l) => l.state === 'unset' && l.note === 'Not designated yet')).toBe(true);
   });
 });

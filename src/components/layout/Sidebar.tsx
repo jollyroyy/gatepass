@@ -12,6 +12,10 @@ import { useEscapeKey } from '../../lib/useEscapeKey';
 type Props = {
   session: Session;
   role: UserRole | null;
+  /** Holds one of the four approval offices (046). Not a role — see
+   *  src/lib/approverAccess.ts — so it adds a tab rather than replacing the
+   *  set: a guard who is Security Head keeps every gate tab and gains this one. */
+  isApprover?: boolean;
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
 };
@@ -19,6 +23,14 @@ type Props = {
 type NavLink = { to: string; label: string; icon: React.ReactNode; roles: UserRole[] };
 
 const ICON_PROPS = { className: 'w-5 h-5', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', strokeWidth: 1.7 } as const;
+
+/** The one tab an approval office grants (046). Kept out of ALL_LINKS because
+ *  its `roles` array would have to be every role at once and then be filtered
+ *  by something else entirely. */
+export const APPROVER_LINK: NavLink = {
+  to: '/approvals', label: 'Pending Approvals', roles: [],
+  icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75l2.25 2.25 4.5-4.5" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 3.75l7.5 3v5.25c0 4.06-3.1 7.44-7.5 8.25-4.4-.81-7.5-4.19-7.5-8.25V6.75l7.5-3z" /></svg>,
+};
 
 export const ALL_LINKS: NavLink[] = [
   {
@@ -73,7 +85,7 @@ export const ALL_LINKS: NavLink[] = [
 
 const COLLAPSE_KEY = 'gatepass-sidebar-collapsed';
 
-export default function Sidebar({ session, role, collapsed: collapsedProp, onCollapsedChange }: Props): React.ReactElement {
+export default function Sidebar({ session, role, isApprover = false, collapsed: collapsedProp, onCollapsedChange }: Props): React.ReactElement {
   const loc = useLocation();
   const { theme, toggleTheme } = useTheme();
   const email = session.user.email ?? 'User';
@@ -92,6 +104,11 @@ export default function Sidebar({ session, role, collapsed: collapsedProp, onCol
   const links = ALL_LINKS
     .filter((l) => role && l.roles.includes(role))
     .sort((a, b) => rank(a.to) - rank(b.to));
+  // The office tab is appended rather than filtered in, because it is granted
+  // by `approval_roles` and not by `profiles.role` — `NavLink.roles` cannot
+  // express it. It sorts LAST for a guard or an HOD who also holds an office:
+  // their day job is the reason they open the app.
+  if (isApprover) links.push(APPROVER_LINK);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileName, setProfileName] = useState<string>('');
   const [collapsedInternal, setCollapsedInternal] = useState<boolean>(() => {

@@ -41,12 +41,6 @@ const HEX_EXEMPT_TSX = [
   // wordmark on light/dark tone variants) — decorative, not a themed
   // in-app surface, and explicitly documented as such in CLAUDE.md.
   'src/components/QuestMark.tsx',
-  // Fixed-dark chrome, same category as `.shell-sidebar` (which also
-  // hardcodes hex in src/index.css): the RaisePass "Serial / Date / Raised
-  // By" strip is deliberately dark in both themes, paired with text-white,
-  // so it must use literal colours rather than the inverting navy-9xx ramp
-  // (see the in-file comment — this was a real bug found in this sweep).
-  'src/pages/HOD/PassIdentityPanel.tsx',
   // The admin dashboard's chart palette, and the ONLY .ts file allowed hex.
   // A chart series colour must NOT invert with the theme — a category that
   // changes hue between light and dark is not an identity — so these are
@@ -54,6 +48,16 @@ const HEX_EXEMPT_TSX = [
   // of the rule absolute: every chart component imports from here, and a hex
   // literal at any call site still fails this spec.
   'src/components/charts/chartPalette.ts',
+  // The approval notification emails (migration 047). Same category as the
+  // printed slip above, and for a stronger reason: this HTML is not rendered by
+  // this app at all. It is rendered by whatever mail client the approver opens
+  // — Outlook, Gmail, a phone — none of which loads index.css, knows what
+  // `--c-navy-500` is, or would honour a CSS custom property if it did. Mail
+  // HTML takes literal, inline colour or it takes none. The palette here is
+  // deliberately black-on-white with no colour-dependent information, the same
+  // rule PassPrint follows, so the letter reads on a client that strips styles
+  // entirely.
+  'src/lib/approvalNotice.ts',
 ];
 
 describe('theme audit — no stray hardcoded hex on an in-app (theme-following) surface', () => {
@@ -157,12 +161,14 @@ describe('theme audit — no token-based surface paired with a hardcoded text-wh
   const files = listFiles(SRC, ['.tsx']);
 
   it('no className pairs bg-navy-900/950 (near-white in dark mode) with text-white', () => {
-    // The real bug this pins: PassIdentityPanel used `bg-navy-950` (which is
-    // near-black in LIGHT mode but near-WHITE once `.dark` inverts the ramp
-    // — the app's shipped default) together with a hardcoded `text-white`,
-    // going invisible white-on-white by default. QrScanner had the same
-    // shape. Fixed-dark chrome must use literal colours (like
-    // `.shell-sidebar` does), never a navy-9xx token.
+    // The real bug this pins: an earlier version of RaisePass's "Serial /
+    // Date / Raised By" strip (`PassIdentityPanel.tsx`, deleted 2026-08-19
+    // with the raise-form rebuild) used `bg-navy-950` (which is near-black in
+    // LIGHT mode but near-WHITE once `.dark` inverts the ramp — the app's
+    // shipped default) together with a hardcoded `text-white`, going
+    // invisible white-on-white by default. QrScanner had the same shape.
+    // Fixed-dark chrome must use literal colours (like `.shell-sidebar`
+    // does), never a navy-9xx token.
     const offenders: string[] = [];
     for (const file of files) {
       const content = readFileSync(file, 'utf-8');

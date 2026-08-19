@@ -6,6 +6,18 @@
 // authority; this only stops a wrong-role user seeing a broken screen.
 import type { UserRole } from '../types/index';
 
+/**
+ * What an APPROVAL OFFICE grants, on top of whatever the reader's role already
+ * allows. Declared here rather than in `approverAccess.ts` so this module stays
+ * import-free: it is the one thing route protection is verified against, and it
+ * must not drag a live Supabase client into a test that only asks which paths a
+ * role may reach. See `approverAccess.ts` for why an office is not a role.
+ */
+export const APPROVER_ROUTES: string[] = ['/approvals', '/pass', '/profile'];
+
+/** Where an office holder with no other role in this app lands. */
+export const APPROVER_HOME = '/approvals';
+
 export const ROLE_ROUTES: Record<UserRole, string[]> = {
   // Security at the gate. THE ORDER OF THIS LIST IS THE ORDER OF THE SIDEBAR
   // (Sidebar.tsx sorts by it).
@@ -57,15 +69,36 @@ export const ROLE_HOME: Record<UserRole, string> = {
   staff: '/no-access',
 };
 
-/** True if this pathname is forbidden for this role. */
-export function isForbidden(pathname: string, role: UserRole | null): boolean {
-  if (role === null) return false; // still resolving; App renders a loader
-  const allowed = ROLE_ROUTES[role];
-  if (!allowed || allowed.length === 0) return true;
+/**
+ * True if this pathname is forbidden for this reader.
+ *
+ * `isApprover` is a SECOND, INDEPENDENT grant, not a role (see
+ * `approverAccess.ts`): migration 043 lets the Security Head be a `guard`
+ * account, so an office is added to whatever the role already allows rather
+ * than replacing it. A `staff` account with an office therefore reaches
+ * `/approvals` and nothing else, and a guard who holds one keeps every gate
+ * screen and gains the queue.
+ */
+export function isForbidden(
+  pathname: string,
+  role: UserRole | null,
+  isApprover = false,
+): boolean {
+  if (role === null && !isApprover) return false; // still resolving; App renders a loader
+  const allowed = [
+    ...(role ? ROLE_ROUTES[role] : []),
+    ...(isApprover ? APPROVER_ROUTES : []),
+  ];
+  if (allowed.length === 0) return true;
   return !allowed.some((r) => pathname === r || pathname.startsWith(`${r}/`));
 }
 
-export function homeFor(role: UserRole | null): string {
+/** Where this reader lands. Their ROLE's home wins when they have one — an
+ *  office is an extra errand, not a new job — and the approvals queue is home
+ *  only for someone whose role gives them nowhere else to be. */
+export function homeFor(role: UserRole | null, isApprover = false): string {
+  if (role && ROLE_ROUTES[role].length > 0) return ROLE_HOME[role];
+  if (isApprover) return APPROVER_HOME;
   return role ? ROLE_HOME[role] : '/login';
 }
 

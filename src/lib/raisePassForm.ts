@@ -6,9 +6,13 @@
 // eight fields to reach it.
 import type { NewGatePass } from '../types';
 import { requiresReturnDate } from './passTypes';
-import { isWholeUnit, wholeUnitError } from './units';
 
 export type FormErrors = Record<string, string | undefined>;
+
+/** The mock's counter reads `0/500`, and the column behind it is free `text` —
+ *  this cap is the form's own, so it lives here beside the rule that enforces
+ *  it rather than being typed twice. */
+export const PURPOSE_MAX = 500;
 
 export function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
@@ -16,39 +20,67 @@ export function todayStr(): string {
 
 /** Everything wrong with the form, keyed the way the inputs are named.
  *
- *  THE RETURN DATE IS PASS-LEVEL AGAIN, NOT PER LINE. Migration `019` replaced
- *  a pass-level field with per-item dates; for two months after it, this
- *  function still demanded a pass-level `expected_return_date` the form no
- *  longer rendered, so every RGP submit failed validation on a field nobody
- *  could see or fill — that bug is why the per-item shape existed here at all.
- *  The client has now decided the OPPOSITE: one deadline governs the whole
- *  pass ("the return date of all individual items in the pass should be the
- *  expected return date of the entire pass", 2026-08-19), so the pass-level
- *  field is once again the INPUT, and every item is written with the same
- *  date rather than collecting its own. The database column this validates —
- *  `gate_passes.expected_return_date` — never moved; it is still the one
- *  `gatepass.v_gate_passes` grades `is_overdue` / `due_state` from. */
+ *  WHICH FIELDS ARE REQUIRED IS THE MOCK'S DECISION, not this file's: the
+ *  client's 2026-08-19 "Raise Gate Pass" drawing puts a red asterisk on Vendor
+ *  Name, Person Who Will Carry, Mobile Number, Purpose / Description, and — per
+ *  line — Item Description, Quantity and Make / Model / Size. Everything else it
+ *  draws (Vendor Address, Serial / Asset Tag, Invoice / Reference No., Remarks)
+ *  carries no asterisk and is optional here.
+ *
+ *  THE RETURN DATE IS PASS-LEVEL, NOT PER LINE. Migration `019` replaced a
+ *  pass-level field with per-item dates; for two months after it, this function
+ *  still demanded a pass-level `expected_return_date` the form no longer
+ *  rendered, so every RGP submit failed validation on a field nobody could see
+ *  or fill — that bug is why the per-item shape existed here at all. The client
+ *  has now decided the OPPOSITE ("the return date of all individual items in the
+ *  pass should be the expected return date of the entire pass", and again on
+ *  2026-08-19 of the new mock: "department, vehicle number and expected date of
+ *  return — all this should be for the entire pass"), so the pass-level field is
+ *  once again the INPUT, and every item is written with the same date. The
+ *  database column this validates — `gate_passes.expected_return_date` — never
+ *  moved; it is still the one `gatepass.v_gate_passes` grades `is_overdue` /
+ *  `due_state` from.
+ *
+ *  THERE IS NO UNIT RULE ANY MORE. The mock has no UOM column, so every line is
+ *  raised in `nos` — a counted unit — and a fraction is refused outright rather
+ *  than through `isWholeUnit`, which now has nothing variable to consult here.
+ */
 export function validateRaiseForm(form: NewGatePass, hasDepartment: boolean, today: string): FormErrors {
   const errs: FormErrors = {};
-  if (!form.visitor_name.trim()) errs.visitor_name = "Authorized person's name is required.";
+
+  if (!form.visitor_company.trim()) errs.visitor_company = 'Vendor name is required.';
+  if (!form.visitor_name.trim()) errs.visitor_name = 'Enter the name of the person who will carry the material.';
+
+  const mobile = form.visitor_phone.replace(/\D/g, '');
+  if (!form.visitor_phone.trim()) {
+    errs.visitor_phone = 'Mobile number is required.';
+  } else if (mobile.length < 7 || mobile.length > 15) {
+    // Deliberately not an India-only 10-digit rule: the form carries a dial-code
+    // selector, and a supplier on a Gulf number is an ordinary vendor here.
+    errs.visitor_phone = 'Enter a valid mobile number.';
+  }
+
+  if (!form.purpose.trim()) {
+    errs.purpose = 'Purpose / description is required.';
+  } else if (form.purpose.length > PURPOSE_MAX) {
+    errs.purpose = `Keep the purpose under ${PURPOSE_MAX} characters.`;
+  }
 
   if (form.items.length === 0) {
     errs.items = 'At least one material item is required.';
   } else {
     form.items.forEach((item, idx) => {
-      if (!item.name.trim()) errs[`item_${idx}_name`] = 'Item name is required.';
-      if (!item.description.trim()) errs[`item_${idx}_description`] = 'Description is required.';
-      if (!item.purpose.trim()) errs[`item_${idx}_purpose`] = 'Purpose is required.';
+      if (!item.name.trim()) errs[`item_${idx}_name`] = 'Item description is required.';
+      if (!item.make_model.trim()) errs[`item_${idx}_make_model`] = 'Make / model / size is required.';
       const qty = Number(item.quantity);
       if (!item.quantity || Number.isNaN(qty) || qty <= 0) {
         errs[`item_${idx}_quantity`] = 'Enter a quantity greater than 0.';
-      } else if (isWholeUnit(item.unit) && !Number.isInteger(qty)) {
+      } else if (!Number.isInteger(qty)) {
         // A COUNTED UNIT TAKES NO FRACTION, and the rule has to be here as well
-        // as in the return box: 2.5 boxes raised is 2.5 boxes the gate can never
-        // fully return, since `checkReturnQty` would refuse every fraction that
-        // clears it. Same function, so the two can never disagree about which
-        // units are countable.
-        errs[`item_${idx}_quantity`] = wholeUnitError(item.unit, qty);
+        // as in the return box: 2.5 raised is 2.5 the gate can never fully
+        // return, since `checkReturnQty` would refuse every fraction that
+        // clears it. Every line raised from this form is `nos`.
+        errs[`item_${idx}_quantity`] = 'Enter a whole number.';
       }
     });
   }
@@ -72,7 +104,12 @@ export function validateRaiseForm(form: NewGatePass, hasDepartment: boolean, tod
  *  has no vendor at all — the old `JSON.stringify({...}) || null` could never be
  *  null, since stringify always returns a non-empty string. `company_name_of()`
  *  and `parseCompanyInfo()` both cope with the blob now, but a null column is the
- *  honest record of "no vendor given". */
+ *  honest record of "no vendor given".
+ *
+ *  THE PASS KEEPS ITS OWN COPY OF THE ADDRESS on purpose, even though migration
+ *  045 gave the vendor profile a real `address` column: the profile is the
+ *  vendor as it is TODAY, and a slip printed last month must not change because
+ *  somebody corrected a pincode this morning. */
 export function packVendor(form: NewGatePass): string | null {
   const n = form.visitor_company.trim();
   const a = form.company_address.trim();

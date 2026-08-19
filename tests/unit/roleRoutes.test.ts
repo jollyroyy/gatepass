@@ -3,7 +3,7 @@
 // promises a test at tests/security/routeProtection.test.ts; that path
 // doesn't exist yet, so this suite lives here instead until it does.
 import { describe, it, expect } from 'vitest';
-import { ROLE_ROUTES, ROLE_HOME, isForbidden, homeFor, isNavActive } from '../../src/lib/roleRoutes';
+import { APPROVER_HOME, APPROVER_ROUTES, ROLE_ROUTES, ROLE_HOME, isForbidden, homeFor, isNavActive } from '../../src/lib/roleRoutes';
 import type { UserRole } from '../../src/types';
 
 const ALL_ROLES = Object.keys(ROLE_ROUTES) as UserRole[];
@@ -169,5 +169,59 @@ describe('guard lands on the KPI dashboard', () => {
   // Same "first entry is the landing page" convention the admin rows pin.
   it('route list leads with its landing page', () => {
     expect(ROLE_ROUTES.guard[0]).toBe(ROLE_HOME.guard);
+  });
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// An APPROVAL OFFICE is a second, independent grant — not a role (migration
+// 046, and src/lib/approverAccess.ts for the argument). `public.profiles.role`
+// is VMS's enum and this app never adds to it, so an office holder's role
+// really is `staff`; the row in `gatepass.approval_roles` is what lets them in.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('an approval office grants /approvals on top of whatever the role allows', () => {
+  it('a `staff` account with an office reaches the queue, and NOTHING else', () => {
+    // Without this the one screen such an account exists to use is unreachable:
+    // ROLE_ROUTES.staff is deliberately empty.
+    expect(isForbidden('/approvals', 'staff', true)).toBe(false);
+    expect(isForbidden('/pass/abc', 'staff', true)).toBe(false);
+    expect(isForbidden('/dashboard', 'staff', true)).toBe(true);
+    expect(isForbidden('/guard-dashboard', 'staff', true)).toBe(true);
+    expect(isForbidden('/admin', 'staff', true)).toBe(true);
+  });
+
+  it('a `staff` account WITHOUT one still reaches nothing at all', () => {
+    for (const path of [...APPROVER_ROUTES, '/dashboard', '/admin']) {
+      expect(isForbidden(path, 'staff', false), path).toBe(true);
+    }
+  });
+
+  it('a guard who holds an office KEEPS every gate screen and gains the queue', () => {
+    // Migration 043 explicitly allows the Security Head to be a guard account.
+    // Collapsing role and office into one union would make such a person choose.
+    for (const path of ROLE_ROUTES.guard) {
+      expect(isForbidden(path, 'guard', true), path).toBe(false);
+    }
+    expect(isForbidden('/approvals', 'guard', true)).toBe(false);
+    // …and a guard who holds none does not get it.
+    expect(isForbidden('/approvals', 'guard', false)).toBe(true);
+  });
+
+  it('the office does not move a working role`s home — it is an extra errand', () => {
+    expect(homeFor('guard', true)).toBe(ROLE_HOME.guard);
+    expect(homeFor('hod', true)).toBe(ROLE_HOME.hod);
+    // Only somebody whose role gives them nowhere to be lands on the queue.
+    expect(homeFor('staff', true)).toBe(APPROVER_HOME);
+    expect(homeFor(null, true)).toBe(APPROVER_HOME);
+  });
+
+  it('every existing role is unchanged when no office is held', () => {
+    // The default argument is what keeps every other caller honest.
+    for (const role of ALL_ROLES) {
+      for (const path of ROLE_ROUTES[role]) {
+        expect(isForbidden(path, role), `${role} ${path}`).toBe(false);
+      }
+      if (ROLE_ROUTES[role].length > 0) expect(homeFor(role)).toBe(ROLE_HOME[role]);
+    }
   });
 });

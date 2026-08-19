@@ -10,14 +10,24 @@
 // other, or a guard comparing the slip in their hand to the record on the
 // tablet finds a level on one that is missing from the other.
 //
-// THIS IS A LADDER, NOT A WORKFLOW. Nothing here gates anything: `match_pass`
-// is untouched, no pass waits on a level and no queue exists for these four
-// offices. The signature is still the wet one on the A5 slip; migration 043
-// only records WHO holds each office, so the record can print a name beside
-// the level instead of a blank box. That is why none of the four carries a
-// timestamp — this database stamps exactly two moments on a pass, the raise
-// and the gate clearance, and inventing a third would be a fabricated audit
-// trail on a document that goes out of the building.
+// SINCE MIGRATION 046 IT IS A WORKFLOW — for the passes that carry one. 043
+// recorded only WHO holds each office, and this module graded a level on
+// whether the seat was filled. 046 added `gatepass.pass_approvals`: one row per
+// office a pass actually owes, snapshotted when it is raised, each row carrying
+// a real decision, a real author and a real moment.
+//
+// SO THIS MODULE READS TWO KINDS OF PASS, and the difference is a fact about
+// the pass, not a flag:
+//
+//   * a pass WITH approval rows is graded from them — approved / waiting /
+//     rejected, with the name of whoever pressed it and the time they did. Its
+//     ladder is exactly the offices it was routed to; an office that was vacant
+//     the day it was raised was never required and is not drawn as missing.
+//   * a pass WITHOUT any is graded the old way, from the org chart alone. Every
+//     one of the 60 passes on this database predates 046 and reads exactly as
+//     it did before, which is the whole reason the fallback is kept rather than
+//     back-filled: nobody signed those levels in this system, and a migration
+//     that wrote "approved" against them would be inventing an audit trail.
 //
 // AN OFFICE NOBODY HOLDS IS NOT APPROVED — EXCEPT IN THE GUARD'S VIEW.
 // A vacant office reads "Not designated yet" rather than counting as signed:
@@ -26,7 +36,11 @@
 // at the client's word — the rail states every level by name, and a number
 // beside it was the same fact twice.)
 //
-// A GUARD IS THE ONE READER FOR WHOM IT IS ALREADY TRUE. Client, 2026-08-19:
+// A GUARD IS THE ONE READER FOR WHOM THE OLD KIND IS ALREADY TRUE — and only
+// the old kind. A REAL pending row outranks the paper fiction below, always: a
+// pass that still owes a signature under 046 is one a guard cannot even see,
+// so drawing its levels as signed would be a screen contradicting the policy
+// that hid it. Client, 2026-08-19:
 // "only the approved ones will be appearing in the guard's view — mark them so
 // that they have been approved by those approvers." A pass only reaches the
 // barrier with the signed A5 slip travelling beside it, so for a guard all four
@@ -37,6 +51,7 @@
 // the fix is a designation, not a truck waiting at the gate.
 import type { GatePassView, UserRole } from '../types';
 import { formatDateOnly } from './formatDate';
+import { APPROVAL_NOTE, APPROVAL_STATE, type PassApprovalRow } from './passApprovalState';
 
 /** The four offices between the issuing HOD and the gate. Mirrors the
  *  `approval_roles_key_known` check in migration 043 — a fifth office is a
@@ -90,6 +105,10 @@ export function approverLine(title: string, name: string | null | undefined): st
  *             fix is an admin designating somebody, not waiting.
  */
 export type ApprovalStepState = 'done' | 'pending' | 'blocked' | 'unset';
+
+// Re-exported so a reader of the ladder does not have to know it lives next
+// door: `passApprovalState.ts` exists for the file-size cap, not as a boundary.
+export type { PassApprovalRow } from './passApprovalState';
 
 export interface ApprovalStep {
   /** Stable identity for tests and React keys — never the label, which is
@@ -188,10 +207,14 @@ function returnStep(pass: GatePassView): ApprovalStep | null {
 export function buildApprovalSteps(
   pass: GatePassView,
   roles: ApprovalRoleRow[],
-  viewerRole: UserRole | null = null
+  viewerRole: UserRole | null = null,
+  approvals: PassApprovalRow[] = []
 ): ApprovalStep[] {
   const held = byKey(roles);
-  const signedOnPaper = viewerRole === 'guard';
+  const decided = new Map(approvals.map((a) => [a.role_key, a]));
+  // The paper fiction is for a pass that carries no ladder of its own. One that
+  // does has a real answer for every level it owes, and it wins.
+  const signedOnPaper = viewerRole === 'guard' && approvals.length === 0;
 
   const steps: ApprovalStep[] = [
     {
@@ -210,6 +233,32 @@ export function buildApprovalSteps(
   for (const { key, level } of APPROVAL_LADDER) {
     const row = held.get(key);
     const title = APPROVAL_ROLE_TITLES[key];
+    const own = decided.get(key);
+
+    // This pass owes this office a signature, and the database knows how that
+    // went. `decided_name` first: the person who pressed it is the fact, and
+    // the office may have changed hands since.
+    if (own) {
+      steps.push({
+        key: `level-${own.level_no}`,
+        label: `Level ${own.level_no} Approval`,
+        who: approverLine(title, own.decided_name ?? own.routed_name ?? row?.full_name),
+        detail: row?.department_name ?? null,
+        at: own.decided_at,
+        state: APPROVAL_STATE[own.status],
+        // A rejection's reason IS the note — it is the sentence somebody typed
+        // and the only answer the raising HOD gets.
+        note: own.status === 'rejected' && own.reason ? own.reason : APPROVAL_NOTE[own.status],
+      });
+      continue;
+    }
+
+    // An office this pass was never routed to, on a pass that has a ladder, is
+    // not a gap: it was vacant the day the pass was raised and nothing waits on
+    // it. Saying "Not designated yet" there would describe a problem that does
+    // not exist.
+    if (approvals.length > 0) continue;
+
     steps.push({
       key: `level-${level}`,
       label: `Level ${level} Approval`,

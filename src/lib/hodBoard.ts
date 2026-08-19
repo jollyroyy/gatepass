@@ -30,7 +30,6 @@ import type { BoardDrill } from './boardDrills';
 import { IS_OPEN_RETURN } from './boardDrills';
 import { isWaitingAtGate } from './boardKpis';
 import { DAY_MS, dayStart } from './localDay';
-import { APPROVAL_WAITING_TOTAL } from './hodApprovals';
 import type { HodGlyph, HodTone } from '../components/hod/hodIconTypes';
 
 export type HodKpiKey = 'total' | 'nrgpIssued' | 'rgpIssued' | 'pendingReturn';
@@ -74,11 +73,11 @@ export function overdueReturns(rows: GatePassView[]): GatePassView[] {
   return rows.filter((p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue);
 }
 
-/** "N pending approval". ALWAYS ZERO, and from one place — see hodApprovals.ts.
- *  This app has no multi-level approval workflow: a raised pass goes straight to
- *  the gate, and the four offices on the printed slip sign in wet ink. */
-const pendingApprovalNote = (): HodKpiNote => ({
-  text: `${APPROVAL_WAITING_TOTAL} pending approval`,
+/** "N pending approval" — the total signatures still owed across this HOD's
+ *  passes, off `approvalWaitingTotal` in `hodApprovals.ts` so the KPI note and
+ *  the Approval Pending strip read the same map and cannot disagree. */
+const pendingApprovalNote = (total: number): HodKpiNote => ({
+  text: `${total} pending approval`,
   dot: 'purple',
 });
 
@@ -86,9 +85,16 @@ const pendingApprovalNote = (): HodKpiNote => ({
  * The four cards, in the mock-up's order, each carrying its own rows.
  *
  * `now` is a parameter rather than a `Date.now()` inside, so a test can pin a
- * day boundary without freezing the clock globally.
+ * day boundary without freezing the clock globally. `pendingApprovalTotal`
+ * comes from `approvalWaitingTotal(approvalWaiting(rows, approvals))` in the
+ * caller — this module counts passes, not approval rows, so it takes the
+ * figure rather than the raw table.
  */
-export function buildHodKpis(rows: GatePassView[], now: number = Date.now()): HodKpiCard[] {
+export function buildHodKpis(
+  rows: GatePassView[],
+  now: number = Date.now(),
+  pendingApprovalTotal: number = 0,
+): HodKpiCard[] {
   const today = raisedToday(rows, now);
   const nrgpToday = today.filter((p) => p.type === 'NRGP');
   const rgpToday = today.filter((p) => p.type === 'RGP');
@@ -120,7 +126,7 @@ export function buildHodKpis(rows: GatePassView[], now: number = Date.now()): Ho
       glyph: 'send',
       tone: 'green',
       value: nrgpToday.length,
-      notes: [pendingApprovalNote()],
+      notes: [pendingApprovalNote(pendingApprovalTotal)],
       drill: {
         key: 'nrgpIssued',
         heading: 'NRGP raised today',
@@ -137,7 +143,7 @@ export function buildHodKpis(rows: GatePassView[], now: number = Date.now()): Ho
       value: rgpToday.length,
       notes: [
         { text: `${atGate.length} pending at the gate`, dot: 'orange' },
-        pendingApprovalNote(),
+        pendingApprovalNote(pendingApprovalTotal),
       ],
       drill: {
         key: 'rgpIssued',

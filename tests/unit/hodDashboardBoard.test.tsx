@@ -18,9 +18,12 @@
 //   4. WHAT THE CLIENT ASKED TO GO: the Alerts card, and with the old board the
 //      trend, the status ring, the return watch, the top-items ring and the
 //      flagged-review queue.
-//   5. THE APPROVAL PENDING STRIP, kept exactly as the mock draws it and
-//      therefore permanently zero — see src/lib/hodApprovals.ts for why. If a
-//      real approval workflow ever lands, THIS is the test that should fail.
+//   5. THE APPROVAL PENDING STRIP IS REAL (migration 046): a pending
+//      `pass_approvals` row on a pass still `pending` counts under its office;
+//      a rejected pass's leftover pending rows count nowhere; HOD Approval
+//      stays structurally zero because nothing is ever routed to it. See
+//      src/lib/hodApprovals.ts for the office mapping and the double-count
+//      rule for "Other Approvers".
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
@@ -71,7 +74,55 @@ const MINE: GatePassView[] = [
     return_status: 'awaiting_return', is_overdue: true, due_state: 'overdue',
     expected_return_date: '2026-01-02', material_summary: 'Hydraulic Pump',
   }),
+  // Four more, all dated FIVE_DAYS_AGO so none moves a today figure — and p1 /
+  // p2 are typed NRGP so a `status: 'pending'` row does not also inflate the
+  // RGP card's unrelated "pending at the gate" note. They exist only to carry
+  // `pass_approvals` rows for the strip below.
+  pass({
+    id: 'p1', visitor_name: 'Priya', created_at: FIVE_DAYS_AGO, status: 'pending',
+    type: 'NRGP', pass_number: 'NRGP-20260814-0001',
+  }),
+  pass({
+    id: 'p2', visitor_name: 'Qasim', created_at: FIVE_DAYS_AGO, status: 'pending',
+    type: 'NRGP', pass_number: 'NRGP-20260814-0002',
+  }),
+  pass({ id: 'p3', visitor_name: 'Ravi', created_at: FIVE_DAYS_AGO, status: 'cancelled' }),
+  pass({ id: 'p4', visitor_name: 'Sana', created_at: FIVE_DAYS_AGO, status: 'matched', verified_at: FIVE_DAYS_AGO }),
 ];
+
+// `gatepass.pass_approvals` rows for the four passes above.
+//   p1 — one pending Security Head row, pass still climbing: counts.
+//   p2 — pending COO and pending CEO rows, pass still climbing: TWO counts
+//        under "Other Approvers" (see hodApprovals.ts for why one row = one
+//        count rather than one pass = one count).
+//   p3 — Security Head rejected it: the pass moved to `cancelled`, and its
+//        leftover pending Finance HOD row must count NOWHERE.
+//   p4 — Finance HOD already approved: an `approved` row never counts.
+const PENDING_APPROVAL_ROWS = [
+  { gate_pass_id: 'p1', role_key: 'security_head', status: 'pending' },
+  { gate_pass_id: 'p2', role_key: 'coo', status: 'pending' },
+  { gate_pass_id: 'p2', role_key: 'ceo', status: 'pending' },
+  { gate_pass_id: 'p3', role_key: 'security_head', status: 'rejected' },
+  { gate_pass_id: 'p3', role_key: 'finance_head', status: 'pending' },
+  { gate_pass_id: 'p4', role_key: 'finance_head', status: 'approved' },
+];
+
+/** Answers `gp().from('pass_approvals').select(…).in('gate_pass_id', ids)`. */
+function approvalsQuery() {
+  let ids: string[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const obj: any = {};
+  obj.select = () => obj;
+  obj.in = (col: string, vals: string[]) => {
+    if (col === 'gate_pass_id') ids = vals;
+    return obj;
+  };
+  obj.then = (ok: (v: unknown) => unknown, err?: (e: unknown) => unknown) => {
+    const data = PENDING_APPROVAL_ROWS.filter((r) => ids.includes(r.gate_pass_id));
+    return Promise.resolve({ data, error: null }).then(ok, err);
+  };
+  return obj;
+}
 
 // Never raised by this HOD. RLS would hand it over (same department), so only
 // the page's own `.eq('raised_by', …)` keeps it off the board. It is `pending`
@@ -115,7 +166,8 @@ ch.subscribe = () => ch;
 
 vi.mock('../../src/supabaseClient', () => ({
   gp: () => ({
-    from: (table: string) => (table === 'v_gate_passes' ? passQuery() : simple([])),
+    from: (table: string) =>
+      table === 'v_gate_passes' ? passQuery() : table === 'pass_approvals' ? approvalsQuery() : simple([]),
     rpc: () => ({
       maybeSingle: () =>
         Promise.resolve({
@@ -242,32 +294,60 @@ describe("the four figures, and the two scopes they mix", () => {
 });
 
 describe('Quick Actions and the Approval Pending strip', () => {
-  it('offers the two Raise tiles, each opening its own pass type', async () => {
+  it('offers ONE Raise tile, opening the raise form with no pass type pre-chosen', async () => {
+    // 2026-08-19: the client dropped the two Raise NRGP / Raise RGP tiles for
+    // a single "Raise Gate Pass" tile — the pass type moved onto the form
+    // itself (PassTypeSelector), so the dashboard no longer answers a
+    // question the next screen asks again.
     renderBoard();
     await loaded();
 
-    expect(screen.getByRole('link', { name: /Raise NRGP/ })).toHaveAttribute('href', '/raise?type=NRGP');
-    expect(screen.getByRole('link', { name: /Raise RGP/ })).toHaveAttribute('href', '/raise?type=RGP');
+    expect(screen.queryByRole('link', { name: /Raise NRGP/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Raise RGP/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Raise Gate Pass/ })).toHaveAttribute('href', '/raise');
   });
 
-  it('draws all four approval offices, every one of them waiting on nothing', async () => {
+  it('counts real pending signatures per office, off the pass_approvals fixture', async () => {
     renderBoard();
     await loaded();
 
-    // Permanently zero, and deliberately so: this database has no multi-level
-    // approval workflow — a raised pass goes straight to the gate, and
-    // `approval_roles` (043) is an org chart with no state. See hodApprovals.ts.
-    for (const office of ['HOD Approval', 'Security Approval', 'Finance Approval', 'Other Approvers']) {
+    function value(office: string): string | undefined {
       const slot = screen.getByText(office).closest('.gb-approval');
       expect(slot).not.toBeNull();
-      expect(slot?.querySelector('.gb-approval-value')?.textContent).toBe('0');
+      return slot?.querySelector('.gb-approval-value')?.textContent;
     }
+
+    // p1's pending security_head row, on a pass still `pending`.
+    expect(value('Security Approval')).toBe('1');
+    // p2's pending coo AND pending ceo rows both land on "Other Approvers" —
+    // one pass, two outstanding signatures, two counts.
+    expect(value('Other Approvers')).toBe('2');
+    // p3's pending finance_head row is leftover on a `cancelled` pass (its
+    // security_head row was rejected first) and must count nowhere.
+    expect(value('Finance Approval')).toBe('0');
+    // Nothing is ever routed to the issuing HOD's own office — raising the
+    // pass IS that approval (see approvalLadder.ts's "Raised By" rung).
+    expect(value('HOD Approval')).toBe('0');
+
     // The KPI cards' own "pending approval" lines read from the same map, so
-    // the strip and the cards cannot disagree.
-    expect(card('NRGP Issued').textContent).toContain('0 pending approval');
-    // No "View all" — it would open a list of passes waiting at a level, and no
-    // pass ever waits at one.
+    // the strip and the cards cannot disagree: 1 (security) + 0 (finance) +
+    // 2 (other) + 0 (hod) = 3.
+    expect(card('NRGP Issued').textContent).toContain('3 pending approval');
+    expect(card('RGP Issued').textContent).toContain('3 pending approval');
+
+    // No "View all" — this page's own drillable KPI cards already open the
+    // very passes an office is waiting on.
     expect(screen.queryByRole('link', { name: /View all/i })).not.toBeInTheDocument();
+  });
+
+  it('an approved row never counts, on either the strip or the note', async () => {
+    renderBoard();
+    await loaded();
+    // p4's finance_head row is `approved`, not `pending` — Finance stays at the
+    // 0 the previous test already pins; asserted again here as its own case so
+    // an "approved counts as waiting" regression fails on its own name.
+    const slot = screen.getByText('Finance Approval').closest('.gb-approval');
+    expect(slot?.querySelector('.gb-approval-value')?.textContent).toBe('0');
   });
 });
 

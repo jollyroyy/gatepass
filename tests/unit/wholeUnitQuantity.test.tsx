@@ -69,33 +69,38 @@ describe('checkReturnQty refuses a fraction of a counted unit', () => {
   });
 });
 
-function form(quantity: string, unit: string): NewGatePass {
+// 2026-08-19: the raise form's grid lost its UOM column — every line raised
+// from it is `nos`, so `validateRaiseForm` no longer takes a per-item unit at
+// all and refuses ANY fraction outright, through the same "Enter a whole
+// number." message every line shares. The unit-aware `isWholeUnit` rule stays
+// alive on the RETURN side (`checkReturnQty`, pinned above and below), because
+// a line raised long ago can still carry `kg` or `litre`.
+function form(quantity: string): NewGatePass {
   return {
     type: 'NRGP',
+    direction: 'out',
     visitor_name: 'Ramesh',
     visitor_company: 'Acme',
-    visitor_phone: '',
+    visitor_phone: '9876543210',
+    company_address: '',
     vehicle_number: '',
     department_id: 'd1',
-    remarks: '',
+    purpose: 'Testing',
+    expected_return_date: '',
     items: [
-      { name: 'Crates', description: 'Wooden', purpose: 'Repair', quantity, unit, approx_value: '', expected_return_date: '' },
+      { name: 'Crates', make_model: 'Wooden', serial_no: '', invoice_no: '', remarks: '', quantity },
     ],
-  } as unknown as NewGatePass;
+  };
 }
 
 describe('a pass cannot be RAISED in a fraction of a counted unit', () => {
-  it('refuses 2.5 boxes on the raise form', () => {
-    const errs = validateRaiseForm(form('2.5', 'box'), true, '2026-08-19');
-    expect(errs.item_0_quantity).toBe('Box cannot be split — enter 2 or 3.');
+  it('refuses a fraction on any line — every line raised from this form is nos', () => {
+    const errs = validateRaiseForm(form('2.5'), true, '2026-08-19');
+    expect(errs.item_0_quantity).toBe('Enter a whole number.');
   });
 
-  it('allows 2.5 kg', () => {
-    expect(validateRaiseForm(form('2.5', 'kg'), true, '2026-08-19').item_0_quantity).toBeUndefined();
-  });
-
-  it('allows a whole number of boxes', () => {
-    expect(validateRaiseForm(form('3', 'box'), true, '2026-08-19').item_0_quantity).toBeUndefined();
+  it('allows a whole number', () => {
+    expect(validateRaiseForm(form('3'), true, '2026-08-19').item_0_quantity).toBeUndefined();
   });
 });
 

@@ -1,7 +1,8 @@
-// OVERDUE RGP GATE PASSES — the guard's screen (client, 2026-08-19).
+// OVERDUE RGP GATE PASSES — one screen for all three roles (client,
+// 2026-08-19).
 //
-// The two things the client asked to be true, and one thing they asked to be
-// gone, are all asserted here:
+// This board started as the guard's own overdue screen and is now what every
+// role gets at /overdue. What is asserted here:
 //
 //   1. ONE CARD, AND ITS COUNT IS RELIABLE. The figure is passes, not lines,
 //      and it is the length of the very list the card opens — so a pass with
@@ -10,6 +11,12 @@
 //   2. EVERY CARD IN THE STACK IS A LINK to that pass's record, which is why
 //      the menu no longer carries "View Pass Details".
 //   3. NOTHING ELSE IS ON THE PAGE: no second KPI tile, no Guard Actions block.
+//   4. AN HOD SEES THE SAME SCREEN A GUARD DOES, through OverdueItemsPage —
+//      the whole point of this change.
+//   5. ONLY A GUARD CAN PROCESS A RETURN FROM THE CARD MENU: with
+//      `canProcessReturn={false}` the "Process RGP Return" item is absent and
+//      the remark item reads plain "Add Remark"; with it true, both
+//      "Process RGP Return" and "Add Guard Remark" are present.
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
@@ -21,7 +28,7 @@ vi.mock('../../src/supabaseClient', () => ({
   supabase: { channel: () => ({ on: () => ({ subscribe: () => undefined }) }), removeChannel: () => undefined },
 }));
 
-import GuardOverdueBoard from '../../src/components/guard/GuardOverdueBoard';
+import OverduePassBoard from '../../src/components/overdue/OverduePassBoard';
 import { buildOverduePasses } from '../../src/lib/overduePasses';
 
 /** Days before today, as a local `YYYY-MM-DD` — the shape of the real column. */
@@ -52,10 +59,21 @@ function item(over: Partial<GatePassItemView>): GatePassItemView {
   } as any;
 }
 
-function draw(passes: GatePassView[], items: GatePassItemView[]) {
+function draw(
+  passes: GatePassView[],
+  items: GatePassItemView[],
+  extra: { subtitle?: string; canProcessReturn?: boolean } = {},
+) {
   return render(
     <MemoryRouter>
-      <GuardOverdueBoard passes={passes} items={items} loading={false} error={null} />
+      <OverduePassBoard
+        passes={passes}
+        items={items}
+        loading={false}
+        error={null}
+        subtitle={extra.subtitle ?? 'RGP gate passes that are past their return deadline.'}
+        canProcessReturn={extra.canProcessReturn ?? true}
+      />
     </MemoryRouter>,
   );
 }
@@ -108,7 +126,7 @@ describe('buildOverduePasses — the count behind the card', () => {
   });
 });
 
-describe('GuardOverdueBoard — one card, and the stack it opens', () => {
+describe('OverduePassBoard — one card, and the stack it opens', () => {
   it('the figure on the card is the number of cards in the stack', () => {
     draw(
       [pass({}), pass({ id: 'p2', pass_number: 'RGP-20260518-0056', expected_return_date: daysAgo(1) })],
@@ -162,5 +180,64 @@ describe('GuardOverdueBoard — one card, and the stack it opens', () => {
     expect(within(card).getByText('0')).toBeTruthy();
     expect((card as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/Nothing is overdue/i)).toBeTruthy();
+  });
+
+  it('renders the subtitle the page hands it, not a hardcoded one', () => {
+    draw([pass({})], [item({})], { subtitle: "Your department's RGP gate passes." });
+    expect(screen.getByText("Your department's RGP gate passes.")).toBeTruthy();
+  });
+});
+
+describe('the card menu — only a guard can process a return from it', () => {
+  it('canProcessReturn=false: no "Process RGP Return", and the remark item reads "Add Remark"', async () => {
+    draw([pass({})], [item({})], { canProcessReturn: false });
+    fireEvent.click(screen.getByRole('button', { name: /Actions for RGP-20260517-0078/i }));
+
+    expect(await screen.findByRole('menuitem', { name: /Add Remark/i })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: /Process RGP Return/i })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /Add Guard Remark/i })).toBeNull();
+    // The other two actions are still drawn for every role.
+    expect(screen.getByRole('menuitem', { name: /Contact Vendor/i })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /Export Pass PDF/i })).toBeTruthy();
+  });
+
+  it('canProcessReturn=true: both "Process RGP Return" and "Add Guard Remark" are present', async () => {
+    draw([pass({})], [item({})], { canProcessReturn: true });
+    fireEvent.click(screen.getByRole('button', { name: /Actions for RGP-20260517-0078/i }));
+
+    expect(await screen.findByRole('menuitem', { name: /Process RGP Return/i })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /Add Guard Remark/i })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: /^Add Remark$/i })).toBeNull();
+  });
+});
+
+describe('OverdueItemsPage — the same screen reaches an HOD, not just a guard', () => {
+  it('an HOD sees the same "Overdue Passes" count card and the same stack of cards a guard sees', async () => {
+    vi.resetModules();
+    vi.doMock('../../src/lib/useOpenReturns', () => ({
+      useOpenReturns: () => ({
+        passes: [pass({})],
+        items: [item({})],
+        loading: false,
+        error: null,
+        reload: () => Promise.resolve(),
+      }),
+    }));
+    const { default: OverdueItemsPage } = await import('../../src/pages/Shared/OverdueItemsPage');
+
+    render(
+      <MemoryRouter>
+        <OverdueItemsPage role="hod" />
+      </MemoryRouter>,
+    );
+
+    const card = screen.getByRole('button', { name: /Overdue Passes/i });
+    expect(within(card).getByText('1')).toBeTruthy();
+    expect(screen.getAllByRole('listitem')).toHaveLength(1);
+    expect(
+      screen.getByText(/Your department's RGP gate passes that are past their return deadline/i),
+    ).toBeTruthy();
+
+    vi.doUnmock('../../src/lib/useOpenReturns');
   });
 });
