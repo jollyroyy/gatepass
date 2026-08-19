@@ -41,7 +41,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 Full gate: **1424 tests across 118 files** (`npm run check`), green — and **`npm run build` is
 green again**, which it had not been since the raise-form CSS landed (see the twelfth pass).
-Migrations **`001`–`046` and `049` are applied to the live DB.** `044` was found UNAPPLIED on
+Migrations **`001`–`047`, `049` and `050` are applied to the live DB.** `044` was found UNAPPLIED on
 2026-08-19 — the overdue card's Contact Vendor and Add Remark had shipped against RPCs that did
 not exist — and was applied then, immediately before `046`. `039`, `040`, `041` and `043` were
 each verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs` — `043` is **9/9**,
@@ -372,11 +372,33 @@ migration; `047` is unchanged and still applied.
   **`delivered@x (redirected from intended@y)`** — a log saying only "sent to the test inbox"
   could not tell the four offices' mails apart afterwards. Unsetting it, plus a `MAIL_FROM` at a
   verified domain, is the whole production switch-over.
-- **STILL NOT DEPLOYED BY THIS SESSION, and no mail has yet been sent.** The Resend key is in
-  hand but `supabase functions deploy` needs a CLI login this session does not have; the exact
-  secrets and deploy commands are in `supabase/functions/README.md`. Until it runs, every
-  `notifyApproval` call warns in the console and no `email_log` row appears — which is the
-  documented way to tell "never reached" from "provider refused".
+- **DEPLOYED, AND REAL MAIL HAS NOW BEEN SENT.** `supabase functions deploy notify-approval`
+  ran (it uploaded three assets — the function, `_shared/mailer.ts` and `src/lib/approvalNotice.ts`,
+  so the no-import rule is what makes the deploy work). Secrets set on the function:
+  `RESEND_API_KEY`, `MAIL_FROM="Quest GatePass <onboarding@resend.dev>"`,
+  `MAIL_OVERRIDE_TO=jollyroyy@gmail.com`, `APP_BASE_URL=http://localhost:5174`.
+  **`APP_BASE_URL` IS LOCALHOST** (the client's choice) — the "Open your Pending Approvals" link
+  in every letter therefore only works on that machine. Reset it to the Vercel URL before a real
+  approver is asked to click one.
+- **`scripts/verify-047.mjs` — the live probe, 6/7 on its first run, and the one FAIL was a real
+  bug.** As a signed-in HOD over the anon key: the raise snapshotted all four offices, the
+  function answered, **exactly one letter came out**, it was `awaiting_you` to the Security Head,
+  **Resend accepted it** (provider id recorded) and nothing was addressed to the raising HOD.
+  The failure was `email_log` staying EMPTY.
+- **MIGRATION `050` CAME OUT OF THAT PROBE, and is APPLIED.** 047 created `email_log`, enabled
+  RLS and wrote the admin SELECT policy, then relied on "the service role bypasses RLS" for the
+  write. **RLS-bypass is not a table privilege**: a fresh schema inherits no Supabase grants, so
+  `service_role` held nothing at all on that table and every insert failed with 42501 — swallowed
+  by design, because a logging failure must never abort a delivery that already happened. `050`
+  is `grant insert on gatepass.email_log to service_role`, INSERT only. Re-invoked afterwards and
+  the row is there: `awaiting_you · jollyroyy@gmail.com · ok = t · provider id`.
+- **THE PROBE'S PASS WAS DELETED and `gate_passes` is back to 60 rows** (61 → delete → 60,
+  as `postgres`). The `email_log` row was kept, its `gate_pass_id` nulled by the FK's
+  `on delete set null` — the evidence outlives the probe.
+- **The 2nd, 3rd and 4th rungs are UNPROVEN end to end.** Driving them needs the four office
+  holders' passwords, and they are real people. The mechanism is the same call on the same
+  function — approve the pass at `/approvals` and the next office's letter goes out — but nobody
+  has watched it happen. That, and the RENDER of the mail in a real client, are what is left.
 - Pinned by a rewritten `tests/unit/approvalNotice.test.ts` (21): the first office only, nothing
   to the HOD, the next office when a rung is signed, silence when the ladder is done, silence on
   a rejection, silence when no office is designated, and silence rather than a letter to an
