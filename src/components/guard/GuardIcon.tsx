@@ -21,7 +21,7 @@ const SVG = {
 } as const;
 
 export type GuardGlyph = 'truck' | 'returned' | 'exchange' | 'scan' | 'clock' | 'alert';
-export type GuardTone = 'orange' | 'blue' | 'green' | 'purple';
+export type GuardTone = 'orange' | 'blue' | 'green' | 'purple' | 'red';
 
 const GLYPHS: Record<GuardGlyph, React.ReactElement> = {
   // Delivery truck — material leaving through the gate. The mock-up's lead
@@ -81,6 +81,7 @@ const INK: Record<GuardTone, string> = {
   blue: 'gb-ink-blue',
   green: 'gb-ink-green',
   purple: 'gb-ink-purple',
+  red: 'gb-ink-red',
 };
 
 const TINT: Record<GuardTone, string> = {
@@ -88,6 +89,7 @@ const TINT: Record<GuardTone, string> = {
   blue: 'gb-tint-blue',
   green: 'gb-tint-green',
   purple: 'gb-tint-purple',
+  red: 'gb-tint-red',
 };
 
 /** The bare glyph, inked in a tone — a panel heading's icon. */

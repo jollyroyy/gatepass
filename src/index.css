@@ -1899,6 +1899,272 @@
     border-radius: 3px;
     flex-shrink: 0;
   }
+
+  /* ---- OVERDUE RGP GATE PASSES — the guard's one count and its stack -------
+   * Client, 2026-08-19: this screen is a single total that opens into a stack
+   * of overdue passes, "each and every stack clickable". No other KPI card, no
+   * filter bar and no Guard Actions block — all three were asked for by name to
+   * go, and none of them has a class here.
+   *
+   * Same fixed-light rules as the rest of `.gb-*`: every colour is one of the
+   * `--gb-*` vars declared on `.gb-board`, so these classes only work inside it
+   * — which is the containment that keeps hex out of src/components/guard/*.
+   * ------------------------------------------------------------------------ */
+
+  /* The one card. It is a <button>, not a panel with a button in it: the whole
+   * plate is the toggle, so a gloved hand at the gate cannot miss it. */
+  .gpo-total {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    max-width: 420px;
+    text-align: left;
+    padding: 16px 18px;
+    margin-bottom: 18px;
+    border: 1px solid var(--gb-red-line);
+    border-radius: 12px;
+    background: var(--gb-red-soft);
+    box-shadow: 0 1px 2px 0 rgb(16 24 40 / 0.04);
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+  .gpo-total:hover:not(:disabled) {
+    border-color: var(--gb-red);
+    box-shadow: 0 2px 8px 0 rgb(220 38 38 / 0.12);
+  }
+  .gpo-total:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--gb-red-soft), 0 0 0 4px var(--gb-red);
+  }
+  /* Nothing overdue: it stays on screen saying zero rather than vanishing, but
+   * it stops pretending to open anything. */
+  .gpo-total:disabled {
+    background: #ffffff;
+    border-color: var(--gb-line);
+    cursor: default;
+  }
+  .gpo-total-body { min-width: 0; flex: 1 1 auto; }
+  .gpo-total-title {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gb-body);
+  }
+  .gpo-total-figure {
+    display: block;
+    margin-top: 2px;
+    font-size: 30px;
+    line-height: 36px;
+    font-weight: 700;
+    color: var(--gb-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .gpo-total-note {
+    display: block;
+    margin-top: 2px;
+    font-size: 11.5px;
+    color: var(--gb-muted);
+  }
+  .gpo-chev {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    color: var(--gb-muted);
+    transition: transform 0.15s ease;
+  }
+
+  /* ---- The stack ---------------------------------------------------------- */
+  .gpo-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    list-style: none;
+    margin: 0 0 14px;
+    padding: 0;
+  }
+  /* The card is a positioning context for the menu, and the menu is the only
+   * thing in it that is not the link — hence `position: relative` here rather
+   * than on the face. */
+  .gpo-card {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: #ffffff;
+    border: 1px solid var(--gb-line);
+    border-left: 3px solid var(--gb-orange);
+    border-radius: 10px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .gpo-card:hover {
+    box-shadow: 0 2px 10px 0 rgb(16 24 40 / 0.08);
+  }
+  /* The link fills the card so the whole plate navigates — the client's "each
+   * and every stack will be clickable". The tools sit beside it, never inside:
+   * a button nested in an anchor is invalid and behaves differently in every
+   * browser. */
+  .gpo-card-face {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 18px;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 14px 4px 14px 14px;
+    color: inherit;
+  }
+  .gpo-card-face:focus-visible {
+    outline: 2px solid var(--gb-blue);
+    outline-offset: -2px;
+    border-radius: 8px;
+  }
+  .gpo-card-id {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 0 0 auto;
+    min-width: 140px;
+  }
+  .gpo-pass-no {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--gb-blue);
+    font-variant-numeric: tabular-nums;
+  }
+  .gpo-late-pill {
+    align-self: flex-start;
+    border-radius: 999px;
+    background: var(--gb-red-soft);
+    color: var(--gb-red);
+    padding: 2px 8px;
+    font-size: 10.5px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* The facts. A grid rather than a table: at a phone width the six wrap into
+   * two columns instead of scrolling sideways off the card. */
+  .gpo-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 18px;
+    flex: 1 1 320px;
+    min-width: 0;
+  }
+  @media (min-width: 900px) {
+    .gpo-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1280px) {
+    .gpo-facts { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  }
+  .gpo-fact { min-width: 0; }
+  .gpo-fact-label {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--gb-muted);
+  }
+  .gpo-fact-value {
+    display: block;
+    margin-top: 2px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gb-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* Red is the deadline that was missed and the delay it ran to — the two
+   * facts the guard is standing there about. */
+  .gpo-fact-late { color: var(--gb-red); font-weight: 600; }
+
+  .gpo-card-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    padding: 14px 12px 14px 0;
+  }
+  .gpo-stack-foot { padding: 0 14px; }
+
+  /* ---- The three-dot menu ------------------------------------------------- */
+  .gpo-menu-wrap { position: relative; }
+  .gpo-dots {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    color: var(--gb-muted);
+  }
+  .gpo-dots svg { width: 16px; height: 16px; }
+  .gpo-dots:hover { background: var(--gb-line-soft); color: var(--gb-body); }
+  .gpo-dots[aria-expanded="true"] { background: var(--gb-line-soft); color: var(--gb-ink); }
+
+  .gpo-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 30;
+    width: 244px;
+    background: #ffffff;
+    border: 1px solid var(--gb-line);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(17, 24, 39, 0.14);
+    padding: 6px;
+  }
+  /* Flipped above the card for the last rows of a page, where a menu opening
+   * downwards would fall off the bottom of a tablet held in portrait. */
+  .gpo-card:nth-last-child(-n + 2) .gpo-menu {
+    top: auto;
+    bottom: calc(100% + 6px);
+  }
+  .gpo-menu-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    padding: 8px 9px;
+    border-radius: 7px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--gb-ink);
+  }
+  .gpo-menu-item:hover { background: var(--gb-line-soft); }
+  .gpo-menu-item:focus-visible {
+    outline: none;
+    background: var(--gb-blue-soft);
+  }
+  /* No number on file, or the lookup has not landed. It stays in the list, in
+   * place, saying why — a menu whose items move between openings is a menu
+   * somebody mis-taps. */
+  .gpo-menu-item-dead {
+    opacity: 0.55;
+    cursor: default;
+  }
+  .gpo-menu-item-dead:hover { background: transparent; }
+  .gpo-menu-glyph { flex-shrink: 0; }
+  .gpo-menu-glyph svg { width: 16px; height: 16px; margin-top: 1px; }
+  .gpo-menu-note {
+    display: block;
+    margin-top: 1px;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--gb-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .gpo-textarea {
+    height: auto;
+    padding: 8px 10px;
+    line-height: 18px;
+    resize: vertical;
+  }
 }
 
 @layer utilities {
