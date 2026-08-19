@@ -12,8 +12,11 @@
 // `new Date('2026-08-17')` is UTC midnight and slips a day west of UTC).
 //
 // SCOPE IS THE CALLER'S, NOT THIS MODULE'S. Which passes arrive here is decided
-// by the page — RLS plus `raised_by` for an HOD, everything for an admin — and
-// the day cut for the guard is `scopeOverdue`. Nothing below widens a set.
+// by the page — RLS plus `raised_by` for an HOD, everything for an admin.
+// Nothing below widens a set, and there is no day cut: a guard sees the whole
+// backlog, the same as everyone else (client, 2026-08-19 — a page that showed
+// only what went late in the last 24 hours read "0 overdue" while a pass sat
+// late in the return queue, which is the bug this scope was creating).
 import type { GatePassItemView, GatePassView } from '../types';
 import type { StatusStyle } from './statusStyles';
 import { itemReturnStage } from './passRecordView';
@@ -39,7 +42,7 @@ export const OVERDUE_STYLES: Record<OverdueSeverity, StatusStyle> = {
 export interface OverdueRow {
   item: GatePassItemView;
   pass: GatePassView;
-  /** The line's own expected date when it carries one, else the pass's. */
+  /** The earlier of the line's own expected date and the pass's deadline. */
   expectedReturn: string;
   /** Whole calendar days past the expected date. Always >= 1 — a line due
    *  today is not late yet. */
@@ -54,8 +57,29 @@ function isOutstanding(item: GatePassItemView, pass: GatePassView): boolean {
   return stage === 'pending' || stage === 'partial';
 }
 
+/**
+ * The date this line was due back — the EARLIER of the line's own date and the
+ * deadline printed on the pass it is on.
+ *
+ * The pass-level date is not decoration: it is what the slip says, what the
+ * database grades `due_state` against, and what the return queue shows. A line
+ * cannot outlive the pass carrying it, so a pass the database already calls
+ * overdue must yield at least one overdue line here — otherwise the return
+ * queue says "Overdue" while Overdue Items counts zero, which is exactly what
+ * it did (client, 2026-08-19: RGP-20260818-0003 was due back on the 18th, one
+ * of its two lines came back, and the line still outside carried its own later
+ * date, so no screen agreed with any other).
+ *
+ * Taking the earlier of the two is what keeps the two readings in step. The
+ * cost is accepted and is real: a pass whose earliest line is late drags its
+ * later lines into the backlog with it, because the pass as a whole is late.
+ */
 function expectedOf(item: GatePassItemView, pass: GatePassView): string | null {
-  return item.expected_return_date ?? pass.expected_return_date ?? null;
+  const own = item.expected_return_date ?? null;
+  const deadline = pass.expected_return_date ?? null;
+  if (own === null) return deadline;
+  if (deadline === null) return own;
+  return own < deadline ? own : deadline;
 }
 
 /**
@@ -194,19 +218,6 @@ export function filterOverdue(rows: OverdueRow[], f: OverdueFilterState): Overdu
 
 export function hasActiveFilters(f: OverdueFilterState): boolean {
   return f.department !== 'all' || f.delay !== 'any';
-}
-
-/**
- * The guard's day cut: lines that BECAME overdue today — expected back
- * yesterday, still out this morning. Everything older is the admin's backlog,
- * not this shift's chase.
- *
- * 'all' is the admin and the HOD: every missed date, however old.
- */
-export type OverdueScope = 'today' | 'all';
-
-export function scopeOverdue(rows: OverdueRow[], scope: OverdueScope): OverdueRow[] {
-  return scope === 'all' ? rows : rows.filter((r) => r.daysLate === 1);
 }
 
 /** Departments present in a set of rows, named, for the filter select. Built

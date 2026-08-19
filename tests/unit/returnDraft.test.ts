@@ -178,9 +178,9 @@ describe('lineStateLabel', () => {
     expect(lineStateLabel(it1, EMPTY_DRAFT, 'Kg')).toBe('Not Returned');
   });
 
-  it('reads "Partial (250 Kg Pending)" for a partial line', () => {
+  it('reads "Partially Returned (250 Kg Pending)" for a partial line', () => {
     const it1 = item({ id: 'i1', quantity: 1000, returned_qty: 750 });
-    expect(lineStateLabel(it1, EMPTY_DRAFT, 'Kg')).toBe('Partial (250 Kg Pending)');
+    expect(lineStateLabel(it1, EMPTY_DRAFT, 'Kg')).toBe('Partially Returned (250 Kg Pending)');
   });
 });
 
@@ -282,9 +282,9 @@ describe('lateNote', () => {
     expect(lateNote(p, NOW)).toBeNull();
   });
 
-  it('reads "(Yesterday)" at one day late', () => {
+  it('counts the day rather than naming it — "(1 Day Overdue)", never "(Yesterday)"', () => {
     const p = pass({ due_state: 'overdue', expected_return_date: '2026-08-18' });
-    expect(lateNote(p, NOW)).toBe('(Yesterday)');
+    expect(lateNote(p, NOW)).toBe('(1 Day Overdue)');
   });
 
   it('reads "(3 Days Overdue)" at three days late', () => {

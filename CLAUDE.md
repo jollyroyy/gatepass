@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-19
 
-Full gate: **1212 tests across 111 files** (`npm run check`), `npm run build` clean.
+Full gate: **1281 tests across 115 files** (`npm run check`), `npm run build` clean.
 Migrations **`001`–`042` are all applied to the live DB**; `039`, `040`, `041` were each
 verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`), and `042` with a
 rolled-back `psql` insert that returned `RGP-20260818-0001`.
@@ -51,7 +51,64 @@ rolled-back `psql` insert that returned `RGP-20260818-0001`.
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 
-**Latest change (2026-08-19, third pass): the guard's two lists are PAGES, the dashboard's
+**Latest change (2026-08-19, fourth pass): Overdue Items counts what the return queue
+calls overdue, the guard's day cut is GONE, no surface says "Partial", a returned line names
+its DATE, the scanner clears the page, the Quick Action tiles carry counts, and a stacked card
+lists its lines priced in ₹.** Frontend only — no migration, no new RPC.
+
+- **THE BUG: "Total overdue 0" beside a return queue showing an overdue pass.** Live data:
+  `RGP-20260818-0003` is due back **18 Aug**; of its two lines, `sony` (18 Aug) came back and
+  `aluminium foil` carries its OWN later date of **19 Aug**. `expectedOf` in `overdueItems.ts`
+  preferred the line's date, so nothing was late and the page counted zero while the queue's
+  pill said Overdue. **`expectedOf` now takes the EARLIER of the line's date and the pass's
+  deadline** — a line cannot outlive the pass carrying it, so a pass the database grades
+  `overdue` always yields at least one overdue line. Confirmed with the client, who chose this
+  over the alternative (re-deriving the pass's Expected Back from its outstanding lines, which
+  would have made the pass read *Due Today* and left the count at 0). **The cost is real and
+  accepted**: a pass whose earliest line is late drags its later lines into the backlog too.
+- **The guard's `/overdue` day cut is DELETED, not flagged off.** `scopeOverdue`, the
+  `OverdueScope` union and `OverdueBoard`'s `scope` prop no longer exist, so a stale reference
+  is a compile error. It showed a guard only `daysLate === 1`, which meant the same "0 overdue"
+  reading returned the following morning for the very row above. All three roles now see the
+  whole backlog; who sees which PASSES is still the page's business (RLS + `raised_by`).
+- **No surface says "Partial"** (client). `PASS_RETURN_LABELS.partial`, `LINE_STATE_LABELS.partial`
+  and `ReturnLegend` all read **"Partially Returned"**, and `lineStateLabel` composes from the
+  map, so the line cell is "Partially Returned (250 Kg Pending)". The tab was already "Returned
+  Partially" and is unchanged.
+- **`lateNote` counts the day instead of naming it**: `(1 Day Overdue)`, never `(Yesterday)`
+  (client). The column answers "how late"; a word answering "when" made the reader convert.
+- **A returned line names the DATE it came back** (client) — `Returned 17 Aug 2026`, under the
+  status badge on BOTH the record view (`PassRecordItems`) and the guard's return panel
+  (`PendingReturnItems`). `returned_at` is stamped only when a line is FULLY back (029), so a
+  partly-returned line deliberately carries no date rather than borrowing the pass's.
+- **The three-dot kebab is gone from the return row** (client), and `.gb-kebab` with it. It
+  linked to `/pass/:id`, which the pass number in the same row already does.
+- **Opening the scanner CLEARS the guard list pages** (client). `useGuardSearch` exposes
+  `scanning`; while it is true both pages drop the tab strip, the filter bar and the table,
+  leaving the header, the search bar and the viewfinder. Whatever the scan resolves to appears
+  underneath it, so the list was only pushing the answer off screen.
+- **The Quick Action tiles carry a count** (client): Returns Due Today and Overdue Returns each
+  print `N items` under their note; Scan QR prints none. **The figures count LINES, because both
+  destinations are line-level tables** — the board's invariant, so `useGuardQueues` gained
+  `openItems`, ONE extra `v_gate_pass_items` read narrowed by the pass ids already fetched, and
+  **only on scope `'both'`** (the dashboard). The two list pages still load a row's lines on
+  demand. The dashboard builds each figure with the page's own function — `buildScheduledReturns`
+  over `due_state === 'due_today'` passes, `buildOverdueRows` over every open return.
+- **A stacked card now lists its material lines, numbered and priced in ₹**
+  (`src/components/PassItemLines.tsx`, rendered by `PassRowBody`). `usePassItems` fetches on
+  disclosure, so a collapsed list makes no queries. **The ordinal IS the serial number** —
+  `serial_no` is write-dead, and a column of em dashes says less than the line's position. An
+  unpriced line is an empty cell, never `₹0`. PassRowBody's old header comment saying per-item
+  value was out of reach here is corrected — it fetches now.
+- Pinned by rewritten `overdueItems.test.ts` / `overdueBoard.test.tsx` (the `scopeOverdue`
+  block became three cases on the earlier-of-two-dates rule), `returnDraft.test.ts`,
+  `pendingReturnsPage.test.tsx` (+ a no-kebab case), `itemLevelReturns.test.tsx` (+ the returned
+  date), `guardDashboard.test.tsx` (+ two tile-count cases, and its mock now serves
+  `v_gate_pass_items`), `pendingOutPage.test.tsx` (+ two scanner cases, with `QrScanner` stubbed)
+  and a new `stackedCardItemLines.test.tsx` (4).
+- **NOT seen signed-in in a browser**: `npm run check` (1281 tests) and `npm run build` only.
+
+**Earlier (2026-08-19, third pass): the guard's two lists are PAGES, the dashboard's
 figures DRILL into them, the action is "Approve OUT", and Search Pass left the sidebar.**
 Frontend only — no migration, no new RPC, no query the guard screens did not already make.
 
@@ -404,11 +461,13 @@ migration.**
 guard's Pending Returns tab is gone, Search Pass lost its Pending Queue, and the boards' Overdue
 / Due Today figures NAVIGATE instead of drilling.** Frontend only — no migration, no new RPC. *(The guard board's drills, `guardDrills.ts` and `GuardDrillCard` were deleted on 2026-08-19 — see the latest change. Everything else in this entry stands.)*
 
-- **`/overdue` — Overdue Items, one component, three scopes.** `src/components/overdue/`
+- **`/overdue` — Overdue Items, one component, three scopes.** *(The guard's day cut was
+  deleted on 2026-08-19 — every role now sees the whole backlog. Everything else here stands.)*
+  `src/components/overdue/`
   (`OverdueBoard` + `OverdueStats` + `OverdueFilters` + `OverdueTable` + `OverdueTrendPanel`),
   data in `src/lib/overdueItems.ts`, loaded by `src/lib/useOpenReturns.ts`, rendered by
   `src/pages/Shared/OverdueItemsPage.tsx` which decides scope from the role:
-  **guard = lines that went overdue TODAY** (`daysLate === 1`), **HOD = all time, own passes**
+  **guard = all time, site-wide**, **HOD = all time, own passes**
   (`.eq('raised_by', …)`, server-side), **admin = all time, site-wide**. Only the guard can
   record — `apply_item_returns` refuses anyone else.
   - **A ROW IS A MATERIAL LINE**, graded by `itemReturnStage` — the same function Search Pass

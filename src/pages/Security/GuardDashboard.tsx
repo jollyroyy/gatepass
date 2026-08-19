@@ -24,11 +24,13 @@ import GuardSummaryCards from '../../components/guard/GuardSummaryCards';
 import QuickActions from '../../components/guard/QuickActions';
 import { formatDateTime } from '../../lib/formatDate';
 import { firstNameOf, pendingOutOf, pendingReturnsOf, typeSplit } from '../../lib/guardBoard';
+import { buildOverdueRows } from '../../lib/overdueItems';
 import { fetchMyProfile } from '../../lib/profiles';
+import { buildScheduledReturns } from '../../lib/scheduledReturns';
 import { useGuardQueues } from '../../lib/useGuardQueues';
 
 export default function GuardDashboard(): React.ReactElement {
-  const { queue, openReturns, loading, error } = useGuardQueues('both');
+  const { queue, openReturns, openItems, loading, error } = useGuardQueues('both');
   const [name, setName] = useState<string | null>(null);
   // Stamped once, at mount: a clock that ticks on a board nobody is watching
   // re-renders the page every second for a fact that changes by the minute.
@@ -53,6 +55,16 @@ export default function GuardDashboard(): React.ReactElement {
 
   const pendingOut = pendingOutOf(queue);
   const pendingReturns = pendingReturnsOf(openReturns);
+
+  // The two Quick Action figures, each built the way the page behind it builds
+  // its rows: `/returns` is `buildScheduledReturns` over the passes the
+  // database grades `due_today`, `/overdue` is `buildOverdueRows` over every
+  // open return. Same functions, same arrays — no second predicate to drift.
+  const dueTodayLines = buildScheduledReturns(
+    openReturns.filter((p) => p.due_state === 'due_today'),
+    openItems
+  ).length;
+  const overdueLines = buildOverdueRows(openReturns, openItems).length;
 
   return (
     <div className="gb-board">
@@ -80,7 +92,7 @@ export default function GuardDashboard(): React.ReactElement {
         loading={loading}
       />
 
-      <QuickActions />
+      <QuickActions dueToday={dueTodayLines} overdue={overdueLines} loading={loading} />
     </div>
   );
 }

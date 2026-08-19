@@ -12,6 +12,9 @@
 //   * THE SEARCH IS GLOBAL. It is not a filter over these rows: a pass number
 //     goes through `lookup_pass` over the whole register, and a mobile number
 //     through an unfiltered query. Both reach passes that are not in the queue.
+//   * OPENING THE SCANNER CLEARS THE PAGE (client, 2026-08-19): the tab strip,
+//     the filter bar and the table all go, because whatever the scan resolves
+//     to appears under the viewfinder and the list would only push it away.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -88,6 +91,12 @@ function builder(table: string) {
 const ch: any = {};
 ch.on = () => ch;
 ch.subscribe = () => ch;
+
+// The viewfinder itself needs a camera; this file is about what the PAGE does
+// while it is open, so it is stubbed to a marker.
+vi.mock('../../src/components/QrScanner', () => ({
+  default: () => <div data-testid="qr-viewfinder" />,
+}));
 
 vi.mock('../../src/supabaseClient', () => ({
   gp: () => ({
@@ -282,5 +291,31 @@ describe('The pager', () => {
     await waitFor(() => expect(screen.getByText(/Showing 1 to 10 of 12 entries/)).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: '2' }));
     expect(screen.getByText(/Showing 11 to 12 of 12 entries/)).toBeInTheDocument();
+  });
+});
+
+describe('Opening the scanner clears the page', () => {
+  it('drops the tab strip, the filter bar and the table while the viewfinder is up', async () => {
+    await renderPage();
+    // Present before the press.
+    expect(screen.getByRole('tablist', { name: 'Pass type' })).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Scan QR/i }));
+
+    expect(screen.getByTestId('qr-viewfinder')).toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Vendor')).not.toBeInTheDocument();
+    // The search bar itself stays — a damaged code is typed in, not scanned.
+    expect(screen.getByLabelText(/Search any pass/i)).toBeInTheDocument();
+  });
+
+  it('puts the page back when the scanner is closed', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Scan QR/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Close Scanner/i }));
+    expect(screen.getByRole('tablist', { name: 'Pass type' })).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
   });
 });

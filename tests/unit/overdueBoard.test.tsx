@@ -1,6 +1,8 @@
-// Overdue Items, as the three roles see it. One component, three scopes — the
-// guard's day cut, the HOD's own passes, the admin's site-wide backlog — and
-// only the gate may record a return from it.
+// Overdue Items, as the three roles see it. One component and ONE scope now —
+// the whole backlog, for every role (the guard's day cut was deleted on
+// 2026-08-19; it read "0 overdue" while a pass sat late in the return queue).
+// Who sees which passes is the page's business, not this component's, and only
+// the gate may record a return from it.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -63,7 +65,6 @@ function renderBoard(props: Partial<React.ComponentProps<typeof OverdueBoard>> =
         subtitle="Overdue material"
         passes={PASSES}
         items={ITEMS}
-        scope="all"
         canRecord
         loading={false}
         error={null}
@@ -105,14 +106,9 @@ describe('Overdue Items — the figures', () => {
 });
 
 describe('Overdue Items — scope', () => {
-  it("shows the guard only what went overdue today", () => {
-    renderBoard({ scope: 'today' });
-    expect(screen.getByText('Fluke Multimeter')).toBeInTheDocument();
-    expect(screen.queryByText('Angle Grinder')).not.toBeInTheDocument();
-  });
-
-  it('shows the admin and the HOD every missed date', () => {
-    renderBoard({ scope: 'all' });
+  it('shows every missed date, however old, to every role', () => {
+    renderBoard();
+    // One day late and six days late, on one page. No day cut for anyone.
     expect(screen.getByText('Fluke Multimeter')).toBeInTheDocument();
     expect(screen.getByText('Angle Grinder')).toBeInTheDocument();
   });

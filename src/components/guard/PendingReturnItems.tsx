@@ -26,6 +26,7 @@
 // there the guard is counting a load out through the barrier line by line.
 import React from 'react';
 import type { GatePassItemView } from '../../types';
+import { formatDateOnly } from '../../lib/formatDate';
 import {
   effectiveReturned,
   formatQty,
@@ -115,6 +116,12 @@ export default function PendingReturnItems({ items, draft, onAdd }: Props): Reac
                   * green "Returned" with nothing beside it would read as
                   * recorded, and it is not until the Record press. */}
                 {staged && <span className="gb-subline">Not recorded yet</span>}
+                {/* WHEN it came back (client, 2026-08-19). `returned_at` is
+                  * stamped only once a line is FULLY back (029), so a partly
+                  * returned line carries no date and must not invent one. */}
+                {!staged && item.returned_at && (
+                  <span className="gb-subline">Returned {formatDateOnly(item.returned_at)}</span>
+                )}
               </td>
             </tr>
           );

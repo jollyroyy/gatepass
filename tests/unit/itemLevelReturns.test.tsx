@@ -81,6 +81,7 @@ function resetRows(): void {
     item({
       id: 'cement', gate_pass_id: 'p1', line_no: 3, name: 'Cement Bags', description: 'OPC 43',
       quantity: 500, unit: 'nos', returned_qty: 500,
+      returned_at: '2026-08-17T09:15:00Z',
     }),
   ];
 }
@@ -175,7 +176,7 @@ describe('Item-level returns', () => {
       expect(screen.getByRole('button', { name: 'Edit return for Diesel' })).toBeInTheDocument());
     expect(RPC_CALLS).toHaveLength(0);
     expect(screen.getByText('Staged 800')).toBeInTheDocument();
-    expect(screen.getByText('Partial (200 Litre Pending)')).toBeInTheDocument();
+    expect(screen.getByText('Partially Returned (200 Litre Pending)')).toBeInTheDocument();
   });
 
   it('the Record press commits exactly one call carrying the staged line and a remark naming it', async () => {
@@ -318,5 +319,19 @@ describe('Item-level returns', () => {
     // four states, which is what a legend is for.
     const row = screen.getByText('Cement Bags').closest('tr')!;
     expect(within(row).getAllByText('Returned').length).toBeGreaterThan(0);
+  });
+
+  it('names the DATE a line came back, on the line itself', async () => {
+    // Client, 2026-08-19: "whichever item has returned, mention returned on
+    // this date". `returned_at` is stamped only once a line is fully back
+    // (029), so a line still owing material must carry no date at all rather
+    // than borrow the pass's.
+    await renderPage();
+    await openRow();
+    const done = screen.getByText('Cement Bags').closest('tr')!;
+    expect(within(done).getByText(/Returned 17 Aug 2026/)).toBeInTheDocument();
+
+    const owing = screen.getByText('Diesel').closest('tr')!;
+    expect(within(owing).queryByText(/^Returned \d/)).not.toBeInTheDocument();
   });
 });

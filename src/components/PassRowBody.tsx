@@ -7,14 +7,16 @@
 // columns on md+ (`grid-cols-2 md:grid-cols-4 lg:grid-cols-5`), collapsing to
 // stacked label/value pairs below md. Four facts are emphasised (heavier
 // weight only, never colour) per the client's follow-up: vendor, who raised
-// it, and — RGP only — the expected return date. Item value is deliberately
-// NOT here: `GatePassView` carries no pass-level total, only per-item
-// `approx_value` on `GatePassItemView`, which this component never fetches
-// (presentation only, no new queries). See PassDetail / VerifyItemsTable,
-// which already have the item rows loaded, for where that figure IS shown.
+// it, and — RGP only — the expected return date.
+//
+// THE LINES THEMSELVES ARE UNDERNEATH, numbered and priced (client,
+// 2026-08-19). `PassItemLines` fetches them when the card opens; this file
+// used to say per-item value was out of reach because nothing here queried,
+// and that is what changed. The grid above still holds only pass-level facts.
 import React from 'react';
 import type { GatePassView } from '../types';
 import PassField from './PassField';
+import PassItemLines from './PassItemLines';
 import PassTimelineStrip from './PassTimelineStrip';
 import { parseCompanyInfo } from '../lib/companyInfo';
 import { formatDateOnly, formatDateTime } from '../lib/formatDate';
@@ -74,6 +76,8 @@ export default function PassRowBody({
         )}
         {!slim && p.verified_by_name && <PassField label="Verified By" value={p.verified_by_name} />}
       </div>
+
+      <PassItemLines passId={p.id} dense={dense} />
 
       {/* Raised → Mismatch → Override → Cleared Out → Returned, DOWN the card:
           an opened card is where the history is read in order (client,

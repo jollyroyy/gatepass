@@ -78,7 +78,7 @@ export default function PendingReturnsPage(): React.ReactElement {
       />
 
       <GuardToolbar
-        tabs={{
+        tabs={search.scanning ? undefined : {
           label: 'Return status',
           items: RETURN_TABS.map((t) => ({
             key: t,
@@ -93,7 +93,7 @@ export default function PendingReturnsPage(): React.ReactElement {
 
       {search.notice}
 
-      {search.results ?? (
+      {search.scanning ? null : search.results ?? (
         <>
           <PendingReturnFilterBar
             filters={filters}

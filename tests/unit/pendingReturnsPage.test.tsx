@@ -121,14 +121,25 @@ describe('What is on the page', () => {
   it('states lateness in words, never in colour alone', async () => {
     await renderPage();
     // The Status pill on the late row, and the note under its date. A partly
-    // returned pass reads "Partial" — that outranks lateness on the pill,
+    // returned pass reads "Partially Returned" — that outranks lateness on the pill,
     // which is exactly why the date carries the day count as well.
     // Scoped to the table: the legend under it names the same four states, and
     // that is the point of a legend — the words appear twice on purpose.
     const table = within(screen.getByRole('table'));
-    expect(table.getByText('Partial')).toBeInTheDocument();
+    expect(table.getByText('Partially Returned')).toBeInTheDocument();
     expect(table.getByText(/Days Overdue/)).toBeInTheDocument();
     expect(table.getByText('(Due Today)')).toBeInTheDocument();
+  });
+
+  it('carries no overflow menu — the pass number is already the way to the record', async () => {
+    // Client, 2026-08-19: "remove the three dots from the right-hand side of
+    // each stacked card." A row's Action cell is one control now.
+    await renderPage();
+    const row = screen.getByText('RGP-00056').closest('tr')!;
+    expect(within(row).queryByLabelText(/Open the full record/i)).not.toBeInTheDocument();
+    expect(row.querySelector('.gb-kebab')).toBeNull();
+    // The pass number itself still opens it.
+    expect(within(row).getByText('RGP-00056').closest('a')).toHaveAttribute('href', '/pass/r1');
   });
 
   it('shows what has come back against what went out', async () => {

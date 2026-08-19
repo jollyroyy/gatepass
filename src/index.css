@@ -1445,6 +1445,16 @@
     font-weight: 400;
     color: var(--gb-muted);
   }
+  /* The figure under the note. Ink, not a tint plate: it sits inside a tile
+   * that already carries a colour, and a second saturated block would compete
+   * with the summary cards above for the same reader. */
+  .gb-tile-count {
+    display: block;
+    margin-top: 4px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--gb-ink);
+  }
 
   /* Tones: one class sets ink, one sets the tint plate. */
   .gb-ink-orange { color: var(--gb-orange); }
@@ -1741,20 +1751,6 @@
   }
   .gb-add-btn:hover { background: var(--gb-blue-soft); }
   .gb-add-btn:disabled { opacity: 0.45; cursor: default; }
-
-  .gb-kebab {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--gb-muted);
-  }
-  .gb-kebab:hover { background: var(--gb-head); }
-  .gb-kebab svg { width: 15px; height: 15px; }
 
   /* The floating return box. Fixed to the bottom-right of the viewport — the
    * mock-up's own placement — so the field stays in reach while the guard

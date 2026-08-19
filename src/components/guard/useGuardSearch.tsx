@@ -51,6 +51,11 @@ const ScanGlyph = (
 export interface GuardSearch {
   /** The pill input and the Scan QR button — goes in the toolbar. */
   bar: React.ReactElement;
+  /** The viewfinder is open. The page hides its tab strip, its filter bar and
+   *  its table while it is (client, 2026-08-19): a guard holding a slip up to
+   *  a camera is not reading a list, and whatever the scan resolves to appears
+   *  under the viewfinder — so the list would only be pushing it off screen. */
+  scanning: boolean;
   /** The viewfinder and any alert the last query raised, or null. */
   notice: React.ReactElement | null;
   /** A mobile-number result set, or null when no search is showing. When this
@@ -164,7 +169,7 @@ export function useGuardSearch(placeholder: string): GuardSearch {
     <PhoneMatches query={phone.query} rows={phone.rows} onClear={() => setPhone(null)} />
   ) : null;
 
-  return { bar, notice, results };
+  return { bar, notice, results, scanning };
 }
 
 /** Several passes carry the same mobile number — a person at the barrier with

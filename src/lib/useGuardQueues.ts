@@ -13,7 +13,7 @@
 // waiting on a query nothing on it will show.
 import { useCallback, useEffect, useState } from 'react';
 import { gp, supabase } from '../supabaseClient';
-import type { GatePassView } from '../types';
+import type { GatePassItemView, GatePassView } from '../types';
 import { safeErrorMessage } from './errors';
 
 export type GuardQueueScope = 'both' | 'out' | 'returns';
@@ -23,6 +23,16 @@ export interface GuardQueues {
   queue: GatePassView[];
   /** Both open return states, of ANY date — the predicates cut it, not this. */
   openReturns: GatePassView[];
+  /** The material lines of `openReturns`, and ONLY on scope 'both'.
+   *
+   *  The dashboard's Returns Due Today and Overdue Returns figures count LINES,
+   *  because the two pages they open list lines — the board's invariant is that
+   *  a figure is `rows.length` of the array the page it opens renders, and a
+   *  pass count beside a line list is exactly the kind of drift it forbids.
+   *  The list pages do NOT take this read: Pending RGP Return loads one row's
+   *  lines when that row is opened, and a bulk fetch would be a whole extra
+   *  query for a table that shows none of it. */
+  openItems: GatePassItemView[];
   loading: boolean;
   error: string | null;
   /** Re-read both queues without a skeleton. Recording a return has to move
@@ -35,6 +45,7 @@ export interface GuardQueues {
 export function useGuardQueues(scope: GuardQueueScope = 'both'): GuardQueues {
   const [queue, setQueue] = useState<GatePassView[]>([]);
   const [openReturns, setOpenReturns] = useState<GatePassView[]>([]);
+  const [openItems, setOpenItems] = useState<GatePassItemView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,8 +86,24 @@ export function useGuardQueues(scope: GuardQueueScope = 'both'): GuardQueues {
         }
 
         setQueue((queued.data as GatePassView[] | null) ?? []);
-        setOpenReturns((open.data as GatePassView[] | null) ?? []);
+        const openRows = (open.data as GatePassView[] | null) ?? [];
+        setOpenReturns(openRows);
         setError(null);
+
+        // Narrowed by the pass ids that survived the query above, so nothing
+        // widens even if the view changes shape. A failed lines read leaves the
+        // two line figures at zero rather than taking the whole board down with
+        // it — the queue counts above are already on screen and still true.
+        if (scope === 'both' && openRows.length > 0) {
+          const itemRes = await gp()
+            .from('v_gate_pass_items')
+            .select('*')
+            .in('gate_pass_id', openRows.map((p) => p.id))
+            .order('line_no');
+          setOpenItems(itemRes.error ? [] : ((itemRes.data as GatePassItemView[] | null) ?? []));
+        } else {
+          setOpenItems([]);
+        }
       } catch (err) {
         setError(safeErrorMessage(err));
       } finally {
@@ -118,5 +145,5 @@ export function useGuardQueues(scope: GuardQueueScope = 'both'): GuardQueues {
     void load(true);
   }, [load]);
 
-  return { queue, openReturns, loading, error, reload };
+  return { queue, openReturns, openItems, loading, error, reload };
 }

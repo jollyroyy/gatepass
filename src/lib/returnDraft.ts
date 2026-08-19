@@ -105,12 +105,12 @@ export function lineState(item: GatePassItemView, draft: ReturnDraft): LineState
   return 'partial';
 }
 
-/** The mock-up's own words, and its own colours — RGP-00055's five lines read
- *  "Returned", "Partial (250 Kg Pending)", "Not Returned". A `Record` keyed by
+/** The mock-up's own colours, in this app's words — a line reads "Returned",
+ *  "Partially Returned (250 Kg Pending)" or "Not Returned". A `Record` keyed by
  *  the union, so a fourth state would be a compile error. */
 export const LINE_STATE_LABELS: Record<LineState, string> = {
   returned: 'Returned',
-  partial: 'Partial',
+  partial: 'Partially Returned',
   pending: 'Not Returned',
 };
 
@@ -126,9 +126,10 @@ export function formatQty(n: number): string {
   return n.toLocaleString('en-IN', { maximumFractionDigits: 3 });
 }
 
-/** "Partial (250 Kg Pending)" — the mock's own status cell. The unit is named
- *  here even when the column heading names it, because this string is a
- *  sentence about a quantity, not a cell under that heading. */
+/** "Partially Returned (250 Kg Pending)" — the mock's own status cell, in this
+ *  app's word for the state (client, 2026-08-19: no surface says "Partial").
+ *  The unit is named here even when the column heading names it, because this
+ *  string is a sentence about a quantity, not a cell under that heading. */
 export function lineStateLabel(
   item: GatePassItemView,
   draft: ReturnDraft,
@@ -137,7 +138,7 @@ export function lineStateLabel(
   const state = lineState(item, draft);
   if (state !== 'partial') return LINE_STATE_LABELS[state];
   const pending = formatQty(effectiveOutstanding(item, draft));
-  return `Partial (${pending}${unitText ? ` ${unitText}` : ''} Pending)`;
+  return `${LINE_STATE_LABELS.partial} (${pending}${unitText ? ` ${unitText}` : ''} Pending)`;
 }
 
 /** The lines the RPC is sent, in line order. Staged entries only — a line the
@@ -186,8 +187,8 @@ export function returnSummary(p: GatePassView): { text: string; percent: number 
   return { text: `${formatQty(back)} of ${formatQty(total)} returned`, percent: shown };
 }
 
-/** The mock's Status column on the pass row: Partial · Overdue · Not Returned.
- *  Partial outranks lateness — a pass with material already back is a
+/** The Status column on the pass row: Partially Returned · Overdue · Not
+ *  Returned. Partly-returned outranks lateness — a pass with material already back is a
  *  different conversation from one with none, and the Expected Back cell
  *  beside it carries the lateness anyway. */
 export type PassReturnState = 'partial' | 'overdue' | 'pending';
@@ -198,7 +199,7 @@ export function passReturnState(p: GatePassView): PassReturnState {
 }
 
 export const PASS_RETURN_LABELS: Record<PassReturnState, string> = {
-  partial: 'Partial',
+  partial: 'Partially Returned',
   overdue: 'Overdue',
   pending: 'Not Returned',
 };
@@ -210,9 +211,13 @@ export const PASS_RETURN_PILL: Record<PassReturnState, string> = {
 };
 
 /**
- * "(2 Days Overdue)" / "(Yesterday)" under the expected date — the mock's own
- * second line, and the only place on this screen where a day count is computed
- * in TypeScript.
+ * "(1 Day Overdue)" / "(2 Days Overdue)" under the expected date — the mock's
+ * own second line, and the only place on this screen where a day count is
+ * computed in TypeScript.
+ *
+ * A one-day delay used to read "(Yesterday)". It is a day count now (client,
+ * 2026-08-19): the column answers "how late", and a word that answers "when"
+ * instead makes the reader do the conversion, once, on every row.
  *
  * LATENESS ITSELF IS NOT DECIDED HERE. Whether a pass IS overdue comes from
  * `due_state`, graded by the database in `site_tz()`; this only says HOW LATE a
@@ -226,7 +231,7 @@ export function lateNote(p: GatePassView, now: number = Date.now()): string | nu
   if (day === null) return null;
   const days = daysBetween(day, dayStart(now));
   if (days < 1) return null;
-  return days === 1 ? '(Yesterday)' : `(${days} Days Overdue)`;
+  return `(${days} ${days === 1 ? 'Day' : 'Days'} Overdue)`;
 }
 
 /**

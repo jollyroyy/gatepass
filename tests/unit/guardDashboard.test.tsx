@@ -20,7 +20,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ALL_LINKS } from '../../src/components/layout/Sidebar';
 import { ROLE_ROUTES } from '../../src/lib/roleRoutes';
-import type { GatePassView } from '../../src/types';
+import type { GatePassItemView, GatePassView } from '../../src/types';
 
 const FUTURE = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
 
@@ -42,11 +42,23 @@ function pass(over: Partial<GatePassView>): GatePassView {
   } as any;
 }
 
+function item(over: Partial<GatePassItemView>): GatePassItemView {
+  return {
+    id: 'i1', gate_pass_id: 'r1', line_no: 1, name: 'Scaffolding Pipe', quantity: 100,
+    unit: 'nos', returned_qty: 0, outstanding_qty: 100, expected_return_date: null,
+    ...over,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any;
+}
+
 // The gate queue — one RGP and two NRGP, so the card's two figures are
 // distinguishable from each other and from the list length.
 let QUEUE: GatePassView[] = [];
 // Everything still out, of any date. The board cuts it to what is due.
 let OPEN_RETURNS: GatePassView[] = [];
+// The LINES of those passes — what the two Quick Action figures count, because
+// /returns and /overdue are both line-level tables.
+let OPEN_ITEMS: GatePassItemView[] = [];
 
 function resetRows(): void {
   QUEUE = [
@@ -71,12 +83,24 @@ function resetRows(): void {
            return_status: 'awaiting_return', expected_return_date: '2026-10-01',
            material_summary: 'Wall Putty', due_state: 'ok' }),
   ];
+  OPEN_ITEMS = [
+    // r1 is due TODAY: two lines, so the tile must read 2 and not 1 (a pass
+    // count beside a line list is exactly the drift the invariant forbids).
+    item({ id: 'i1', gate_pass_id: 'r1', line_no: 1 }),
+    item({ id: 'i2', gate_pass_id: 'r1', line_no: 2, name: 'Base Plate' }),
+    // r2 went overdue in May. One line still owes material, one is fully back.
+    item({ id: 'i3', gate_pass_id: 'r2', line_no: 1, name: 'Timber Plank' }),
+    item({ id: 'i4', gate_pass_id: 'r2', line_no: 2, name: 'Nail Box',
+           returned_qty: 100, outstanding_qty: 0 }),
+    // r3 is due in October — outstanding, but not late.
+    item({ id: 'i5', gate_pass_id: 'r3', line_no: 1, name: 'Wall Putty Tub' }),
+  ];
 }
 
 /** The board issues exactly two queries, told apart by which column the
  *  `.in()` names. `expires_at` rides along with the queue's `.in('status', …)`
  *  and must not select a set of its own. */
-function builder() {
+function builder(table = '') {
   let axis: 'status' | 'return_status' | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const obj: any = {};
@@ -87,7 +111,9 @@ function builder() {
     return obj;
   };
   obj.then = (onOk: (v: unknown) => unknown, onErr?: (e: unknown) => unknown) => {
-    const data = axis === 'return_status' ? OPEN_RETURNS : QUEUE;
+    const data = table === 'v_gate_pass_items'
+      ? OPEN_ITEMS
+      : axis === 'return_status' ? OPEN_RETURNS : QUEUE;
     return Promise.resolve({ data, error: null, count: data.length }).then(onOk, onErr);
   };
   return obj;
@@ -100,7 +126,7 @@ ch.subscribe = () => ch;
 
 vi.mock('../../src/supabaseClient', () => ({
   gp: () => ({
-    from: () => builder(),
+    from: (table: string) => builder(table),
     rpc: () => ({
       maybeSingle: () => Promise.resolve({
         data: { id: 'u1', email: 'g@x.z', full_name: 'Ravi Kumar', role: 'guard', department_id: null,
@@ -220,6 +246,21 @@ describe('Quick actions', () => {
       expect(link).toHaveAttribute('href', href);
       expect(ROLE_ROUTES.guard).toContain(href);
     }
+  });
+
+  it('counts the LINES each tile opens, not the passes', async () => {
+    await renderBoard();
+    // /returns lists the lines of every pass the database grades due_today —
+    // r1's two. A pass count would say "1".
+    expect(screen.getByText('Returns Due Today').closest('a')).toHaveTextContent('2 items');
+    // /overdue lists every line past its date and still owing — r2's first
+    // line alone. Its second line is fully back; r3 is not late yet.
+    expect(screen.getByText('Overdue Returns').closest('a')).toHaveTextContent('1 item');
+  });
+
+  it('puts no figure on Scan QR — the register is not a thing to count', async () => {
+    await renderBoard();
+    expect(screen.getByText('Scan QR / Pass No.').closest('a')).not.toHaveTextContent(/item/);
   });
 });
 

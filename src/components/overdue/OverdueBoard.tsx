@@ -1,19 +1,17 @@
 // OVERDUE ITEMS — the whole page, shared by the guard, the HOD and the admin.
 //
 // One component, three consumers, for the same reason GateBoard is one
-// component: the three differ ONLY in which rows they are handed and in the day
-// cut applied to them. Duplicating this layout per role is how two dashboards
-// drifted apart before.
+// component: the three differ ONLY in which rows they are handed. Duplicating
+// this layout per role is how two dashboards drifted apart before.
 //
-//   /overdue  guard  — lines that went overdue TODAY (expected back yesterday).
-//                      A shift board: what to chase at the barrier now.
+//   /overdue  guard  — every missed date, site-wide.
 //              HOD   — every missed date, own passes only (RLS + `raised_by`).
 //              admin — every missed date, site-wide.
 //
-// THE SCOPE IS APPLIED BEFORE ANY FIGURE IS COMPUTED, so the tiles, the trend,
-// the filters and the table all describe the same set. A tile that counted a
-// wider array than the table under it is the one bug this arrangement exists to
-// prevent — the board's invariant, on a line-level page.
+// THE GUARD'S DAY CUT IS GONE (client, 2026-08-19). It showed only lines that
+// went late in the last 24 hours, so a pass three days late read "Total overdue
+// 0" on this page while the return queue called it Overdue — the reader has to
+// be able to trust one number against the other. A backlog is not a day figure.
 //
 // ONLY THE GATE RECORDS A RETURN. `canRecord` is the guard, and it is not a
 // courtesy: `apply_item_returns` refuses anyone else, and a button that always
@@ -23,8 +21,8 @@ import React, { useMemo, useState } from 'react';
 import type { GatePassItemView, GatePassView } from '../../types';
 import {
   buildOverdueRows, overdueStats, overdueTrend, filterOverdue,
-  scopeOverdue, departmentsOf, formatDelay, EMPTY_FILTERS,
-  type OverdueFilterState, type OverdueScope,
+  departmentsOf, formatDelay, EMPTY_FILTERS,
+  type OverdueFilterState,
 } from '../../lib/overdueItems';
 import { pageOf } from '../../lib/scheduledReturns';
 import { recordItemReturns } from '../../lib/recordReturns';
@@ -45,7 +43,6 @@ type Props = {
   subtitle: string;
   passes: GatePassView[];
   items: GatePassItemView[];
-  scope: OverdueScope;
   canRecord: boolean;
   loading: boolean;
   error: string | null;
@@ -53,12 +50,12 @@ type Props = {
    *  have just closed a pass. */
   onRecorded: () => void;
   /** The department ranking — admin only. An HOD's page is one department by
-   *  construction, and the guard's is today's shift. */
+   *  construction, and a guard chases a line, not a department. */
   showDepartments?: boolean;
 };
 
 export default function OverdueBoard({
-  subtitle, passes, items, scope, canRecord, loading, error, onRecorded,
+  subtitle, passes, items, canRecord, loading, error, onRecorded,
   showDepartments = false,
 }: Props): React.ReactElement {
   const [filters, setFilters] = useState<OverdueFilterState>(EMPTY_FILTERS);
@@ -67,11 +64,7 @@ export default function OverdueBoard({
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Scope first, then everything else off the scoped array.
-  const rows = useMemo(
-    () => scopeOverdue(buildOverdueRows(passes, items), scope),
-    [passes, items, scope],
-  );
+  const rows = useMemo(() => buildOverdueRows(passes, items), [passes, items]);
   const stats = overdueStats(rows);
   const bars = useMemo(() => overdueTrend(rows), [rows]);
 

@@ -1,10 +1,10 @@
 // Overdue Items is a LINE-level page, and every figure on it is derived here.
-// The three scopes (admin all-time, HOD own, guard today) differ only in which
-// rows arrive and in `scopeOverdue` — nothing else on the page knows the role.
+// The three roles differ only in which rows arrive — nothing else on the page
+// knows the role, and there is no day cut left in this module.
 import { describe, it, expect } from 'vitest';
 import {
   buildOverdueRows, overdueStats, overdueTrend, filterOverdue,
-  scopeOverdue, departmentsOf, hasActiveFilters, formatDelay, CRITICAL_DAYS,
+  departmentsOf, hasActiveFilters, formatDelay, CRITICAL_DAYS,
   EMPTY_FILTERS,
 } from '../../src/lib/overdueItems';
 import type { GatePassItemView, GatePassView } from '../../src/types';
@@ -88,22 +88,38 @@ describe('buildOverdueRows', () => {
   });
 });
 
-describe('scopeOverdue', () => {
-  const rows = buildOverdueRows(
-    [
-      pass({}),
-      pass({ id: 'p2', expected_return_date: '2026-08-01' }),
-    ],
-    [item({}), item({ id: 'i2', gate_pass_id: 'p2' })],
-    NOW,
-  );
-
-  it('gives the guard only what went overdue today', () => {
-    expect(scopeOverdue(rows, 'today').map((r) => r.daysLate)).toEqual([1]);
+describe('the line inherits the pass deadline when the pass is the earlier one', () => {
+  // The bug this replaced a day cut with: RGP-20260818-0003 was due back on
+  // the 18th, one of its two lines came back, and the line still outside
+  // carried its own LATER date — so the return queue said "Overdue" while this
+  // page counted zero.
+  it('counts a line whose own date is later than its pass deadline', () => {
+    const rows = buildOverdueRows(
+      [pass({ expected_return_date: '2026-08-16' })],
+      [item({ expected_return_date: '2026-08-18' })],
+      NOW,
+    );
+    expect(rows.map((r) => [r.expectedReturn, r.daysLate])).toEqual([['2026-08-16', 2]]);
   });
 
-  it('gives the admin and the HOD every missed day', () => {
-    expect(scopeOverdue(rows, 'all')).toHaveLength(2);
+  it('keeps the line’s own date when that is the earlier one', () => {
+    const rows = buildOverdueRows(
+      [pass({ expected_return_date: '2026-08-17' })],
+      [item({ expected_return_date: '2026-08-15' })],
+      NOW,
+    );
+    expect(rows[0].expectedReturn).toBe('2026-08-15');
+  });
+
+  it('falls back to whichever date exists', () => {
+    expect(
+      buildOverdueRows([pass({ expected_return_date: null })], [item({ expected_return_date: '2026-08-15' })], NOW)[0]
+        .expectedReturn,
+    ).toBe('2026-08-15');
+    expect(
+      buildOverdueRows([pass({ expected_return_date: '2026-08-15' })], [item({ expected_return_date: null })], NOW)[0]
+        .expectedReturn,
+    ).toBe('2026-08-15');
   });
 });
 

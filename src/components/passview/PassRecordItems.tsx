@@ -16,6 +16,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassItemView, GatePassView } from '../../types';
 import { formatCurrency } from '../../lib/formatCurrency';
+import { formatDateOnly } from '../../lib/formatDate';
 import { ITEM_RETURN_STYLES, itemReturnStage, returnProgress } from '../../lib/passRecordView';
 import { quantityCell, quantityHeading } from '../../lib/units';
 import Badge from '../Badge';
@@ -91,7 +92,18 @@ export default function PassRecordItems({ pass, items }: Props): React.ReactElem
                       </span>
                     </td>
                     <td>{item.approx_value != null ? formatCurrency(item.approx_value) : '—'}</td>
-                    <td><Badge style={ITEM_RETURN_STYLES[stage]} /></td>
+                    <td>
+                      <Badge style={ITEM_RETURN_STYLES[stage]} />
+                      {/* WHEN it came back, on the line itself (client,
+                        * 2026-08-19). `returned_at` is stamped only once a
+                        * line is FULLY back (029), so a partly-returned line
+                        * carries no date and must not invent one. */}
+                      {item.returned_at && (
+                        <span className="block text-caption text-navy-500 mt-1 whitespace-nowrap">
+                          Returned {formatDateOnly(item.returned_at)}
+                        </span>
+                      )}
+                    </td>
                     <td>
                       {owes ? (
                         <Link

@@ -10,7 +10,7 @@ import React from 'react';
 
 const KEYS = [
   { tint: 'gb-tint-green', label: 'Returned' },
-  { tint: 'gb-tint-orange', label: 'Partial' },
+  { tint: 'gb-tint-orange', label: 'Partially Returned' },
   { tint: 'gb-tint-grey', label: 'Not Returned' },
   { tint: 'gb-tint-red', label: 'Overdue' },
 ] as const;

@@ -168,23 +168,13 @@ export default function PendingReturnRow({
           <span className="gb-subline">({summary.percent}%)</span>
         </td>
         <td>
-          <span className="inline-flex items-center gap-1">
-            <button type="button" className="gb-action gb-action-blue" onClick={open ? close : onToggle}>
-              {VerifyGlyph}
-              Verify / Update Return
-            </button>
-            <Link
-              to={`/pass/${pass.id}`}
-              className="gb-kebab"
-              aria-label={`Open the full record of ${pass.pass_number}`}
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <circle cx="12" cy="5" r="1.6" />
-                <circle cx="12" cy="12" r="1.6" />
-                <circle cx="12" cy="19" r="1.6" />
-              </svg>
-            </Link>
-          </span>
+          {/* No overflow menu beside it (client, 2026-08-19). The pass number
+            * in this same row is already a link to the full record, so the
+            * three-dot control was a second door onto one destination. */}
+          <button type="button" className="gb-action gb-action-blue" onClick={open ? close : onToggle}>
+            {VerifyGlyph}
+            Verify / Update Return
+          </button>
         </td>
       </tr>
 

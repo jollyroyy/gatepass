@@ -82,7 +82,7 @@ export default function PendingOutPage(): React.ReactElement {
       />
 
       <GuardToolbar
-        tabs={{
+        tabs={search.scanning ? undefined : {
           label: 'Pass type',
           items: TYPE_TABS.map((t) => ({ key: t, label: TYPE_TAB_LABELS[t], count: counts[t] })),
           active: filters.tab,
@@ -93,7 +93,7 @@ export default function PendingOutPage(): React.ReactElement {
 
       {search.notice}
 
-      {search.results ?? (
+      {search.scanning ? null : search.results ?? (
         <>
           <PendingOutFilterBar
             filters={filters}
