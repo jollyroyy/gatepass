@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-19
 
-Full gate: **1158 tests across 108 files** (`npm run check`), `npm run build` clean.
+Full gate: **1160 tests across 108 files** (`npm run check`), `npm run build` clean.
 Migrations **`001`–`042` are all applied to the live DB**; `039`, `040`, `041` were each
 verified behaviourally with real anon-key JWTs (`scripts/verify-0NN.mjs`), and `042` with a
 rolled-back `psql` insert that returned `RGP-20260818-0001`.
@@ -51,7 +51,54 @@ rolled-back `psql` insert that returned `RGP-20260818-0001`.
 | Demo accounts | all `auth.users` share password `demo123`, all email-confirmed; shared with VMS |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 
-**Latest change (2026-08-19): the guard's dashboard is REVAMPED — two lists, a greeting and
+**Latest change (2026-08-19, second pass): the guard's dashboard is drawn in the CLIENT'S
+OWN PALETTE AND TYPE, not the house theme.** Frontend only — no migration, no query change, no
+change to what the board counts. **SEEN IN A BROWSER** (dev server, signed in as a guard, light
+and dark) — the first screen since 2026-08-17 that has been.
+
+- **`.gb-*` in `src/index.css` is a scoped, FIXED-LIGHT skin, and it is the only place the
+  mock-up's hex lives.** The client asked for "the exact same colour, font, typography" on the
+  main content area of this one screen, so it is white ground, near-black **Inter** headings
+  (not the gold Antic Didone ladder), orange for the OUT queue and blue for the return queue.
+  There is deliberately **no `dark:` half** — same category as the login card and the printed
+  slip: a token here would invert under `.dark`, the shipped default, and stop being the
+  mock-up. `.gb-board` bleeds out through `main`'s padding and paints its own ground, so the
+  house surface never shows through in either theme (verified in both).
+- **`src/components/guard/*` carries NO hex.** Containment is the same rule `chartPalette.ts`
+  follows, and it is what keeps `themeAudit.test.ts` absolute over every `.tsx` in the repo.
+  **The house classes are untouched** — `.card`, `.table-base`, `.page-title` and the gold
+  heading ladder are exactly as they were, and every other screen still uses them. `.gb-table`
+  is a separate table skin (grey title-case headings); `.table-base thead th` is still uppercase
+  gold ink everywhere else.
+- **The chevrons are gone from both summary cards** (client). They scrolled to the panel the
+  figure counted; that panel is directly underneath at every width, so the control was a button
+  to scroll one screen. `GuardDashboard` lost its two refs and `scrollTo` with them. The
+  greeting also lost its 👋, and the header row carries a 60px right pad so the date stamp
+  clears the `fixed top-4 right-4` notification bell instead of hiding its time.
+- **The KPI icons are the mock-up's**: a big delivery truck on a round orange tint plate, a
+  curved return arrow on a blue one. `GuardIcon` was rewritten — its tone union is now
+  `GuardTone` (`orange | blue | green | purple`), its own vocabulary, so the house `Tone` ramp
+  and the mock-up's palette cannot leak into each other. `GuardGlyphIcon` is the bare inked
+  glyph the panel headings use.
+- **A pass number and its type chip are coloured by TYPE** — RGP blue, NRGP green — through
+  `TYPE_PILL` in `guardBoard.ts`, a `Record<PassType, string>`, so a third type would be a
+  compile error rather than an uncoloured pill.
+- **Two things keep this app's words against the mock-up, both already-settled calls**: the OUT
+  action is **Verify at Gate**, not "Approve OUT" (the screen it opens offers Match, Flag and
+  Hold, and naming one of three teaches a guard the wrong model of their job), and Quick Actions
+  is three tiles, not the mock's four — its "Recent Activity" has no feed behind it. The return
+  row also **keeps its Due Today / Overdue badge** where the mock prints a bare date: lateness is
+  the only reason those rows are on the board.
+- **A long real pass number makes the return table scroll sideways inside its panel.** The
+  mock-up's are 9 characters (`RGP-00056`); this app's are 17 (`RGP-20260818-0003`), so at
+  half-width the Action column falls off the edge and `.gb-scroll` takes it. Known, not a
+  styling miss — the columns are the mock's own set.
+- Pinned by a rewritten `guardDashboard.test.tsx` (17): the chevron case became "carries no
+  chevron, and no control of any kind", plus two new cases holding the skin itself — the board
+  renders on `.gb-board` with an h1 that is `gb-hello` and never `page-title`, and the pill
+  colours follow type.
+
+**Earlier (2026-08-19): the guard's dashboard is REVAMPED — two lists, a greeting and
 three quick actions, from a client mock-up.** Frontend only — no migration, no new RPC, no query
 the board did not already make.
 
@@ -106,8 +153,8 @@ the board did not already make.
   `awaitingReturnDueToday` are deleted with what they pinned; `stackedCards` and
   `hodReviewGateFlow` were rewritten — the latter now proves an HOD-approved pass reaches the
   guard through the Pending OUT list with a working Verify at Gate action.
-- **NOT SEEN IN A BROWSER.** The suite and a production build only — same standing caveat as
-  everything since 2026-08-17.
+- Seen in a browser on the second pass above; the 2026-08-19 revamp itself shipped on the suite
+  and a production build alone.
 
 **Earlier (2026-08-18, twelfth pass): no surface says "Matched" or "In Use", expired
 passes are off both dashboards and tracked in Reports instead, and the Return Watch looks

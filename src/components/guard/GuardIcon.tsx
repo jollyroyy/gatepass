@@ -1,87 +1,111 @@
-// The tinted glyph on the guard board's cards and panels.
+// The guard board's glyphs, redrawn to the client's mock-up (2026-08-19).
 //
-// Same device as `BoardKpiIcon` on the admin board — a tint plate with dark ink,
-// never a solid saturated fill: a solid status fill is reserved for the gate's
-// own decision buttons, and a page of them drowns the one card that needs to
-// shout. The glyph set is its own because this board has its own vocabulary
-// (out, back, scan) and a `Record<GuardGlyph, …>` here is what makes an icon
-// nobody drew a type error rather than a blank square.
+// This board is the one screen in the app that is NOT painted in the house
+// theme — see the `.gb-*` block in src/index.css for why — so its icons take
+// the mock-up's tones (orange for the OUT queue, blue for the return queue,
+// green and purple on the quick actions) rather than the `Tone` ramp every
+// other board uses. `GuardTone` is its own union for exactly that reason: the
+// two vocabularies must not be able to leak into each other by accident.
+//
+// A `Record<GuardGlyph, …>` is what makes an icon nobody drew a type error
+// rather than a blank square.
 import React from 'react';
-import type { Tone } from '../KpiCard';
 
 const SVG = {
-  className: 'w-[18px] h-[18px]',
   fill: 'none',
   viewBox: '0 0 24 24',
   stroke: 'currentColor',
-  strokeWidth: 1.8,
+  strokeWidth: 1.7,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
 } as const;
 
-export type GuardGlyph = 'truck' | 'returned' | 'scan' | 'calendar' | 'alert';
+export type GuardGlyph = 'truck' | 'returned' | 'exchange' | 'scan' | 'clock' | 'alert';
+export type GuardTone = 'orange' | 'blue' | 'green' | 'purple';
 
 const GLYPHS: Record<GuardGlyph, React.ReactElement> = {
-  // Van — material on the move through the gate.
+  // Delivery truck — material leaving through the gate. The mock-up's lead
+  // icon, and the biggest thing on the board after the numbers themselves.
   truck: (
     <svg {...SVG}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.75 6.75h10.5v8.5H2.75zM13.25 9.75h3.5l2.5 3v2.5h-6z" />
-      <circle cx="6.5" cy="17.25" r="1.6" />
-      <circle cx="15.75" cy="17.25" r="1.6" />
+      <path d="M2.5 6.75A1.25 1.25 0 013.75 5.5h8.5a1.25 1.25 0 011.25 1.25v9.25H2.5z" />
+      <path d="M13.5 9.5h3.19a1.5 1.5 0 011.2.6l2.16 2.88a1.5 1.5 0 01.3.9V16h-6.85z" />
+      <circle cx="6.75" cy="18" r="1.85" />
+      <circle cx="16.5" cy="18" r="1.85" />
+      <path d="M8.6 18h5.75" />
     </svg>
   ),
-  // Arrow curving back — the return leg.
+  // The return leg: an arrow that curves back on itself, pointing home.
   returned: (
     <svg {...SVG}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5v8.25a.75.75 0 00.75.75h13.5a.75.75 0 00.75-.75V10.5" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15V6.75m0 0L8.75 10M12 6.75L15.25 10" />
+      <path d="M9 7.25H15.5a4.25 4.25 0 010 8.5H7.5" />
+      <path d="M11.75 4.5L9 7.25l2.75 2.75" />
+    </svg>
+  ),
+  // Two arrows passing — material out, material back. The return panel's head.
+  exchange: (
+    <svg {...SVG}>
+      <path d="M4 8.5h13l-2.75-2.75" />
+      <path d="M20 15.5H7l2.75 2.75" />
     </svg>
   ),
   // Viewfinder — the camera and the search box.
   scan: (
     <svg {...SVG}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 8.5V5.5a1.5 1.5 0 011.5-1.5h3M20 8.5V5.5A1.5 1.5 0 0018.5 4h-3M4 15.5v3A1.5 1.5 0 005.5 20h3M20 15.5v3a1.5 1.5 0 01-1.5 1.5h-3" />
-      <path strokeLinecap="round" d="M7.5 12h9" />
+      <path d="M4 8.75V5.75A1.75 1.75 0 015.75 4h3M20 8.75V5.75A1.75 1.75 0 0018.25 4h-3M4 15.25v3A1.75 1.75 0 005.75 20h3M20 15.25v3A1.75 1.75 0 0118.25 20h-3" />
+      <path d="M7.5 12h9" />
     </svg>
   ),
-  // Calendar — a date the reader is being held to.
-  calendar: (
+  // A clock face — a date the reader is being held to today.
+  clock: (
     <svg {...SVG}>
-      <rect x="3.75" y="5.25" width="16.5" height="15" rx="1.5" />
-      <path strokeLinecap="round" d="M3.75 10.5h16.5M8.25 3.75v3M15.75 3.75v3" />
+      <circle cx="12" cy="12" r="8.25" />
+      <path d="M12 7.75V12l2.75 1.75" />
     </svg>
   ),
-  // Warning triangle — the only tone that is an accusation.
+  // The one glyph drawn as a solid disc, exactly as the mock-up draws it:
+  // overdue is the only tile on this board that is an accusation.
   alert: (
-    <svg {...SVG}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5l8.25 14.25H3.75L12 4.5z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v3.5M12 16.25h.01" />
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M12 2.75a9.25 9.25 0 100 18.5 9.25 9.25 0 000-18.5zM12 6.9a1 1 0 011 1v4.6a1 1 0 11-2 0V7.9a1 1 0 011-1zm0 8.35a1.15 1.15 0 100 2.3 1.15 1.15 0 000-2.3z"
+      />
     </svg>
   ),
 };
 
-const PLATE: Record<Tone, string> = {
-  neutral: 'bg-surface-100 text-navy-600',
-  accent: 'bg-accent-50 text-accent-600',
-  brand: 'bg-brand-50 text-brand-700',
-  pending: 'bg-pending-50 text-pending-700',
-  matched: 'bg-matched-50 text-matched-700',
-  flagged: 'bg-flagged-50 text-flagged-700',
-  overdue: 'bg-overdue-50 text-overdue-700',
+const INK: Record<GuardTone, string> = {
+  orange: 'gb-ink-orange',
+  blue: 'gb-ink-blue',
+  green: 'gb-ink-green',
+  purple: 'gb-ink-purple',
 };
+
+const TINT: Record<GuardTone, string> = {
+  orange: 'gb-tint-orange',
+  blue: 'gb-tint-blue',
+  green: 'gb-tint-green',
+  purple: 'gb-tint-purple',
+};
+
+/** The bare glyph, inked in a tone — a panel heading's icon. */
+export function GuardGlyphIcon({ glyph, tone }: { glyph: GuardGlyph; tone: GuardTone }): React.ReactElement {
+  return <span className={INK[tone]} aria-hidden="true">{GLYPHS[glyph]}</span>;
+}
 
 type Props = {
   glyph: GuardGlyph;
-  tone: Tone;
-  /** The bigger plate the two summary cards use. */
-  large?: boolean;
+  tone: GuardTone;
+  /** `round` is the summary cards' big disc; `square` the quick-action tiles. */
+  shape?: 'round' | 'square';
 };
 
-export default function GuardIcon({ glyph, tone, large }: Props): React.ReactElement {
-  const size = large ? 'h-12 w-12' : 'h-9 w-9';
+export default function GuardIcon({ glyph, tone, shape = 'round' }: Props): React.ReactElement {
+  const plate = shape === 'round' ? 'gb-plate' : 'gb-tile-plate';
   return (
-    <span
-      className={`${size} rounded-2xl flex items-center justify-center shrink-0 ${PLATE[tone]}`}
-      aria-hidden="true"
-    >
+    <span className={`${plate} ${TINT[tone]}`} aria-hidden="true">
       {GLYPHS[glyph]}
     </span>
   );

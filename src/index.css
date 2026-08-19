@@ -984,6 +984,439 @@
   }
 }
 
+/* ============================================================
+   THE GUARD BOARD SKIN — a deliberate island, and NOT the house theme.
+
+   Client, 2026-08-19: "the exact same colour, font, typography as attached",
+   for the main content area of the guard's dashboard only. So this one screen
+   is drawn in the mock-up's own palette — a white card surface, near-black
+   Inter headings, orange for the OUT queue and blue for the return queue —
+   instead of Quest brass gold on warm stone with Antic Didone headings.
+
+   TWO CONSEQUENCES, BOTH ON PURPOSE:
+
+   1. IT IS FIXED LIGHT. Every colour below is a literal, and there is no
+      `.dark` half, exactly like the login card and the printed slip: the
+      mock-up is a light design, and a token here would invert under `.dark`
+      (the shipped default) and stop being the mock-up. `.gb-board` therefore
+      paints its own white ground and bleeds out to the edges of the shell's
+      content padding, so nothing of the house surface shows through in
+      either theme.
+   2. THE HEX LIVES HERE, NOT IN THE COMPONENTS. Same containment rule
+      `chartPalette.ts` follows: `src/components/guard/*` uses semantic class
+      names only, so `tests/unit/themeAudit.test.ts` still holds absolutely
+      over every .tsx in the repo.
+
+   The house classes are untouched — `.card`, `.table-base`, `.page-title`
+   and the gold heading ladder are exactly as they were, and every other
+   screen still uses them.
+   ============================================================ */
+@layer components {
+  .gb-board {
+    /* Mock-up palette. Named by role so a call site reads as intent. */
+    --gb-ink: #111827;
+    --gb-body: #374151;
+    --gb-muted: #6b7280;
+    --gb-line: #e5e7eb;
+    --gb-line-soft: #f3f4f6;
+    --gb-head: #f9fafb;
+
+    --gb-orange: #f97316;
+    --gb-orange-ink: #ea580c;
+    --gb-orange-tint: #ffedd5;
+    --gb-orange-soft: #fff7ed;
+    --gb-orange-line: #fdba74;
+
+    --gb-blue: #2563eb;
+    --gb-blue-tint: #dbeafe;
+    --gb-blue-soft: #eff6ff;
+    --gb-blue-line: #93c5fd;
+
+    --gb-green: #16a34a;
+    --gb-green-tint: #dcfce7;
+    --gb-green-soft: #f0fdf4;
+    --gb-green-line: #86efac;
+
+    --gb-purple: #9333ea;
+    --gb-purple-tint: #f3e8ff;
+
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background: #ffffff;
+    color: var(--gb-ink);
+    /* Bleed out to the edges of the shell's content padding (px-4 sm:px-6
+     * lg:px-8 / pt-20 lg:pt-8 / pb-8) and re-apply it here, so the white
+     * ground is the whole content area rather than a card floating on the
+     * house surface. Root font-size is 17px — these rem figures are the same
+     * ones Tailwind emits for those utilities. */
+    margin: -5rem -1rem -2rem;
+    padding: 5rem 1rem 2rem;
+    min-height: calc(100vh - 3.5rem);
+  }
+
+  @media (min-width: 640px) {
+    .gb-board {
+      margin-left: -1.5rem;
+      margin-right: -1.5rem;
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .gb-board {
+      margin-top: -2rem;
+      padding-top: 2rem;
+      margin-left: -2rem;
+      margin-right: -2rem;
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+  }
+
+  /* Header. The right padding is not decoration: the notification bell is
+   * `fixed top-4 right-4`, so a date stamp flush to the content edge sits
+   * underneath it and loses its time on a narrow window. */
+  .gb-head-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 22px;
+    padding-right: 60px;
+  }
+
+  /* Inter bold near-black — NOT the house `.page-title`, which is the gold
+   * display serif. In the mock-up the heading face is the body face. */
+  .gb-hello {
+    font-family: inherit;
+    font-size: 26px;
+    line-height: 32px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--gb-ink);
+  }
+  .gb-sub {
+    margin-top: 6px;
+    font-size: 13px;
+    line-height: 20px;
+    font-weight: 400;
+    color: var(--gb-muted);
+  }
+  .gb-stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gb-body);
+    font-variant-numeric: tabular-nums;
+  }
+  .gb-stamp svg {
+    width: 16px;
+    height: 16px;
+    color: var(--gb-blue);
+  }
+
+  /* The two summary cards. */
+  .gb-card {
+    background: #ffffff;
+    border: 1px solid var(--gb-line);
+    border-radius: 12px;
+    box-shadow: 0 1px 2px 0 rgb(16 24 40 / 0.04);
+  }
+  .gb-grid-2 {
+    display: grid;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  @media (min-width: 1024px) {
+    .gb-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  .gb-sum {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px;
+  }
+  .gb-sum-body {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .gb-sum-title {
+    font-family: inherit;
+    font-size: 15px;
+    line-height: 22px;
+    font-weight: 700;
+    text-align: center;
+  }
+  .gb-figures {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    margin-top: 14px;
+  }
+  /* The two figures sit well apart — a wide gutter either side of the rule,
+   * as drawn. Crowding them reads as one number split, not two counts. */
+  .gb-figure {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 34px;
+  }
+  .gb-figure-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .gb-figure-value {
+    font-size: 30px;
+    line-height: 38px;
+    font-weight: 700;
+    color: var(--gb-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .gb-figure-rule {
+    width: 1px;
+    align-self: stretch;
+    background: var(--gb-line);
+  }
+
+  /* Circular tint plate — the summary cards' glyph. */
+  .gb-plate {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: 9999px;
+  }
+  .gb-plate svg { width: 30px; height: 30px; }
+
+  /* Panels. */
+  .gb-panel { display: flex; flex-direction: column; overflow: hidden; }
+  .gb-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+  }
+  .gb-panel-head svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .gb-panel-title {
+    font-family: inherit;
+    font-size: 14.5px;
+    line-height: 20px;
+    font-weight: 700;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .gb-link {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gb-blue);
+    flex-shrink: 0;
+  }
+  .gb-link:hover { text-decoration: underline; }
+  .gb-panel-foot {
+    padding: 12px 18px 16px;
+    text-align: center;
+  }
+  .gb-scroll { overflow-x: auto; }
+  .gb-empty {
+    padding: 28px 18px 34px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--gb-muted);
+  }
+  .gb-skeleton {
+    height: 34px;
+    border-radius: 6px;
+    background: var(--gb-line-soft);
+  }
+
+  /* The mock-up's table. Title case and neutral grey headings —
+   * deliberately NOT `.table-base thead th`, which is uppercase gold ink and
+   * still governs every other table in the app. */
+  .gb-table {
+    width: 100%;
+    border-collapse: collapse;
+    white-space: nowrap;
+  }
+  .gb-table thead th {
+    background: var(--gb-head);
+    border-top: 1px solid var(--gb-line);
+    border-bottom: 1px solid var(--gb-line);
+    padding: 9px 10px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gb-body);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .gb-table tbody td {
+    padding: 10px 10px;
+    border-bottom: 1px solid var(--gb-line-soft);
+    font-size: 11.5px;
+    line-height: 18px;
+    font-weight: 500;
+    color: var(--gb-body);
+    vertical-align: middle;
+  }
+  .gb-table tbody tr:last-child td { border-bottom: 0; }
+  .gb-table tbody tr:hover td { background: #fcfcfd; }
+  .gb-truncate {
+    max-width: 8.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Pills: the pass number, the type chip, the due badge. */
+  .gb-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    padding: 3px 7px;
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 14px;
+    white-space: nowrap;
+  }
+  .gb-pill-blue {
+    background: var(--gb-blue-soft);
+    border-color: var(--gb-blue-line);
+    color: var(--gb-blue);
+  }
+  .gb-pill-green {
+    background: var(--gb-green-soft);
+    border-color: var(--gb-green-line);
+    color: var(--gb-green);
+  }
+  .gb-pill-orange {
+    background: var(--gb-orange-soft);
+    border-color: var(--gb-orange-line);
+    color: var(--gb-orange-ink);
+  }
+  .gb-pill-grey {
+    background: var(--gb-head);
+    border-color: var(--gb-line);
+    color: var(--gb-muted);
+  }
+
+  /* Row actions. */
+  .gb-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 6px;
+    border: 1px solid;
+    padding: 5px 10px;
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 16px;
+    white-space: nowrap;
+    transition: background-color 0.15s ease;
+  }
+  .gb-action svg { width: 13px; height: 13px; }
+  .gb-action-orange {
+    background: var(--gb-orange-soft);
+    border-color: var(--gb-orange-line);
+    color: var(--gb-orange-ink);
+  }
+  .gb-action-orange:hover { background: var(--gb-orange-tint); }
+  .gb-action-blue {
+    background: #ffffff;
+    border-color: var(--gb-blue-line);
+    color: var(--gb-blue);
+  }
+  .gb-action-blue:hover { background: var(--gb-blue-soft); }
+
+  /* Quick actions. */
+  .gb-quick { padding: 18px; }
+  .gb-quick-title {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gb-ink);
+    margin-bottom: 14px;
+  }
+  .gb-quick-grid {
+    display: grid;
+    gap: 14px;
+  }
+  @media (min-width: 640px) {
+    .gb-quick-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  .gb-tile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--gb-line);
+    border-radius: 10px;
+    background: #ffffff;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .gb-tile:hover {
+    border-color: #d1d5db;
+    box-shadow: 0 1px 2px 0 rgb(16 24 40 / 0.06);
+  }
+  .gb-tile-plate {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+  .gb-tile-plate svg { width: 20px; height: 20px; }
+  .gb-tile-title {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gb-ink);
+  }
+  .gb-tile-note {
+    display: block;
+    margin-top: 2px;
+    font-size: 11.5px;
+    font-weight: 400;
+    color: var(--gb-muted);
+  }
+
+  /* Tones: one class sets ink, one sets the tint plate. */
+  .gb-ink-orange { color: var(--gb-orange); }
+  .gb-ink-blue { color: var(--gb-blue); }
+  .gb-ink-green { color: var(--gb-green); }
+  .gb-ink-purple { color: var(--gb-purple); }
+
+  .gb-tint-orange { background: var(--gb-orange-tint); color: var(--gb-orange); }
+  .gb-tint-blue { background: var(--gb-blue-tint); color: var(--gb-blue); }
+  .gb-tint-green { background: var(--gb-green-tint); color: var(--gb-green); }
+  .gb-tint-purple { background: var(--gb-purple-tint); color: var(--gb-purple); }
+
+  .gb-alert {
+    background: var(--gb-orange-soft);
+    border: 1px solid var(--gb-orange-line);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 18px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gb-orange-ink);
+  }
+}
+
 @layer utilities {
   .stagger-1 {
     animation-delay: 0.05s;

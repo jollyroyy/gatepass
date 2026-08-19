@@ -141,8 +141,8 @@ describe('Pending OUT (Needs Approval)', () => {
   it('splits the queue into RGP and NRGP, and the two sum to the list below', async () => {
     await renderBoard();
 
-    expect(screen.getByTestId('guard-figure-RGP').querySelector('.kpi-value')!.textContent).toBe('1');
-    expect(screen.getByTestId('guard-figure-NRGP').querySelector('.kpi-value')!.textContent).toBe('2');
+    expect(screen.getByTestId('guard-figure-RGP').querySelector('.gb-figure-value')!.textContent).toBe('1');
+    expect(screen.getByTestId('guard-figure-NRGP').querySelector('.gb-figure-value')!.textContent).toBe('2');
 
     // The panel renders all three — the figures are a split of one array.
     for (const n of ['RGP-20260819-0057', 'NRGP-20260819-0081', 'NRGP-20260819-0080']) {
@@ -192,7 +192,7 @@ describe('Pending RGP Return (Needs Verification)', () => {
     // Due in October: still out, nothing to verify today.
     expect(screen.queryByText('RGP-20261001-0099')).not.toBeInTheDocument();
 
-    expect(screen.getByTestId('guard-figure-Due back').querySelector('.kpi-value')!.textContent).toBe('2');
+    expect(screen.getByTestId('guard-figure-Due back').querySelector('.gb-figure-value')!.textContent).toBe('2');
   });
 
   it('states lateness in words, never in colour alone', async () => {
@@ -228,19 +228,41 @@ describe('The panels expand in place', () => {
     await waitFor(() => expect(screen.getByText('RGP-20260819-0050')).toBeInTheDocument());
 
     expect(screen.queryByText('RGP-20260819-0056')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText('View all (7)'));
+    fireEvent.click(screen.getByText('View All (7)'));
     expect(screen.getByText('RGP-20260819-0056')).toBeInTheDocument();
   });
 });
 
-describe('The summary chevrons', () => {
-  it('scroll to the panel the figure counts, rather than navigating away', async () => {
-    const scrollIntoView = vi.fn();
-    Element.prototype.scrollIntoView = scrollIntoView;
+describe('The summary cards', () => {
+  // The chevrons scrolled to the panel each figure counted. The client removed
+  // them (2026-08-19): that panel is directly underneath on every width, so the
+  // control was a button to scroll one screen. The cards are now the number and
+  // nothing else — no link, no button, no scroll target.
+  it('carry no chevron, and no control of any kind', async () => {
     await renderBoard();
+    const card = screen.getByTestId('guard-figure-Due back').closest('.gb-card')!;
+    expect(card.querySelector('button')).toBeNull();
+    expect(card.querySelector('a')).toBeNull();
+    expect(screen.queryByLabelText('Go to the pending RGP return list')).not.toBeInTheDocument();
+  });
+});
 
-    fireEvent.click(screen.getByLabelText('Go to the pending RGP return list'));
-    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+describe('The mock-up skin', () => {
+  // The client asked for this ONE screen in their own palette and type, not the
+  // house Quest gold / Antic Didone. These two assertions are what stops a
+  // later tidy-up from "restoring consistency" and undoing it.
+  it('renders on the scoped .gb-board skin, and its h1 is not the gold display serif', async () => {
+    await renderBoard();
+    expect(document.querySelector('.gb-board')).not.toBeNull();
+    const h1 = screen.getByRole('heading', { level: 1 });
+    expect(h1.className).toContain('gb-hello');
+    expect(h1.className).not.toContain('page-title');
+  });
+
+  it('colours a pass number and its type chip by type — RGP blue, NRGP green', async () => {
+    await renderBoard();
+    expect(screen.getByText('RGP-20260819-0057').className).toContain('gb-pill-blue');
+    expect(screen.getByText('NRGP-20260819-0081').className).toContain('gb-pill-green');
   });
 });
 

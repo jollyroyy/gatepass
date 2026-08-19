@@ -11,10 +11,17 @@
 // whole-site count belongs. What a guard needs is the rows they will physically
 // act on this shift, with the number sitting on top of the list it counts.
 //
+// IT IS NOT PAINTED IN THE HOUSE THEME. The client asked (2026-08-19) for this
+// one screen to match their mock-up exactly — Inter headings in near-black,
+// orange for the OUT queue, blue for the return queue, on a white ground — so
+// every class below is a `.gb-*` from the scoped, fixed-light skin at the foot
+// of src/index.css. Nothing else in the app uses those classes, and the gold
+// heading ladder is untouched everywhere else.
+//
 // TWO QUERIES, AND EVERY FIGURE IS `rows.length` OF ONE OF THEM. No aggregate,
 // no `count: 'exact'`, no second predicate: `src/lib/guardBoard.ts` filters the
 // two arrays and the cards count what the panels render.
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { gp, supabase } from '../../supabaseClient';
 import type { GatePassView } from '../../types';
 import GuardPanel from '../../components/guard/GuardPanel';
@@ -38,9 +45,6 @@ export default function GuardDashboard(): React.ReactElement {
   // Stamped once, at mount: a clock that ticks on a board nobody is watching
   // re-renders two tables every second for a fact that changes by the minute.
   const [stamp] = useState(() => new Date().toISOString());
-
-  const outRef = useRef<HTMLDivElement>(null);
-  const returnsRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -126,23 +130,17 @@ export default function GuardDashboard(): React.ReactElement {
   const pendingOut = pendingOutOf(queue);
   const pendingReturns = pendingReturnsOf(openReturns);
 
-  // `scrollIntoView` is absent in jsdom and on older mobile browsers; the
-  // optional call is what keeps a chevron from throwing there.
-  const scrollTo = (ref: React.RefObject<HTMLDivElement>): void => {
-    ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-  };
-
   return (
-    <div>
-      <div className="page-header flex flex-wrap items-start justify-between gap-4">
+    <div className="gb-board">
+      <div className="gb-head-row">
         <div className="min-w-0">
-          <h1 className="page-title">Hello, {firstNameOf(name)} 👋</h1>
-          <p className="page-subtitle">
-            Clear material leaving the gate, and verify RGP material coming back.
+          <h1 className="gb-hello">Hello, {firstNameOf(name)}</h1>
+          <p className="gb-sub">
+            Approve OUT for materials leaving and verify returns for RGP.
           </p>
         </div>
-        <span className="flex items-center gap-2 text-caption text-navy-500 tabular shrink-0">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+        <span className="gb-stamp">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
             <rect x="3.75" y="5.25" width="16.5" height="15" rx="1.5" />
             <path strokeLinecap="round" d="M3.75 10.5h16.5M8.25 3.75v3M15.75 3.75v3" />
           </svg>
@@ -150,46 +148,40 @@ export default function GuardDashboard(): React.ReactElement {
         </span>
       </div>
 
-      {error && <div className="alert-error mb-6">{error}</div>}
+      {error && <div className="gb-alert">{error}</div>}
 
       <GuardSummaryCards
         split={typeSplit(pendingOut)}
         returnsDue={pendingReturns.length}
         loading={loading}
-        onOpenOut={() => scrollTo(outRef)}
-        onOpenReturns={() => scrollTo(returnsRef)}
       />
 
-      <div className="grid gap-4 xl:grid-cols-2 mb-8">
-        <div ref={outRef}>
-          <GuardPanel
-            title="Pending OUT (Needs Approval)"
-            glyph="truck"
-            tone="pending"
-            total={pendingOut.length}
-            expanded={outExpanded}
-            onToggle={() => setOutExpanded((v) => !v)}
-            loading={loading}
-            empty="Queue clear — nothing is waiting at the gate."
-          >
-            <PendingOutTable rows={previewOf(pendingOut, outExpanded)} />
-          </GuardPanel>
-        </div>
+      <div className="gb-grid-2">
+        <GuardPanel
+          title="Pending OUT (Needs Approval)"
+          glyph="truck"
+          tone="orange"
+          total={pendingOut.length}
+          expanded={outExpanded}
+          onToggle={() => setOutExpanded((v) => !v)}
+          loading={loading}
+          empty="Queue clear — nothing is waiting at the gate."
+        >
+          <PendingOutTable rows={previewOf(pendingOut, outExpanded)} />
+        </GuardPanel>
 
-        <div ref={returnsRef}>
-          <GuardPanel
-            title="Pending RGP Return (Needs Verification)"
-            glyph="returned"
-            tone="accent"
-            total={pendingReturns.length}
-            expanded={returnsExpanded}
-            onToggle={() => setReturnsExpanded((v) => !v)}
-            loading={loading}
-            empty="Nothing is due back today, and nothing is late."
-          >
-            <PendingReturnTable rows={previewOf(pendingReturns, returnsExpanded)} />
-          </GuardPanel>
-        </div>
+        <GuardPanel
+          title="Pending RGP Return (Needs Verification)"
+          glyph="exchange"
+          tone="blue"
+          total={pendingReturns.length}
+          expanded={returnsExpanded}
+          onToggle={() => setReturnsExpanded((v) => !v)}
+          loading={loading}
+          empty="Nothing is due back today, and nothing is late."
+        >
+          <PendingReturnTable rows={previewOf(pendingReturns, returnsExpanded)} />
+        </GuardPanel>
       </div>
 
       <QuickActions />

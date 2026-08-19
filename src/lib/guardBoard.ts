@@ -19,7 +19,7 @@
 // `gatepass.v_gate_passes` against `site_tz()` (Asia/Kolkata) and read, never
 // recomputed — comparing `expected_return_date` to the browser clock would make
 // the guard's screen disagree with the database for every pass after 18:30 IST.
-import type { GatePassView } from '../types';
+import type { GatePassView, PassType } from '../types';
 import { parseCompanyInfo } from './companyInfo';
 
 /** Waiting on the gate and nobody else. `hod_reviewed` rides along with
@@ -100,6 +100,14 @@ export function returnActionPath(p: GatePassView): string {
 export function returnedQtyLabel(p: GatePassView): string {
   return `${p.returned_quantity} / ${p.total_quantity}`;
 }
+
+/** The mock-up colours a pass number and its type chip by TYPE, not by state:
+ *  RGP blue, NRGP green, everywhere on this board. A `Record<PassType, …>` so
+ *  a third type would be a compile error rather than an uncoloured pill. */
+export const TYPE_PILL: Record<PassType, string> = {
+  RGP: 'gb-pill-blue',
+  NRGP: 'gb-pill-green',
+};
 
 /** How many rows a panel shows before the reader asks for the rest. */
 export const PREVIEW_ROWS = 5;
