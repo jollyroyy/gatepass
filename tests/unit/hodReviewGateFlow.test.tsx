@@ -4,11 +4,11 @@
 // ('hod_reviewed'); the truck is then still standing at the barrier. The
 // server has always accepted 'hod_reviewed' in match_pass, but the guard's UI
 // dead-ended: the queue filtered status = 'pending' only, and Verify hid the
-// Match button for anything that was not 'pending'. A pass approved by the
+// Approve button (then labelled Match) for anything that was not 'pending'. A pass approved by the
 // HOD could therefore never be cleared through the UI at all.
 //
 // These tests pin the three links of the chain: the queue shows such a pass,
-// Verify offers a working Match for it, and the board lists it with the action
+// Verify offers a working Approve for it, and the board lists it with the action
 // that clears it.
 //
 // THE QUEUE MOVED TWICE. Search Pass became search-only on 2026-08-18 and the
@@ -132,20 +132,20 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
       );
     }
 
-    it('offers both Match and Flag for a hod_reviewed pass', async () => {
+    it('offers both Approve and Reject for a hod_reviewed pass', async () => {
       verifyRow = APPROVED;
       await renderVerify();
 
       await waitFor(() => expect(screen.getByText(/APPROVED-0001/)).toBeInTheDocument());
-      // The two buttons now share the word "match" (Match / Flag Mismatch), so
-      // pin each by its full label instead of a substring.
-      const matchBtn = screen.getByRole('button', { name: '✓ Match' });
+      // Approve / Reject since 2026-08-20 (client). The RPCs are unchanged —
+      // this is still match_pass and flag_pass underneath.
+      const matchBtn = screen.getByRole('button', { name: 'Approve' });
       expect(matchBtn).toBeInTheDocument();
       expect(matchBtn).toBeEnabled();
       // 035: an override approval is not a fact about the material — the guard
       // at the barrier must still be able to re-flag a fresh pass whose
       // mismatch was not actually fixed. flag_pass admits hod_reviewed now.
-      const flagBtn = screen.getByRole('button', { name: /flag mismatch/i });
+      const flagBtn = screen.getByRole('button', { name: 'Reject' });
       expect(flagBtn).toBeInTheDocument();
       expect(flagBtn).toBeEnabled();
     });

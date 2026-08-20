@@ -17,9 +17,9 @@
 //
 // THE ACTION IS SINGULAR AND ROLE-SHAPED. A guard standing at the barrier gets
 // Approve OUT while the gate can still act (`canVerifyAtGate`, the rule
-// `match_pass` enforces) — it opens `/verify/:id`, which offers Match, Flag and
-// Hold, because naming one of three outcomes on the button would teach a guard
-// the wrong model of their own job. It sits at the BOTTOM of the record, where
+// `match_pass` enforces) — it opens `/verify/:id`, which offers the two
+// decisions a guard has: Approve and Reject (client, 2026-08-20). It sits at
+// the BOTTOM of the record, where
 // the reading ends (client). Everyone else gets Print Pass alone. There
 // is no "Mark as Returned" button: a return is per line and per quantity now,
 // and it is entered on the table itself.

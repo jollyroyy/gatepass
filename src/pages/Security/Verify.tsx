@@ -1,18 +1,39 @@
-// The core gate decision screen. One pass, one decision: Match or Flag.
+// The core gate decision screen. One pass, one decision: APPROVE or REJECT.
+//
+// Client, 2026-08-20: "for the guard's view … put it as approve and reject.
+// Don't put mismatched or something … if rejects, make the rejection reason
+// mandatory." That is a WORDING change and nothing else — Approve is still
+// `match_pass`, Reject is still `flag_pass`, and a rejected pass still goes
+// back to the raising HOD for review exactly as the old "Flag Mismatch" did.
+// The statuses (`matched` / `flagged`), the HOD's review screen and every
+// report keep their own vocabulary; this is what the person at the barrier
+// reads.
 // Confirm panels live in VerifyPanels.tsx to keep this file under 300 lines.
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { supabase, gp } from '../../supabaseClient';
-import type { GatePassItemView, GatePassView } from '../../types';
+import type { GatePassItemView, GatePassView, PassStatus } from '../../types';
 import { TypeChip } from '../../components/Badge';
 
 import { formatDateOnly, formatDateTime } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
 import { parseCompanyInfo } from '../../lib/companyInfo';
-import { MatchPanel, FlagPanel } from './VerifyPanels';
+import { ApprovePanel, RejectPanel } from './VerifyPanels';
 import VerifyItemsTable from './VerifyItemsTable';
 
-type Panel = 'none' | 'match' | 'flag';
+type Panel = 'none' | 'approve' | 'reject';
+
+/** What a settled pass reads as to the GUARD. The database's own words
+ *  ('matched' / 'flagged') are the two the client asked never to appear on this
+ *  screen; every other surface keeps them. A status with no entry here falls
+ *  back to itself rather than to a blank. */
+const GUARD_OUTCOME: Partial<Record<PassStatus, string>> = {
+  matched: 'approved',
+  flagged: 'rejected',
+  cancelled: 'cancelled',
+  held: 'held',
+  hod_reviewed: 'reviewed by the HOD',
+};
 
 function Field({ label, value, full }: { label: string; value: string; full?: boolean }): React.ReactElement {
   return (
@@ -62,7 +83,7 @@ export default function Verify(): React.ReactElement {
 
   // Realtime on this one row. The gate console already refreshes its queue on
   // any change, but a guard standing on THIS screen while the HOD voids the pass
-  // would otherwise keep looking at a live Match button. match_pass would still
+  // would otherwise keep looking at a live Approve button. match_pass would still
   // refuse it, so this is not a safety fix — it is the difference between the
   // screen updating itself and the guard being told "no" after pressing.
   // Defensive: a partially-mocked client in tests may not implement channel().
@@ -97,7 +118,7 @@ export default function Verify(): React.ReactElement {
     setActionError(null);
   }
 
-  async function handleMatchConfirm(lines: { item_id: string; verified_qty: number }[], vehicle: string, remarks: string) {
+  async function handleApproveConfirm(lines: { item_id: string; verified_qty: number }[], vehicle: string, remarks: string) {
     if (!pass) return;
     setSubmitting(true);
     setActionError(null);
@@ -109,21 +130,21 @@ export default function Verify(): React.ReactElement {
         p_remarks: remarks || null,
       });
       if (error) throw error;
-      navigate('/console', { state: { flash: `${pass.pass_number} matched — cleared to proceed.` } });
+      navigate('/console', { state: { flash: `${pass.pass_number} approved — cleared to proceed.` } });
     } catch (err) {
       setActionError(safeErrorMessage(err));
       setSubmitting(false);
     }
   }
 
-  async function handleFlagConfirm(reason: string) {
+  async function handleRejectConfirm(reason: string) {
     if (!pass) return;
     setSubmitting(true);
     setActionError(null);
     try {
       const { error } = await gp().rpc('flag_pass', { p_pass_id: pass.id, p_reason: reason });
       if (error) throw error;
-      navigate('/console', { state: { flash: `${pass.pass_number} marked as a mismatch for the HOD's review.` } });
+      navigate('/console', { state: { flash: `${pass.pass_number} rejected — sent to the raising department for review.` } });
     } catch (err) {
       setActionError(safeErrorMessage(err));
       setSubmitting(false);
@@ -153,11 +174,11 @@ export default function Verify(): React.ReactElement {
 
   const companyInfo = parseCompanyInfo(pass.visitor_company);
   // `hod_reviewed` is NOT "already actioned": the HOD's approval is the
-  // middle of the flag flow, not the end of it. The guard's Match is the
-  // action that completes it (match_pass admits pending and hod_reviewed).
+  // middle of the rejection flow, not the end of it. The guard's Approve is
+  // the action that completes it (match_pass admits pending and hod_reviewed).
   // Before this distinction existed, an HOD-approved pass could never be
   // cleared through the UI at all — the queue hid it and this screen hid
-  // the Match button.
+  // the Approve button.
   const alreadyActioned = pass.status !== 'pending' && pass.status !== 'hod_reviewed';
   const hodApproved = pass.status === 'hod_reviewed';
   // is_expired comes from the view, which is also what match_pass enforces.
@@ -175,7 +196,8 @@ export default function Verify(): React.ReactElement {
       {alreadyActioned && (
         <div className="alert-warning mb-6">
           <span>
-            This pass was already <strong>{pass.status}</strong> by {pass.verified_by_name ?? 'someone'} at{' '}
+            This pass was already <strong>{GUARD_OUTCOME[pass.status] ?? pass.status}</strong> by{' '}
+            {pass.verified_by_name ?? 'someone'} at{' '}
             {formatDateTime(pass.verified_at)}.{' '}
             <Link to={`/pass/${pass.id}`} className="underline font-semibold">
               View full details
@@ -187,8 +209,8 @@ export default function Verify(): React.ReactElement {
       {hodApproved && !alreadyActioned && (
         <div className="alert-warning mb-6">
           <span>
-            <strong>Approved by the HOD.</strong> The mismatch has been reviewed and cleared by the raising
-            department. Match the pass to release the material.
+            <strong>Approved by the HOD.</strong> The rejection has been reviewed and cleared by the raising
+            department. Approve the pass to release the material.
           </span>
         </div>
       )}
@@ -220,49 +242,49 @@ export default function Verify(): React.ReactElement {
 
       {!alreadyActioned && expired && (
         <div className="alert-warning mb-6">
-          This pass expired on {formatDateTime(pass.expires_at)} and can no longer be matched. Ask the
-          HOD to raise a new one. You can still flag it if something is wrong.
+          This pass expired on {formatDateTime(pass.expires_at)} and can no longer be approved. Ask the
+          HOD to raise a new one. You can still reject it if something is wrong.
         </div>
       )}
 
       {!alreadyActioned && (
         <div className="flex flex-col md:flex-row gap-4">
-          {/* Match is withheld once expired; Flag deliberately is not. Refusing
-              to record a real mismatch because the paperwork went stale is
-              exactly backwards — the same split match_pass enforces server-side.
-              Since 035 the Flag is offered for a hod_reviewed pass too: an HOD
-              override is a judgement about the paper, not a fact about the
-              material, so the guard at the barrier must still be able to say
-              "this does not match" — flag_pass admits hod_reviewed and the
-              pass returns to the HOD for another round. */}
+          {/* Approve is withheld once expired; Reject deliberately is not.
+              Refusing to record a real problem because the paperwork went stale
+              is exactly backwards — the same split match_pass enforces
+              server-side. Since 035 the Reject is offered for a hod_reviewed
+              pass too: an HOD override is a judgement about the paper, not a
+              fact about the material, so the guard at the barrier must still be
+              able to refuse it — flag_pass admits hod_reviewed and the pass
+              returns to the HOD for another round. */}
           <button
             type="button"
             className="btn-match"
             disabled={submitting || expired}
-            onClick={() => setPanel('match')}
+            onClick={() => setPanel('approve')}
           >
-            ✓ Match
+            Approve
           </button>
           {pass.status !== 'matched' && (
-            <button type="button" className="btn-flag" disabled={submitting} onClick={() => setPanel('flag')}>
-              ⚑ Flag Mismatch
+            <button type="button" className="btn-flag" disabled={submitting} onClick={() => setPanel('reject')}>
+              Reject
             </button>
           )}
         </div>
       )}
 
-      {panel === 'match' && (
-        <MatchPanel
+      {panel === 'approve' && (
+        <ApprovePanel
           pass={pass}
           items={items}
           submitting={submitting}
           error={actionError}
           onCancel={closePanel}
-          onConfirm={handleMatchConfirm}
+          onConfirm={handleApproveConfirm}
         />
       )}
-      {panel === 'flag' && (
-        <FlagPanel submitting={submitting} error={actionError} onCancel={closePanel} onConfirm={handleFlagConfirm} />
+      {panel === 'reject' && (
+        <RejectPanel submitting={submitting} error={actionError} onCancel={closePanel} onConfirm={handleRejectConfirm} />
       )}
     </div>
   );

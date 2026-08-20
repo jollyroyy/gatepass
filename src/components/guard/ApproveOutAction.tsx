@@ -8,7 +8,7 @@
 // IT OPENS THE PASS RECORD, NOT THE VERIFY SCREEN (client, 2026-08-19: pressing
 // Approve or Verify Return from a guard list "would come up like this", the
 // full Gate Pass Details record). The record carries its own Approve OUT
-// button through to `/verify/:id`, which is still where Match, Flag and Hold
+// button through to `/verify/:id`, which is still where Approve and Reject
 // are offered — so nothing is unreachable, and a guard reads the whole pass,
 // its approval ladder and its material lines before deciding.
 //

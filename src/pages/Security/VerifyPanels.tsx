@@ -1,6 +1,18 @@
+// The two confirm popups behind the guard's gate decision.
+//
+// Client, 2026-08-20: the guard's screen says APPROVE and REJECT — never
+// "Match", "Mismatch" or "Hold". The RPCs behind them are unchanged
+// (`match_pass` and `flag_pass`), so a rejection still returns the pass to the
+// raising HOD for review; only the words the guard reads changed. The reason
+// on a rejection is MANDATORY, and the 500-character box is the same one the
+// approval ladder's RejectApprovalModal uses, so the two rejections in this app
+// are written into the same shape of field.
 import React, { useState } from 'react';
 import type { GatePassItemView, GatePassView } from '../../types';
 import ModalShell from '../../components/ModalShell';
+
+/** Same ceiling as the approval ladder's rejection modal. */
+const MAX_REASON = 500;
 
 interface LineQty {
   item_id: string;
@@ -9,7 +21,7 @@ interface LineQty {
   verified_qty: number;
 }
 
-interface MatchPanelProps {
+interface ApprovePanelProps {
   pass: GatePassView;
   items: GatePassItemView[];
   submitting: boolean;
@@ -18,7 +30,7 @@ interface MatchPanelProps {
   onConfirm: (lines: { item_id: string; verified_qty: number }[], vehicle: string, remarks: string) => void;
 }
 
-export function MatchPanel({ pass, items, submitting, error, onCancel, onConfirm }: MatchPanelProps): React.ReactElement {
+export function ApprovePanel({ pass, items, submitting, error, onCancel, onConfirm }: ApprovePanelProps): React.ReactElement {
   const [lines, setLines] = useState<LineQty[]>(() =>
     items.map((i) => ({
       item_id: i.id,
@@ -48,8 +60,8 @@ export function MatchPanel({ pass, items, submitting, error, onCancel, onConfirm
   }
 
   return (
-    <ModalShell onClose={onCancel} labelledBy="match-panel-title">
-        <h2 id="match-panel-title" className="modal-title mb-1">Confirm Match</h2>
+    <ModalShell onClose={onCancel} labelledBy="approve-panel-title">
+        <h2 id="approve-panel-title" className="modal-title mb-1">Approve Gate Pass</h2>
         <p className="text-sm text-navy-500 mb-5">Verify each item's quantity at the gate, then confirm.</p>
 
         <div className="flex flex-col gap-4 mb-5">
@@ -105,40 +117,50 @@ export function MatchPanel({ pass, items, submitting, error, onCancel, onConfirm
             disabled={submitting || lines.some((l) => l.verified_qty <= 0)}
             onClick={handleConfirm}
           >
-            {submitting ? 'Confirming…' : '✓ Confirm Match'}
+            {submitting ? 'Approving…' : 'Confirm Approval'}
           </button>
         </div>
     </ModalShell>
   );
 }
 
-interface FlagPanelProps {
+interface RejectPanelProps {
   submitting: boolean;
   error: string | null;
   onCancel: () => void;
   onConfirm: (reason: string) => void;
 }
 
-export function FlagPanel({ submitting, error, onCancel, onConfirm }: FlagPanelProps): React.ReactElement {
+export function RejectPanel({ submitting, error, onCancel, onConfirm }: RejectPanelProps): React.ReactElement {
   const [reason, setReason] = useState('');
+  // MANDATORY, and mandatory on the trimmed string: a box of spaces is not a
+  // reason. The button is dead until one is typed, so the guard is never told
+  // "no" by the server for something the screen could have said first.
   const valid = reason.trim().length > 0;
 
   return (
-    <ModalShell onClose={onCancel} labelledBy="flag-panel-title">
-        <h2 id="flag-panel-title" className="modal-title mb-1">Report Mismatch</h2>
-        <p className="text-sm text-navy-500 mb-5">Describe what doesn&apos;t match. This is required.</p>
+    <ModalShell onClose={onCancel} labelledBy="reject-panel-title">
+        <h2 id="reject-panel-title" className="modal-title mb-1">Reject Gate Pass</h2>
+        <p className="text-sm text-navy-500 mb-5">
+          A rejection goes back to the raising department for review. Say why — this is required.
+        </p>
 
-        <div className="mb-5">
-          <label className="label">What doesn&apos;t match?</label>
+        <div className="mb-1">
+          <label className="label" htmlFor="gate-reject-reason">Reason for Rejection *</label>
           <textarea
+            id="gate-reject-reason"
             className="input"
             rows={4}
             autoFocus
+            maxLength={MAX_REASON}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="e.g. Vehicle number does not match the declared vehicle."
+            placeholder="e.g. Only 1 drill of the 2 declared is present."
           />
         </div>
+        <p className="text-xs text-navy-500 mb-4 text-right">
+          {reason.length}/{MAX_REASON}
+        </p>
 
         {error && <div className="alert-error mb-4">{error}</div>}
 
@@ -152,7 +174,7 @@ export function FlagPanel({ submitting, error, onCancel, onConfirm }: FlagPanelP
             disabled={submitting || !valid}
             onClick={() => onConfirm(reason.trim())}
           >
-            {submitting ? 'Submitting…' : '⚑ Confirm Mismatch'}
+            {submitting ? 'Submitting…' : 'Confirm Rejection'}
           </button>
         </div>
     </ModalShell>

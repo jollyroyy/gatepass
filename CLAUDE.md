@@ -65,7 +65,45 @@ live**; **`053` belongs to a parallel session and its state is not known here.**
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **4 rows** — one pending ladder, on `NRGP-20260819-0002`, sitting at level 1 (Security Head). The 60 older passes carry no ladder and reach the gate exactly as they did before. |
 
-**Latest change (2026-08-20, seventeenth pass): A LINE IS RAISED IN ITS OWN UNIT AGAIN, and
+**Latest change (2026-08-20, eighteenth pass): THE GUARD'S GATE DECISION IS APPROVE OR
+REJECT, and a rejection cannot be submitted without a reason.** Frontend only — no migration, no
+RPC change, no change to any status.
+
+- **The words changed; the state machine did not.** Client: "for the guard's view, whatever is
+  pending for him to check … during the approval page put it as approve and reject. Don't put
+  mismatched or something. And if rejects, make the rejection reason mandatory."
+  **Approve is still `match_pass` and Reject is still `flag_pass`**, so a rejected pass still
+  becomes `flagged` and still goes back to the raising HOD's review screen exactly as the old
+  "⚑ Flag Mismatch" did. The enum labels, the HOD's Mismatch Review screen, the reports and every
+  badge outside `/verify/:id` keep their own vocabulary — this is what the person at the barrier
+  reads, nothing more.
+- **`MatchPanel` / `FlagPanel` are renamed `ApprovePanel` / `RejectPanel`** in
+  `src/pages/Security/VerifyPanels.tsx`, so a stale reference is a build error. Their headings are
+  "Approve Gate Pass" / "Reject Gate Pass" and the commits read **Confirm Approval** /
+  **Confirm Rejection**. The glyphs (`✓`, `⚑`) are dropped from both buttons; the `btn-match` /
+  `btn-flag` classes are unchanged — they are the green/red house buttons, not the words.
+- **THE REJECTION REASON WAS ALREADY REQUIRED AND STILL IS**, now in the SAME shape as the
+  approval ladder's `RejectApprovalModal`: labelled "Reason for Rejection *", 500 characters with
+  an `N/500` counter. Validation is on the TRIMMED string — a box of spaces is not a reason — and
+  the button is dead until one is typed, so the guard is never refused by the server for something
+  the screen could have said first.
+- **No surface on this screen says "matched" or "flagged" any more.** The already-actioned banner
+  printed the raw enum; `GUARD_OUTCOME` in `Verify.tsx` maps it to the guard's words ("approved" /
+  "rejected"), falling back to the status itself rather than to a blank. The flashes on `/console`
+  read "… approved — cleared to proceed." and "… rejected — sent to the raising department for
+  review."
+- **Expiry still splits the two, and the split is unchanged**: Approve is withheld on an expired
+  pass (`match_pass` refuses it), Reject deliberately is not — refusing to record a real problem
+  because the paperwork went stale is exactly backwards. Both are still offered on a
+  `hod_reviewed` pass (035).
+- Pinned by a new `tests/unit/guardApproveReject.test.tsx` (4 — the two labels with Match /
+  Mismatch / Flag / Hold banned by name, Approve reaching `match_pass`, a rejection refused with
+  an empty box AND with whitespace, and the trimmed reason arriving on `p_reason`), plus rewrites
+  in `verifyPanelsClose.test.tsx` and `hodReviewGateFlow.test.tsx`. `npm run check` is **1525
+  tests across 125 files**, green.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite only.
+
+**Earlier (2026-08-20, seventeenth pass): A LINE IS RAISED IN ITS OWN UNIT AGAIN, and
 the guard reads that unit back read-only.** Frontend only — no migration, no RPC change: the
 `gate_pass_items.unit` column and `raise_pass`'s `p_items` key have always been there; the form
 simply stopped sending anything but `nos`.

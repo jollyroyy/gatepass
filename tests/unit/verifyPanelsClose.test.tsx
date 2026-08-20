@@ -1,10 +1,14 @@
-// MatchPanel / FlagPanel (src/pages/Security/VerifyPanels.tsx) are the
+// ApprovePanel / RejectPanel (src/pages/Security/VerifyPanels.tsx) are the
 // confirm popups a guard sees at the gate. Closing them must always mean
-// Cancel — never silently confirm a match or a mismatch report.
+// Cancel — never silently confirm an approval or a rejection.
+//
+// They were MatchPanel / FlagPanel until 2026-08-20, when the client asked for
+// the guard's decision to read Approve / Reject; the RPCs behind them
+// (match_pass / flag_pass) are unchanged.
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { MatchPanel, FlagPanel } from '../../src/pages/Security/VerifyPanels';
+import { ApprovePanel, RejectPanel } from '../../src/pages/Security/VerifyPanels';
 import type { GatePassItemView, GatePassView } from '../../src/types';
 
 const PASS = {
@@ -19,12 +23,12 @@ const ITEMS: GatePassItemView[] = [
   { id: 'i1', description: 'Drill', quantity: 2 } as any,
 ];
 
-describe('MatchPanel close behaviour', () => {
+describe('ApprovePanel close behaviour', () => {
   it('has a Close button that calls onCancel, never onConfirm', () => {
     const onCancel = vi.fn();
     const onConfirm = vi.fn();
     render(
-      <MatchPanel pass={PASS} items={ITEMS} submitting={false} error={null} onCancel={onCancel} onConfirm={onConfirm} />,
+      <ApprovePanel pass={PASS} items={ITEMS} submitting={false} error={null} onCancel={onCancel} onConfirm={onConfirm} />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onCancel).toHaveBeenCalledTimes(1);
@@ -35,7 +39,7 @@ describe('MatchPanel close behaviour', () => {
     const onCancel = vi.fn();
     const onConfirm = vi.fn();
     render(
-      <MatchPanel pass={PASS} items={ITEMS} submitting={false} error={null} onCancel={onCancel} onConfirm={onConfirm} />,
+      <ApprovePanel pass={PASS} items={ITEMS} submitting={false} error={null} onCancel={onCancel} onConfirm={onConfirm} />,
     );
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onCancel).toHaveBeenCalledTimes(1);
@@ -45,18 +49,18 @@ describe('MatchPanel close behaviour', () => {
   it('does not close when clicking inside the panel', () => {
     const onCancel = vi.fn();
     render(
-      <MatchPanel pass={PASS} items={ITEMS} submitting={false} error={null} onCancel={onCancel} onConfirm={vi.fn()} />,
+      <ApprovePanel pass={PASS} items={ITEMS} submitting={false} error={null} onCancel={onCancel} onConfirm={vi.fn()} />,
     );
-    fireEvent.click(screen.getByText('Confirm Match'));
+    fireEvent.click(screen.getByText('Confirm Approval'));
     expect(onCancel).not.toHaveBeenCalled();
   });
 });
 
-describe('FlagPanel close behaviour', () => {
+describe('RejectPanel close behaviour', () => {
   it('has a Close button that calls onCancel, never onConfirm', () => {
     const onCancel = vi.fn();
     const onConfirm = vi.fn();
-    render(<FlagPanel submitting={false} error={null} onCancel={onCancel} onConfirm={onConfirm} />);
+    render(<RejectPanel submitting={false} error={null} onCancel={onCancel} onConfirm={onConfirm} />);
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onConfirm).not.toHaveBeenCalled();
@@ -65,7 +69,7 @@ describe('FlagPanel close behaviour', () => {
   it('calls onCancel on Escape without confirming', () => {
     const onCancel = vi.fn();
     const onConfirm = vi.fn();
-    render(<FlagPanel submitting={false} error={null} onCancel={onCancel} onConfirm={onConfirm} />);
+    render(<RejectPanel submitting={false} error={null} onCancel={onCancel} onConfirm={onConfirm} />);
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onConfirm).not.toHaveBeenCalled();
