@@ -24,6 +24,17 @@ import type { GatePassItemView, GatePassView } from '../../src/types';
 
 const FUTURE = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
 
+// r1 is the pass that is due back TODAY, and the Overdue Returns tile counts
+// lines whose date has already passed. A hardcoded date makes the second of
+// those figures change by itself the next morning — which it did, on
+// 2026-08-20, with a fixture written on the 19th. Local calendar day, because
+// that is the cut `buildOverdueRows` makes.
+const TODAY = (() => {
+  const d = new Date();
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+})();
+
 function pass(over: Partial<GatePassView>): GatePassView {
   return {
     id: 'x', pass_number: 'RGP-20260819-0001', type: 'RGP', direction: 'out',
@@ -71,7 +82,7 @@ function resetRows(): void {
   ];
   OPEN_RETURNS = [
     pass({ id: 'r1', pass_number: 'RGP-20260518-0056', status: 'matched',
-           return_status: 'awaiting_return', expected_return_date: '2026-08-19',
+           return_status: 'awaiting_return', expected_return_date: TODAY,
            due_state: 'due_today', material_summary: 'Scaffolding Pipes',
            total_quantity: 200, returned_quantity: 0 }),
     pass({ id: 'r2', pass_number: 'RGP-20260517-0055', status: 'partially_returned',
