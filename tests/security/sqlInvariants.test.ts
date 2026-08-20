@@ -1959,3 +1959,127 @@ describe('059 — an approval office is held by exactly one ACTIVE person', () =
     expect(bare).not.toMatch(/grant (insert|update|delete) on gatepass\.user_status/i);
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 060 — deleting a department: the FK that always refused it, and the HOD's
+// approval that must now be asked for.
+// ──────────────────────────────────────────────────────────────────────────────
+describe('060 — a department is deleted only by its own HOD', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('060'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(migrations);
+  const fnBody = (name: string) => fns.filter((f) => f.name === name).slice(-1)[0].body;
+
+  it('creates and alters nothing in `public` — the two-schema rule', () => {
+    expect(/create\s+(table|view|function|type)\s+public\./i.test(bare)).toBe(false);
+    expect(/alter\s+table\s+public\./i.test(bare)).toBe(false);
+  });
+
+  // The whole reason every delete raised 23503: profiles.department_id is a
+  // plain `no action` FK, and every live department had somebody on it.
+  it('clears the VMS profile assignment rather than colliding with its foreign key', () => {
+    const body = fnBody('gatepass.perform_department_delete');
+    expect(body).toMatch(/update public\.profiles set department_id = null where department_id = p_dept_id;/i);
+  });
+
+  it('the worker performs no authorization, so it is granted to nobody', () => {
+    expect(bare).toMatch(/revoke all on function gatepass\.perform_department_delete\(uuid\) from public;/i);
+    expect(bare).not.toMatch(/grant execute on function gatepass\.perform_department_delete/i);
+  });
+
+  it('a department with an ACTIVE HOD is not deleted — a request is raised instead', () => {
+    const body = fnBody('gatepass.admin_delete_department');
+    expect(body).toMatch(/if not gatepass\.is_admin\(\) then/i);
+    expect(body).toMatch(/insert into gatepass\.department_delete_requests/i);
+    // The straight-through arm is guarded on there being nobody to ask.
+    expect(body).toMatch(/if v_hods is null or cardinality\(v_hods\) = 0 then/i);
+  });
+
+  it('only an ACTIVE holder counts as an HOD to ask', () => {
+    expect(fnBody('gatepass.department_active_hods')).toMatch(/gatepass\.is_user_active\(p\.id\)/i);
+  });
+
+  it('approving is what deletes, and only the department’s own head may approve', () => {
+    const body = fnBody('gatepass.hod_decide_department_deletion');
+    expect(body).toMatch(/from gatepass\.department_active_hods\(v_dept\) h/i);
+    expect(body).toMatch(/h\.user_id = auth\.uid\(\)/i);
+    expect(body).toMatch(/perform gatepass\.perform_department_delete\(v_dept\)/i);
+    // Re-checked at the decision, never trusted from the request.
+    expect(fnBody('gatepass.perform_department_delete')).toMatch(/gatepass\.department_delete_blocker\(p_dept_id\)/i);
+  });
+
+  it('a refusal needs a written reason, and the request itself needs one too', () => {
+    expect(fnBody('gatepass.hod_decide_department_deletion')).toMatch(/length\(v_reason\) < 5/i);
+    expect(bare).toMatch(/check \(length\(btrim\(reason\)\) between 5 and 500\)/i);
+  });
+
+  it('the record outlives the department it points at', () => {
+    // `on delete cascade` here would erase the decision in the act of carrying
+    // it out, which is why the name and code are snapshot beside the id.
+    expect(bare).toMatch(/department_id\s+uuid references public\.departments\(id\) on delete set null/i);
+    expect(bare).toMatch(/department_name text not null/i);
+  });
+
+  it('the request table is RLS-on with no policy and no grant — RPCs only', () => {
+    expect(bare).toMatch(/alter table gatepass\.department_delete_requests enable row level security;/i);
+    expect(bare).not.toMatch(/create policy [\s\S]*on gatepass\.department_delete_requests/i);
+    expect(bare).not.toMatch(/grant (select|insert|update|delete)[\s\S]*on gatepass\.department_delete_requests/i);
+  });
+
+  it('one live request per department', () => {
+    expect(bare).toMatch(/create unique index if not exists department_delete_requests_one_pending[\s\S]*where status = 'pending'/i);
+  });
+
+  it('every function pins an empty search_path', () => {
+    for (const name of [
+      'gatepass.department_active_hods',
+      'gatepass.department_delete_blocker',
+      'gatepass.perform_department_delete',
+      'gatepass.admin_delete_department',
+      'gatepass.admin_withdraw_department_delete',
+      'gatepass.hod_decide_department_deletion',
+      'gatepass.list_department_delete_requests',
+    ]) {
+      expect(fnBody(name)).toMatch(/set search_path = ''/i);
+    }
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 061 — an approver cannot SEE a pass until it is their turn.
+// ──────────────────────────────────────────────────────────────────────────────
+describe('061 — ladder visibility is linear', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('061'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(migrations);
+  const body = fns.filter((f) => f.name === 'gatepass.pass_routed_to_me').slice(-1)[0].body;
+
+  it('the office sees a pass only when every rung BELOW it is approved', () => {
+    expect(body).toMatch(/b\.level_no < a\.level_no/i);
+    // `<> 'approved'`, not `= 'pending'`: a rejection below me is not a turn
+    // that passed to me, so the pass stays invisible for good.
+    expect(body).toMatch(/b\.status <> 'approved'/i);
+    expect(body).toMatch(/not exists/i);
+  });
+
+  it('still resolves the office through my_approval_role, so a deputy inherits it', () => {
+    expect(body).toMatch(/a\.role_key = gatepass\.my_approval_role\(\)/i);
+  });
+
+  it('stays SECURITY DEFINER with an empty search_path — it is read from a policy', () => {
+    expect(body).toMatch(/security definer/i);
+    expect(body).toMatch(/set search_path = ''/i);
+  });
+
+  it('changes the predicate only — it does not touch the slip order or the policies', () => {
+    expect(bare).not.toMatch(/create policy/i);
+    expect(bare).not.toMatch(/approve_pass_level|reject_pass_level/i);
+  });
+
+  it('is not readable by an anonymous caller', () => {
+    expect(bare).toMatch(/revoke all on function gatepass\.pass_routed_to_me\(uuid\) from public;/i);
+    expect(bare).toMatch(/grant execute on function gatepass\.pass_routed_to_me\(uuid\) to authenticated;/i);
+  });
+});

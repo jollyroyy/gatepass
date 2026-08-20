@@ -8,6 +8,12 @@ import KpiCard from '../../components/KpiCard';
 import HodDirectory from './HodDirectory';
 import DepartmentNameCodeFields from './DepartmentNameCodeFields';
 import ModalShell from '../../components/ModalShell';
+import {
+  deleteOutcomeNotice,
+  pendingRequestFor,
+  type DeleteDepartmentOutcome,
+} from '../../lib/departmentDeleteRequests';
+import { useDepartmentDeleteRequests } from '../../lib/useDepartmentDeleteRequests';
 
 const SKELETON_ROWS = 4;
 
@@ -53,9 +59,14 @@ export default function DepartmentsTab(): React.ReactElement {
   const [editCodeErr, setEditCodeErr] = useState<string | null>(null);
 
   // Delete modal
-  const [deleteTarget, setDeleteTarget] = useState<{ dept: Department; reason: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ dept: Department; reason: string; hods: string[] } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // WHAT THE PRESS ACTUALLY DID (060). One press has two possible outcomes —
+  // the department deleted, or a request sent to its HOD — and an admin who is
+  // not told which one happened will assume the first.
+  const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
+  const { requests: deleteRequests, reload: reloadDeleteRequests } = useDepartmentDeleteRequests();
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -235,16 +246,19 @@ export default function DepartmentsTab(): React.ReactElement {
     }
   }
 
-  // Delete
+  // Delete — or, when somebody heads this department, ASK THEM (migration 060).
+  // The RPC decides which of the two happens; this reads its answer rather than
+  // assuming, and the notice names the HOD the request went to.
   async function handleDelete() {
     if (!deleteTarget || !deleteTarget.reason.trim()) return;
     setDeleting(true);
     setDeleteError(null);
     try {
-      const { error } = await gp().rpc('admin_delete_department', { p_dept_id: deleteTarget.dept.id, p_reason: deleteTarget.reason });
+      const { data, error } = await gp().rpc('admin_delete_department', { p_dept_id: deleteTarget.dept.id, p_reason: deleteTarget.reason });
       if (error) throw error;
+      setDeleteNotice(deleteOutcomeNotice((data ?? {}) as DeleteDepartmentOutcome, deleteTarget.dept.name));
       setDeleteTarget(null);
-      await load();
+      await Promise.all([load(), reloadDeleteRequests()]);
     } catch (err) {
       setDeleteError(safeErrorMessage(err));
     } finally {
@@ -252,9 +266,30 @@ export default function DepartmentsTab(): React.ReactElement {
     }
   }
 
+  // Taking a request back. NOT a decision — nobody approved or refused
+  // anything, which is why 060 writes no decider on it.
+  async function handleWithdraw(requestId: string) {
+    try {
+      const { error } = await gp().rpc('admin_withdraw_department_delete', { p_request_id: requestId });
+      if (error) throw error;
+      setDeleteNotice('The deletion request was withdrawn.');
+      await reloadDeleteRequests();
+    } catch (err) {
+      setLoadError(safeErrorMessage(err));
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {loadError && <div className="alert-error">{loadError}</div>}
+      {deleteNotice && (
+        <div className="alert-info flex items-start justify-between gap-3">
+          <span>{deleteNotice}</span>
+          <button type="button" className="text-navy-500 hover:text-navy-800 shrink-0" onClick={() => setDeleteNotice(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* ── Stats at a glance (live via Realtime) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -346,7 +381,7 @@ export default function DepartmentsTab(): React.ReactElement {
                     type="button"
                     className="text-navy-300 hover:text-flagged-600 transition-colors"
                     title="Delete department"
-                    onClick={() => setDeleteTarget({ dept: c.dept, reason: '' })}
+                    onClick={() => setDeleteTarget({ dept: c.dept, reason: '', hods: c.hods.map((h) => h.full_name ?? '').filter(Boolean) })}
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -358,6 +393,27 @@ export default function DepartmentsTab(): React.ReactElement {
                   <span className="text-[10px] font-medium text-navy-500 uppercase tracking-wider">HODs</span>
                 </div>
               </div>
+
+              {/* A deletion this department's HOD has not decided yet (060).
+                  The row says so rather than the Delete button doing nothing
+                  visible on a second press. */}
+              {(() => {
+                const pending = pendingRequestFor(deleteRequests, c.dept.id);
+                if (!pending) return null;
+                return (
+                  <div className="lg:w-72 lg:shrink-0 rounded-lg bg-pending-50 border border-pending-500/25 px-3 py-2">
+                    <p className="text-xs font-semibold text-pending-700">Deletion waiting with the HOD</p>
+                    <p className="text-[11px] text-navy-600 mt-0.5">{pending.reason}</p>
+                    <button
+                      type="button"
+                      className="text-[11px] font-medium text-accent-600 hover:underline mt-1"
+                      onClick={() => void handleWithdraw(pending.id)}
+                    >
+                      Withdraw request
+                    </button>
+                  </div>
+                );
+              })()}
 
               {/* HOD list */}
               <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -484,8 +540,27 @@ export default function DepartmentsTab(): React.ReactElement {
               This will permanently delete &ldquo;{deleteTarget.dept.name}&rdquo; ({deleteTarget.dept.code}). This cannot be undone.
             </p>
             <p className="text-xs text-flagged-600/80 mt-2">
-              All HOD assignments for this department will also be removed.
+              All HOD assignments for this department will also be removed, and anybody assigned
+              to it loses their department.
             </p>
+            {/* The client's rule, 2026-08-20: an admin cannot delete a department
+                out from under its own HOD. The check is the DATABASE's, on the
+                ACTIVE holders — this sentence prepares the admin for either
+                outcome rather than promising one. */}
+            <div className="alert-info text-sm mt-3">
+              {deleteTarget.hods.length > 0 ? (
+                <p>
+                  This department is headed by <strong>{deleteTarget.hods.join(', ')}</strong>.
+                  It will NOT be deleted now — a deletion request goes to them, and the
+                  department goes only once they approve it.
+                </p>
+              ) : (
+                <p>
+                  No HOD is assigned to this department, so it is deleted straight away. A
+                  department that has an active HOD needs that HOD&rsquo;s approval instead.
+                </p>
+              )}
+            </div>
             <div className="mt-5">
               <label className="label">Reason for deletion</label>
               <textarea
@@ -505,7 +580,11 @@ export default function DepartmentsTab(): React.ReactElement {
                 disabled={deleting || !deleteTarget.reason.trim()}
                 onClick={handleDelete}
               >
-                {deleting ? 'Deleting…' : 'Delete Department'}
+                {deleting
+                  ? 'Working…'
+                  : deleteTarget.hods.length > 0
+                    ? 'Send Deletion Request'
+                    : 'Delete Department'}
               </button>
             </div>
         </ModalShell>

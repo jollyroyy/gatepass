@@ -40,6 +40,7 @@ import DrillList from '../../components/DrillList';
 import HodApprovalPending from '../../components/hod/HodApprovalPending';
 import HodKpiCards from '../../components/hod/HodKpiCards';
 import HodQuickActions from '../../components/hod/HodQuickActions';
+import DepartmentDeleteRequests from '../../components/hod/DepartmentDeleteRequests';
 import WaitingWith from '../../components/dashboard/WaitingWith';
 import { drillDefOf, type BoardDrill } from '../../lib/boardDrills';
 import { formatDateOnly } from '../../lib/formatDate';
@@ -47,6 +48,7 @@ import { buildHodKpis, greetingFor, hodGreetingName, type HodKpiCard } from '../
 import { approvalWaiting } from '../../lib/hodApprovals';
 import { useWaitingWith } from '../../lib/useWaitingWith';
 import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
+import { useDepartmentDeleteRequests } from '../../lib/useDepartmentDeleteRequests';
 import { useHodBoardData } from './useHodBoardData';
 
 export default function Dashboard(): React.ReactElement {
@@ -72,6 +74,11 @@ export default function Dashboard(): React.ReactElement {
   // each, against the desk that can act now; that one counts SIGNATURES still
   // owed at every office. See `waitingWith.ts`.
   const { waiting } = useWaitingWith(rows, stamp, approvals);
+  // AN ADMIN WANTING TO DELETE THIS PERSON'S DEPARTMENT (060). One more read,
+  // and it draws nothing at all in the ordinary case where nothing is waiting —
+  // which is why it sits above the figures rather than beside them: when it IS
+  // there, it is the most consequential thing on the page.
+  const { requests: deleteRequests, reload: reloadDeleteRequests } = useDepartmentDeleteRequests();
 
   // Toggling: pressing the card already open closes it. Compared by `key`, not
   // by object identity — every render builds fresh drill objects.
@@ -104,6 +111,8 @@ export default function Dashboard(): React.ReactElement {
       </div>
 
       {error && <div className="gb-alert">{error}</div>}
+
+      <DepartmentDeleteRequests requests={deleteRequests} onDecided={reloadDeleteRequests} />
 
       <HodKpiCards cards={cards} activeKey={activeKey} onSelect={select} loading={loading} />
 
