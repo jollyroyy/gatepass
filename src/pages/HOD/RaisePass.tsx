@@ -225,6 +225,13 @@ export default function RaisePass(): React.ReactElement {
           // the same value every line raised between 2026-08-19 and today
           // carries — and the guard reads it back read-only at the barrier.
           unit: item.unit || 'nos',
+          // WHAT THE LINE IS ROUGHLY WORTH (client, 2026-08-20). A blank stays
+          // NULL — `raise_pass` does `nullif(…, '')::numeric` — so `total_value`
+          // adds only the lines somebody actually priced, and an unpriced pass
+          // still prints a dash rather than ₹0. Sent as a string on purpose:
+          // the RPC casts it, and Number('') is 0, which would price every
+          // blank line at nothing.
+          approx_value: item.approx_value.trim(),
           make_model: item.make_model.trim() || null,
           serial_no: item.serial_no.trim() || null,
           invoice_no: item.invoice_no.trim() || null,
@@ -254,7 +261,7 @@ export default function RaisePass(): React.ReactElement {
         const voidErr = await voidSupersededPass(sourceId, created.pass_number, source);
         setSupersedeWarning(
           voidErr
-            ? `The new pass was raised, but ${source?.pass_number ?? 'the mismatched pass'} could not be closed: ${voidErr}. Reject it from your dashboard.`
+            ? `The new pass was raised, but ${source?.pass_number ?? 'the rejected pass'} could not be closed: ${voidErr}. Reject it from your dashboard.`
             : null,
         );
       }
@@ -292,11 +299,11 @@ export default function RaisePass(): React.ReactElement {
         {sourceId && (
           <div className="bg-flagged-500/10 border-l-4 border-flagged-500 rounded-r-lg px-4 py-3 mb-6">
             <p className="text-sm font-semibold text-flagged-700">
-              Correcting {source?.pass_number ?? 'a mismatched gate pass'}
+              Correcting {source?.pass_number ?? 'a gate pass rejected at the gate'}
               {source?.flag_reason ? ` — ${source.flag_reason}` : ''}
             </p>
             <p className="text-caption text-navy-600 mt-1">
-              Check every line before submitting. The mismatched pass is voided once this one is raised.
+              Check every line before submitting. The rejected pass is voided once this one is raised.
             </p>
           </div>
         )}

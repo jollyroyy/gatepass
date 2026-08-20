@@ -31,6 +31,9 @@ const HEADERS: { label: string; required?: boolean }[] = [
   { label: 'Item Description', required: true },
   { label: 'Quantity', required: true },
   { label: 'Unit', required: true },
+  // NOT required: a line whose worth nobody knows is left blank, and a blank is
+  // a different claim from a zero (client, 2026-08-20 — the field is back).
+  { label: 'Approx. Value (Rs)' },
   { label: 'Make / Model / Size', required: true },
   { label: 'Serial / Asset Tag' },
   { label: 'Invoice / Reference No.' },
@@ -83,6 +86,7 @@ export default function MaterialItemsCard({
                   name: errors[`item_${idx}_name`],
                   make_model: errors[`item_${idx}_make_model`],
                   quantity: errors[`item_${idx}_quantity`],
+                  approx_value: errors[`item_${idx}_approx_value`],
                   expected_return_date: errors[`item_${idx}_expected_return_date`],
                 }}
                 onChange={(field, value) => onItemChange(idx, field, value)}

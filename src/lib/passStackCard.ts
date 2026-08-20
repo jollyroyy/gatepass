@@ -27,7 +27,7 @@ export const STAGE_TONES: Record<string, GbTone> = {
   'Expired': 'orange',
   // A deadline missed, or an accusation made.
   'Overdue': 'red',
-  'Mismatched': 'red',
+  'Rejected at Security Gate': 'red',
   // Routine housekeeping, not a problem found at the gate.
   'Voided': 'grey',
   // Moving, and nothing is wrong.

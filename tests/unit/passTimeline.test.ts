@@ -64,7 +64,7 @@ describe('passTimeline', () => {
       hod_reviewed_at: T.override,
       verified_at: T.matched,
     });
-    expect(labels(p)).toEqual(['Raised', 'Mismatch', 'Override', 'Cleared Out']);
+    expect(labels(p)).toEqual(['Raised', 'Rejected at security gate', 'Override', 'Cleared Out']);
   });
 
   // The old card only rendered "Override" while `status === 'hod_reviewed'`,

@@ -14,7 +14,15 @@ export const STATUS_STYLES: Record<PassStatus, StatusStyle> = {
   // recorded as mismatches that never were.
   held: { bg: 'bg-pending-100', text: 'text-pending-800', dot: 'bg-pending-600', label: 'Held at Gate' },
   matched: { bg: 'bg-matched-50', text: 'text-matched-700', dot: 'bg-matched-500', label: 'Matched' },
-  flagged: { bg: 'bg-flagged-50', text: 'text-flagged-700', dot: 'bg-flagged-500', label: 'Mismatched' },
+  // "Rejected at Security Gate", never "Mismatched" (client, 2026-08-20:
+  // "whenever you're showing the mismatched, put it instead of mismatch to show
+  // it like 'rejected by security gate' or 'rejected at security gate'. It's
+  // everywhere"). The ENUM LABEL `flagged` and every RPC behind it are
+  // unchanged — this is what a reader sees, and `flag_pass` is still what
+  // wrote it. The guard's own two buttons already read Approve / Reject
+  // (2026-08-20, eighteenth pass); this is the rest of the app catching up
+  // with the word they press.
+  flagged: { bg: 'bg-flagged-50', text: 'text-flagged-700', dot: 'bg-flagged-500', label: 'Rejected at Security Gate' },
   // Indigo — the HOD reviewed the flag and overrode it. Not green (that's
   // matched), not amber (that's still open), but a deliberate "decision made".
   hod_reviewed: { bg: 'bg-accent-50', text: 'text-accent-700', dot: 'bg-accent-500', label: 'HOD Approved' },

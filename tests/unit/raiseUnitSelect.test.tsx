@@ -68,8 +68,9 @@ describe('the item row asks for a unit', () => {
   it('names the column in the header, and the grid has a track for it', () => {
     renderCard();
     expect(screen.getAllByText('Unit')).toHaveLength(1);
-    expect(itemGridColumns(false).split(' ')).toHaveLength(9);
-    expect(itemGridColumns(true).split(' ')).toHaveLength(10);
+    // Ten since 2026-08-20, when the Approx. Value column came back beside it.
+    expect(itemGridColumns(false).split(' ')).toHaveLength(10);
+    expect(itemGridColumns(true).split(' ')).toHaveLength(11);
   });
 
   it('lets a MEASURED unit be typed in fractions and refuses a fraction of a counted one', () => {

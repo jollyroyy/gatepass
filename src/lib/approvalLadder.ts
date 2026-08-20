@@ -167,7 +167,7 @@ function gateStep(pass: GatePassView): ApprovalStep {
   if (pass.status === 'flagged') {
     return {
       key: 'gate',
-      label: 'Mismatch raised at the gate',
+      label: 'Rejected at the security gate',
       who: pass.verified_by_name ?? 'Security',
       detail: 'Security Verification',
       at: pass.verified_at,

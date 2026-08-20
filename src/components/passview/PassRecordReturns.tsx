@@ -99,18 +99,24 @@ export default function PassRecordReturns({
         </div>
       )}
 
-      {/* The mock-up's amber strip. It states the one condition that keeps this
-          pass open, and its button goes straight to the first line holding it
-          up — drawn only for a guard, because nobody else can record a return
-          and a button that always fails is worse than no button. */}
-      {stillOpen > 0 && !isReturnClosed(pass) && (
+      {/* The mock-up's amber strip, and it is now drawn ONLY FOR SOMEBODY WHO
+          CAN ACT ON IT (client, 2026-08-20: "1 item still needs attention
+          before this pass can be closed — remove this from the pass details
+          page in HOD"). It used to render for every reader with its button
+          guard-only, which left an HOD and an admin with a standing amber
+          warning and no control under it — an alarm nobody in the room can
+          silence. `canRecord` is `canRecordReturns(pass, role)`: a guard, on a
+          pass that still owes material. The FACT is not lost for anyone else —
+          the item table above states each line's own outstanding quantity, and
+          the pass's stage badge says it is not closed. */}
+      {canRecord && stillOpen > 0 && !isReturnClosed(pass) && (
         <div className="alert-warning flex flex-wrap items-center justify-between gap-3" data-testid="items-need-attention">
           <span>
             <span className="font-semibold">{stillOpen}</span>{' '}
             {stillOpen === 1 ? 'item still needs' : 'items still need'} attention before this pass
             can be closed
           </span>
-          {canRecord && firstOpen && (
+          {firstOpen && (
             <button type="button" className="btn-primary" onClick={() => setOpen(firstOpen)}>
               Review pending items
             </button>

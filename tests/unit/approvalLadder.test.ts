@@ -169,7 +169,7 @@ describe('buildApprovalSteps', () => {
       pass({ status: 'flagged', flag_reason: 'Count did not match' }), FULL,
     ).find((s) => s.key === 'gate');
     expect(gate?.state).toBe('blocked');
-    expect(gate?.label).toBe('Mismatch raised at the gate');
+    expect(gate?.label).toBe('Rejected at the security gate');
   });
 
   it('an RGP still out ends on "To Be Returned" with its deadline', () => {

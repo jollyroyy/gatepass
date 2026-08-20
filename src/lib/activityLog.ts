@@ -71,11 +71,11 @@ export interface GateEvent {
  *  new verification action is a type error here rather than a blank row. */
 export const GATE_EVENT_LABELS: Record<VerifyAction, string> = {
   matched: 'Cleared at the gate',
-  flagged: 'Mismatch raised at the gate',
+  flagged: 'Rejected at the security gate',
   returned: 'Return recorded',
   cancelled: 'Pass closed',
   held: 'Held at the gate',
-  hod_reviewed: 'HOD decided the mismatch',
+  hod_reviewed: 'HOD decided the gate rejection',
 };
 
 /** `2026-08-20` in LOCAL time, which is what a person filtering by day means.

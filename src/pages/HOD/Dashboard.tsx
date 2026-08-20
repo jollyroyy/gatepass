@@ -40,10 +40,12 @@ import DrillList from '../../components/DrillList';
 import HodApprovalPending from '../../components/hod/HodApprovalPending';
 import HodKpiCards from '../../components/hod/HodKpiCards';
 import HodQuickActions from '../../components/hod/HodQuickActions';
+import WaitingWith from '../../components/dashboard/WaitingWith';
 import { drillDefOf, type BoardDrill } from '../../lib/boardDrills';
 import { formatDateOnly } from '../../lib/formatDate';
 import { buildHodKpis, greetingFor, hodGreetingName, type HodKpiCard } from '../../lib/hodBoard';
 import { approvalWaiting } from '../../lib/hodApprovals';
+import { useWaitingWith } from '../../lib/useWaitingWith';
 import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 import { useHodBoardData } from './useHodBoardData';
 
@@ -57,8 +59,16 @@ export default function Dashboard(): React.ReactElement {
   // The four offices on the strip at the foot of the page. It counts SIGNATURES
   // still owed; the Pending Approvals CARD counts passes, which is why the two
   // are derived separately and neither is a roll-up of the other.
-  const waiting = useMemo(() => approvalWaiting(rows, approvals), [rows, approvals]);
+  const officeWaiting = useMemo(() => approvalWaiting(rows, approvals), [rows, approvals]);
   const cards = useMemo(() => buildHodKpis(rows, stamp), [rows, stamp]);
+  // THE FOOT OF THE PAGE — who today's still-waiting passes are sitting with
+  // (client, 2026-08-20). It hands the hook the approvals this page has ALREADY
+  // read, so the board still makes exactly the two queries it made before, and
+  // the strip and the Approval Pending strip beside it are readings of the one
+  // array. They count different things on purpose: this one counts PASSES, once
+  // each, against the desk that can act now; that one counts SIGNATURES still
+  // owed at every office. See `waitingWith.ts`.
+  const { waiting } = useWaitingWith(rows, stamp, approvals);
 
   // Toggling: pressing the card already open closes it. Compared by `key`, not
   // by object identity — every render builds fresh drill objects.
@@ -111,7 +121,8 @@ export default function Dashboard(): React.ReactElement {
 
       <div className="gb-stack">
         <HodQuickActions />
-        <HodApprovalPending waiting={waiting} />
+        <HodApprovalPending waiting={officeWaiting} />
+        <WaitingWith rows={waiting} scopeNote="your own passes" />
       </div>
     </div>
   );

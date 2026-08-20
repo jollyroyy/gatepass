@@ -81,6 +81,12 @@ export const ROLE_TO_SLOT: Record<ApprovalRoleKey, ApprovalOffice> = {
 export interface PendingApprovalRow {
   gate_pass_id: string;
   role_key: ApprovalRoleKey;
+  /** The rung's position on the pass's own ladder. Not read by anything in
+   *  THIS module — it counts every owed signature and so needs no order — but
+   *  the same rows drive the "Waiting With" strip at the foot of the board,
+   *  which asks who can act NOW and therefore needs the slip order
+   *  (`waitingWith.ts` → `lowestPendingLevel`). One read, both strips. */
+  level_no: number;
   status: 'pending' | 'approved' | 'rejected';
 }
 

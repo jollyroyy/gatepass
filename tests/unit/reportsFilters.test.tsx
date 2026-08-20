@@ -95,6 +95,7 @@ vi.mock('../../src/supabaseClient', () => ({
   supabase: { auth: { getUser: () => Promise.resolve({ data: { user: { id: 'u1' } } }) } },
 }));
 
+import { localDateString, presetRange } from '../../src/lib/reportsDateRange';
 import ReportsPage from '../../src/pages/Admin/ReportsPage';
 
 function renderReports() {
@@ -176,6 +177,55 @@ describe('Gate Pass Report — the mock-up itself', () => {
     expect(screen.queryByRole('group', { name: 'Pass type' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Overdue' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Expired' })).not.toBeInTheDocument();
+  });
+});
+
+describe('Gate Pass Report — the ready-made ranges', () => {
+  // Client, 2026-08-20: "in all the reports across admin and HOD, under the
+  // date selection, mention Last 7 days / Last 30 days / Last 90 days / Last 6
+  // months / Last 3 months / Last 1 month / Last 1 year".
+  it('offers the seven ranges the client named, under the date inputs', async () => {
+    renderReports();
+    await waitFor(() => expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument());
+
+    const select = screen.getByLabelText('Quick range');
+    const labels = [...select.querySelectorAll('option')].map((o) => o.textContent);
+    expect(labels).toEqual([
+      'Custom range',
+      'Last 7 days',
+      'Last 30 days',
+      'Last 90 days',
+      'Last 6 months',
+      'Last 3 months',
+      'Last 1 month',
+      'Last 1 year',
+    ]);
+  });
+
+  it('writes the two date inputs, and reads back the preset it wrote', async () => {
+    renderReports();
+    await waitFor(() => expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument());
+
+    const select = screen.getByLabelText('Quick range') as HTMLSelectElement;
+    // The report opens on the last 30 days, so the select says so before it is
+    // ever touched — no preset is "remembered", every one is derived.
+    expect(select.value).toBe('30d');
+
+    fireEvent.change(select, { target: { value: '7d' } });
+    const from = screen.getByLabelText('From date') as HTMLInputElement;
+    const to = screen.getByLabelText('To date') as HTMLInputElement;
+    const expected = presetRange('7d', localDateString(new Date()));
+    expect(from.value).toBe(expected.from);
+    expect(to.value).toBe(expected.to);
+    expect((screen.getByLabelText('Quick range') as HTMLSelectElement).value).toBe('7d');
+  });
+
+  it("falls back to Custom range once an edge is moved by hand", async () => {
+    renderReports();
+    await waitFor(() => expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-01-02' } });
+    expect((screen.getByLabelText('Quick range') as HTMLSelectElement).value).toBe('custom');
   });
 });
 

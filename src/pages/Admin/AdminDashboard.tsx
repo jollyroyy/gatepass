@@ -36,10 +36,12 @@ import { gp } from '../../supabaseClient';
 import type { GatePassView } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
 import DrillList from '../../components/DrillList';
+import WaitingWith from '../../components/dashboard/WaitingWith';
 import OverviewCards from '../../components/admin/OverviewCards';
 import OverviewStatus, { sliceKey } from '../../components/admin/OverviewStatus';
 import OverviewTrend, { dayKey } from '../../components/admin/OverviewTrend';
 import { drillDefOf, type BoardDrill } from '../../lib/boardDrills';
+import { useWaitingWith } from '../../lib/useWaitingWith';
 import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 import {
   buildOverviewCards,
@@ -87,6 +89,12 @@ export default function AdminDashboard(): React.ReactElement {
   const trend = useMemo(() => trendDays(rows, days, stamp), [rows, days, stamp]);
   const slices = useMemo(() => statusSlices(rows, days, stamp), [rows, days, stamp]);
   const span = useMemo(() => rangeLabel(windowBounds(days, stamp)), [days, stamp]);
+  // THE FOOT OF THE PAGE, AND IT IS TODAY WHATEVER THE WINDOW SAYS (client,
+  // 2026-08-20: "in the dashboard of admin and in the dashboard of HOD, it's
+  // only for today"). It reads the SAME `rows` every figure above it does, cut
+  // to the local day inside the hook — so the window chip cannot move it, and
+  // the strip says its own scope on screen.
+  const { waiting } = useWaitingWith(rows, stamp);
 
   // Toggling: pressing the thing already open closes it. Compared by `key`, not
   // by object identity — every render builds fresh drill objects.
@@ -189,6 +197,8 @@ export default function AdminDashboard(): React.ReactElement {
           )}
         </section>
       </div>
+
+      <WaitingWith rows={waiting} scopeNote="all departments" />
     </div>
   );
 }

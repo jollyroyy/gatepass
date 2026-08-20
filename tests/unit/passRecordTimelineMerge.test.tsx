@@ -100,7 +100,7 @@ describe('the pass carries ONE timeline', () => {
     expect(rail.getByText('Raised By')).toBeInTheDocument();
     expect(rail.getByText('Level 1 Approval')).toBeInTheDocument();
     // … and the gate's events, with the remark that explains them.
-    expect(rail.getByText('Mismatch raised at the gate')).toBeInTheDocument();
+    expect(rail.getByText('Rejected at the security gate')).toBeInTheDocument();
     expect(rail.getByText('two crates short')).toBeInTheDocument();
     expect(rail.getByText(/Guard One/)).toBeInTheDocument();
   });

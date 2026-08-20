@@ -86,7 +86,7 @@ function formatTime(iso: string): string {
  *  accusation with no author is not reviewable. */
 export function mismatchMessage(passNumber: string, reason: string | null, by: string | null): string {
   const who = by ? ` by ${by}` : '';
-  return `${passNumber} was mismatched at the gate${who}. Reason: ${reason || 'No reason recorded'}. Review and either reject it or raise it again.`;
+  return `${passNumber} was rejected at the security gate${who}. Reason: ${reason || 'No reason recorded'}. Review and either reject it or raise it again.`;
 }
 
 /** The words the HOD reads on an expiry. It says NULL AND VOID rather than
@@ -221,7 +221,7 @@ export function NotificationProvider({ session, role, children }: Props): React.
             addNotification({
               id: genId(),
               type: 'flagged',
-              title: 'Gate Pass Mismatched',
+              title: 'Rejected at Security Gate',
               message: mismatchMessage(p.pass_number, p.flag_reason, p.verified_by_name),
               passId: p.id,
               passNumber: p.pass_number,
@@ -301,7 +301,7 @@ export function NotificationProvider({ session, role, children }: Props): React.
               addNotification({
                 id: genId(),
                 type: 'flagged',
-                title: 'Gate Pass Mismatched',
+                title: 'Rejected at Security Gate',
                 // `gate_passes` is the base table, so there is no verifier NAME
                 // in this payload — only an id, which is not worth showing. The
                 // review screen reads the name off the view.

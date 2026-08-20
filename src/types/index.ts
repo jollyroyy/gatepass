@@ -360,8 +360,12 @@ export interface DeptOption {
  *     meant material counted in bags, drums, kg or litres could not be raised in
  *     its own unit at all. It is the field `isWholeUnit` consults, so it also
  *     decides whether the quantity beside it may carry a fraction.
- *   * `approx_value` — no column on the mock, so no new pass carries a value and
- *     "Total Value" reads "—" on every card and record from here on.
+ *   * `approx_value` — IS BACK, on both pass types (client, 2026-08-20: "make a
+ *     field for the HOD to input the approx value for each item in our GP and
+ *     RGP form"), and optional. Between 2026-08-19 and today the mock had no
+ *     value column, so every pass raised in that window carries none and its
+ *     "Total Value" reads "—" for good; a pass raised from now on carries
+ *     whatever the HOD priced, and a line left blank still contributes nothing.
  */
 export interface NewGatePassItem {
   /** "Item Description" — the ONE name field on the mock. Written to both
@@ -378,6 +382,15 @@ export interface NewGatePassItem {
   /** "Remarks" */
   remarks: string;
   quantity: string;
+  /** "Approx. Value (Rs)" for the LINE — client, 2026-08-20: "make a field for
+   *  the HOD to input the approx value for each item in our GP and RGP form."
+   *  This REVERSES the 2026-08-19 removal of the value column (the mock-up drew
+   *  none), which is why "Total Value" has read a dash on every pass raised
+   *  since. Optional: a line whose worth nobody knows is left blank and
+   *  contributes nothing, which is not the same claim as `0`. It rides in each
+   *  element of `raise_pass`'s `p_items` as `approx_value` — a key that RPC has
+   *  read since 019, so no migration was needed to start sending it again. */
+  approx_value: string;
   /** "Unit" — one of `UNIT_OPTIONS` (src/lib/units.ts). Defaults to `nos`, which
    *  is what every line raised between 2026-08-19 and 2026-08-20 carries; the
    *  guard reads it back through the same `unitLabel`, read-only. */
@@ -398,6 +411,7 @@ export const EMPTY_ITEM: NewGatePassItem = {
   invoice_no: '',
   remarks: '',
   quantity: '',
+  approx_value: '',
   unit: 'nos',
   expected_return_date: '',
 };

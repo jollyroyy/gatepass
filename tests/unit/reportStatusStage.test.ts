@@ -60,7 +60,7 @@ describe('a pass never reads "Matched"', () => {
   });
 
   it('leaves the states that are a decision, not a stage, alone', () => {
-    expect(csvStatus(pass({ status: 'flagged' }))).toBe('Mismatched');
+    expect(csvStatus(pass({ status: 'flagged' }))).toBe('Rejected at Security Gate');
     expect(csvStatus(pass({ status: 'pending' }))).toBe('Pending Gate Review');
     expect(csvStatus(pass({ status: 'cancelled' }))).toBe('Voided');
   });

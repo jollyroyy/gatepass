@@ -15,9 +15,15 @@
 // the browser's own arrows agree with `validateRaiseForm` and with the gate's
 // return box.
 //
-// WHAT THIS ROW STILL DOES NOT ASK FOR (client's 2026-08-19 mock-up): the
-// PURPOSE (asked once, for the whole pass) and the approximate value (no column
-// on the mock). See `NewGatePassItem` for what each omission costs downstream.
+// THE APPROXIMATE VALUE IS ASKED FOR AGAIN, on BOTH pass types (client,
+// 2026-08-20: "make a field for the HOD to input the approx value for each item
+// in our GP and RGP form"). It is OPTIONAL and stays optional: a line nobody
+// has priced is blank, `raise_pass` stores null, and `total_value` adds only
+// the lines that carry one — a required field would force somebody to invent a
+// figure that then prints on the record as if it were declared.
+//
+// WHAT THIS ROW STILL DOES NOT ASK FOR: the PURPOSE, which is asked once for
+// the whole pass.
 //
 // Below `md` the grid collapses to one column and each field shows its own
 // name via `data-label` (CSS-generated content in `.item-cell::before` —
@@ -34,6 +40,7 @@ interface MaterialItemRowErrors {
   name?: string;
   make_model?: string;
   quantity?: string;
+  approx_value?: string;
   expected_return_date?: string;
 }
 
@@ -110,6 +117,23 @@ export default function MaterialItemRow({
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="item-cell" data-label="Approx. Value (Rs)">
+        {/* Rupees, and never negative. `step="0.01"` regardless of the unit —
+          * money takes paise even when the material is counted in whole boxes,
+          * so `isWholeUnit` deliberately has nothing to do with this field. */}
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          className="input text-sm w-full"
+          aria-label="Approx. Value (Rs)"
+          placeholder="Enter approx. value"
+          value={item.approx_value}
+          onChange={(e) => onChange('approx_value', e.target.value)}
+        />
+        {errors.approx_value && <p className="field-error">{errors.approx_value}</p>}
       </div>
 
       <div className="item-cell" data-label="Make / Model / Size">

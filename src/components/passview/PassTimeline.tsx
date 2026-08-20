@@ -74,7 +74,7 @@ const ACTION_DOT: Record<VerifyAction, string> = {
 
 const ACTION_TITLE: Record<VerifyAction, string> = {
   matched: 'Cleared out at the gate',
-  flagged: 'Mismatch raised at the gate',
+  flagged: 'Rejected at the security gate',
   returned: 'Material marked returned',
   held: 'Held at the gate',
   hod_reviewed: 'HOD approved the override',

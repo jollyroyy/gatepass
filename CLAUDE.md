@@ -54,8 +54,10 @@ unchanged and its six probe passes were deleted, leaving **60 rows exactly as be
 exists and `raise_pass` reads `make_model`); **`047` and `048` are NOT** — no approval-email or
 notification function exists in `gatepass`. `APPLY_ALL.sql` carries every section regardless. **`052` (mail settings) IS APPLIED and probed
 live**; `053` IS APPLIED (psql). **`054`, `055`, `056`, `057` and `058` ARE ALL APPLIED** — every one of them with psql as
-`postgres`, which bypasses RLS, **so the RLS half of each is unproved**. `scripts/verify-054.mjs` is
-still the next security action.
+`postgres`, which bypasses RLS. **`054`, `055` and `056` ARE NOW PROBED 69/69 with real anon-key
+JWTs** (`scripts/verify-054.mjs` 17/17, `-055` 26/26, `-056` 26/26 — see the twenty-second pass);
+**the RLS half of `057` and `058` is still unproved**, and a `verify-057.mjs` driving the linear
+ladder as four real office holders is the next security action.
 
 | Thing | State |
 |---|---|
@@ -66,6 +68,89 @@ still the next security action.
 | `gatepass.approval_roles` | **4 rows — ALL FOUR OFFICES ARE FILLED**, so since `046` was applied every NEWLY raised pass needs four approvals and **the gate cannot see it until it has them**. Security Head **Demi** (re-designated 2026-08-19, fourteenth pass — it had been Jane/`jollyroyy@gmail.com` for the email test) · COO Sudeshna Pal · CEO Sid · Finance HOD GUARDSOHAM. One person holds one office (`049`). Admin → Users → *Gate pass approval ladder* is where they are set. |
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
+
+**Latest change (2026-08-20, twenty-third pass): THE REPORT'S DATE SELECTION CARRIES SEVEN
+READY-MADE RANGES; BOTH DASHBOARDS SAY AT THE FOOT WHO TODAY'S PASSES ARE WAITING WITH; A LINE
+IS PRICED ON THE RAISE FORM AGAIN; THE HOD'S PASS RECORD DROPS THE AMBER ATTENTION STRIP; AND
+NOTHING ANYWHERE SAYS "MISMATCHED".** Frontend only — no migration, no RPC change.
+
+- **THE READY-MADE RANGES, under the Date Range inputs on BOTH reports** (client: "in all the
+  reports across admin and HOD, under the date selection, mention Last 7 days / Last 30 days /
+  Last 90 days / Last 6 months / Last 3 months / Last 1 month / Last 1 year"). ONE control, in
+  `ReportsFilterBar`, which the admin's `/all-passes` and the HOD's `/reports` both render — so
+  "all the reports" is satisfied once. `RANGE_PRESETS` / `presetRange` / `presetOf` in
+  `reportsDateRange.ts`; **`computeDateRange` and its old five-preset union are DELETED** (they
+  lost their last caller when the report mock-up replaced the toolbar).
+  - **THE SELECT HOLDS NO WINDOW OF ITS OWN.** It writes the two date inputs, and its value is
+    DERIVED from them, so moving an edge by hand drops it to "Custom range" instead of leaving
+    it claiming a window that is no longer on screen. The report opens on the last 30 days, so
+    it reads "Last 30 days" before it is ever touched.
+  - **A DAY PRESET IS INCLUSIVE OF BOTH ENDS; A MONTH PRESET COUNTS ON THE CALENDAR.** "Last 1
+    month" and "Last 30 days" are both offered and are deliberately different windows. 31 May
+    minus a month lands on 1 May, not on an impossible 31 April.
+- **"WAITING WITH" IS THE FOOT OF BOTH DASHBOARDS** (client: "in the dashboard you need to
+  mention at the bottom how many are waiting for which person … in the dashboard of admin and in
+  the dashboard of HOD, it's only for today"). `src/lib/waitingWith.ts` + `useWaitingWith.ts` +
+  `src/components/dashboard/WaitingWith.tsx`, one component on both boards.
+  - **ONE PASS COUNTS ONCE, AGAINST ONE PERSON**, and that is what makes it different from the
+    Approval Pending strip beside it on the HOD board. That one counts SIGNATURES still owed, so
+    a pass owing four appears four times. Asked who a pass is waiting WITH, only the LOWEST
+    still-pending rung is true — `lowestPendingLevel`, the same rule `approve_pass_level`
+    enforces. The CEO is not waiting on a pass the Security Head has not signed.
+  - **A PASS WITH NOTHING PENDING IS WAITING WITH THE GATE**, which is every pass closed by 058
+    and every pre-workflow pass. The gate row NAMES NO INDIVIDUAL ("Guard on duty") — which guard
+    is on the barrier is not recorded anywhere in this database. The five rows therefore SUM to
+    the waiting passes, with nothing falling between the ladder and the gate.
+  - **TODAY MEANS RAISED TODAY**, local midnight, and the strip says its own scope on screen —
+    the admin's window chip cannot move it. **KNOWN COST, FLAGGED**: a pass raised last week and
+    still climbing is not on this strip; the Pending Approvals card above is the running figure.
+  - The admin board now makes TWO reads (`v_gate_passes` + `pass_approvals`, narrowed to today's
+    ids); the HOD board still makes exactly two, because it hands the hook the approvals it had
+    already read. `pass_approvals` selects `level_no` now, for both strips.
+- **A LINE IS PRICED AGAIN, ON BOTH PASS TYPES** (client: "make a field for the HOD to input the
+  approx value for each item in our GP and RGP form"). This REVERSES the eleventh pass's removal
+  of the value column, which is why "Total Value" has read a dash on every pass raised since.
+  **NO MIGRATION**: `raise_pass` has read `approx_value` out of `p_items` since 019 — the form
+  simply stopped sending one. The column sits between Unit and Make / Model / Size, so the grid
+  is ten tracks (eleven on an RGP).
+  - **IT IS OPTIONAL AND MUST STAY OPTIONAL.** A blank is a line nobody has priced and reaches
+    the RPC as an empty string (never `Number('') === 0`), so `total_value` still adds only the
+    lines somebody actually declared. Validation refuses a negative or a non-number and nothing
+    else. `validateRaiseForm` reads it as `?? ''` — a line object built before the field existed
+    must not throw. `useReraisePass` copies it.
+- **THE AMBER "N items still need attention" STRIP IS DRAWN ONLY FOR SOMEBODY WHO CAN ACT ON IT**
+  (client: "remove this from pass details page in hod"). It is gated on `canRecord`, i.e.
+  `canRecordReturns(pass, role)` — a guard on a pass that still owes material. It used to render
+  for every reader with its button guard-only, which left an HOD and an admin with a standing
+  warning and no control under it. The fact is not lost: the item table states each line's own
+  outstanding quantity.
+- **NOTHING SAYS "MISMATCHED" ANY MORE** (client: "instead of mismatch show it like 'rejected by
+  security gate' or 'rejected at security gate' … it's everywhere"). `STATUS_STYLES.flagged` is
+  **"Rejected at Security Gate"**, the timelines read "Rejected at the security gate", the bell's
+  notice is "Rejected at Security Gate", My Passes' tab and `/mismatch/:id`'s title follow, and
+  the CSV follows because `csvStatus` is the badge label. **THE `flagged` ENUM, `flag_pass` AND
+  THE `/mismatch/:id` ROUTE ARE UNCHANGED** — this is vocabulary, not state. `STAGE_TONES` moved
+  its key with the label (it is keyed on the label, not on an enum, which is the drift that map
+  cannot catch at compile time).
+- Pinned by a new `tests/unit/waitingWith.test.ts` (9 — one pass counted once, the pass moving
+  up as each rung is signed, the gate catching a finished or absent ladder, the rows summing to
+  the waiting passes, and the day cut), a new `tests/unit/raiseItemValue.test.tsx` (8), 3 new
+  `reportsFilters` cases and 5 new `reportsDateRange` ones, plus a strip case on each dashboard.
+  **REWRITTEN, each saying in its own comment what it used to hold**: the admin board's
+  one-query case, `passRecordReturns`'s "an HOD sees the strip without its button", the two
+  column-count cases, and nine label assertions across `passStage` / `passTimeline` /
+  `csvExport` / `approvalLadder` / `passRowCompact` / `mismatchNotice` / `reportStatusStage` /
+  `passRecordEverywhere` / `passRecordTimelineMerge`.
+- **THE FULL GATE IS NOT GREEN, AND NOT BECAUSE OF THIS WORK.** `npx vitest run` is **1725
+  passing, 9 failing**, and every failure is in `myPasses.test.tsx` / `passStackCard.test.tsx` —
+  **a PARALLEL SESSION's in-flight rewrite of My Passes** (`MyPasses.tsx`, `MyPassesTable.tsx`,
+  `myPassesPeriod.ts`, `src/components/mypasses/*`), which also leaves `tsc` failing on files
+  this pass never opened. Those files are deliberately NOT in this commit — **including
+  `MyPasses.tsx`, which carries this pass's one-line tab rename** ("Mismatched" →
+  "Rejected at Security Gate"); it will land with their commit. Verify that line survives.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite only. The report's preset select, the five-up
+  Waiting With row at 1280, and the raise form's tenth column at a narrow width are exactly what
+  only a real render proves.
 
 **Latest change (2026-08-20, twenty-second pass): `054`, `055` AND `056` ARE APPLIED AT LAST
 (the missing `list_emergency_releases` was simply that); EVERY PASS RAISED BEFORE THE WORKFLOW
@@ -239,13 +324,72 @@ approve, when none of them can, what stops a stolen password, and how anybody re
   `approvalNotice` cases, and 28 new `sqlInvariants` cases across 054/055/056. Every security
   case was watched FAILING against a deliberately broken migration before being kept.
   `npm run check` is **1667 tests across 131 files** and `npm run build` is green.
-- **NOT APPLIED AND NOT PROBED.** `054`, `055` and `056` are written, concatenated into
-  `APPLY_ALL.sql`, and have never touched the live database. **The next action is applying them
-  and writing `scripts/verify-054.mjs`** — a deputy approving a pass their principal never
-  touched, both directions of the one-seat refusal, a non-super-admin refused the release, the
-  guard seeing and matching a released pass, and the releaser refused their own review. None of
-  that can be proved as `postgres`, which bypasses RLS.
-- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite and a production build only.
+- **APPLIED AND PROBED 69/69 WITH REAL ANON-KEY JWTs (2026-08-20, twenty-second pass).** The
+  three migrations were applied by a parallel session; this pass VERIFIED that against
+  `pg_catalog` object by object (the deputy column and its partial unique index, the
+  not-holder CHECK, `approval_office_title`, `decided_as_deputy`, `emergency`, both release
+  RPCs, all three settings functions, and `my_approval_role` carrying its one added `or`) and
+  then proved the RULES, which no psql apply can:
+  - **`scripts/verify-054.mjs` — 17/17.** A deputy approving the COO rung their principal never
+    touched, `decided_as_deputy` recorded true against the deputy and false on the holder's own
+    rung, ALL FOUR directions of the one-seat refusal, the slip order refusing a deputy exactly
+    as it refuses a holder, the deputy able to READ what is routed to their office and blind to
+    it again the moment the seat is cleared, and both non-admin refusals.
+  - **`scripts/verify-055.mjs` — 26/26.** An HOD, a guard, an office holder AND AN ORDINARY
+    ADMIN each refused the release; a six-character and a whitespace reason refused; all four
+    levels cleared at once and marked `emergency`; **the pass still `pending` afterwards**, the
+    guard then seeing it and `match_pass` CLEARING it — which is the only way to prove
+    `block_unapproved_gate_move` is not tripped; **the releaser refused their own review** and a
+    different admin allowed it; and no second review.
+  - **`scripts/verify-056.mjs` — 26/26.** `app_settings` unreachable directly by anyone, admin
+    included; the getter/setter admin-only; **`get_session_timeout` readable by a guard, an HOD
+    and a staff account and returning a bare integer**, nothing at all to a caller with no
+    session; every CHECK restated as a sentence rather than a 23514.
+  - **EVERY PROBE LEFT THE LADDER AS IT FOUND IT** and its passes were deleted afterwards:
+    `gate_passes` is back to **65 rows**, `emergency_releases` and `app_settings` to **0**.
+- **⚠ THERE WAS NO `super_admin` ACCOUNT ON THIS DEPLOYMENT AT ALL**, so `emergency_release_pass`
+  — the whole of 055 — was invokable by NOBODY. Found by the probe, not by review.
+  **`superadmin@quest.vms` was created for the client** (password `demo123`, at their explicit
+  instruction and against the advice given: it is the highest privilege in this app).
+  `set_ceo_approver` (039) was in the same position and is now reachable too. If that account is
+  ever deleted, both silently become unreachable again — there is no other holder.
+- **SEEN SIGNED-IN IN A BROWSER, at last** — the first time since 2026-08-17. Signed in as the
+  super admin against the dev server: the ladder card's deputy selects on all four offices with
+  054's corrected "grants real authority" copy, 056's Application settings card with both
+  "enforces nothing" notes intact, and the new super admin dashboard drilling live. The
+  ordinary admin's Overview was re-checked in the same browser and is unchanged, agreeing with
+  the new board figure for figure (30 / 24 / 6 / 5 / 0).
+
+**Also 2026-08-20 (twenty-second pass): THE SUPER ADMIN'S DASHBOARD IS THE GUARD'S BOARD
+CARRYING THE ADMIN'S FIGURES.** Frontend only — no migration, no new query.
+
+- Client: "follow the same dashboard look and feel of guard except the functionalities … for
+  superadmin dashboard". `src/pages/Admin/SuperAdminDashboard.tsx` over
+  `src/components/superadmin/*` and `src/lib/superAdminBoard.ts`.
+- **ONE ROUTE, TWO BOARDS.** `/admin-dashboard` dispatches on the role in `App.tsx`, so
+  `ROLE_ROUTES`, `ROLE_HOME` and the sidebar are all untouched and an ordinary admin's Overview
+  is byte-for-byte what it was. Both read the SAME one `v_gate_passes` and the SAME
+  `buildOverviewCards`, so the two boards cannot drift.
+- **`superAdminBoard.ts` COUNTS NOTHING** — it is handed the Overview's five cards and only
+  decides which of the guard's two summary cards each sits on, carrying each figure's original
+  `BoardDrill` through. That is what keeps the board invariant for free. **The split is by
+  SCOPE**: windowed (Total · RGP · NRGP) against running (Pending Approvals · Overdue Returns),
+  because the guard's card shape states one heading over several figures and a heading true of
+  one figure and false of its neighbour is worse than none.
+- **The figures are BUTTONS, not links** — the guard's open pages, the admin's open a
+  `DrillList` in place. Inventing five admin list pages would be five more places for a filter
+  to disagree with a count.
+- **Four Quick Action tiles, not the guard's three.** The fourth is the emergency release review
+  queue (055) — the one door a super admin has that nobody else does — and it counts UNREVIEWED
+  releases, not every release. `HodIcon` gained a `square` shape mapping to the guard's own
+  `.gb-tile-plate` so these are the guard's tiles rather than a near-copy; `firstNameOf` gained
+  an optional fallback so the greeting is not hardcoded to "Guard".
+- Four new `.gb-*` rules only (`gb-head-tools`, `gb-sum-note`, `gb-figure-button`,
+  `gb-quick-grid-4`), no new colour, so `themeAudit` stays absolute.
+- Pinned by `tests/unit/superAdminDashboard.test.tsx` (8). **Two deliberate breaks were watched
+  failing first** — the guard skin swapped for the house `page-title`, and a windowed figure
+  regrouped under the running heading; the second exposed a real gap in the test, which asserted
+  values without asserting which card they sat on, and it was tightened until it bit.
 
 **Latest change (2026-08-20, twentieth pass): THE LADDER IS SECURITY HEAD → COO →
 FINANCE HOD → CEO, CLIMBED ONE RUNG AT A TIME; A PASS STILL CLIMBING IT NO LONGER OFFERS THE

@@ -33,7 +33,7 @@ export const OUTCOME_MESSAGES: Record<Exclude<ScanOutcome, 'ok'>, { tone: 'error
   },
   cancelled: { tone: 'warning', text: 'That pass was voided by the HOD who raised it.' },
   already_matched: { tone: 'warning', text: 'That pass has already been matched and cleared.' },
-  already_flagged: { tone: 'warning', text: 'That pass has already been marked as a mismatch.' },
+  already_flagged: { tone: 'warning', text: 'That pass has already been rejected at the security gate.' },
   awaiting_approval: {
     tone: 'warning',
     text: 'That pass has not been approved by every level yet. It cannot be cleared until it has.',

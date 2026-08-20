@@ -1652,6 +1652,15 @@
     border-color: var(--gb-red-line);
     color: var(--gb-red);
   }
+  /* Purple joins the set for My Passes (client mock-up, 2026-08-20), where an
+   * NRGP is purple rather than the guard screens' green. There is no
+   * `--gb-purple-line`, so the tint doubles as the border — the same pale/ink
+   * pairing every pill above uses. */
+  .gb-pill-purple {
+    background: var(--gb-purple-tint);
+    border-color: var(--gb-purple-tint);
+    color: var(--gb-purple);
+  }
 
   /* Row actions. */
   .gb-action {
@@ -2737,6 +2746,12 @@
   @media (min-width: 1024px) {
     .gb-approvals-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   }
+  /* WAITING WITH is five desks, not four offices (the gate is the fifth), so
+     it takes its own track count rather than wrapping one lonely card onto a
+     second row under a four-up grid. */
+  @media (min-width: 1280px) {
+    .gb-waiting-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  }
   .gb-approval {
     display: flex;
     align-items: flex-start;
@@ -3122,6 +3137,69 @@
   }
 
   /* ==========================================================================
+     THE SUPER ADMIN'S DASHBOARD — the guard's board carrying the admin's
+     figures (client, 2026-08-20: "follow the same dashboard look and feel of
+     guard except the functionalities ... for superadmin dashboard").
+
+     It reuses almost the whole guard board: `.gb-board`, `.gb-head-row`,
+     `.gb-hello`, `.gb-sub`, `.gb-stamp`, `.gb-grid-2`, `.gb-card`, `.gb-sum`,
+     `.gb-figure*`, `.gb-quick*`, `.gb-tile*` and `.gb-select`. Only four rules
+     exist here, and each one is something that board does not already draw.
+
+     No new colour is introduced: every value below is one of `.gb-board`'s own
+     custom properties.
+     ========================================================================== */
+
+  /* The header's right-hand cluster. The guard's board puts the date stamp
+     there alone; this one puts the window select beside it, and they must not
+     collide with the fixed notification bell (see `.gb-head-row`). */
+  .gb-head-tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  /* The line under a summary card's heading saying what the WHOLE card is
+     scoped to. The guard's two cards need no such line — both are running
+     queues — but here one card is windowed and the other is not, and a reader
+     cannot be left to guess which. */
+  .gb-sum-note {
+    font-size: 12.5px;
+    color: var(--gb-muted);
+    margin-top: 2px;
+    /* Centred to sit under `.gb-sum-title`, which the guard's skin centres. */
+    text-align: center;
+  }
+
+  /* A drillable figure. The guard's figures are links; these are buttons,
+     because the admin's lists open in place. A <button> brings its own agent
+     styling, so this strips it back to the link's appearance rather than
+     letting a browser default show through. */
+  .gb-figure-button {
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+    font-size: 32px;
+    line-height: 38px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--gb-ink);
+  }
+  .gb-figure-button:hover { color: var(--gb-blue); }
+  .gb-figure-button[aria-pressed='true'] { color: var(--gb-blue); }
+
+  /* FOUR tiles, not the guard's three. The super admin has one destination the
+     guard does not — the emergency release review queue — and a fourth tile
+     wrapping onto a row of its own under three others reads as a mistake. */
+  @media (min-width: 1024px) {
+    .gb-quick-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+
+
+  /* ==========================================================================
      GATE PASS REPORT (RGP & NRGP) — the admin Reports tab, drawn to the
      client's mock-up (2026-08-20).
 
@@ -3244,6 +3322,11 @@
   }
   .gb-rep-dates input:focus { outline: none; }
   .gb-rep-dash { color: var(--gb-muted); font-size: 13px; }
+  /* The ready-made ranges, directly under the two date inputs they write
+     (client, 2026-08-20). It is the same `.gb-select` every other control on
+     this card is, only narrower type: it names the field above it rather than
+     asking its own question. */
+  .gb-rep-preset { font-size: 12.5px; }
   .gb-rep-filter-actions {
     display: flex;
     align-items: center;
@@ -3334,6 +3417,234 @@
     line-height: 1;
   }
   .gb-rep-kebab:hover { background: var(--gb-head); color: var(--gb-ink); }
+
+  /* ==========================================================================
+     MY PASSES — the client's list mock-up (2026-08-20).
+     ------------------------------------------------------------------------
+     A stack of white plates, one per pass: a tinted type square, the number and
+     its purpose, the labelled facts, and a chevron that unfolds the pass's own
+     material lines in place.
+
+     Same fixed-light rules as the rest of `.gb-*`: every colour here is one of
+     the `--gb-*` vars declared on `.gb-board`, which is the containment that
+     keeps hex out of src/components/mypasses/*. The page chrome — the head, the
+     search bar, the tab strip, the pager — is REUSED from the guard's screens
+     (`.gb-page-head`, `.gb-search`, `.gb-toolbar`, `.gb-pager`) rather than
+     drawn a second time; only what the mock draws differently is below.
+     ========================================================================== */
+
+  .mp-sub {
+    margin-top: 3px;
+    font-size: 13.5px;
+    color: var(--gb-muted);
+  }
+
+  /* The mock underlines the active tab in BLUE, where the guard's screens use
+   * orange. One rule, scoped to this page, rather than a second tab strip. */
+  .mp-toolbar .gb-tab[aria-selected='true'] {
+    color: var(--gb-blue);
+    border-bottom-color: var(--gb-blue);
+  }
+
+  .mp-filters-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    flex-shrink: 0;
+    border: 1px solid var(--gb-line);
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 8px 12px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--gb-body);
+    white-space: nowrap;
+  }
+  .mp-filters-btn:hover { background: var(--gb-head); }
+  .mp-filters-btn svg { width: 15px; height: 15px; }
+  .mp-caret { transition: transform 0.15s ease; }
+  .mp-filters-btn[aria-expanded='true'] .mp-caret { transform: rotate(180deg); }
+
+  .mp-date { font-variant-numeric: tabular-nums; }
+
+  /* The disclosure panel: a card of controls that pushes the list down rather
+   * than floating over it. */
+  .mp-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 14px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    background: #ffffff;
+    border: 1px solid var(--gb-line);
+    border-radius: 10px;
+  }
+  .mp-filter-field { display: flex; flex-direction: column; gap: 5px; }
+  .mp-filter-actions { margin-left: auto; }
+  .mp-chip {
+    border: 1px solid var(--gb-line);
+    border-radius: 999px;
+    background: #ffffff;
+    padding: 6px 13px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gb-body);
+    white-space: nowrap;
+  }
+  .mp-chip:hover { background: var(--gb-head); }
+  .mp-chip[aria-pressed='true'] {
+    background: var(--gb-blue-soft);
+    border-color: var(--gb-blue-line);
+    color: var(--gb-blue);
+    font-weight: 600;
+  }
+
+  /* ---- The stack ---------------------------------------------------------- */
+  .mp-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .mp-skeleton {
+    height: 74px;
+    border-radius: 10px;
+    background: var(--gb-line-soft);
+  }
+  .mp-row {
+    background: #ffffff;
+    border: 1px solid var(--gb-line);
+    border-radius: 10px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .mp-row:hover { box-shadow: 0 2px 10px 0 rgb(16 24 40 / 0.08); }
+  .mp-row-open { border-color: var(--gb-blue-line); }
+  /* The link and the disclosure are SIBLINGS — a button inside an anchor is
+   * invalid, so the face fills the row and the chevron sits beside it. */
+  .mp-face-row { display: flex; align-items: stretch; }
+  .mp-face {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 18px;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 14px 8px 14px 14px;
+    color: inherit;
+  }
+  .mp-face:focus-visible {
+    outline: 2px solid var(--gb-blue);
+    outline-offset: -2px;
+    border-radius: 10px;
+  }
+  .mp-plate {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: 10px;
+  }
+  .mp-plate svg { width: 20px; height: 20px; }
+
+  .mp-id {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 0 1 220px;
+    min-width: 0;
+  }
+  .mp-id-top { display: flex; align-items: center; gap: 8px; }
+  .mp-no {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--gb-ink);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .mp-purpose { font-size: 12.5px; color: var(--gb-muted); }
+
+  /* The facts. A grid rather than a table: at a phone width they wrap into two
+   * columns instead of scrolling the card sideways. */
+  .mp-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 18px;
+    flex: 1 1 340px;
+    min-width: 0;
+  }
+  @media (min-width: 1024px) {
+    .mp-facts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1280px) {
+    .mp-facts { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  }
+  .mp-fact { min-width: 0; }
+  .mp-fact-label {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--gb-muted);
+  }
+  .mp-fact-value {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gb-ink);
+    min-width: 0;
+  }
+  .mp-fact-glyph { display: inline-flex; flex-shrink: 0; color: var(--gb-muted); }
+  .mp-fact-glyph svg { width: 14px; height: 14px; }
+
+  .mp-chev {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 44px;
+    color: var(--gb-muted);
+    border-left: 1px solid transparent;
+  }
+  .mp-chev:hover { color: var(--gb-blue); }
+  .mp-chev svg { width: 18px; height: 18px; transition: transform 0.15s ease; }
+  .mp-chev[aria-expanded='true'] svg { transform: rotate(90deg); }
+
+  /* ---- The lines a card unfolds ------------------------------------------- */
+  .mp-items {
+    border-top: 1px solid var(--gb-line);
+    background: var(--gb-head);
+    border-radius: 0 0 10px 10px;
+    padding: 12px 14px;
+  }
+  .mp-items-note { font-size: 13px; color: var(--gb-muted); }
+  .mp-items-table { background: #ffffff; border-radius: 8px; }
+  .mp-items-table td { font-variant-numeric: tabular-nums; }
+
+  .mp-empty {
+    background: #ffffff;
+    border: 1px solid var(--gb-line);
+    border-radius: 10px;
+    padding: 32px 16px;
+    text-align: center;
+    color: var(--gb-muted);
+    font-size: 13.5px;
+  }
+  .mp-empty-cta { margin-top: 12px; display: inline-flex; }
+
+  /* The mock's footer sits under the list on the page ground, with no plate and
+   * no rule above it — the guard's pager draws both. */
+  .mp-foot .gb-pager {
+    border-top: none;
+    padding-left: 0;
+    padding-right: 0;
+  }
 }
 
 @layer utilities {

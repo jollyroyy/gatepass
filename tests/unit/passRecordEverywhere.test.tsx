@@ -180,6 +180,6 @@ describe('the record says Overdue once', () => {
     await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
     const head = screen.getByRole('heading', { name: 'RGP Gate Pass Details' }).parentElement!;
     expect([...head.querySelectorAll('span')].filter((s) => s.textContent === 'Overdue')).toHaveLength(1);
-    expect(head.textContent).toContain('Mismatch');
+    expect(head.textContent).toContain('Rejected at Security Gate');
   });
 });

@@ -8,16 +8,20 @@
 //
 // Column order is the client's mock-up (2026-08-19), left to right:
 //
-//   #  ·  Item Description  ·  Quantity  ·  Unit  ·  Make / Model / Size  ·
-//   Serial / Asset Tag  ·  Invoice / Reference No.  ·  Remarks  ·
-//   Expected Return Date (RGP only)  ·  Action
+//   #  ·  Item Description  ·  Quantity  ·  Unit  ·  Approx. Value (Rs)  ·
+//   Make / Model / Size  ·  Serial / Asset Tag  ·  Invoice / Reference No.  ·
+//   Remarks  ·  Expected Return Date (RGP only)  ·  Action
 //
 // THE UNIT COLUMN IS BACK, beside the quantity it qualifies (client,
 // 2026-08-20: "add unit field as dropdown to select different types of unit
 // while raising the nrgp/rgp passes"). It was removed with the mock's UOM
-// column on 2026-08-19, which left every line `nos`. Purpose and Value are
-// still gone — purpose is asked once for the whole pass, and the mock has no
-// value column.
+// column on 2026-08-19, which left every line `nos`.
+//
+// SO IS THE VALUE COLUMN, on both pass types (client, 2026-08-20: "make a field
+// for the HOD to input the approx value for each item in our GP and RGP form").
+// It sits beside the unit rather than at the end, because what a line is worth
+// is part of describing the line and not an afterthought after its remarks.
+// PURPOSE is still gone and stays gone — it is asked once for the whole pass.
 //
 // THERE IS ONE VARIANT, AND ONLY ONE: an RGP carries an "Expected Return Date"
 // column between Remarks and Action (client, 2026-08-19: "we would expect a
@@ -31,7 +35,7 @@
 import type React from 'react';
 
 const BASE =
-  '36px minmax(160px,1.8fr) minmax(90px,0.9fr) minmax(100px,0.9fr) minmax(150px,1.5fr) minmax(140px,1.4fr) minmax(150px,1.5fr) minmax(150px,1.5fr)';
+  '36px minmax(160px,1.8fr) minmax(90px,0.9fr) minmax(100px,0.9fr) minmax(120px,1.1fr) minmax(150px,1.5fr) minmax(140px,1.4fr) minmax(150px,1.5fr) minmax(150px,1.5fr)';
 const RETURN_DATE = 'minmax(150px,1.3fr)';
 
 export function itemGridColumns(showReturnDate: boolean): string {

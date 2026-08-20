@@ -47,12 +47,15 @@ const HEADER_LABELS = [
 ];
 
 describe('materialItemGrid — one column template, one RGP-only variant', () => {
-  it('has nine columns: # · Item Description · Quantity · Unit · Make/Model/Size · Serial/Asset Tag · Invoice/Ref No. · Remarks · Action', () => {
-    expect(itemGridColumns(false).split(' ')).toHaveLength(9);
+  // REWRITTEN 2026-08-20: it used to hold NINE tracks. The tenth is
+  // "Approx. Value (Rs)", back on both pass types (client: "make a field for
+  // the HOD to input the approx value for each item in our GP and RGP form").
+  it('has ten columns: # · Item Description · Quantity · Unit · Approx. Value · Make/Model/Size · Serial/Asset Tag · Invoice/Ref No. · Remarks · Action', () => {
+    expect(itemGridColumns(false).split(' ')).toHaveLength(10);
   });
 
   it('an RGP splices the per-line return date in before Action', () => {
-    expect(itemGridColumns(true).split(' ')).toHaveLength(10);
+    expect(itemGridColumns(true).split(' ')).toHaveLength(11);
   });
 });
 

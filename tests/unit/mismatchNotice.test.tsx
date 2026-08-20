@@ -178,7 +178,7 @@ describe('the HOD is told about a mismatch even if they were signed out', () => 
     renderBell('hod' as UserRole);
     await waitFor(() => screen.getByRole('button', { name: /2 unread/ }));
     fireEvent.click(screen.getByRole('button', { name: /Notifications/ }));
-    fireEvent.click(await screen.findByText('Gate Pass Mismatched'));
+    fireEvent.click(await screen.findByText('Rejected at Security Gate'));
 
     expect(screen.getByTestId('where').textContent).toBe('/mismatch/p-flagged');
   });
@@ -189,7 +189,7 @@ describe('the HOD is told about a mismatch even if they were signed out', () => 
     renderBell('hod' as UserRole);
     await waitFor(() => screen.getByRole('button', { name: /2 unread/ }));
     fireEvent.click(screen.getByRole('button', { name: /Notifications/ }));
-    fireEvent.click(await screen.findByText('Gate Pass Mismatched'));
+    fireEvent.click(await screen.findByText('Rejected at Security Gate'));
 
     expect(screen.getByRole('button', { name: /2 unread/ })).toBeInTheDocument();
   });

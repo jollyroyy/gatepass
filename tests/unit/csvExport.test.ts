@@ -58,7 +58,7 @@ describe('escaping — nothing a human did not type', () => {
 describe('cell formatters — the label, not the stored key', () => {
   it('turns a status enum into the badge label the table shows', () => {
     expect(csvStatus({ status: 'hod_reviewed', is_expired: false })).toBe('HOD Approved');
-    expect(csvStatus({ status: 'flagged', is_expired: false })).toBe('Mismatched');
+    expect(csvStatus({ status: 'flagged', is_expired: false })).toBe('Rejected at Security Gate');
     expect(csvStatus({ status: 'pending', is_expired: true })).toBe('Expired');
   });
 

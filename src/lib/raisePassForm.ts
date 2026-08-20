@@ -122,6 +122,21 @@ export function validateRaiseForm(form: NewGatePass, hasDepartment: boolean, tod
         // how much material a pass may be raised for.
         errs[`item_${idx}_quantity`] = wholeUnitError(item.unit, qty);
       }
+      // THE APPROXIMATE VALUE IS OPTIONAL (client, 2026-08-20 — the field is
+      // back on both pass types). Blank is the ordinary case for a line nobody
+      // has priced, and it is checked only when something was typed: what is
+      // refused is a value that is not a number, or one below zero. A ceiling
+      // would be an invented limit on what a department may move.
+      // `?? ''` because the field is OPTIONAL and arrived late (2026-08-20):
+      // a line object built before it existed — an old fixture, a re-raise off
+      // a pass raised while the column was not collected — carries no key at
+      // all, and a form must not throw on a field nobody was asked for.
+      if ((item.approx_value ?? '').trim()) {
+        const value = Number(item.approx_value);
+        if (Number.isNaN(value) || value < 0) {
+          errs[`item_${idx}_approx_value`] = 'Enter a value of 0 or more, or leave it blank.';
+        }
+      }
     });
   }
 

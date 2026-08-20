@@ -44,7 +44,7 @@ describe('PassRow compact', () => {
     expect(screen.getByText('₹25,000')).toBeInTheDocument();        // Value
     expect(screen.getByText('Repair of AC units')).toBeInTheDocument(); // Reason
     expect(screen.getByText('Qty short')).toBeInTheDocument();      // flag reason trail
-    expect(screen.getByText('Mismatched')).toBeInTheDocument();     // status pill
+    expect(screen.getByText('Rejected at Security Gate')).toBeInTheDocument(); // status pill
 
     // The facts the HOD did NOT ask to see collapsed are hidden until opened.
     expect(screen.queryByText('Ravi')).not.toBeInTheDocument();

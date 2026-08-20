@@ -102,13 +102,17 @@ const MINE: GatePassView[] = [
 //   p3 — Security Head rejected it: the pass moved to `cancelled`, and its
 //        leftover pending Finance HOD row must count NOWHERE.
 //   p4 — Finance HOD already approved: an `approved` row never counts.
+// `level_no` is the rung's place in the slip order (057: Security Head 1 · COO
+// 2 · Finance HOD 3 · CEO 4). This strip does not read it — it counts every
+// owed signature — but the "Waiting With" strip at the foot of the same board
+// does, and both are fed by this ONE read.
 const PENDING_APPROVAL_ROWS = [
-  { gate_pass_id: 'p1', role_key: 'security_head', status: 'pending' },
-  { gate_pass_id: 'p2', role_key: 'coo', status: 'pending' },
-  { gate_pass_id: 'p2', role_key: 'ceo', status: 'pending' },
-  { gate_pass_id: 'p3', role_key: 'security_head', status: 'rejected' },
-  { gate_pass_id: 'p3', role_key: 'finance_head', status: 'pending' },
-  { gate_pass_id: 'p4', role_key: 'finance_head', status: 'approved' },
+  { gate_pass_id: 'p1', role_key: 'security_head', level_no: 1, status: 'pending' },
+  { gate_pass_id: 'p2', role_key: 'coo', level_no: 2, status: 'pending' },
+  { gate_pass_id: 'p2', role_key: 'ceo', level_no: 4, status: 'pending' },
+  { gate_pass_id: 'p3', role_key: 'security_head', level_no: 1, status: 'rejected' },
+  { gate_pass_id: 'p3', role_key: 'finance_head', level_no: 3, status: 'pending' },
+  { gate_pass_id: 'p4', role_key: 'finance_head', level_no: 3, status: 'approved' },
 ];
 
 /** Answers `gp().from('pass_approvals').select(…).in('gate_pass_id', ids)`. */
@@ -367,6 +371,33 @@ describe('Quick Actions and the Approval Pending strip', () => {
     // No "View all" — this page's own drillable KPI cards already open the
     // very passes an office is waiting on.
     expect(screen.queryByRole('link', { name: /View all/i })).not.toBeInTheDocument();
+  });
+
+  // The client's second strip (2026-08-20): "how many are waiting for which
+  // person … it's only for today". It answers a DIFFERENT question from the
+  // Approval Pending strip above it, and this case is what keeps the two apart.
+  it('names who the passes raised today are sitting with, counting each pass ONCE', async () => {
+    renderBoard();
+    await loaded();
+
+    const strip = screen.getByRole('heading', { name: 'Waiting With' }).closest('.gb-approvals');
+    function desk(name: string): string | undefined {
+      const slot = within(strip as HTMLElement).getByText(name).closest('.gb-approval');
+      return slot?.querySelector('.gb-approval-value')?.textContent;
+    }
+
+    // t1 and t4 are pending, raised TODAY, and carry no ladder rows — nothing
+    // is owed, so the gate is who they are waiting with.
+    expect(desk('Security gate')).toBe('2');
+    // p1 and p2 ARE climbing the ladder — and were raised five days ago, so
+    // this strip must not count them even though the Approval Pending strip
+    // above it does. That is the day cut, and it is the whole point.
+    expect(desk('Security Head')).toBe('0');
+    expect(desk('COO')).toBe('0');
+    expect(strip).toHaveTextContent('2 passes raised today, waiting on these desks — your own passes.');
+    // Nobody holds an office in this fixture, and the strip says so rather than
+    // printing a blank line.
+    expect(strip).toHaveTextContent('Not designated yet');
   });
 
   it('an approved row never counts, on either the strip or the note', async () => {

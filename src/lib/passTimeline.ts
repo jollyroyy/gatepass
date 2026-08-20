@@ -42,7 +42,7 @@ export function passTimeline(p: TimelinePass): TimelineMoment[] {
     { label: 'Raised', at: p.created_at },
     // `flagged_at` (035) is the FIRST flag; `verified_at` is only a fallback
     // for rows written before that column existed.
-    p.flag_reason ? { label: 'Mismatch', at: p.flagged_at ?? p.verified_at ?? p.created_at } : null,
+    p.flag_reason ? { label: 'Rejected at security gate', at: p.flagged_at ?? p.verified_at ?? p.created_at } : null,
     // Keyed off the timestamp, NOT `status === 'hod_reviewed'`: the old cards
     // dropped this moment the instant the gate matched the fresh pass, which
     // is exactly when a reader most wants to know an override happened.

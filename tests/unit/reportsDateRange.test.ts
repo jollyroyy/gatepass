@@ -5,7 +5,13 @@
 // the dashboard disagreed for 5.5 hours a day. These tests pin the local-day
 // convention so the mismatch cannot silently return.
 import { describe, expect, it } from 'vitest';
-import { computeDateRange, localDateString, localDayBounds } from '../../src/lib/reportsDateRange';
+import {
+  localDateString,
+  localDayBounds,
+  presetOf,
+  presetRange,
+  RANGE_PRESETS,
+} from '../../src/lib/reportsDateRange';
 
 // localDayBounds is intentionally TZ-agnostic in its EXPECTED values: both
 // sides use the same local-time constructors, so the assertions are true in
@@ -49,10 +55,61 @@ describe('localDateString', () => {
   });
 });
 
-describe('computeDateRange', () => {
-  it('keeps the calendar-day preset arithmetic', () => {
-    expect(computeDateRange('today', '2026-08-08')).toEqual({ from: '2026-08-08', to: '2026-08-08' });
-    expect(computeDateRange('7d', '2026-08-08')).toEqual({ from: '2026-08-02', to: '2026-08-08' });
-    expect(computeDateRange('30d', '2026-08-08')).toEqual({ from: '2026-07-10', to: '2026-08-08' });
+// THE READY-MADE RANGES (client, 2026-08-20). `computeDateRange` and its
+// 'today' | '7d' | '30d' | '3m' | '1y' union were REPLACED by these — that
+// function had lost its last caller when the Reports toolbar was deleted for
+// the report mock-up, and its preset set was not the one the client asked for.
+describe('presetRange', () => {
+  it('offers exactly the seven ranges the client named, in their order', () => {
+    expect(RANGE_PRESETS.map((p) => p.label)).toEqual([
+      'Last 7 days',
+      'Last 30 days',
+      'Last 90 days',
+      'Last 6 months',
+      'Last 3 months',
+      'Last 1 month',
+      'Last 1 year',
+    ]);
+  });
+
+  it('counts a day preset inclusively of both ends', () => {
+    // Seven calendar days ending on the 8th is the 2nd..8th, not the 1st..8th.
+    expect(presetRange('7d', '2026-08-08')).toEqual({ from: '2026-08-02', to: '2026-08-08' });
+    expect(presetRange('30d', '2026-08-08')).toEqual({ from: '2026-07-10', to: '2026-08-08' });
+    expect(presetRange('90d', '2026-08-08')).toEqual({ from: '2026-05-11', to: '2026-08-08' });
+  });
+
+  it('counts a month preset on the CALENDAR, so it is not the same window as a day preset', () => {
+    expect(presetRange('1m', '2026-08-08')).toEqual({ from: '2026-07-08', to: '2026-08-08' });
+    expect(presetRange('3m', '2026-08-08')).toEqual({ from: '2026-05-08', to: '2026-08-08' });
+    expect(presetRange('6m', '2026-08-08')).toEqual({ from: '2026-02-08', to: '2026-08-08' });
+    expect(presetRange('1y', '2026-08-08')).toEqual({ from: '2025-08-08', to: '2026-08-08' });
+    // "Last 1 month" and "Last 30 days" are both offered and are different.
+    expect(presetRange('1m', '2026-08-08').from).not.toBe(presetRange('30d', '2026-08-08').from);
+  });
+
+  it('rolls a month-end back onto a real date rather than an impossible one', () => {
+    // 31 May minus one month is not "31 April" — JS names 1 May, which is the
+    // honest answer for a month that has no 31st.
+    expect(presetRange('1m', '2026-05-31')).toEqual({ from: '2026-05-01', to: '2026-05-31' });
+  });
+
+  it('crosses a year boundary on the calendar, not by 365 days', () => {
+    expect(presetRange('3m', '2026-01-15')).toEqual({ from: '2025-10-15', to: '2026-01-15' });
+  });
+});
+
+describe('presetOf', () => {
+  it('names the preset a range came from', () => {
+    for (const p of RANGE_PRESETS) {
+      const r = presetRange(p.key, '2026-08-08');
+      expect(presetOf(r.from, r.to, '2026-08-08')).toBe(p.key);
+    }
+  });
+
+  it("reads 'custom' once the reader moves an edge by a day", () => {
+    expect(presetOf('2026-08-03', '2026-08-08', '2026-08-08')).toBe('custom');
+    // Same span, different end date — not a preset ending today either.
+    expect(presetOf('2026-08-01', '2026-08-07', '2026-08-08')).toBe('custom');
   });
 });

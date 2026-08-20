@@ -93,7 +93,7 @@ export function useHodBoardData(): HodBoardData {
         }
         const approvalRes = await gp()
           .from('pass_approvals')
-          .select('gate_pass_id, role_key, status')
+          .select('gate_pass_id, role_key, level_no, status')
           .in('gate_pass_id', passes.map((p) => p.id));
         // A page that refuses to render because this read failed is worse than
         // one whose strip reads all zero — the four cards above still work.

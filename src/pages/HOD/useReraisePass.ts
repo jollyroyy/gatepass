@@ -90,6 +90,10 @@ export function useReraisePass(todayStr: string): ReraiseSource & { sourceId: st
           remarks: i.remarks ?? '',
           quantity: String(i.quantity ?? 1),
           unit: i.unit || 'nos',
+          // Copied, never blanked: a replacement pass for the same material is
+          // worth the same, and re-typing it is where a figure gets changed by
+          // accident. An unpriced line stays unpriced.
+          approx_value: i.approx_value != null ? String(i.approx_value) : '',
         }));
 
         setSource(p);

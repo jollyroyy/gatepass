@@ -54,9 +54,9 @@ describe('passStageStyle — the single latest-state badge', () => {
     );
   });
 
-  it('reads "Mismatched" for a flagged pass', () => {
+  it('reads "Rejected at Security Gate" for a flagged pass', () => {
     expect(passStageStyle(pass({ status: 'flagged', return_status: 'not_applicable' })).label).toBe(
-      'Mismatched',
+      'Rejected at Security Gate',
     );
   });
 
@@ -65,7 +65,7 @@ describe('passStageStyle — the single latest-state badge', () => {
   // routine "still out" stage it is technically also in.
   it('lets a flag outrank the return loop', () => {
     expect(passStageStyle(pass({ status: 'flagged', return_status: 'awaiting_return' })).label).toBe(
-      'Mismatched',
+      'Rejected at Security Gate',
     );
   });
 

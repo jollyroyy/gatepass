@@ -93,7 +93,7 @@ export default function MismatchReview(): React.ReactElement {
     return (
       <div>
         <div className="page-header">
-          <h1 className="page-title">Mismatch Review</h1>
+          <h1 className="page-title">Rejected at Security Gate</h1>
         </div>
         <div className="skeleton h-48 w-full" />
       </div>
@@ -104,7 +104,7 @@ export default function MismatchReview(): React.ReactElement {
     return (
       <div>
         <div className="page-header">
-          <h1 className="page-title">Mismatch Review</h1>
+          <h1 className="page-title">Rejected at Security Gate</h1>
         </div>
         {error && <div className="alert-error mb-6">{error}</div>}
         <div className="empty-state">
@@ -119,7 +119,7 @@ export default function MismatchReview(): React.ReactElement {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Mismatch Review</h1>
+        <h1 className="page-title">Rejected at Security Gate</h1>
         <p className="page-subtitle">
           {pass.pass_number} · {categoryFor(pass.type, pass.direction).label}
         </p>

@@ -170,10 +170,19 @@ describe('the attention strip', () => {
     expect(screen.getByLabelText('Return Now*')).toBeInTheDocument();
   });
 
-  it('offers an HOD no button — nobody but the gate can record a return', async () => {
+  // REWRITTEN 2026-08-20. It used to hold that an HOD saw the strip WITHOUT its
+  // button — nobody but the gate can record a return. The client asked for the
+  // strip itself to go from their pass details page ("1 item still needs
+  // attention before this pass can be closed — remove this from pass details
+  // page in hod"), and they are right: a standing amber warning with no control
+  // under it is an alarm nobody in the room can silence. Nothing was lost — the
+  // item table still states each line's own outstanding quantity.
+  it('is not drawn at all for an HOD, who cannot act on it', async () => {
     await renderAs('hod');
-    const strip = within(await screen.findByTestId('items-need-attention'));
-    expect(strip.queryByRole('button')).not.toBeInTheDocument();
+    // The record itself rendered — this is the strip's absence, not a page
+    // that failed to load.
+    expect(screen.getByTestId('pass-record')).toBeInTheDocument();
+    expect(screen.queryByTestId('items-need-attention')).not.toBeInTheDocument();
   });
 });
 

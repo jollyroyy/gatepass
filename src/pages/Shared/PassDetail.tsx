@@ -104,7 +104,7 @@ export default function PassDetail({
       {pass.status === 'flagged' && (
         <div className="alert-error flex-col items-start gap-3">
           <p className="font-semibold">
-            Mismatched by {pass.verified_by_name ?? 'security'} — {formatDateTime(pass.verified_at)}
+            Rejected at the security gate by {pass.verified_by_name ?? 'security'} — {formatDateTime(pass.verified_at)}
           </p>
           <div className="bg-flagged-500/10 border-l-4 border-flagged-500 rounded-r-lg px-3 py-2 w-full">
             <p className="text-xs font-bold text-flagged-700 uppercase tracking-wider mb-1">
@@ -117,7 +117,7 @@ export default function PassDetail({
           {userId !== null && pass.raised_by === userId && (
             <div className="flex flex-col gap-2 mt-1">
               <p className="text-xs text-flagged-700">
-                Approving lets this material through despite the mismatch. The reason above stays on the record.
+                Approving lets this material through despite the rejection. The reason above stays on the record.
               </p>
               <FlaggedReviewActions
                 passId={pass.id}

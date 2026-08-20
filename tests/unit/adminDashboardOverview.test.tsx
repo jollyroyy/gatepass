@@ -170,9 +170,33 @@ describe('the admin dashboard is the Overview mock-up', () => {
     }
   });
 
-  it('reads v_gate_passes and nothing else — the item read went with Top Items', async () => {
+  // The client's foot-of-the-page strip (2026-08-20): "how many are waiting for
+  // which person … it's only for today". The board's ONE waiting pass was raised
+  // 40 days ago, so the strip reads nothing — which is what proves the day cut,
+  // since the Pending Approvals card above it counts that same pass as 1.
+  it('carries a Waiting With strip at the foot, scoped to TODAY whatever the window says', async () => {
     await renderBoard();
-    expect([...new Set(tables)]).toEqual(['v_gate_passes']);
+    const strip = screen.getByRole('heading', { name: 'Waiting With' }).closest('.gb-approvals');
+    expect(strip).not.toBeNull();
+    for (const desk of ['Security Head', 'COO', 'Finance HOD', 'CEO', 'Security gate']) {
+      expect(strip).toHaveTextContent(desk);
+    }
+    expect(strip).toHaveTextContent('Nothing raised today is waiting — all departments.');
+    // A reading, not a drill — no control of any kind lives on it.
+    expect(within(strip as HTMLElement).queryByRole('button')).toBeNull();
+    expect(within(strip as HTMLElement).queryByRole('link')).toBeNull();
+  });
+
+  // REWRITTEN 2026-08-20. It used to hold that this board read `v_gate_passes`
+  // and NOTHING else — the `v_gate_pass_items` read went with Top Items when the
+  // Overview mock-up replaced GateBoard. That half is unchanged and still
+  // pinned. What changed is the client's "Waiting With" strip at the foot of the
+  // page, which needs the ladder rows for today's passes; it is a second table,
+  // narrowed to the ids the FIRST read already returned, never an aggregate.
+  it('reads v_gate_passes and pass_approvals — and never the item table', async () => {
+    await renderBoard();
+    expect([...new Set(tables)].sort()).toEqual(['pass_approvals', 'v_gate_passes']);
+    expect(tables).not.toContain('v_gate_pass_items');
   });
 });
 

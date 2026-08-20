@@ -7,12 +7,25 @@
 // (or Reset) moves it onto the report. That also stops a 250-row table
 // re-rendering under the reader's hand while they set four controls.
 //
+// THE READY-MADE RANGES sit under the two date inputs, inside the same Date
+// Range field (client, 2026-08-20: "in all the reports across admin and HOD,
+// under the date selection, mention Last 7 days / ... / Last 1 year"). Because
+// BOTH the admin's `/all-passes` and the HOD's `/reports` render this one
+// component, "all the reports" is satisfied by one control — see
+// `src/lib/reportsDateRange.ts` for the windows themselves.
+//
 // Department is a FIFTH select the mock does not draw. It is here because the
 // register now carries a "Raised By Department" column (client, 2026-08-20) and
 // because filtering a printed report to one department is a standing feature —
 // it takes the same control shape as the four beside it, so the card still reads
 // as the mock's one row.
 import React from 'react';
+import {
+  presetOf,
+  presetRange,
+  RANGE_PRESETS,
+  type RangePreset,
+} from '../../lib/reportsDateRange';
 import {
   isNarrowed,
   STATUS_FILTERS,
@@ -84,6 +97,29 @@ export default function ReportsFilterBar({
             onChange={(e) => set({ to: e.target.value })}
           />
         </div>
+        {/* THE READY-MADE RANGES, under the date selection (client, 2026-08-20).
+            It writes the two inputs above rather than holding a window of its
+            own: there is still ONE date range on this report, and the select
+            only says which one. Its value is DERIVED from those inputs
+            (`presetOf`), so moving an edge by hand drops it back to "Custom
+            range" instead of leaving it claiming a window that is no longer on
+            screen. Every preset ends TODAY, not on the draft's own `to` date —
+            "Last 7 days" means the last seven days. */}
+        <select
+          className="gb-select gb-rep-preset"
+          aria-label="Quick range"
+          value={presetOf(draft.from, draft.to, today)}
+          onChange={(e) => {
+            const key = e.target.value as RangePreset;
+            if (key === 'custom') return;
+            set(presetRange(key, today));
+          }}
+        >
+          <option value="custom">Custom range</option>
+          {RANGE_PRESETS.map((p) => (
+            <option key={p.key} value={p.key}>{p.label}</option>
+          ))}
+        </select>
       </div>
 
       <label className="gb-rep-field">
