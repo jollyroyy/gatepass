@@ -128,7 +128,7 @@ export default function MyPassCard({ pass, showDepartment, open, onToggle }: Pro
         </button>
       </div>
 
-      {open && <MyPassItems passId={pass.id} />}
+      {open && <MyPassItems pass={pass} />}
     </li>
   );
 }

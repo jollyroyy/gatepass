@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-20
 
-Full gate: **1866 tests across 147 files** (`npm run check`), green — and **`npm run build` is
+Full gate: **1897 tests across 149 files** (`npm run check`), green — and **`npm run build` is
 green again**, which it had not been since the raise-form CSS landed (see the twelfth pass).
 Migrations **`001`–`047` and `049`–`051` are applied to the live DB.** `044` was found UNAPPLIED on
 2026-08-19 — the overdue card's Contact Vendor and Add Remark had shipped against RPCs that did
@@ -76,7 +76,45 @@ through request → HOD approval → deletion. That is now the next security act
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-20, thirty-third pass): AN APPROVER CAN WORK IN DARK MODE, AND THE
+**Latest change (2026-08-20, thirty-fourth pass): A REJECTED PASS'S MATERIAL LINES READ
+"Rejected", NOT "Pending" — ON THE RECORD AND INSIDE EVERY UNFOLDED CARD.** Frontend only —
+no migration, no RPC change, no new query.
+
+- Client: "once any approver is rejecting the pass, all the individual items are still showing
+  pending … all the individual items should also show as rejected for all the approvers'
+  rejections … and everywhere, not only the pass. Show the status also as rejected against each
+  individual item."
+- **THE LINES SAID "Pending" BECAUSE `itemReturnStage` GRADES THE RETURN LEG AND NOTHING ELSE.**
+  An approver's rejection closes the pass before the gate ever sees it, so `returned_qty` stays 0
+  on every line for ever and that function answered "pending" correctly and uselessly.
+  `passWasRejected` + `itemLineStage` in `src/lib/passRecordView.ts` are the fix: **the pass's
+  refusal OUTRANKS the return leg**, the same precedence `passStageStyle` gives the attention
+  states over the return loop.
+- **`REFUSED_STATUS` IS A `Record<PassStatus, boolean>`**, so a new label on `gatepass.pass_status`
+  is a build error rather than a line that silently reads "Pending" again. **All three refusals
+  count**: `cancelled` with no `flag_reason` (an office refused it, 046), `flagged` (the gate), and
+  `cancelled` WITH the guard's reason (the HOD upholding a flag). **KNOWN COST, FLAGGED**:
+  `hod_void_expired_pass` (041) also writes `cancelled` with no reason, so a pass voided for
+  running out of time reads "Rejected" on its lines too. Nothing separates the two on every
+  surface that draws a line — `is_expired` goes true on a rejected pass as well once its day
+  passes — and the pass's own badge directly above still says "Voided".
+- **THE RECORD WITHHOLDS EVERY RETURN-LEG FIGURE ON SUCH A PASS**, not just the badge: no
+  "0 of 2 items returned" progress line, no Action column, and the column head is **"Status"**
+  rather than "Return Status". A progress bar over an obligation that never began is a reading of
+  something that does not exist.
+- **THE TWO UNFOLDED PANELS GAINED A Status COLUMN, which is what makes "everywhere" true.**
+  `PassStackItems` (the approver's queue and both history stacks) and `MyPassItems` (the HOD's
+  cards) drew every fact about a line EXCEPT its outcome. Both now take the `pass` instead of a
+  bare `passId` — the stage is a fact about the line *on that pass* — and paint from
+  **`ITEM_STAGE_PILL`**, a `Record<ItemLineStage, string>` of `.gb-pill-*` classes in
+  `passStackCard.ts`. **No new colour**, so `themeAudit` stays absolute.
+- Pinned by a new `tests/unit/rejectedPassItems.test.tsx` (12 — the predicate over every status,
+  the stage outranking a half-returned line, the record's three withholdings, both panels, and the
+  pill map carrying only guard-skin classes), all watched failing first. `npm run check` is
+  **1897 tests across 149 files**, green, and `npm run build` is green.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite and a production build only.
+
+**Earlier (2026-08-20, thirty-third pass): AN APPROVER CAN WORK IN DARK MODE, AND THE
 BELL COUNTS WHAT IS WAITING ON THEIR OWN OFFICE IN RED.** Frontend only — no migration, no RPC
 change, no new grant.
 

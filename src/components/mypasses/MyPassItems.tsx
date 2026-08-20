@@ -15,12 +15,15 @@
 // it is not `nos` — `quantityHeading` / `quantityCell`, the rule every quantity
 // table in this app follows, so a count of 3 reads "3" and never "3 Numbers".
 import React from 'react';
+import type { GatePassView } from '../../types';
 import { formatCurrency } from '../../lib/formatCurrency';
 import { quantityCell, quantityHeading } from '../../lib/units';
 import { usePassItems } from '../../lib/usePassItems';
+import { ITEM_LINE_STYLES, itemLineStage } from '../../lib/passRecordView';
+import { ITEM_STAGE_PILL } from '../../lib/passStackCard';
 
-export default function MyPassItems({ passId }: { passId: string }): React.ReactElement {
-  const { items, error } = usePassItems(passId);
+export default function MyPassItems({ pass }: { pass: GatePassView }): React.ReactElement {
+  const { items, error } = usePassItems(pass.id);
 
   if (error) return <div className="mp-items mp-items-note">{error}</div>;
   if (items === undefined) return <div className="mp-items mp-items-note">Loading items…</div>;
@@ -39,10 +42,15 @@ export default function MyPassItems({ passId }: { passId: string }): React.React
               <th scope="col">Description</th>
               <th scope="col">{quantityHeading('Quantity', units)}</th>
               <th scope="col">Value</th>
+              {/* The line's own status — "Rejected" on every line of a refused
+                  pass (client, 2026-08-20), else where its return leg stands. */}
+              <th scope="col">Status</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((line, i) => (
+            {items.map((line, i) => {
+              const stage = itemLineStage(line, pass);
+              return (
               <tr key={line.id}>
                 <td>{i + 1}</td>
                 <td>{line.name}</td>
@@ -51,8 +59,12 @@ export default function MyPassItems({ passId }: { passId: string }): React.React
                 {/* An unpriced line is a dash, never ₹0 — `approx_value` is
                     optional, and "nothing declared" is not "declared zero". */}
                 <td>{line.approx_value === null ? '—' : formatCurrency(line.approx_value)}</td>
+                <td>
+                  <span className={ITEM_STAGE_PILL[stage]}>{ITEM_LINE_STYLES[stage].label}</span>
+                </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

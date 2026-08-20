@@ -38,7 +38,7 @@ import type { GatePassItemView, GatePassView } from '../../types';
 import { formatCurrency } from '../../lib/formatCurrency';
 import { formatDateTime } from '../../lib/formatDate';
 import { unitLabel } from '../../lib/units';
-import { ITEM_RETURN_STYLES, itemReturnStage, returnProgress } from '../../lib/passRecordView';
+import { ITEM_LINE_STYLES, itemLineStage, passWasRejected, returnProgress } from '../../lib/passRecordView';
 import { effectiveReturned, effectiveOutstanding, formatQty, type ReturnDraft } from '../../lib/returnDraft';
 import Badge from '../Badge';
 
@@ -65,6 +65,10 @@ export default function PassRecordItems({
   pass, items, draft, canRecord, onAdd, onDiscard,
 }: Props): React.ReactElement {
   const isRgp = pass.type === 'RGP';
+  // THE PASS WAS REFUSED, so no line on it is "pending" anything — see
+  // `passWasRejected`. Every figure about the return leg is withheld with it:
+  // "0 of 2 items returned" describes an obligation that never began.
+  const rejected = passWasRejected(pass);
   // Counted on the DRAFT-INCLUSIVE quantities, so the bar moves with the table
   // it sits over rather than describing the pass as it was before staging.
   const staged = items.map((i) => ({ ...i, returned_qty: effectiveReturned(i, draft) }));
@@ -80,7 +84,7 @@ export default function PassRecordItems({
     <div className="card overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
         <h2 className="card-title mb-0 pb-0 border-0">Items in this gate pass</h2>
-        {isRgp && items.length > 0 && (
+        {isRgp && !rejected && items.length > 0 && (
           <div className="flex items-center gap-3 min-w-[220px]">
             <span className="text-sm text-navy-500 whitespace-nowrap">
               {progress.returned} of {progress.total} items returned
@@ -111,8 +115,8 @@ export default function PassRecordItems({
                 <th>Serial / ID</th>
                 <th>Quantity</th>
                 <th>Value</th>
-                <th>{isRgp ? 'Return Status' : 'Status'}</th>
-                {isRgp && <th>Action</th>}
+                <th>{isRgp && !rejected ? 'Return Status' : 'Status'}</th>
+                {isRgp && !rejected && <th>Action</th>}
               </tr>
             </thead>
             <tbody>
@@ -120,8 +124,8 @@ export default function PassRecordItems({
                 const draftLine = draft[item.id];
                 const returned = effectiveReturned(item, draft);
                 const pending = effectiveOutstanding(item, draft);
-                const stage = itemReturnStage(
-                  { quantity: item.quantity, returned_qty: returned }, pass.type,
+                const stage = itemLineStage(
+                  { quantity: item.quantity, returned_qty: returned }, pass,
                 );
                 const owes = stage === 'pending' || stage === 'partial';
 
@@ -157,12 +161,12 @@ export default function PassRecordItems({
                       {/* The second number: what has actually come back. Drawn
                         * only once some has — "Returned 0" on an untouched line
                         * is noise on every row of a fresh pass. */}
-                      {isRgp && returned > 0 && (
+                      {isRgp && !rejected && returned > 0 && (
                         <span className="block text-caption text-navy-500 whitespace-nowrap">
                           Returned {qtyWithUnit(returned, item.unit)}
                         </span>
                       )}
-                      {isRgp && returned > 0 && pending > 0 && (
+                      {isRgp && !rejected && returned > 0 && pending > 0 && (
                         <span className="block text-caption text-flagged-700 font-semibold whitespace-nowrap">
                           Pending {qtyWithUnit(pending, item.unit)}
                         </span>
@@ -170,7 +174,7 @@ export default function PassRecordItems({
                     </td>
                     <td>{item.approx_value != null ? formatCurrency(item.approx_value) : ''}</td>
                     <td>
-                      <Badge style={ITEM_RETURN_STYLES[stage]} />
+                      <Badge style={ITEM_LINE_STYLES[stage]} />
                         {/* WHEN it came back, written by the database, not by a
                           * guard: `returned_at` is stamped only once a line is
                           * FULLY back (029), so a partly-returned line carries
@@ -188,7 +192,7 @@ export default function PassRecordItems({
                         </span>
                       )}
                     </td>
-                    {isRgp && (
+                    {isRgp && !rejected && (
                       <td>
                         {canRecord && owes && onAdd ? (
                           <button
@@ -222,7 +226,7 @@ export default function PassRecordItems({
                   <td data-testid="items-total-value" className="tabular font-semibold text-navy-900">
                     {formatCurrency(totalValue)}
                   </td>
-                  <td colSpan={isRgp ? 2 : 1} />
+                  <td colSpan={isRgp && !rejected ? 2 : 1} />
                 </tr>
               </tfoot>
             )}

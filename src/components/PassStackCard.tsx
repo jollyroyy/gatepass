@@ -222,7 +222,7 @@ export default function PassStackCard({
       data-testid="pass-stack-card"
     >
       <div className="gpo-card-main">{face}</div>
-      {open && <PassStackItems passId={pass.id} />}
+      {open && <PassStackItems pass={pass} />}
     </li>
   );
 }
