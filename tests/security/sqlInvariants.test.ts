@@ -1869,3 +1869,93 @@ describe('058 — the rollout closes a pre-workflow ladder WITHOUT inventing an 
     expect(bare).not.toMatch(/grant (insert|update|delete) on gatepass\.pass_approvals/i);
   });
 });
+
+// ONE OFFICE, ONE ACTIVE PERSON, AND DEACTIVATION VACATES THE SEAT.
+//
+// Client, 2026-08-20: "if one of the roles, like COO and security head, is
+// deactivated and created again, that should allow me to deactivate one person
+// from that role and create another new person in that same role … but make
+// sure only one account is tacked to that role at the same point in time."
+//
+// The dangerous half is not the count — `role_key` is the primary key, so two
+// holders are physically impossible. It is that a SUSPENDED holder used to keep
+// the seat, which made the office unable to approve anything (`my_approval_role`
+// gates on `is_user_active`) while every screen read as though it were staffed.
+describe('059 — an approval office is held by exactly one ACTIVE person', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('059'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(migrations);
+  const fnBody = (name: string) => fns.filter((f) => f.name === name).slice(-1)[0].body;
+
+  it('touches nothing in `public` — the two-schema rule', () => {
+    expect(/create\s+(table|view|function|type)\s+public\./i.test(bare)).toBe(false);
+    expect(/alter\s+table\s+public\./i.test(bare)).toBe(false);
+  });
+
+  it('deactivation vacates the office AND any deputy seat', () => {
+    const body = fnBody('gatepass.admin_soft_delete_user');
+    expect(body).toMatch(/delete from gatepass\.approval_roles r where r\.role_key = v_office;/i);
+    expect(body).toMatch(/set deputy_id = null\s+where r\.deputy_id = p_user_id;/i);
+    // And the three refusals 040 shipped with are still in front of it.
+    expect(body).toMatch(/if not gatepass\.is_admin\(\) then/i);
+    expect(body).toMatch(/p_user_id = auth\.uid\(\)/i);
+    expect(body).toMatch(/v_role in \('admin', 'super_admin'\)/i);
+    expect(body).toMatch(/set search_path = ''/i);
+  });
+
+  it('remembers the vacated office so reactivation is not a one-way door', () => {
+    // Without this marker a deactivated COO is a bare `staff` row, and 057's
+    // widened test ("has this person anything to come back to") would refuse
+    // them for good.
+    expect(bare).toMatch(/add column if not exists vacated_approval_office text/i);
+    expect(bare).toMatch(/user_status_vacated_office_known/i);
+    const react = fnBody('gatepass.admin_reactivate_user');
+    expect(react).toMatch(/s\.vacated_approval_office into v_vacated/i);
+    expect(react).toMatch(/v_role not in \('guard', 'hod'\) and v_office is null and v_vacated is null/i);
+    // Reactivation FORGETS it, and never re-seats them: the office may belong to
+    // somebody else by now, and re-seating would displace a working approver.
+    expect(react).toMatch(/vacated_approval_office = null/i);
+    expect(react).not.toMatch(/insert into gatepass\.approval_roles/i);
+  });
+
+  it('a second deactivation cannot forget the office the first one took', () => {
+    const body = fnBody('gatepass.admin_soft_delete_user');
+    expect(body).toMatch(
+      /vacated_approval_office = coalesce\(excluded\.vacated_approval_office,\s*user_status\.vacated_approval_office\)/i,
+    );
+  });
+
+  it('refuses to seat a deactivated account, as holder OR as deputy', () => {
+    for (const fn of ['gatepass.set_approval_role', 'gatepass.set_approval_deputy']) {
+      const body = fnBody(fn);
+      expect(body).toMatch(/if not gatepass\.is_user_active\(p_user_id\) then/i);
+      expect(body).toMatch(/That account is deactivated/i);
+      // 049's and 054's one-seat refusals survive untouched.
+      expect(body).toMatch(/if not gatepass\.is_admin\(\) then/i);
+      expect(body).toMatch(/p_role_key not in \('security_head', 'coo', 'ceo', 'finance_head'\)/i);
+      expect(body).toMatch(/set search_path = ''/i);
+    }
+  });
+
+  it('swaps a holder atomically — one row per office, never two', () => {
+    const body = fnBody('gatepass.set_approval_role');
+    expect(body).toMatch(/on conflict \(role_key\) do update/i);
+    // 049's "one person, one office" test is still there and still excludes the
+    // office being set, so re-designating the same person stays a no-op.
+    expect(body).toMatch(/where r\.user_id = p_user_id\s+and r\.role_key <> p_role_key/i);
+  });
+
+  it('sweeps anybody already seated while suspended, using the same test', () => {
+    expect(bare).toMatch(/delete from gatepass\.approval_roles r\s+where not gatepass\.is_user_active\(r\.user_id\)/i);
+    expect(bare).toMatch(/set deputy_id = null\s+where r\.deputy_id is not null\s+and not gatepass\.is_user_active\(r\.deputy_id\)/i);
+    // The marker is written off the seat BEFORE it is removed, and only for a
+    // row that is actually suspended.
+    expect(bare).toMatch(/s\.is_active = false/i);
+  });
+
+  it('grants nothing new — the four RPCs were already reachable', () => {
+    expect(bare).not.toMatch(/grant (insert|update|delete) on gatepass\.approval_roles/i);
+    expect(bare).not.toMatch(/grant (insert|update|delete) on gatepass\.user_status/i);
+  });
+});

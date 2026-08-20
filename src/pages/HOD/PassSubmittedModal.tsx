@@ -9,7 +9,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView } from '../../types';
-import { STATUS_STYLES } from '../../lib/statusStyles';
+import { passStageStyle } from '../../lib/passStage';
 import { parseCompanyInfo } from '../../lib/companyInfo';
 import { formatDateTime } from '../../lib/formatDate';
 import Badge, { TypeChip } from '../../components/Badge';
@@ -77,7 +77,10 @@ export default function PassSubmittedModal({
             <span className="type-chip">{submittedPass.direction === 'in' ? 'IN' : 'OUT'}</span>
           </div>
         </div>
-        <Badge style={STATUS_STYLES[submittedPass.status]} />
+        {/* The pass's LATEST state, through the same function every card
+            renders — so a pass that still owes approvals reads "Pending
+            Approval" here too, never "Pending Gate Review". */}
+        <Badge style={passStageStyle(submittedPass)} />
       </div>
 
       {/* Grouped facts — never one undifferentiated list. */}

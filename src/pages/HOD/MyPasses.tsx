@@ -57,7 +57,12 @@ import MyPassesTable from './MyPassesTable';
 
 const STATUS_TABS: StatusTab[] = [
   { key: 'all', label: 'All statuses' },
-  { key: 'pending', label: 'Pending for Gate Approval' },
+  // "Pending", not "Pending for Gate Approval" (client, 2026-08-20): this is
+  // the `pending` STATUS, which covers a pass still climbing the approval
+  // ladder AND one the ladder has finished with. Naming one of the two here
+  // would mislabel the other half of its own list; each card's badge says
+  // which desk it is actually sitting on.
+  { key: 'pending', label: 'Pending' },
   // The `matched` status axis, named for what actually happened: security
   // cleared it out. No surface calls a pass "Matched" any more (client,
   // 2026-08-18) — the word described the check, not the pass.

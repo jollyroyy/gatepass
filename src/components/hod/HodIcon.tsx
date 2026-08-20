@@ -123,8 +123,10 @@ type Props = {
   tone: HodTone;
   /** `card` is the KPI card's tinted square; `tile` the bigger, saturated
    *  quick-action plate; `chip` the small round plate on an approval slot;
-   *  `round` the admin Overview's circular tint plate. */
-  shape?: 'card' | 'tile' | 'chip' | 'round';
+   *  `round` the admin Overview's circular tint plate; `square` the GUARD
+   *  board's quick-action plate, shared so the super admin's tiles are the
+   *  guard's tiles rather than a second thing that looks nearly like them. */
+  shape?: 'card' | 'tile' | 'chip' | 'round' | 'square';
 };
 
 /** The quick-action plates are the one place on this board the mock-up fills a
@@ -143,6 +145,7 @@ const SHAPE: Record<NonNullable<Props['shape']>, string> = {
   tile: 'gb-raise-plate',
   chip: 'gb-approval-plate',
   round: 'gb-ov-plate',
+  square: 'gb-tile-plate',
 };
 
 export default function HodIcon({ glyph, tone, shape = 'card' }: Props): React.ReactElement {

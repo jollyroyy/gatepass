@@ -47,7 +47,7 @@ export function csvDate(iso: string | null | undefined): string {
  *  expired pass is `pending` in the column and would export as "Pending", and a
  *  `matched` one says nothing about whether the material ever came back. */
 export function csvStatus(
-  p: Pick<GatePassView, 'status' | 'return_status' | 'is_expired' | 'is_overdue'>,
+  p: Pick<GatePassView, 'status' | 'return_status' | 'is_expired' | 'is_overdue' | 'awaits_approval'>,
 ): string {
   return passStageStyle(p).label;
 }

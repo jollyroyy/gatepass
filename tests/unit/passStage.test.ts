@@ -54,6 +54,44 @@ describe('passStageStyle — the single latest-state badge', () => {
     );
   });
 
+  // THE LADDER AND THE GATE ARE TWO DIFFERENT DESKS (client, 2026-08-20: "the
+  // passes which are pending for approval are showing as pending gate
+  // approvals, which should not be okay … after all the approvals, if it is
+  // only waiting for the gate approval, then only show the pending for gate
+  // approval, across all the views"). A pass still climbing is invisible to the
+  // guard by RLS (046), so calling it "Pending Gate Review" named a queue that
+  // did not contain it.
+  it('reads "Pending Approval" while the pass still owes a signature', () => {
+    expect(
+      passStageStyle(pass({ status: 'pending', return_status: 'not_applicable', awaits_approval: true })).label,
+    ).toBe('Pending Approval');
+  });
+
+  it('reads "Pending Gate Review" once the ladder is finished', () => {
+    expect(
+      passStageStyle(pass({ status: 'pending', return_status: 'not_applicable', awaits_approval: false })).label,
+    ).toBe('Pending Gate Review');
+  });
+
+  // Falsy is the safe reading, and it is the same one `pendingSplit` takes: a
+  // pass with no ladder rows owes nothing, which is exactly every pass raised
+  // before the workflow began and every level closed by 058's rollout.
+  it('treats a MISSING `awaits_approval` as owing nothing', () => {
+    expect(passStageStyle(pass({ status: 'pending', return_status: 'not_applicable' })).label).toBe(
+      'Pending Gate Review',
+    );
+  });
+
+  // Expiry outranks it: a pass whose day ran out cannot be used whoever it is
+  // waiting on, and that is the last thing that happened to it.
+  it('lets Expired outrank a pass that is still climbing', () => {
+    expect(
+      passStageStyle(pass({
+        status: 'pending', return_status: 'not_applicable', is_expired: true, awaits_approval: true,
+      })).label,
+    ).toBe('Expired');
+  });
+
   it('reads "Rejected at Security Gate" for a flagged pass', () => {
     expect(passStageStyle(pass({ status: 'flagged', return_status: 'not_applicable' })).label).toBe(
       'Rejected at Security Gate',

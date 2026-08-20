@@ -27,6 +27,7 @@ import PendingOutPage from './pages/Security/PendingOutPage';
 import PendingReturnsPage from './pages/Security/PendingReturnsPage';
 import AdminPanel from './pages/Admin/AdminPanel';
 import AdminDashboard from './pages/Admin/AdminDashboard';
+import SuperAdminDashboard from './pages/Admin/SuperAdminDashboard';
 import ReportsPage from './pages/Admin/ReportsPage';
 import ActivityLogPage from './pages/Admin/ActivityLogPage';
 
@@ -241,7 +242,18 @@ export default function App(): React.ReactElement {
 
           {/* Admin */}
           <Route path="/admin" element={<AdminPanel />} />
-          <Route path="/admin-dashboard" element={<AdminDashboard />} />
+          {/* ONE ROUTE, TWO BOARDS. A super admin gets the guard-styled board
+              (client, 2026-08-20: "follow the same dashboard look and feel of
+              guard except the functionalities ... for superadmin dashboard");
+              an ordinary admin keeps the Overview mock-up unchanged. Dispatching
+              here rather than adding a route keeps `ROLE_ROUTES`, `ROLE_HOME`
+              and the sidebar untouched — a super admin's "Dashboard" tab simply
+              shows their own board. Both read the same `v_gate_passes` and the
+              same `buildOverviewCards`, so the figures cannot disagree. */}
+          <Route
+            path="/admin-dashboard"
+            element={role === 'super_admin' ? <SuperAdminDashboard /> : <AdminDashboard />}
+          />
           <Route path="/all-passes" element={<ReportsPage />} />
           <Route path="/activity" element={<ActivityLogPage />} />
 

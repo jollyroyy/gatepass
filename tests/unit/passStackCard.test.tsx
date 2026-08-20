@@ -22,7 +22,8 @@ import MyPassesTable from '../../src/pages/HOD/MyPassesTable';
 import { drillDefOf } from '../../src/lib/boardDrills';
 import { TYPE_PILL } from '../../src/lib/guardBoard';
 import { STAGE_TONES, stageTone } from '../../src/lib/passStackCard';
-import { STATUS_STYLES, EXPIRED_STYLE } from '../../src/lib/statusStyles';
+import { passStageStyle } from '../../src/lib/passStage';
+import { STATUS_STYLES, EXPIRED_STYLE, AWAITING_APPROVAL_STYLE } from '../../src/lib/statusStyles';
 import { RGP_STAGE_STYLES } from '../../src/lib/rgpLifecycle';
 
 function pass(over: Partial<GatePassView> = {}): GatePassView {
@@ -167,9 +168,19 @@ describe('every stage the badge can name has a tone', () => {
       ...Object.values(STATUS_STYLES).map((s) => s.label),
       ...Object.values(RGP_STAGE_STYLES).map((s) => s.label),
       EXPIRED_STYLE.label,
+      AWAITING_APPROVAL_STYLE.label,
       'Overdue',
     ];
     for (const label of labels) expect(STAGE_TONES[label]).toBeDefined();
+  });
+
+  // A pass still climbing the ladder wears the same amber as one waiting at the
+  // barrier — both are waiting on somebody, and the WORDS are what say which
+  // desk (client, 2026-08-20).
+  it('tones a pass still owing approvals amber, and says so in words', () => {
+    const climbing = pass({ status: 'pending', return_status: 'not_applicable', awaits_approval: true });
+    expect(stageTone(climbing)).toBe('orange');
+    expect(passStageStyle(climbing).label).toBe('Pending Approval');
   });
 
   it('tones an overdue pass red and a closed one green', () => {

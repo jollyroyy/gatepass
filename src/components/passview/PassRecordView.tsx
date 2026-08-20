@@ -73,7 +73,7 @@ export default function PassRecordView({
   record, role = null, office = null, onRecorded, onClear,
 }: Props): React.ReactElement {
   const { pass, items, activity } = record;
-  const roles = useApprovalRoles();
+  const { roles } = useApprovalRoles();
   // What THIS pass actually owes, and who has decided (046). A pass raised
   // before any office was designated carries none, and the ladder falls back to
   // grading the org chart — see approvalLadder.ts.

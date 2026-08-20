@@ -31,6 +31,26 @@ export const STATUS_STYLES: Record<PassStatus, StatusStyle> = {
   cancelled: { bg: 'bg-surface-100', text: 'text-navy-500', dot: 'bg-navy-400', label: 'Voided' },
 };
 
+/** A pass that is still climbing the approval ladder.
+ *
+ *  Client, 2026-08-20: "the passes which are pending for approval are showing
+ *  as pending gate approvals, which should not be okay. If something is pending
+ *  for all the approvals, it should be shown as pending for approval. After all
+ *  the approvals, if it is only waiting for the gate approval, then only show
+ *  the pending for gate approval — across all the views."
+ *
+ *  It is a badge and NOT a row in `STATUS_STYLES` because the enum has no
+ *  label for it: such a pass is `status = 'pending'` exactly like one waiting at
+ *  the barrier. The difference is `v_gate_passes.awaits_approval` (migration
+ *  057), which is read and NEVER recomputed here — the same rule `is_overdue`
+ *  and `is_expired` live by.
+ *
+ *  Amber, like Pending Gate Review: both mean "waiting on somebody", and the
+ *  words are what say which desk. */
+export const AWAITING_APPROVAL_STYLE: StatusStyle = {
+  bg: 'bg-pending-50', text: 'text-pending-700', dot: 'bg-pending-500', label: 'Pending Approval',
+};
+
 /** An expired pass is still `pending` in the enum — expiry is derived from
  *  `expires_at`, not a status — so it needs its own badge rather than a row in
  *  STATUS_STYLES. Orange matches Overdue: both mean "time ran out", and neither

@@ -101,6 +101,16 @@ export default function ApprovalLadderCard(): React.ReactElement {
 
   const held = new Map(rows.map((r) => [r.role_key, r]));
 
+  // ONLY AN ACTIVE ACCOUNT MAY BE SEATED (migration 059): `my_approval_role()`
+  // gates on `is_user_active`, so a suspended holder is an office that can
+  // approve nothing while this card reads as staffed. The RPC refuses it in a
+  // sentence; this stops the admin being offered the choice at all.
+  //
+  // `is_active` is OPTIONAL on `Profile` (it is coalesced to true in the
+  // database, and an older directory row simply omits it), so the test is
+  // `!== false` rather than `=== true` — a missing flag must not empty the list.
+  const selectable = people.filter((p) => p.is_active !== false);
+
   return (
     <div className="card p-4 space-y-3">
       <h2 className="section-title mb-0">Gate pass approval ladder</h2>
@@ -114,6 +124,7 @@ export default function ApprovalLadderCard(): React.ReactElement {
         A <strong className="text-navy-700">deputy</strong> is optional cover: they may approve
         exactly what the holder may, at any time, and the pass record shows which of the two signed.
         One person may hold one seat only, so nobody can sign two levels of the same pass.
+        Only active accounts are listed, and deactivating a holder vacates their office.
       </p>
 
       {error && <div className="alert-error">{error}</div>}
@@ -153,7 +164,7 @@ export default function ApprovalLadderCard(): React.ReactElement {
                     onChange={(e) => void assign(key, 'holder', e.target.value)}
                   >
                     <option value="">Nobody designated</option>
-                    {people.map((p) => (
+                    {selectable.map((p) => (
                       <option key={p.id} value={p.id}>{p.full_name} ({p.email})</option>
                     ))}
                   </select>
@@ -169,7 +180,7 @@ export default function ApprovalLadderCard(): React.ReactElement {
                     onChange={(e) => void assign(key, 'deputy', e.target.value)}
                   >
                     <option value="">No deputy</option>
-                    {people.map((p) => (
+                    {selectable.map((p) => (
                       <option key={p.id} value={p.id}>{p.full_name} ({p.email})</option>
                     ))}
                   </select>

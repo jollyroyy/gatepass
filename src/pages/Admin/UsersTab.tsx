@@ -65,7 +65,7 @@ export default function UsersTab(): React.ReactElement {
   // Who currently holds each of the four approval offices (migration 046).
   // One shared read: the Add-User modal's "this will move the office" note
   // and this table's office title both key off the same rows.
-  const approvalRoles = useApprovalRoles();
+  const { roles: approvalRoles, reload: reloadApprovalRoles } = useApprovalRoles();
   const officeByUserId = useMemo(() => {
     const m = new Map<string, ApprovalRoleKey>();
     for (const r of approvalRoles) m.set(r.user_id, r.role_key);
@@ -134,6 +134,11 @@ export default function UsersTab(): React.ReactElement {
       const { error: rpcErr } = await gp().rpc('admin_soft_delete_user', { p_user_id: profile.id });
       if (rpcErr) throw rpcErr;
       await load();
+      // DEACTIVATION VACATES THE PERSON'S APPROVAL SEAT (migration 059), so the
+      // ladder this screen was holding is now stale — it would keep naming them
+      // as the office holder, and `handleReactivateClick` decides what to do
+      // from that very map.
+      await reloadApprovalRoles();
     } catch (err) {
       setError(safeErrorMessage(err));
     } finally {
@@ -159,6 +164,11 @@ export default function UsersTab(): React.ReactElement {
    * in, which is the opposite of restoring what was suspended.
    */
   function handleReactivateClick(profile: Profile) {
+    // `officeByUserId` still matters for a person seated while active — but
+    // since 059 a suspended holder no longer occupies a seat, and
+    // `admin_reactivate_user` readmits them on `user_status.
+    // vacated_approval_office` instead. A bare `staff` row with neither is what
+    // still needs the role choice.
     if (isAssignableRole(profile.role) || officeByUserId.has(profile.id)) {
       void handleReactivate(profile);
       return;
@@ -176,6 +186,9 @@ export default function UsersTab(): React.ReactElement {
       const { error: rpcErr } = await gp().rpc('admin_reactivate_user', { p_user_id: profile.id });
       if (rpcErr) throw rpcErr;
       await load();
+      // Reactivation does NOT re-seat them (059): the office may be somebody
+      // else's by now. Re-read so the screen says whatever is actually true.
+      await reloadApprovalRoles();
     } catch (err) {
       setError(safeErrorMessage(err));
     } finally {
@@ -231,6 +244,7 @@ export default function UsersTab(): React.ReactElement {
       {deactivateTarget && (
         <DeactivateUserModal
           profile={deactivateTarget}
+          office={officeByUserId.get(deactivateTarget.id) ?? null}
           deactivating={deletingId === deactivateTarget.id}
           onClose={() => setDeactivateTarget(null)}
           onConfirm={() => {

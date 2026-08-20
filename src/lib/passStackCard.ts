@@ -23,6 +23,7 @@ export type GbTone = 'blue' | 'green' | 'orange' | 'red' | 'grey';
 export const STAGE_TONES: Record<string, GbTone> = {
   // Waiting on somebody — the mock's amber.
   'Pending Gate Review': 'orange',
+  'Pending Approval': 'orange',
   'Held at Gate': 'orange',
   'Expired': 'orange',
   // A deadline missed, or an accusation made.
@@ -39,7 +40,9 @@ export const STAGE_TONES: Record<string, GbTone> = {
   'Matched': 'green',
 };
 
-type StageInput = Pick<GatePassView, 'status' | 'return_status' | 'is_expired' | 'is_overdue'>;
+type StageInput = Pick<
+  GatePassView, 'status' | 'return_status' | 'is_expired' | 'is_overdue' | 'awaits_approval'
+>;
 
 /** The pill tone for a pass's LATEST state. Grey for a label nobody has toned
  *  yet — a colourless pill still carries its own words, which is the rule the

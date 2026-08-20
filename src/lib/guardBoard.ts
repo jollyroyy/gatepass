@@ -118,8 +118,8 @@ export function previewOf<T>(rows: T[], expanded: boolean): T[] {
 
 /** "Hello, Ravi" — the signed-in guard's own first name, and "Guard" when the
  *  profile has not resolved yet, so the greeting never renders half-written. */
-export function firstNameOf(fullName: string | null | undefined): string {
+export function firstNameOf(fullName: string | null | undefined, fallback = 'Guard'): string {
   const trimmed = (fullName ?? '').trim();
-  if (!trimmed) return 'Guard';
+  if (!trimmed) return fallback;
   return trimmed.split(/\s+/)[0];
 }

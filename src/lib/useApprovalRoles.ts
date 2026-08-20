@@ -13,28 +13,30 @@
 // read leaves every office reading "Not designated yet" and the record still
 // renders. The alternative is a pass a guard cannot see because an org-chart
 // lookup failed.
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { gp } from '../supabaseClient';
 import type { ApprovalRoleRow } from './approvalLadder';
 
-export function useApprovalRoles(): ApprovalRoleRow[] {
+/** The ladder, plus a way to read it again.
+ *
+ *  `reload` exists because DEACTIVATING AN OFFICE HOLDER VACATES THEIR OFFICE
+ *  (migration 059): a list read once at mount would keep naming somebody the
+ *  database no longer seats, and the Users tab decides how to reactivate a
+ *  person from exactly this map. */
+export function useApprovalRoles(): { roles: ApprovalRoleRow[]; reload: () => Promise<void> } {
   const [roles, setRoles] = useState<ApprovalRoleRow[]>([]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data, error } = await gp().rpc('get_approval_ladder');
-        if (cancelled || error) return;
-        setRoles((data as ApprovalRoleRow[] | null) ?? []);
-      } catch {
-        /* An empty ladder is the fallback — see the header comment. */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const reload = useCallback(async () => {
+    try {
+      const { data, error } = await gp().rpc('get_approval_ladder');
+      if (error) return;
+      setRoles((data as ApprovalRoleRow[] | null) ?? []);
+    } catch {
+      /* An empty ladder is the fallback — see the header comment. */
+    }
   }, []);
 
-  return roles;
+  useEffect(() => { void reload(); }, [reload]);
+
+  return { roles, reload };
 }

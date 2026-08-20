@@ -35,10 +35,20 @@
 //                     this arm simply does not fire for them.
 //   4. Closed       — `matched` with no return loop is an NRGP through the
 //                     gate: finished. It reads "Closed", never "Matched".
-//   5. status       — everything else: pending, hod_reviewed.
+//   5. Awaiting     — a `pending` pass that has NOT finished climbing the
+//      approval       approval ladder. It reads "Pending Approval", never
+//                     "Pending Gate Review" (client, 2026-08-20: "the passes
+//                     which are pending for approval are showing as pending
+//                     gate approvals … after all the approvals, if it is only
+//                     waiting for the gate approval, then only show the pending
+//                     for gate approval, across all the views"). The guard
+//                     cannot even SEE such a pass — 046 made that RLS — so
+//                     calling it "pending gate review" named a desk that had
+//                     nothing in front of it.
+//   6. status       — everything else: pending at the gate, hod_reviewed.
 import type { GatePassView, PassStatus } from '../types';
 import type { StatusStyle } from './statusStyles';
-import { EXPIRED_STYLE, STATUS_STYLES, isExpiredPending } from './statusStyles';
+import { AWAITING_APPROVAL_STYLE, EXPIRED_STYLE, STATUS_STYLES, isExpiredPending } from './statusStyles';
 import { RGP_STAGE_STYLES, rgpStageStyle } from './rgpLifecycle';
 
 /** States that demand a decision, and so must never be hidden behind the
@@ -57,7 +67,7 @@ const OUTRANKS_RETURN_LOOP: Record<PassStatus, boolean> = {
 
 /** The pass's latest state, as the one badge every card surface renders. */
 export function passStageStyle(
-  p: Pick<GatePassView, 'status' | 'return_status' | 'is_expired' | 'is_overdue'>,
+  p: Pick<GatePassView, 'status' | 'return_status' | 'is_expired' | 'is_overdue' | 'awaits_approval'>,
 ): StatusStyle {
   if (isExpiredPending(p)) return EXPIRED_STYLE;
   if (OUTRANKS_RETURN_LOOP[p.status]) return STATUS_STYLES[p.status];
@@ -68,5 +78,11 @@ export function passStageStyle(
   // surface says "Matched"; it names the outward clearance, which is a moment in
   // the timeline, not a state anybody is waiting on.
   if (p.status === 'matched') return RGP_STAGE_STYLES.closed;
+  // The ladder outranks the gate, and only for a `pending` pass: `hod_reviewed`
+  // is the HOD overriding a flag the gate itself raised, which cannot have
+  // happened to a pass the gate was never allowed to see. A MISSING
+  // `awaits_approval` is read as owing nothing — a pass raised before the
+  // workflow existed, and the same safe reading `pendingSplit` takes.
+  if (p.status === 'pending' && p.awaits_approval === true) return AWAITING_APPROVAL_STYLE;
   return STATUS_STYLES[p.status];
 }

@@ -35,7 +35,7 @@ export function useWaitingWith(
    *  approvals query of its own; omit them and it fetches for `today`'s ids. */
   approvals?: WaitingApprovalRow[],
 ): { today: GatePassView[]; waiting: WaitingRow[] } {
-  const roles = useApprovalRoles();
+  const { roles } = useApprovalRoles();
   const [fetched, setFetched] = useState<WaitingApprovalRow[]>([]);
 
   const today = useMemo(() => passesRaisedToday(rows, stamp), [rows, stamp]);

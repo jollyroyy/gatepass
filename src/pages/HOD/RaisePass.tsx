@@ -245,7 +245,25 @@ export default function RaisePass(): React.ReactElement {
       });
       if (error) throw error;
       const created = data as unknown as GatePassView;
-      setSubmittedPass(created);
+      // `raise_pass` returns a `gatepass.gate_passes` ROW, not a view row, so it
+      // carries no `awaits_approval` — and the confirmation badge would say
+      // "Pending Gate Review" over a pass the gate is not even allowed to see
+      // yet. One narrow read of the view fixes the one field that matters here.
+      // FAILURE IS TOLERATED on purpose: the pass is already raised, and a
+      // confirmation modal is not worth a red error over a badge word.
+      let awaits: boolean | undefined;
+      try {
+        const { data: view } = await gp()
+          .from('v_gate_passes')
+          .select('awaits_approval')
+          .eq('id', created.id)
+          .limit(1);
+        const row = (Array.isArray(view) ? view[0] : view) as { awaits_approval?: boolean } | null;
+        awaits = row?.awaits_approval;
+      } catch {
+        awaits = undefined;
+      }
+      setSubmittedPass(awaits === undefined ? created : { ...created, awaits_approval: awaits });
       // The pass is raised. Now tell the office it landed on, and copy this HOD.
       // NOT AWAITED, and it cannot throw: `notifyApproval` swallows everything,
       // because a mail provider having a bad afternoon must not put a red
