@@ -13,6 +13,7 @@ import React from 'react';
 import type { GatePassItemView } from '../../types';
 import { formatDateOnly } from '../../lib/formatDate';
 import ItemOrdinal from '../../components/ItemOrdinal';
+import { unitLabel } from '../../lib/units';
 
 /** Indian digit grouping — ₹14,500 not ₹14.5K. A guard reads this against a
  *  delivery note, so it must match the figure written on the paper. */
@@ -73,8 +74,16 @@ export default function VerifyItemsTable({ items, showReturnDates, totalQuantity
                   <span className="text-sm text-navy-500">{item.description}</span>
                 </div>
                 <div className="flex items-baseline gap-3 shrink-0">
+                  {/* THE UNIT, READ-ONLY, IN THE GUARD'S OWN WORDS (client,
+                      2026-08-20: "show the selected unit in guard view as
+                      readonly"). It is the HOD's choice on the raise form and
+                      nothing here may change it; `unitLabel` is the same map
+                      every other surface prints, so "lot" reads "Lots" here and
+                      on the slip in the guard's hand. Named on every line — the
+                      same exception Pending OUT makes — because the guard is
+                      counting a physical load against one line at a time. */}
                   <span className="text-sm font-semibold text-navy-800 tabular">
-                    {item.quantity} {item.unit}
+                    {item.quantity} {unitLabel(item.unit)}
                   </span>
                   <span className="text-sm font-bold text-brand-700 tabular">
                     {formatRupees(item.approx_value)}

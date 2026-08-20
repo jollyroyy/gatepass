@@ -37,9 +37,9 @@ followed without `--build`, so it type-checks **zero files** and always exits 0.
 is the artifact a human pastes; a migration edited but not re-concatenated never reaches the
 database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
-## Current state — 2026-08-19
+## Current state — 2026-08-20
 
-Full gate: **1453 tests across 120 files** (`npm run check`), green — and **`npm run build` is
+Full gate: **1521 tests across 124 files** (`npm run check`), green — and **`npm run build` is
 green again**, which it had not been since the raise-form CSS landed (see the twelfth pass).
 Migrations **`001`–`047` and `049`–`051` are applied to the live DB.** `044` was found UNAPPLIED on
 2026-08-19 — the overdue card's Contact Vendor and Add Remark had shipped against RPCs that did
@@ -52,18 +52,123 @@ pass. That probe borrows all four offices and hands them back; the run recorded 
 unchanged and its six probe passes were deleted, leaving **60 rows exactly as before**.
 **`045`, `047` and `048` belong to a parallel session.** `045` IS applied (`vendor_profiles.address`
 exists and `raise_pass` reads `make_model`); **`047` and `048` are NOT** — no approval-email or
-notification function exists in `gatepass`. `APPLY_ALL.sql` carries all 49 sections regardless.
+notification function exists in `gatepass`. `APPLY_ALL.sql` carries every section regardless. **`052` (mail settings) IS APPLIED and probed
+live**; **`053` belongs to a parallel session and its state is not known here.**
 
 | Thing | State |
 |---|---|
-| `gatepass.gate_passes` | **61 rows** — real user data. **Not a scratch DB; do not wipe it.** |
+| `gatepass.gate_passes` | **63 rows** — real user data. **Not a scratch DB; do not wipe it.** |
 | `public.departments` | **12 rows** (VMS-owned, shared) — do not wipe |
 | Demo accounts | the `@demo.vms` accounts share password `demo123` and are email-confirmed; shared with VMS. **"all email-confirmed" was WRONG** — 7 real accounts carried `email_confirmed_at is null` and none of them had ever signed in (see the 048 entry). 6 still do, and a password reset is now what confirms them. |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 | `gatepass.approval_roles` | **4 rows — ALL FOUR OFFICES ARE FILLED**, so since `046` was applied every NEWLY raised pass needs four approvals and **the gate cannot see it until it has them**. Security Head **Demi** (re-designated 2026-08-19, fourteenth pass — it had been Jane/`jollyroyy@gmail.com` for the email test) · COO Sudeshna Pal · CEO Sid · Finance HOD GUARDSOHAM. One person holds one office (`049`). Admin → Users → *Gate pass approval ladder* is where they are set. |
+| `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **4 rows** — one pending ladder, on `NRGP-20260819-0002`, sitting at level 1 (Security Head). The 60 older passes carry no ladder and reach the gate exactly as they did before. |
 
-**Latest change (2026-08-19, fifteenth pass): THE APPROVAL QUEUE IS THE GUARD'S STACKED
+**Latest change (2026-08-20, seventeenth pass): A LINE IS RAISED IN ITS OWN UNIT AGAIN, and
+the guard reads that unit back read-only.** Frontend only — no migration, no RPC change: the
+`gate_pass_items.unit` column and `raise_pass`'s `p_items` key have always been there; the form
+simply stopped sending anything but `nos`.
+
+- **THE UNIT IS A DROPDOWN ON EVERY ITEM LINE, on both pass types** (client: "add unit field as
+  dropdown to select different types of unit while raising the nrgp/rgp passes for all views …
+  add all the previous types of units and add lots"). **This REVERSES the eleventh pass's removal
+  of the UOM column** (the 2026-08-19 mock had none), which is the "KNOWN COST, FLAGGED" entry
+  below — material counted in bags, drums, kg or litres could not be raised in its own unit at
+  all. That cost is now paid back; the flagged line under migration `045` is superseded.
+  - **`UNIT_OPTIONS` in `src/lib/units.ts` is the list, DERIVED from `UNIT_LABELS`**, so a code
+    can never be offered under a label no other screen prints. Ten codes, counted first then
+    measured: Numbers · Box · Set · Roll · Bags · Drums · **Lots** · Kg · Litre · Metre. `lot`
+    was already in the label map (it arrived with the guard's mock-up vocabulary) — this is the
+    first form that can choose it.
+  - `NewGatePassItem.unit` is back, `EMPTY_ITEM.unit` is `'nos'`, and the grid template gained a
+    ninth track between Quantity and Make / Model / Size (ten on an RGP, which still splices its
+    per-line date in before Action).
+- **THE UNIT DECIDES WHETHER THE QUANTITY MAY CARRY A FRACTION**, through `isWholeUnit` — the ONE
+  place a unit is judged countable, which the gate's `checkReturnQty` already read. So a pass can
+  never be raised in a quantity its own return box would refuse. `validateRaiseForm` now reports
+  `wholeUnitError` ("Box cannot be split — enter 2 or 3.") instead of the flat "Enter a whole
+  number." it gave every line while every line was `nos`, and the row's native `min`/`step`
+  follow the same boolean so the browser's arrows agree with the submit. **2.5 Kg now raises**;
+  2.5 boxes still does not.
+- **THE GUARD SEES THE UNIT AND CANNOT CHANGE IT.** Pending OUT's item lines already carried a
+  UOM column, and both return boxes already STATE the line's unit beside a figure they will not
+  let you re-unit. What was wrong was the **Verify screen, which printed the raw code** — `2 nos`
+  — the abbreviation the client rejected on 2026-08-11; it reads `2 Numbers` through the same
+  `unitLabel` every other surface uses. Nothing on any guard surface is an input.
+- **`useReraisePass` copies each line's unit**, blanking nothing: re-raising 3 Lots as 3 `nos`
+  would silently change what the replacement pass is for.
+- Pinned by a new `tests/unit/raiseUnitSelect.test.tsx` (10) plus rewrites in
+  `materialItemsGrid.test.tsx` (its "renders no UOM/Unit column" case said the opposite and is
+  rewritten with a comment saying so — that file was also STALE, calling `itemGridColumns()` and
+  `MaterialItemsCard` without `showReturnDate`, which only ran because `undefined` is falsy),
+  `wholeUnitQuantity.test.tsx` (the raise half is unit-aware again), `verifyItemDetail.test.tsx`,
+  `raisePassSubmit.test.tsx` and `reraisePass.test.tsx`. `npm run check` is **1521 tests across
+  124 files** and `npm run build` is green.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite and a production build only. The select sits in
+  a grid that scrolls sideways as one — worth opening the form at a narrow width.
+
+**Earlier (2026-08-20, sixteenth pass): the approver decides FROM THE STACK, the
+Edit-User form offers the four offices, the CEO gets the whitelist queue (migration `053`,
+APPLIED), and three things the client asked to be removed are gone.** One migration; everything
+else is frontend.
+
+- **APPROVE / REJECT ARE BACK ON THE STACKED CARD** (client: "on the right-hand side he can
+  click on approve or reject, and rejection also should come with a mandatory justification" ·
+  "as simple, clear and minimal as possible — in the main section only the pending approvals and
+  the action button"). **This REVERSES the fifteenth pass's rule that a stacked card carries no
+  control**, and it is narrowed to one caller: `PassStackCard` gained an `actions?: ReactNode`
+  prop that only `/approvals` fills (`PassStack`'s `renderActions`), so the admin's drills, the
+  HOD's register and the overdue board are untouched and still action-free by construction.
+  `src/components/approver/ApprovalCardActions.tsx` is the pair of buttons; rejection opens the
+  SAME 500-character `RejectApprovalModal` the record uses, and both surfaces go through
+  `approvalActions.ts` — never the RPCs — so whichever is pressed, the next office still gets its
+  letter. The record's `ApprovalDecisionBar` is unchanged and still signs at the foot of a full
+  reading. After a decision the queue is **re-read** (`usePendingApprovals.reload`), never patched.
+- **THE "Routed to your office, waiting on someone else" TABLE IS DELETED** (client). With it
+  went `WaitingBelowSection.tsx`, `waitingBelowMe`, `WaitingBelowRow` and `waitingNote`, so a
+  stale reference is a build error. **A pass held up by an earlier office is now invisible on the
+  queue**; the record's decision bar still names the office holding it for anyone who opens one.
+- **THE EDIT-USER ROLE CONTROL OFFERS THE FOUR OFFICES** (client: "when I'm trying to edit the
+  CEO, COO roles it only shows HOD — show all those roles"). It pre-selects the OFFICE a holder
+  holds, never their VMS `staff` role, which is what made a CEO read "HOD". **No migration and no
+  widened RPC**: `EditUserModal` sequences `clear_approval_role` → `admin_update_user` (as
+  `staff`, no department, for an office) → `set_approval_role`. **The clear must come first** —
+  049 refuses a person who already holds a different office. Picking an office somebody else
+  holds MOVES it, and the note names them. `usersTabStatus`'s "Guard and HOD only" case was
+  REWRITTEN (it now pins that bare `staff` is still never offered); five new cases in
+  `createApproverUser.test.tsx`.
+- **MIGRATION `053` — THE CEO OFFICE DECIDES WHITELIST REQUESTS, APPLIED** (client: "when the CEO
+  role is logged in he should also be able to see all the whitelist requests with the reason and
+  approve or reject"). Two things were in the way: `list_whitelist_requests` (039) filtered on
+  `is_admin()` alone, so the CEO could decide a request they could not read; and `is_ceo()` read
+  `gatepass.ceo_approver`, a super_admin's designation restricted to ADMIN accounts, which the
+  ladder CEO (a VMS `staff` account) can never be. `is_ceo()` is now true for EITHER designation.
+  - **⚠ THIS DELIBERATELY REVERSES 043's SEPARATION, on the client's instruction.** Designating a
+    CEO on the approval ladder NOW ALSO grants the power to take a vendor off the blacklist. 043's
+    argument against that is still true and is quoted in 053's header; the client decided the two
+    offices are one person. To undo it, narrow `is_ceo()` back to `ceo_approver`.
+  - **`gatepass.ceo_approver` is EMPTY on the live DB** (checked as `postgres`), so before this
+    migration NOBODY could decide a whitelist request at all — there is 1 pending. Now the ladder
+    CEO can.
+  - **`/whitelist`** is a new route in `APPROVER_ROUTES`, rendering `src/pages/Approver/
+    WhitelistApprovals.tsx`, which REUSES the admin's `WhitelistRequestsTab` inside the `.gb-*`
+    skin. Any office holder may open it and a COO sees an empty list — route access is UX defence,
+    the RPCs are the boundary. **The Quick Action tile linking to it is drawn for `office ===
+    'ceo'` alone**, on `/approvals`.
+  - Pinned by 5 new `sqlInvariants` cases. **Applied with psql (`postgres`), so RLS is NOT proved
+    by it — no `scripts/verify-053.mjs` run yet, and no real CEO has signed in and pressed
+    anything.**
+- **RAISE GATE PASS IS NO LONGER A SIDEBAR TAB** (client). The HOD's tabs are Dashboard · My
+  Passes · Overdue Items. `/raise` stays in `ROLE_ROUTES.hod` and the dashboard's Quick Action
+  tile is the one door to the form; `?type=` and the re-raise flow are untouched.
+  `navLinksResolve` lists `/raise` among the deliberately link-less routes.
+- **The item row's "Remarks / Description" is just "Remarks"** (client: remove the description
+  beside remarks). The per-line **Item Description field is untouched** — the client corrected
+  themselves mid-instruction, and it is the field the whole line is named by.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: `npm run check` and the psql apply only.
+
+**Earlier (2026-08-19, fifteenth pass): THE APPROVAL QUEUE IS THE GUARD'S STACKED
 SCREEN, the decision moved onto the pass record, and every letter NAMES THE PERSON IT IS
 ASKING — migration `051`, APPLIED, and the Edge Function REDEPLOYED and PROBED 7/7 LIVE.**
 
@@ -293,9 +398,9 @@ APPLIED via psql (every statement returned; not yet probed with a real anon-key 
   "all this should be for the entire pass … no need to give it that for each individual item").
   The mock draws none of the three; they are here on that instruction.
 - **THREE FIELDS THE FORM NO LONGER COLLECTS, each a real cost, each flagged:**
-  - **UOM** (client: remove the column) — every new line is written `nos`, so **material counted
-    in bags, drums, kg or litres can no longer be raised in its own unit**. `isWholeUnit` still
-    governs the return box; the raise form now just refuses every fraction.
+  - **UOM** (client: remove the column) — **SUPERSEDED on 2026-08-20**: the dropdown is back and
+    a line is raised in its own unit again (see the seventeenth pass). For the day in between,
+    every new line was written `nos` and the raise form refused every fraction.
   - **Approx. value** — no column on the mock, so **"Total Value" reads "—" on every card and
     record from here on** and the record's item table foots nothing. Old passes keep theirs.
   - **Per-item purpose** — asked ONCE for the whole pass (500 chars, with the mock's counter).

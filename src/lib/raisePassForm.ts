@@ -6,6 +6,7 @@
 // eight fields to reach it.
 import type { NewGatePass, NewGatePassItem, PassType } from '../types';
 import { requiresReturnDate } from './passTypes';
+import { isWholeUnit, wholeUnitError } from './units';
 
 export type FormErrors = Record<string, string | undefined>;
 
@@ -77,9 +78,10 @@ export function earliestReturnDate(items: NewGatePassItem[]): string | null {
  *  moved; it is still the one `gatepass.v_gate_passes` grades `is_overdue` /
  *  `due_state` from.
  *
- *  THERE IS NO UNIT RULE ANY MORE. The mock has no UOM column, so every line is
- *  raised in `nos` — a counted unit — and a fraction is refused outright rather
- *  than through `isWholeUnit`, which now has nothing variable to consult here.
+ *  THE UNIT RULE IS BACK, because the line carries a unit again (client,
+ *  2026-08-20). `isWholeUnit` is the ONE place a unit is judged countable and
+ *  both this form and the gate's return box read it — so a pass can never be
+ *  raised in a quantity `checkReturnQty` would later refuse to return.
  */
 export function validateRaiseForm(form: NewGatePass, hasDepartment: boolean, today: string): FormErrors {
   const errs: FormErrors = {};
@@ -111,12 +113,14 @@ export function validateRaiseForm(form: NewGatePass, hasDepartment: boolean, tod
       const qty = Number(item.quantity);
       if (!item.quantity || Number.isNaN(qty) || qty <= 0) {
         errs[`item_${idx}_quantity`] = 'Enter a quantity greater than 0.';
-      } else if (!Number.isInteger(qty)) {
+      } else if (isWholeUnit(item.unit) && !Number.isInteger(qty)) {
         // A COUNTED UNIT TAKES NO FRACTION, and the rule has to be here as well
-        // as in the return box: 2.5 raised is 2.5 the gate can never fully
+        // as in the return box: 2.5 boxes raised is 2.5 the gate can never fully
         // return, since `checkReturnQty` would refuse every fraction that
-        // clears it. Every line raised from this form is `nos`.
-        errs[`item_${idx}_quantity`] = 'Enter a whole number.';
+        // clears it. A MEASURED unit (kg, litre, metre) keeps its decimals —
+        // 800.5 Kg is an ordinary movement. No ceiling is passed: nothing caps
+        // how much material a pass may be raised for.
+        errs[`item_${idx}_quantity`] = wholeUnitError(item.unit, qty);
       }
     });
   }

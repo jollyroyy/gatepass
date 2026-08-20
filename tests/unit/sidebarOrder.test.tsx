@@ -53,7 +53,9 @@ describe('sidebar order', () => {
     expect(labels('guard')).toEqual(['Dashboard', 'Pending OUT', 'Pending RGP Return', 'Overdue Items']);
   });
 
-  it('leaves the HOD order as it was', () => {
-    expect(labels('hod')).toEqual(['Dashboard', 'Raise Gate Pass', 'My Passes', 'Overdue Items']);
+  it('gives the HOD Dashboard, My Passes and Overdue Items — no Raise tab', () => {
+    // Client, 2026-08-20: Raise Gate Pass left the sidebar; the dashboard's
+    // Quick Action tile opens the same form.
+    expect(labels('hod')).toEqual(['Dashboard', 'My Passes', 'Overdue Items']);
   });
 });

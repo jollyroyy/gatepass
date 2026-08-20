@@ -251,6 +251,7 @@ export default function UsersTab(): React.ReactElement {
           departments={departments}
           currentDeptId={deptIdByHod.get(editProfile.id) ?? ''}
           office={officeByUserId.get(editProfile.id) ?? null}
+          approvalRoles={approvalRoles}
           onClose={closeEdit}
           onSaved={load}
         />

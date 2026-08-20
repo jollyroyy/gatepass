@@ -220,10 +220,11 @@ export default function RaisePass(): React.ReactElement {
           name: item.name.trim(),
           description: item.name.trim(),
           quantity: Number(item.quantity),
-          // No UOM column on the mock (client: remove it), so every line is the
-          // column default. Sent explicitly rather than left to the RPC so the
-          // payload says what the row will hold.
-          unit: 'nos',
+          // THE UNIT THE HOD PICKED (client, 2026-08-20). `nos` is the select's
+          // own default, so a line nobody touched still lands as a plain count —
+          // the same value every line raised between 2026-08-19 and today
+          // carries — and the guard reads it back read-only at the barrier.
+          unit: item.unit || 'nos',
           make_model: item.make_model.trim() || null,
           serial_no: item.serial_no.trim() || null,
           invoice_no: item.invoice_no.trim() || null,

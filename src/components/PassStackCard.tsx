@@ -18,10 +18,17 @@
 // approval-and-activity rail and the return status. Nothing was lost by the
 // move, and there is now one place where a pass is read.
 //
-// AND IT OFFERS NO ACTION TO ANYBODY. Not a role check — there simply is no
-// control on it: the only mutations a pass has (Approve OUT, recording a
-// return) live on the record and are drawn there for a guard alone, by rules
-// `match_pass` and `apply_item_returns` enforce in the database.
+// IT OFFERS NO ACTION UNLESS THE LIST HANDS IT ONE. Not a role check — there
+// is simply no control on the card by default: the guard's own mutations
+// (Approve OUT, recording a return) live on the record and are drawn there for
+// a guard alone, by the rules `match_pass` and `apply_item_returns` enforce in
+// the database.
+//
+// The ONE exception, added 2026-08-20 at the client's instruction, is the
+// approver's queue: `/approvals` passes `actions` so each card carries Approve
+// and Reject on its right-hand side. The prop is a node the LIST supplies, so
+// this card knows nothing about approvals and every other stack in the app is
+// still action-free by construction. See `ApprovalCardActions.tsx`.
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView } from '../types';
@@ -67,10 +74,13 @@ type Props = {
   /** The HOD's own register and dashboard pass false: their own name back at
    *  them is noise. The admin oversees every department and keeps it. */
   showRaisedBy?: boolean;
+  /** Controls drawn under the stage pill, on the right. Supplied by the LIST —
+   *  only the approver's queue supplies any. */
+  actions?: React.ReactNode;
 };
 
 export default function PassStackCard({
-  pass, index, showRaisedBy = true,
+  pass, index, showRaisedBy = true, actions,
 }: Props): React.ReactElement {
   const company = parseCompanyInfo(pass.visitor_company);
   const stage = passStageStyle(pass);
@@ -124,11 +134,12 @@ export default function PassStackCard({
         </div>
       </Link>
 
-      {/* THE RETURN STATUS, AND NOTHING TO PRESS — the client's own division of
-          labour between the guard and the two desk roles. The pill sits outside
-          the link because it is a label, not a target. */}
-      <div className="gpo-card-tools">
+      {/* THE RETURN STATUS — and, for the approver's queue alone, the two
+          buttons the list handed down. Both sit OUTSIDE the link: a control
+          nested inside an anchor is a control that also navigates. */}
+      <div className={actions ? 'gpo-card-tools gpo-card-tools-stacked' : 'gpo-card-tools'}>
         <span className={`gb-pill gb-pill-${tone}`}>{stage.label}</span>
+        {actions}
       </div>
     </li>
   );

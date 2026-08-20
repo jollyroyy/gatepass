@@ -69,13 +69,13 @@ describe('checkReturnQty refuses a fraction of a counted unit', () => {
   });
 });
 
-// 2026-08-19: the raise form's grid lost its UOM column — every line raised
-// from it is `nos`, so `validateRaiseForm` no longer takes a per-item unit at
-// all and refuses ANY fraction outright, through the same "Enter a whole
-// number." message every line shares. The unit-aware `isWholeUnit` rule stays
-// alive on the RETURN side (`checkReturnQty`, pinned above and below), because
-// a line raised long ago can still carry `kg` or `litre`.
-function form(quantity: string): NewGatePass {
+// REWRITTEN 2026-08-20. Between 2026-08-19 and today the raise form had no UOM
+// column, so `validateRaiseForm` refused EVERY fraction through one shared
+// "Enter a whole number." message. The client asked for the dropdown back, so
+// the raise half consults `isWholeUnit` again — the same function the return
+// box does, which is what stops a pass being raised in a quantity its own
+// return box would refuse.
+function form(quantity: string, unit = 'nos'): NewGatePass {
   return {
     type: 'NRGP',
     direction: 'out',
@@ -88,15 +88,23 @@ function form(quantity: string): NewGatePass {
     purpose: 'Testing',
     expected_return_date: '',
     items: [
-      { name: 'Crates', make_model: 'Wooden', serial_no: '', invoice_no: '', remarks: '', quantity },
+      { name: 'Crates', make_model: 'Wooden', serial_no: '', invoice_no: '', remarks: '', quantity, unit },
     ],
   };
 }
 
 describe('a pass cannot be RAISED in a fraction of a counted unit', () => {
-  it('refuses a fraction on any line — every line raised from this form is nos', () => {
-    const errs = validateRaiseForm(form('2.5'), true, '2026-08-19');
-    expect(errs.item_0_quantity).toBe('Enter a whole number.');
+  it('refuses a fraction of a counted unit, naming the whole numbers either side', () => {
+    const errs = validateRaiseForm(form('2.5', 'box'), true, '2026-08-19');
+    expect(errs.item_0_quantity).toBe('Box cannot be split — enter 2 or 3.');
+  });
+
+  it('refuses a fraction of the default unit', () => {
+    expect(validateRaiseForm(form('2.5'), true, '2026-08-19').item_0_quantity).toBeDefined();
+  });
+
+  it('allows a fraction of a MEASURED unit — 2.5 Kg is an ordinary movement', () => {
+    expect(validateRaiseForm(form('2.5', 'kg'), true, '2026-08-19').item_0_quantity).toBeUndefined();
   });
 
   it('allows a whole number', () => {

@@ -45,7 +45,7 @@ const SOURCE: GatePassView = {
 const SOURCE_ITEMS = [
   {
     id: 'i1', gate_pass_id: 'p-flagged', line_no: 1, name: 'Ladder',
-    make_model: 'Aluminium 12ft', quantity: 3, unit: 'nos',
+    make_model: 'Aluminium 12ft', quantity: 3, unit: 'lot',
     invoice_no: null, remarks: null, serial_no: 'SN-LADDER-1',
     expected_return_date: TOMORROW,
   },
@@ -172,6 +172,16 @@ describe('the raise form, arrived at from a mismatch', () => {
     expect(screen.getByDisplayValue('SN-LADDER-1')).toBeInTheDocument();
     const serials = screen.getAllByLabelText('Serial / Asset Tag') as HTMLInputElement[];
     expect(serials.map((s) => s.value)).toEqual(['SN-LADDER-1', '']);
+  });
+
+  // A line's UNIT is copied too (2026-08-20, when the raise form got its
+  // dropdown back): re-raising 3 Lots as 3 `nos` would silently change what the
+  // replacement pass is for, and the gate would count the wrong thing.
+  it("carries each line's own unit", async () => {
+    renderReraise();
+    await waitFor(() => expect(screen.getByDisplayValue('Ladder')).toBeInTheDocument());
+    const units = screen.getAllByLabelText('Unit') as HTMLSelectElement[];
+    expect(units.map((u) => u.value)).toEqual(['lot', 'nos']);
   });
 
   it("carries each line's own return date when it is still ahead", async () => {

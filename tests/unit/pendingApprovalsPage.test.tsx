@@ -154,12 +154,49 @@ describe('The stack and its figure', () => {
     expect(within(cards[1]).getByText('RGP-00057')).toBeInTheDocument();
   });
 
-  it('renders no table, and offers no Approve or Reject on a card', async () => {
+  // REWRITTEN 2026-08-20. This case used to hold that a card offers NO control
+  // at all — the decision had been moved onto the record. The client asked for
+  // the two buttons back on the card's right-hand side ("as simple, clear and
+  // minimal as possible … only the pending approvals and the action button"),
+  // so what is pinned now is that every card in THIS queue carries both.
+  it('carries Approve and Reject on every card in the queue', async () => {
     await renderPage();
     const cards = screen.getAllByTestId('pass-stack-card');
     for (const card of cards) {
-      expect(within(card).queryByRole('button')).not.toBeInTheDocument();
+      expect(within(card).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+      expect(within(card).getByRole('button', { name: 'Reject' })).toBeInTheDocument();
     }
+  });
+
+  it('approves through approve_pass_level, and re-reads the queue after', async () => {
+    await renderPage();
+    const card = screen.getAllByTestId('pass-stack-card')[0];
+    fireEvent.click(within(card).getByRole('button', { name: 'Approve' }));
+    await waitFor(() =>
+      expect(rpcCalls.some((c) => c.name === 'approve_pass_level')).toBe(true));
+    // p2 is the oldest, so it is the first card.
+    expect(rpcCalls.find((c) => c.name === 'approve_pass_level')?.args)
+      .toEqual({ p_pass_id: 'p2' });
+  });
+
+  it('will not reject without a written justification', async () => {
+    await renderPage();
+    const card = screen.getAllByTestId('pass-stack-card')[0];
+    fireEvent.click(within(card).getByRole('button', { name: 'Reject' }));
+
+    const submit = screen.getByRole('button', { name: 'Submit Rejection' });
+    expect(submit).toBeDisabled();
+    fireEvent.click(submit);
+    expect(rpcCalls.some((c) => c.name === 'reject_pass_level')).toBe(false);
+
+    fireEvent.change(screen.getByLabelText(/Reason for Rejection/), {
+      target: { value: 'Vendor is blacklisted.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Rejection' }));
+    await waitFor(() =>
+      expect(rpcCalls.some((c) => c.name === 'reject_pass_level')).toBe(true));
+    expect(rpcCalls.find((c) => c.name === 'reject_pass_level')?.args)
+      .toEqual({ p_pass_id: 'p2', p_reason: 'Vendor is blacklisted.' });
   });
 
   it('opens the ONE gate pass record — the same one the guard reads', async () => {
@@ -178,17 +215,16 @@ describe('The stack and its figure', () => {
   });
 });
 
-describe('Waiting on someone else', () => {
-  it('lists a pass held up by an earlier office, with no Approve or Reject button', async () => {
+// The read-only "Routed to your office, waiting on someone else" table was
+// DELETED on 2026-08-20 at the client's instruction. It used to list a pass
+// held up by an earlier office, with no Approve/Reject control; this case holds
+// that it is gone.
+describe('A pass held up by an earlier office', () => {
+  it('is not listed on this screen at all', async () => {
     await renderPage();
-    expect(screen.getByText('Routed to your office, waiting on someone else (1)')).toBeInTheDocument();
-    expect(screen.getByText('RGP-00058')).toBeInTheDocument();
-    expect(screen.getByText('Waiting on Security Head')).toBeInTheDocument();
-
-    const row = screen.getByText('RGP-00058').closest('tr');
-    expect(row).not.toBeNull();
-    expect(within(row as HTMLElement).queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
-    expect(within(row as HTMLElement).queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/waiting on someone else/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('RGP-00058')).not.toBeInTheDocument();
+    expect(screen.queryByText('Waiting on Security Head')).not.toBeInTheDocument();
   });
 });
 

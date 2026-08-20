@@ -37,10 +37,10 @@ export const ALL_LINKS: NavLink[] = [
     to: '/dashboard', label: 'Dashboard', roles: ['hod'],
     icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>,
   },
-  {
-    to: '/raise', label: 'Raise Gate Pass', roles: ['hod'],
-    icon: <svg {...ICON_PROPS}><circle cx="12" cy="12" r="8.25" /><path strokeLinecap="round" d="M12 8.25v7.5M8.25 12h7.5" /></svg>,
-  },
+  // RAISE GATE PASS IS NOT A TAB (client, 2026-08-20). The form is opened by
+  // the dashboard's own Raise Gate Pass tile, which is where an HOD already
+  // is; `/raise` stays in ROLE_ROUTES.hod, so the route, the `?type=` deep
+  // link and the re-raise flow are untouched.
   {
     to: '/my-passes', label: 'My Passes', roles: ['hod'],
     icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M7 3.75h7.5L19 8.25V19.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 017 19.5V3.75z" /><path strokeLinecap="round" strokeLinejoin="round" d="M14.5 3.75V8.25H19M9.5 12.75h5M9.5 15.75h5M9.5 18.75h3" /></svg>,

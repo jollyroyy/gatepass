@@ -93,6 +93,10 @@ describe('every permitted route is reachable without typing a URL', () => {
     // redirects onto it with a flash after a decision, and the dashboard's
     // Scan QR quick action opens it.
     '/console',
+    // Raise Gate Pass. It lost its sidebar tab on 2026-08-20 (client) — the
+    // HOD dashboard's Quick Action tile is the one door to the form, and the
+    // re-raise flow reaches it with `?from=`.
+    '/raise',
   ]);
 
   const linked = new Set(ALL_LINKS.map((l) => l.to));

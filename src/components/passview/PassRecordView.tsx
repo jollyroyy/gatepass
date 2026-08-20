@@ -82,6 +82,7 @@ export default function PassRecordView({
   const steps = buildApprovalSteps(pass, roles, role, approvals);
   const canRecord = canRecordReturns(pass, role);
   const canApprove = role === 'guard' && canVerifyAtGate(pass);
+  const stage = passStageStyle(pass);
 
   // The entrance the guard named when they cleared it. Nothing invents one:
   // there is no gate entity in this schema, so an unnamed exit shows no fact.
@@ -100,8 +101,14 @@ export default function PassRecordView({
         <div className="min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="page-title !mb-0">{pass.type} Gate Pass Details</h1>
-            <Badge style={passStageStyle(pass)} />
-            {pass.is_overdue && <Badge style={OVERDUE_STYLE} />}
+            <Badge style={stage} />
+            {/* ONE "Overdue", never two (client, 2026-08-20). `passStageStyle`
+                already RENAMES a late open pass to Overdue, so this pill is
+                drawn only when the stage badge says something else — a
+                MISMATCHED pass that is also late still carries both facts. */}
+            {pass.is_overdue && stage.label !== OVERDUE_STYLE.label && (
+              <Badge style={OVERDUE_STYLE} />
+            )}
           </div>
           <p className="page-subtitle !mb-0 mt-1">
             {pass.type === 'RGP'

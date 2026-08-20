@@ -111,11 +111,16 @@ describe('UsersTab — staff is not an assignable role', () => {
     expect([...select.options].map((o) => o.value)).not.toContain('staff');
   });
 
-  it('the Edit User role select offers Guard and HOD only — no "Deactivate (Staff)"', async () => {
+  // REWRITTEN 2026-08-20. It used to hold that the Edit control offered
+  // ['guard', 'hod'] alone; the client asked for the four approval offices to
+  // be selectable there too ("in the role they are only showing HOD"). What
+  // this case still pins is the part that has not changed: bare `staff` is
+  // never an option — deactivating is a status, not a role.
+  it('the Edit User role select never offers bare "staff"', async () => {
     await renderTab();
     fireEvent.click(within(rowFor('Active Guard')).getByRole('button', { name: 'Edit' }));
     const select = screen.getByLabelText('Role') as HTMLSelectElement;
-    expect([...select.options].map((o) => o.value)).toEqual(['guard', 'hod']);
+    expect([...select.options].map((o) => o.value)).not.toContain('staff');
     expect(select.textContent).not.toMatch(/staff/i);
   });
 

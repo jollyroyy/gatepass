@@ -13,7 +13,13 @@ import type { UserRole } from '../types/index';
  * must not drag a live Supabase client into a test that only asks which paths a
  * role may reach. See `approverAccess.ts` for why an office is not a role.
  */
-export const APPROVER_ROUTES: string[] = ['/approvals', '/pass', '/profile'];
+// `/whitelist` is the CEO's blacklist-removal queue (client, 2026-08-20;
+// migration 053). It is listed for EVERY office because this file knows a
+// role and a boolean, not which office is held — and route access is UX
+// defence in depth: `list_whitelist_requests` shows a COO nothing, and
+// `approve_whitelist_request` refuses anyone but the CEO. The link into it is
+// drawn for the CEO alone.
+export const APPROVER_ROUTES: string[] = ['/approvals', '/whitelist', '/pass', '/profile'];
 
 /** Where an office holder with no other role in this app lands. */
 export const APPROVER_HOME = '/approvals';

@@ -1365,3 +1365,100 @@ describe('051 — the approval letter is addressed to the office s current holde
     expect(body).toMatch(/set search_path = ''/i);
   });
 });
+
+describe('052 — the mail settings are editable, and the credential is not readable', () => {
+  const sql = allMigrationsText().find((m) => m.name.startsWith('052'))!.sql;
+  const fns = extractFunctions(allMigrationsText());
+  const fnBody = (name: string) => fns.filter((f) => f.name === name).slice(-1)[0].body;
+
+  it('gives no signed-in role any privilege on gatepass.mail_settings', () => {
+    // The table holds an SMTP password. An admin reads it through
+    // get_mail_settings(), which never returns that column; a PostgREST select
+    // on the table would return every column there is.
+    expect(sql).toMatch(/alter table gatepass\.mail_settings enable row level security/i);
+    expect(sql).not.toMatch(/grant\s+[\w, ()]*on\s+(table\s+)?gatepass\.mail_settings\s+to\s+authenticated/i);
+    expect(sql).not.toMatch(/create policy[\s\S]*?on gatepass\.mail_settings/i);
+  });
+
+  it('never lets get_mail_settings return the stored password', () => {
+    const body = fnBody('gatepass.get_mail_settings');
+    expect(body).toMatch(/'smtp_password_set',\s*s\.smtp_password is not null/i);
+    expect(body).not.toMatch(/'smtp_password',/i);
+  });
+
+  it('keeps mail_config — which DOES return the password — to service_role alone', () => {
+    expect(sql).toMatch(/grant execute on function gatepass\.mail_config\(\) to service_role/i);
+    expect(sql).not.toMatch(/grant execute on function gatepass\.mail_config\(\)[^;]*authenticated/i);
+  });
+
+  it('checks that both reader and writer are admins', () => {
+    for (const name of ['gatepass.get_mail_settings', 'gatepass.set_mail_settings']) {
+      const body = fnBody(name);
+      expect(body).toMatch(/if not gatepass\.is_admin\(\) then/i);
+      expect(body).toMatch(/security definer/i);
+      expect(body).toMatch(/set search_path = ''/i);
+    }
+  });
+
+  it('accepts ONE redirect address, never a list', () => {
+    // Client, 2026-08-20: one email at a time. The regex bans the separators
+    // as well as whitespace and angle brackets, so a second recipient cannot
+    // be smuggled through a display name.
+    expect(sql).toMatch(/constraint mail_settings_override_is_one_address/i);
+    expect(sql).toMatch(/\[\^@\[:space:\],;<>\]/);
+  });
+
+  it('leaves the stored password alone when the form did not send one', () => {
+    // A write-only field cannot be round-tripped through a form, so null means
+    // "unchanged" and '' means "clear" — the update must say so explicitly.
+    expect(fnBody('gatepass.set_mail_settings'))
+      .toMatch(/when p_smtp_password is null then m\.smtp_password/i);
+  });
+});
+
+describe('053 — the CEO office decides whitelist requests', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('053'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(migrations);
+  /** The LAST definition wins — 053 replaces both of these. */
+  const fnBody = (name: string) => fns.filter((f) => f.name === name).slice(-1)[0].body;
+
+  it('touches nothing in `public` — the two-schema rule', () => {
+    expect(/create\s+(table|view|function|type)\s+public\./i.test(bare)).toBe(false);
+    expect(/alter\s+table\s+public\./i.test(bare)).toBe(false);
+  });
+
+  it('makes `is_ceo()` true for the ladder CEO as well as the designated one', () => {
+    // The client's own decision (2026-08-20), and it reverses 043's separation
+    // of the org chart from the blacklist override — the migration header says
+    // so out loud. Both halves must be present: dropping `ceo_approver` would
+    // silently unseat whoever a super_admin designated.
+    const body = fnBody('gatepass.is_ceo');
+    expect(body).toMatch(/gatepass\.ceo_approver/i);
+    expect(body).toMatch(/gatepass\.approval_roles/i);
+    expect(body).toMatch(/role_key = 'ceo'/i);
+  });
+
+  it('lets the CEO READ the queue they are the only person able to clear', () => {
+    // 039 filtered the list on is_admin() alone, so the CEO could decide a
+    // request they could not see.
+    expect(fnBody('gatepass.list_whitelist_requests'))
+      .toMatch(/gatepass\.is_admin\(\)\s+or\s+gatepass\.is_ceo\(\)/i);
+  });
+
+  it('keeps both functions SECURITY DEFINER with a pinned search_path', () => {
+    for (const name of ['gatepass.is_ceo', 'gatepass.list_whitelist_requests']) {
+      const body = fnBody(name);
+      expect(body).toMatch(/security definer/i);
+      expect(body).toMatch(/set search_path = ''/i);
+    }
+  });
+
+  it('does not widen who may DECIDE beyond is_ceo()', () => {
+    // The two decide RPCs are untouched here; a `create or replace` of either
+    // in this migration would need its own review.
+    expect(/create or replace function gatepass\.(approve|reject)_whitelist_request/i.test(bare))
+      .toBe(false);
+  });
+});

@@ -2,7 +2,7 @@
 // to the client's 2026-08-19 "Raise Gate Pass" mock-up: ONE pass-level purpose,
 // one vendor with an auto-filled address, and an item table with make/model,
 // serial, invoice, remarks and — on an RGP — ITS OWN RETURN DATE per line, but
-// no unit picker (every line is written `nos`).
+// a UNIT picked per line (client, 2026-08-20 — it defaults to `nos`).
 //
 // The pass-level `p_expected_return_date` is the EARLIEST of the line dates
 // (`earliestReturnDate`): a pass is overdue as soon as its first line is.
@@ -157,6 +157,29 @@ describe('RaisePass — serial number and the item table, on every line', () => 
   });
 });
 
+describe('RaisePass — the unit the HOD picked is what the pass is raised in', () => {
+  it('sends each line its own unit', async () => {
+    renderRaisePass();
+    await waitFor(() => expect(screen.getAllByLabelText('Item Description')).toHaveLength(2));
+    fillAllRequired();
+
+    const units = screen.getAllByLabelText('Unit');
+    fireEvent.change(units[0], { target: { value: 'lot' } });
+    fireEvent.change(units[1], { target: { value: 'kg' } });
+    // A measured unit takes a fraction — and the submit must accept it.
+    fireEvent.change(screen.getAllByLabelText('Quantity')[1], { target: { value: '2.5' } });
+
+    setItemDates([futureDate(5), futureDate(5)]);
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
+
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith('raise_pass', expect.anything()));
+    const items = raisePassArgs().p_items as Record<string, unknown>[];
+    expect(items[0].unit).toBe('lot');
+    expect(items[1].unit).toBe('kg');
+    expect(items[1].quantity).toBe(2.5);
+  });
+});
+
 describe('RaisePass — an RGP can actually be submitted', () => {
   it('sends each line its own return date, and the pass takes the EARLIEST', async () => {
     renderRaisePass();
@@ -182,6 +205,8 @@ describe('RaisePass — an RGP can actually be submitted', () => {
     expect(items[1].expected_return_date).toBe(sooner);
     expect(items[0].name).toBe('Drill');
     expect(items[0].quantity).toBe(2);
+    // Untouched select → the default, which is what every line raised between
+    // 2026-08-19 and 2026-08-20 carries.
     expect(items[0].unit).toBe('nos');
     expect(items[0].make_model).toBe('Bosch GSB 13mm');
 

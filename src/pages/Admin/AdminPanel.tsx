@@ -8,6 +8,10 @@
 //
 // The Users tab carries the gate pass approval ladder (043) for the same
 // reason: it is four people picked out of the very directory listed under it.
+//
+// Settings (052) is where anything an operator configures goes. It holds the
+// approval-email card today: which inbox the ladder's letters are redirected
+// to, the sender, and the SMTP server fields that are stored provision only.
 import React, { useState } from 'react';
 import DepartmentsTab from './DepartmentsTab';
 import UsersTab from './UsersTab';
@@ -15,15 +19,17 @@ import BlacklistTab from './BlacklistTab';
 import WhitelistRequestsTab from './WhitelistRequestsTab';
 import CeoApproverCard from './CeoApproverCard';
 import ApprovalLadderCard from './ApprovalLadderCard';
+import MailSettingsCard from './MailSettingsCard';
 import { useMyProfile } from '../../lib/useMyProfile';
 
-type Tab = 'departments' | 'users' | 'blacklist' | 'whitelist';
+type Tab = 'departments' | 'users' | 'blacklist' | 'whitelist' | 'settings';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'departments', label: 'Departments' },
   { key: 'users', label: 'Users' },
   { key: 'blacklist', label: 'Blacklist' },
   { key: 'whitelist', label: 'Whitelist Requests' },
+  { key: 'settings', label: 'Settings' },
 ];
 
 export default function AdminPanel(): React.ReactElement {
@@ -40,6 +46,7 @@ export default function AdminPanel(): React.ReactElement {
       </div>
     ),
     blacklist: <BlacklistTab />,
+    settings: <MailSettingsCard />,
     whitelist: (
       <div className="space-y-6">
         <CeoApproverCard isSuperAdmin={isSuperAdmin} />

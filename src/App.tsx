@@ -32,6 +32,7 @@ import PassDetail from './pages/Shared/PassDetail';
 import PassPrint from './pages/Shared/PassPrint';
 import ProfilePage from './pages/Shared/Profile';
 import OverdueItemsPage from './pages/Shared/OverdueItemsPage';
+import WhitelistApprovals from './pages/Approver/WhitelistApprovals';
 import PendingApprovals from './pages/Approver/PendingApprovals';
 import ReturnsDueTodayPage from './pages/Shared/ReturnsDueTodayPage';
 
@@ -249,6 +250,9 @@ export default function App(): React.ReactElement {
           {/* The four approval offices (046). One screen, and it is the whole
               of what an office holder does here. */}
           <Route path="/approvals" element={<PendingApprovals office={office} />} />
+          {/* The CEO office also decides whitelist requests (053). Any office
+              holder may open it; only the CEO sees anything in it. */}
+          <Route path="/whitelist" element={<WhitelistApprovals />} />
 
           {/* Shared */}
           <Route path="/pass/:id" element={<PassDetail role={role} office={office} />} />

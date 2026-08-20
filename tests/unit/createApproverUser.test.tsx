@@ -3,10 +3,9 @@
 // offers the four gate pass approval offices alongside Guard and HOD, and
 // `admin_create_user` accepts the office key directly as `p_role`.
 //
-// The Edit-User modal is UNCHANGED: `admin_update_user` was not extended,
-// and moving an office is still only `set_approval_role` / `clear_approval_role`
-// behind the "Gate pass approval ladder" card — so that dropdown keeps
-// offering Guard and HOD only.
+// The Edit-User modal offers the same six choices since 2026-08-20 (client).
+// `admin_update_user` is still not extended — the modal calls
+// `clear_approval_role` / `set_approval_role` around it, in that order.
 //
 // Mocking pattern copied from tests/unit/usersTabModals.test.tsx /
 // usersTabStatus.test.tsx — the same `thenable` shape and the same
@@ -166,24 +165,70 @@ describe('Add User — the four approval offices are offered', () => {
   });
 });
 
-describe('Edit User — still Guard and HOD only', () => {
-  it('the role select offers only guard and hod, even editing an office holder', async () => {
-    await renderTab();
-    fireEvent.click(within(rowFor('Priya CEO')).getByRole('button', { name: 'Edit' }));
-    const select = screen.getByLabelText('Role') as HTMLSelectElement;
-    expect([...select.options].map((o) => o.value)).toEqual(['guard', 'hod']);
-  });
-
-  it('editing an office holder explains the office is changed on the ladder card', async () => {
-    await renderTab();
-    fireEvent.click(within(rowFor('Priya CEO')).getByRole('button', { name: 'Edit' }));
-    expect(screen.getByText(/gate pass approval ladder/i)).toBeInTheDocument();
-  });
-
-  it('editing a non-office user shows no ladder note', async () => {
+// Client, 2026-08-20: the Edit-User role control offers the four offices too.
+// It used to offer Guard and HOD alone and point at the ladder card, so a CEO
+// opened here read "HOD" — a role they do not hold. The office is still moved
+// by `set_approval_role` / `clear_approval_role`; this form only sequences
+// them around `admin_update_user`.
+describe('Edit User — the four approval offices are selectable', () => {
+  it('the role select offers guard, hod and every office', async () => {
     await renderTab();
     fireEvent.click(within(rowFor('Guard One')).getByRole('button', { name: 'Edit' }));
-    expect(screen.queryByText(/gate pass approval ladder/i)).not.toBeInTheDocument();
+    const select = screen.getByLabelText('Role') as HTMLSelectElement;
+    expect([...select.options].map((o) => o.value)).toEqual([
+      'guard', 'hod', 'security_head', 'coo', 'ceo', 'finance_head',
+    ]);
+  });
+
+  it('pre-selects the OFFICE an office holder holds, never their VMS staff role', async () => {
+    await renderTab();
+    fireEvent.click(within(rowFor('Priya CEO')).getByRole('button', { name: 'Edit' }));
+    expect((screen.getByLabelText('Role') as HTMLSelectElement).value).toBe('ceo');
+  });
+
+  it('designating an office writes the VMS role as staff and then sets the office', async () => {
+    await renderTab();
+    fireEvent.click(within(rowFor('Guard One')).getByRole('button', { name: 'Edit' }));
+    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'coo' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => expect(rpcSpy).toHaveBeenCalledWith('set_approval_role', {
+      p_role_key: 'coo',
+      p_user_id: 'u1',
+    }));
+    expect(rpcSpy).toHaveBeenCalledWith('admin_update_user', {
+      p_user_id: 'u1',
+      p_full_name: 'Guard One',
+      p_role: 'staff',
+      p_department_ids: [],
+    });
+    expect(rpcSpy).not.toHaveBeenCalledWith('clear_approval_role', expect.anything());
+  });
+
+  it('moving an office holder back to Guard vacates the office first', async () => {
+    await renderTab();
+    fireEvent.click(within(rowFor('Priya CEO')).getByRole('button', { name: 'Edit' }));
+    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'guard' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => expect(rpcSpy).toHaveBeenCalledWith('admin_update_user', {
+      p_user_id: 'u2',
+      p_full_name: 'Priya CEO',
+      p_role: 'guard',
+      p_department_ids: null,
+    }));
+    const order = rpcSpy.mock.calls.map((c) => c[0]);
+    expect(order.indexOf('clear_approval_role')).toBeLessThan(order.indexOf('admin_update_user'));
+    expect(rpcSpy).toHaveBeenCalledWith('clear_approval_role', { p_role_key: 'ceo' });
+  });
+
+  it('names the person an office would be taken from', async () => {
+    await renderTab();
+    fireEvent.click(within(rowFor('Guard One')).getByRole('button', { name: 'Edit' }));
+    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'ceo' } });
+    const note = document.querySelector('.alert-info') as HTMLElement;
+    expect(note).not.toBeNull();
+    expect(note.textContent).toContain('Priya CEO');
   });
 });
 

@@ -1,6 +1,5 @@
-// The Pending Approvals screen's derivations — one office's queue, the passes
-// waiting on somebody ELSE below it, search and the two filters (client
-// mock-up, 2026-08-19, migration 046).
+// The Pending Approvals screen's derivations — one office's queue, search and
+// the two filters (client mock-up, 2026-08-19, migration 046).
 //
 // Derivation only, no queries — the same split `pendingOutFilters.ts` follows:
 // the queue predicate, the search and the filters are all readings of the ONE
@@ -14,12 +13,16 @@
 // lives in `approvalDecision.ts` and is IMPORTED, not restated: the Approve /
 // Reject bar at the foot of the gate pass record decides with the same
 // function, so the queue and the record can never disagree about whose turn it
-// is. The two derivations below (`inMyQueue` / `waitingBelowMe`) are that one
-// predicate read from both directions, over the same `PassApproval[]`.
+// is.
+//
+// A pass routed to my office but still held up by an EARLIER one is NOT listed
+// here at all (client, 2026-08-20: remove that section). The record's own
+// decision bar still names the office holding it, for a reader who opens such
+// a pass.
 import type { GatePassView } from '../types';
 import type { ApprovalRoleKey } from './approvalLadder';
-import { APPROVAL_LADDER, APPROVAL_ROLE_TITLES } from './approvalLadder';
-import { canDecideApproval, heldByOffice, myStep } from './approvalDecision';
+import { APPROVAL_LADDER } from './approvalLadder';
+import { canDecideApproval } from './approvalDecision';
 import { partyOf } from './guardBoard';
 
 /** One row of `gatepass.pass_approvals` — a single office's decision on a
@@ -53,49 +56,6 @@ export function inMyQueue(
     else byPass.set(a.gate_pass_id, [a]);
   }
   return passes.filter((p) => canDecideApproval(p.status, byPass.get(p.id) ?? [], office));
-}
-
-/** A pass routed to my office, but currently waiting on an EARLIER office —
- *  read-only, because pressing Approve on it would only be refused. Rendered
- *  in its own section so the reader can tell "nothing for me yet" apart from
- *  "the screen is broken": an empty queue and a queue that never loaded look
- *  identical without this. */
-export interface WaitingBelowRow {
-  pass: GatePassView;
-  /** The office holding it up right now. */
-  heldBy: ApprovalRoleKey;
-}
-
-export function waitingBelowMe(
-  passes: GatePassView[],
-  approvals: PassApproval[],
-  office: ApprovalRoleKey
-): WaitingBelowRow[] {
-  const byPass = new Map<string, PassApproval[]>();
-  for (const a of approvals) {
-    const list = byPass.get(a.gate_pass_id);
-    if (list) list.push(a);
-    else byPass.set(a.gate_pass_id, [a]);
-  }
-  const out: WaitingBelowRow[] = [];
-  for (const p of passes) {
-    if (p.status !== 'pending') continue;
-    const rows = byPass.get(p.id) ?? [];
-    const mine = myStep(rows, office);
-    if (!mine || mine.status !== 'pending') continue;
-    // `heldByOffice` is null exactly when it is MINE to sign — which is the
-    // other half of `inMyQueue`, read from the same rule rather than restated.
-    const holder = heldByOffice(rows, office);
-    if (!holder) continue;
-    out.push({ pass: p, heldBy: holder });
-  }
-  return out;
-}
-
-/** "It is with the COO." — the note the read-only section prints beside a row
- *  it offers no button on. */
-export function waitingNote(heldBy: ApprovalRoleKey): string {
-  return `Waiting on ${APPROVAL_ROLE_TITLES[heldBy]}`;
 }
 
 /** Oldest request first — the thing that has waited longest is the thing to

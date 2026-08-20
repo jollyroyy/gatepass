@@ -5,8 +5,6 @@ import { describe, it, expect } from 'vitest';
 import type { GatePassView } from '../../src/types';
 import {
   inMyQueue,
-  waitingBelowMe,
-  waitingNote,
   sortOldestFirst,
   matchesSearch,
   applyApprovalFilters,
@@ -92,42 +90,6 @@ describe('inMyQueue', () => {
     const p = pass({ id: 'p1' });
     const rows = [approval({ gate_pass_id: 'p1', role_key: 'coo', level_no: 2 })];
     expect(inMyQueue([p], rows, 'security_head')).toEqual([]);
-  });
-});
-
-describe('waitingBelowMe', () => {
-  it('names the office currently holding a pass routed to me', () => {
-    const p = pass({ id: 'p1' });
-    const rows = [
-      approval({ gate_pass_id: 'p1', role_key: 'security_head', level_no: 1, status: 'pending' }),
-      approval({ gate_pass_id: 'p1', role_key: 'coo', level_no: 2, status: 'pending' }),
-    ];
-    expect(waitingBelowMe([p], rows, 'coo')).toEqual([{ pass: p, heldBy: 'security_head' }]);
-  });
-
-  it('is empty for the office actually holding the pass', () => {
-    const p = pass({ id: 'p1' });
-    const rows = [
-      approval({ gate_pass_id: 'p1', role_key: 'security_head', level_no: 1, status: 'pending' }),
-      approval({ gate_pass_id: 'p1', role_key: 'coo', level_no: 2, status: 'pending' }),
-    ];
-    expect(waitingBelowMe([p], rows, 'security_head')).toEqual([]);
-  });
-
-  it('is empty once every earlier office has decided', () => {
-    const p = pass({ id: 'p1' });
-    const rows = [
-      approval({ gate_pass_id: 'p1', role_key: 'security_head', level_no: 1, status: 'approved', decided_by: 'u9', decided_at: '2026-08-19T05:00:00Z' }),
-      approval({ gate_pass_id: 'p1', role_key: 'coo', level_no: 2, status: 'pending' }),
-    ];
-    expect(waitingBelowMe([p], rows, 'coo')).toEqual([]);
-  });
-});
-
-describe('waitingNote', () => {
-  it('names the office in words', () => {
-    expect(waitingNote('coo')).toBe('Waiting on COO');
-    expect(waitingNote('security_head')).toBe('Waiting on Security Head');
   });
 });
 

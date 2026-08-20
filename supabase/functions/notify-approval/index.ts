@@ -36,6 +36,7 @@
 // The service client is never used until the caller's client has said yes.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { sendMail } from '../_shared/mailer.ts';
+import { loadMailConfig } from '../_shared/mailConfig.ts';
 // The `.ts` extension is required by Deno and is why `approvalNotice.ts` is
 // forbidden from importing anything itself — see that file's header, and the
 // test that fails if an import appears in it.
@@ -137,13 +138,19 @@ Deno.serve(async (req: Request) => {
 
   const messages = buildApprovalNotices(pass, raw.approvals ?? [], baseUrl);
 
+  // Read ONCE per invocation, not per letter: the settings cannot change
+  // half way through a send, and a second round trip per message would be a
+  // round trip for nothing. Admin → Settings wins over this function's
+  // secrets; an unwritten settings table leaves the secrets in charge (052).
+  const mailConfig = await loadMailConfig(service);
+
   // ── 3. Send, and record every attempt ────────────────────────────────────
   // A loop over what is currently at most ONE message. It stays a loop because
   // the shape of `buildApprovalNotices` is "every letter this state calls for",
   // and a second kind must not need this function rewritten.
   const results: { to: string; kind: string; ok: boolean }[] = [];
   for (const m of messages) {
-    const sent = await sendMail(m);
+    const sent = await sendMail(m, mailConfig);
     results.push({ to: sent.deliveredTo, kind: m.kind, ok: sent.ok });
 
     // The log is best-effort and must never break the send loop: failing to

@@ -67,10 +67,12 @@ export function useReraisePass(todayStr: string): ReraiseSource & { sourceId: st
 
         const p = passRes.data as GatePassView;
         const vendor = parseCompanyInfo(p.visitor_company);
-        // Only what the form still ASKS FOR. A line's `unit`, its own purpose
-        // and its approximate value are no longer on the raise form (the
-        // client's 2026-08-19 mock-up), so copying them here would put fields
-        // into the form state that nothing renders and nothing submits.
+        // Only what the form still ASKS FOR. A line's own purpose and its
+        // approximate value are not on the raise form (the client's 2026-08-19
+        // mock-up), so copying them here would put fields into the form state
+        // that nothing renders and nothing submits. The UNIT is copied again —
+        // it is a dropdown once more (2026-08-20), and re-raising 200 Kg as
+        // 200 `nos` would silently change what the pass is for.
         const lines = ((itemRes.data as GatePassItemView[] | null) ?? []).map((i) => ({
           name: i.name ?? '',
           // A LINE'S OWN DEADLINE, dropped when it has already passed — same
@@ -87,6 +89,7 @@ export function useReraisePass(todayStr: string): ReraiseSource & { sourceId: st
           invoice_no: i.invoice_no ?? '',
           remarks: i.remarks ?? '',
           quantity: String(i.quantity ?? 1),
+          unit: i.unit || 'nos',
         }));
 
         setSource(p);

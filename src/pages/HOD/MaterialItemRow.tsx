@@ -9,10 +9,15 @@
 // own deadline — the column the overdue grading reads — is the earliest of
 // them, computed at submit, so there is one place to type a date.
 //
+// THE UNIT IS ASKED FOR AGAIN, as a dropdown beside the quantity (client,
+// 2026-08-20). It is what decides whether that quantity may carry a fraction:
+// `isWholeUnit` is the one rule, and the native `min`/`step` here follow it so
+// the browser's own arrows agree with `validateRaiseForm` and with the gate's
+// return box.
+//
 // WHAT THIS ROW STILL DOES NOT ASK FOR (client's 2026-08-19 mock-up): the
-// PURPOSE (asked once, for the whole pass), the UOM (client: remove the column —
-// every line is `nos`) and the approximate value (no column on the mock). See
-// `NewGatePassItem` for what each omission costs downstream.
+// PURPOSE (asked once, for the whole pass) and the approximate value (no column
+// on the mock). See `NewGatePassItem` for what each omission costs downstream.
 //
 // Below `md` the grid collapses to one column and each field shows its own
 // name via `data-label` (CSS-generated content in `.item-cell::before` —
@@ -23,6 +28,7 @@ import React from 'react';
 import type { NewGatePassItem } from '../../types';
 import { itemGridStyle } from './materialItemGrid';
 import { todayStr } from '../../lib/raisePassForm';
+import { UNIT_OPTIONS, isWholeUnit } from '../../lib/units';
 
 interface MaterialItemRowErrors {
   name?: string;
@@ -51,6 +57,7 @@ export default function MaterialItemRow({
   canRemove,
   showReturnDate,
 }: MaterialItemRowProps): React.ReactElement {
+  const whole = isWholeUnit(item.unit);
   return (
     <div className="item-grid item-row" style={itemGridStyle(showReturnDate)}>
       {/* The mock's leading "#" column. It is the line number a guard reads off
@@ -71,13 +78,14 @@ export default function MaterialItemRow({
       </div>
 
       <div className="item-cell" data-label="Quantity">
-        {/* Whole numbers only: every line raised from this form is `nos`, and a
-          * counted unit takes no fraction — `validateRaiseForm` enforces the
-          * same rule, so the browser's own arrows agree with the submit. */}
+        {/* The unit decides the step: a COUNTED unit (box, bag, lot…) takes no
+          * fraction, a MEASURED one (kg, litre, metre) does — `isWholeUnit` is
+          * the one rule and `validateRaiseForm` reads the same function, so the
+          * browser's own arrows agree with the submit. */}
         <input
           type="number"
-          min="1"
-          step="1"
+          min={whole ? '1' : '0.01'}
+          step={whole ? '1' : '0.01'}
           className="input text-sm w-full"
           aria-label="Quantity"
           placeholder="Enter quantity"
@@ -85,6 +93,23 @@ export default function MaterialItemRow({
           onChange={(e) => onChange('quantity', e.target.value)}
         />
         {errors.quantity && <p className="field-error">{errors.quantity}</p>}
+      </div>
+
+      <div className="item-cell" data-label="Unit">
+        {/* Every code `unitLabel` knows, offered under the very label the guard
+          * reads back off the pass — see UNIT_OPTIONS. */}
+        <select
+          className="input text-sm w-full"
+          aria-label="Unit"
+          value={item.unit}
+          onChange={(e) => onChange('unit', e.target.value)}
+        >
+          {UNIT_OPTIONS.map((u) => (
+            <option key={u.code} value={u.code}>
+              {u.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="item-cell" data-label="Make / Model / Size">
@@ -118,10 +143,10 @@ export default function MaterialItemRow({
         />
       </div>
 
-      <div className="item-cell" data-label="Remarks / Description">
+      <div className="item-cell" data-label="Remarks">
         <input
           className="input text-sm w-full"
-          aria-label="Remarks / Description"
+          aria-label="Remarks"
           placeholder="Enter remarks"
           value={item.remarks}
           onChange={(e) => onChange('remarks', e.target.value)}

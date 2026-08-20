@@ -9,13 +9,20 @@
 // the number over the cards cannot say 5 above a stack of 4. Narrowing with the
 // search or a filter narrows BOTH, because they are one array read twice.
 //
-// THE CARDS OFFER NOTHING TO PRESS. `PassStackCard` is the one stacked card in
-// this app and the whole of it is a link to `/pass/:id` — which is where an
-// office holder now approves or rejects, at the foot of the full record
-// (`ApprovalDecisionBar`). That is the client's own instruction: read the pass
-// the way the guard reads it, then sign at the end of that reading. The table
-// that used to carry Approve / Reject on a six-column row is DELETED, so a
-// stale reference is a build error.
+// EACH CARD CARRIES APPROVE / REJECT ON ITS RIGHT (client, 2026-08-20: "on the
+// right-hand side he can click on approve or reject, and rejection also should
+// come with a mandatory justification" · "as simple, clear and minimal as
+// possible"). That REVERSES the 2026-08-19 rule that a stacked card offers
+// nothing to press — and only here: `PassStackCard` draws controls only when a
+// list hands it some, so every other stack is untouched.
+//
+// The record still signs too. The whole card is still a link to `/pass/:id`,
+// where `ApprovalDecisionBar` offers the same two decisions at the foot of the
+// full reading. Both go through `approvalActions.ts`, never the RPCs, so
+// whichever surface is used the next office still gets its letter.
+//
+// THE QUEUE IS RE-READ AFTER EVERY DECISION, never patched: only the database
+// knows whether that press was the pass's last level.
 //
 // `office` comes from `App.tsx`, which resolved `my_approval_role()` once at
 // sign-in and holds it beside `role`. `null` means this account holds no office
@@ -28,8 +35,9 @@ import React, { useMemo, useState } from 'react';
 import GuardPageHeader from '../../components/guard/GuardPageHeader';
 import GuardIcon from '../../components/guard/GuardIcon';
 import GuardPager from '../../components/guard/GuardPager';
+import { Link } from 'react-router-dom';
 import PassStack from '../../components/PassStack';
-import WaitingBelowSection from '../../components/approver/WaitingBelowSection';
+import ApprovalCardActions from '../../components/approver/ApprovalCardActions';
 import { APPROVAL_ROLE_TITLES, type ApprovalRoleKey } from '../../lib/approvalLadder';
 import {
   applyApprovalFilters,
@@ -37,7 +45,6 @@ import {
   departmentOptions,
   inMyQueue,
   sortOldestFirst,
-  waitingBelowMe,
   type PendingApprovalFilters,
 } from '../../lib/pendingApprovals';
 import { pageOf } from '../../lib/scheduledReturns';
@@ -65,7 +72,7 @@ const Chevron = ({ open }: { open: boolean }): React.ReactElement => (
 );
 
 export default function PendingApprovals({ office }: { office: ApprovalRoleKey | null }): React.ReactElement {
-  const { passes, approvals, loading, error } = usePendingApprovals(office);
+  const { passes, approvals, loading, error, reload } = usePendingApprovals(office);
   const [filters, setFilters] = useState<PendingApprovalFilters>(DEFAULT_APPROVAL_FILTERS);
   const [open, setOpen] = useState(true);
   const [page, setPage] = useState(1);
@@ -74,10 +81,6 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
 
   const queue = useMemo(
     () => (office ? sortOldestFirst(inMyQueue(passes, approvals, office)) : []),
-    [passes, approvals, office]
-  );
-  const waiting = useMemo(
-    () => (office ? waitingBelowMe(passes, approvals, office) : []),
     [passes, approvals, office]
   );
   const departments = useMemo(() => departmentOptions(queue), [queue]);
@@ -112,7 +115,7 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
     <div className="gb-board gb-main">
       <GuardPageHeader
         title="Pending Approvals"
-        subtitle={`Signing as ${APPROVAL_ROLE_TITLES[office]}. Open a pass to approve or reject it.`}
+        subtitle={`Signing as ${APPROVAL_ROLE_TITLES[office]}. Approve or reject below, or open a pass to read it in full.`}
         glyph="exchange"
         tone="purple"
         stamp={stamp}
@@ -148,6 +151,23 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
             </span>
             {total > 0 && <Chevron open={open} />}
           </button>
+
+          {/* THE CEO'S SECOND QUEUE (client, 2026-08-20; migration 053). One
+              link, drawn for that office alone — a COO or a Security Head has
+              nothing to decide there and `list_whitelist_requests` would show
+              them an empty page. */}
+          {office === 'ceo' && (
+            <div className="gb-card gb-quick">
+              <h2 className="gb-quick-title">Quick Actions</h2>
+              <div className="gb-raise-grid">
+                <Link to="/whitelist" className="gb-raise-tile">
+                  <GuardIcon glyph="alert" tone="red" shape="square" />
+                  <span className="gb-raise-title">Whitelist Requests</span>
+                  <span className="gb-raise-note">Take a vendor off the blacklist</span>
+                </Link>
+              </div>
+            </div>
+          )}
 
           <div className="gb-filters">
             <div className="gb-search">
@@ -196,7 +216,10 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
           ) : (
             open && (
               <div id="approval-stack">
-                <PassStack passes={view.rows} />
+                <PassStack
+                  passes={view.rows}
+                  renderActions={(p) => <ApprovalCardActions pass={p} onDecided={reload} />}
+                />
                 <div className="gb-card gb-panel gpo-stack-foot">
                   <GuardPager
                     page={view}
@@ -213,8 +236,6 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
           )}
         </>
       )}
-
-      <WaitingBelowSection rows={waiting} />
     </div>
   );
 }

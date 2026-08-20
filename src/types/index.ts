@@ -343,10 +343,12 @@ export interface DeptOption {
  *   * `purpose` — asked ONCE now, for the whole pass. `raise_pass` (045) falls
  *     back to the pass purpose for every line, so a record screen still prints a
  *     real reason.
- *   * `unit` — the client asked for the UOM column to go. Every line is written
- *     in the column default, `nos`, so every quantity is a whole count.
- *     **KNOWN COST, FLAGGED**: material genuinely counted in bags, drums, kg or
- *     litres cannot be raised in its own unit from this form any more.
+ *   * `unit` — IS BACK, as a dropdown (client, 2026-08-20: "add unit field as
+ *     dropdown to select different types of unit while raising the nrgp/rgp
+ *     passes"). It was dropped with the 2026-08-19 mock's UOM column, which
+ *     meant material counted in bags, drums, kg or litres could not be raised in
+ *     its own unit at all. It is the field `isWholeUnit` consults, so it also
+ *     decides whether the quantity beside it may carry a fraction.
  *   * `approx_value` — no column on the mock, so no new pass carries a value and
  *     "Total Value" reads "—" on every card and record from here on.
  */
@@ -362,9 +364,13 @@ export interface NewGatePassItem {
   serial_no: string;
   /** "Invoice / Reference No." */
   invoice_no: string;
-  /** "Remarks / Description" */
+  /** "Remarks" */
   remarks: string;
   quantity: string;
+  /** "Unit" — one of `UNIT_OPTIONS` (src/lib/units.ts). Defaults to `nos`, which
+   *  is what every line raised between 2026-08-19 and 2026-08-20 carries; the
+   *  guard reads it back through the same `unitLabel`, read-only. */
+  unit: string;
   /** "Expected Return Date" — client, 2026-08-19: "we would expect a date of
    *  return against each item in the RGP form." Empty on an NRGP, which never
    *  comes back. The PASS's own `expected_return_date` — the column
@@ -381,6 +387,7 @@ export const EMPTY_ITEM: NewGatePassItem = {
   invoice_no: '',
   remarks: '',
   quantity: '',
+  unit: 'nos',
   expected_return_date: '',
 };
 

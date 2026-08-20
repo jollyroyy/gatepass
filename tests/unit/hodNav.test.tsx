@@ -9,9 +9,15 @@ import { ROLE_ROUTES, isForbidden } from '../../src/lib/roleRoutes';
 describe('HOD sidebar navigation', () => {
   // Overdue Items joined the list on 2026-08-18 — the same page the guard and
   // the admin get, narrowed to this HOD's own passes.
-  it('shows exactly Dashboard, Raise Gate Pass, My Passes and Overdue Items, in that order', () => {
+  it('shows exactly Dashboard, My Passes and Overdue Items, in that order', () => {
+    // Raise Gate Pass was a tab until 2026-08-20; the client removed it, and
+    // the dashboard's Quick Action tile is now the only way into the form.
     const hodLabels = ALL_LINKS.filter((n) => n.roles.includes('hod')).map((n) => n.label);
-    expect(hodLabels).toEqual(['Dashboard', 'Raise Gate Pass', 'My Passes', 'Overdue Items']);
+    expect(hodLabels).toEqual(['Dashboard', 'My Passes', 'Overdue Items']);
+  });
+
+  it('has no nav link anywhere pointing at /raise', () => {
+    expect(ALL_LINKS.some((n) => n.to === '/raise')).toBe(false);
   });
 
   it('has no HOD nav link pointing at /vendors', () => {

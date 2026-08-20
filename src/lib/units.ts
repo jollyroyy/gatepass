@@ -19,6 +19,20 @@ const UNIT_LABELS: Record<string, string> = {
   lot: 'Lots',
 };
 
+/**
+ * Every unit this form may raise material in, in the order the dropdown draws
+ * them (client, 2026-08-20: "add all the previous types of units and add
+ * lots"). The counted units come first because `nos` is the default and the
+ * overwhelming case; the measured ones follow.
+ *
+ * It is DERIVED from UNIT_LABELS above, so a code can never be offered under a
+ * label no other screen would print — the guard reads the same `unitLabel` back
+ * off the pass.
+ */
+export const UNIT_OPTIONS: { code: string; label: string }[] = [
+  'nos', 'box', 'set', 'roll', 'bag', 'drum', 'lot', 'kg', 'litre', 'metre',
+].map((code) => ({ code, label: UNIT_LABELS[code] }));
+
 /** Human-readable label for a stored unit code; unknown codes pass through. */
 export function unitLabel(unit: string | null | undefined): string {
   if (!unit) return '—';

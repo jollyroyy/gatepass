@@ -30,10 +30,11 @@ const HEADERS: { label: string; required?: boolean }[] = [
   { label: '#' },
   { label: 'Item Description', required: true },
   { label: 'Quantity', required: true },
+  { label: 'Unit', required: true },
   { label: 'Make / Model / Size', required: true },
   { label: 'Serial / Asset Tag' },
   { label: 'Invoice / Reference No.' },
-  { label: 'Remarks / Description' },
+  { label: 'Remarks' },
 ];
 
 /** The RGP-only column, spliced in before Action. Required: material that goes

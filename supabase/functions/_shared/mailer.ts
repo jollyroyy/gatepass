@@ -28,6 +28,8 @@
 // reason a first test "sends successfully" and reaches nobody, so `sendMail`
 // reports the provider's own refusal text verbatim rather than a tidy summary.
 
+import type { MailConfig } from './mailConfig.ts';
+
 export interface OutgoingMail {
   to: string;
   toName: string | null;
@@ -62,9 +64,9 @@ export function addressOf(email: string, name: string | null): string {
  * Send one message. Never throws — a mail failure must not become a 500 that
  * the browser reports to an HOD whose gate pass was raised perfectly.
  */
-export async function sendMail(mail: OutgoingMail): Promise<SendResult> {
-  const key = Deno.env.get('RESEND_API_KEY');
-  const from = Deno.env.get('MAIL_FROM');
+export async function sendMail(mail: OutgoingMail, config: MailConfig): Promise<SendResult> {
+  const key = config.apiKey;
+  const from = config.from;
   // ═══ MAIL_OVERRIDE_TO — EVERY LETTER GOES TO ONE INBOX ═══
   //
   // Set on this deployment because the Resend account is unverified: it may
@@ -74,14 +76,16 @@ export async function sendMail(mail: OutgoingMail): Promise<SendResult> {
   // letters all land in that one inbox, one per approval step, each naming its
   // office in the subject line.
   //
-  // IT IS AN ENVIRONMENT VARIABLE, NOT A CONSTANT, and that is the point:
-  // verifying a domain and unsetting this secret is the entire production
-  // switch-over. Nothing in the repo names the test inbox.
+  // IT IS A SETTING, NOT A CONSTANT, and that is the point: verifying a domain
+  // and clearing it is the entire production switch-over. Since 052 it is
+  // edited in Admin → Settings and falls back to the MAIL_OVERRIDE_TO secret;
+  // `loadMailConfig` owns that precedence, and nothing in the repo names the
+  // test inbox.
   //
   // The caller still knows who the letter was AIMED at (`mail.to`) and writes
   // both into `email_log`, so the log never claims the CEO was written to
   // directly when the letter went somewhere else.
-  const overrideTo = (Deno.env.get('MAIL_OVERRIDE_TO') ?? '').trim();
+  const overrideTo = config.overrideTo ?? '';
 
   if (!key || !from) {
     return {
@@ -89,8 +93,8 @@ export async function sendMail(mail: OutgoingMail): Promise<SendResult> {
       deliveredTo: overrideTo || mail.to,
       providerId: null,
       error:
-        'RESEND_API_KEY or MAIL_FROM is not set on this function. ' +
-        'Run: supabase secrets set RESEND_API_KEY=... MAIL_FROM="Quest GatePass <gatepass@yourdomain.com>"',
+        'No mail sender is configured: RESEND_API_KEY must be set on this function, ' +
+        'and a sender address must be set either in Admin → Settings or as the MAIL_FROM secret.',
     };
   }
 

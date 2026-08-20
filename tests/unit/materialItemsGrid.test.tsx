@@ -5,13 +5,14 @@
 //
 // Column order, left to right (see materialItemGrid.ts):
 //
-//   #  ·  Item Description  ·  Quantity  ·  Make / Model / Size  ·
-//   Serial / Asset Tag  ·  Invoice / Reference No.  ·  Remarks / Description  ·
-//   Action
+//   #  ·  Item Description  ·  Quantity  ·  Unit  ·  Make / Model / Size  ·
+//   Serial / Asset Tag  ·  Invoice / Reference No.  ·  Remarks  ·
+//   Expected Return Date (RGP only)  ·  Action
 //
-// THERE IS NO UOM/UNIT COLUMN, NO PURPOSE COLUMN, NO VALUE COLUMN and NO
-// PER-ITEM RETURN DATE — the mock has none of them, purpose is asked once for
-// the whole pass, and there is no RGP/NRGP variant of this template.
+// THE UNIT COLUMN IS BACK (client, 2026-08-20) — this file used to hold that
+// there was none, which is exactly what left every line `nos`. There is still
+// NO PURPOSE and NO VALUE column: purpose is asked once for the whole pass.
+// The per-line date is the ONE RGP/NRGP variant of this template.
 import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -28,6 +29,7 @@ function renderCard(itemCount = 1) {
       onItemChange={() => {}}
       onRemoveItem={() => {}}
       onAddItem={() => {}}
+      showReturnDate={false}
     />
   );
 }
@@ -36,16 +38,21 @@ const HEADER_LABELS = [
   '#',
   'Item Description',
   'Quantity',
+  'Unit',
   'Make / Model / Size',
   'Serial / Asset Tag',
   'Invoice / Reference No.',
-  'Remarks / Description',
+  'Remarks',
   'Action',
 ];
 
-describe('materialItemGrid — one column template, no RGP/NRGP variant', () => {
-  it('has exactly eight columns: # · Item Description · Quantity · Make/Model/Size · Serial/Asset Tag · Invoice/Ref No. · Remarks · Action', () => {
-    expect(itemGridColumns().split(' ')).toHaveLength(8);
+describe('materialItemGrid — one column template, one RGP-only variant', () => {
+  it('has nine columns: # · Item Description · Quantity · Unit · Make/Model/Size · Serial/Asset Tag · Invoice/Ref No. · Remarks · Action', () => {
+    expect(itemGridColumns(false).split(' ')).toHaveLength(9);
+  });
+
+  it('an RGP splices the per-line return date in before Action', () => {
+    expect(itemGridColumns(true).split(' ')).toHaveLength(10);
   });
 });
 
@@ -60,7 +67,7 @@ describe('MaterialItemsCard — the row frame is as wide as the columns it holds
     renderCard(2);
     const track = document.querySelector('.item-grid-track') as HTMLElement;
     expect(track).not.toBeNull();
-    expect(track.style.minWidth).toBe(itemGridMinWidth());
+    expect(track.style.minWidth).toBe(itemGridMinWidth(false));
   });
 
   it('the header and every row live inside that one track, so they scroll together', () => {
@@ -78,15 +85,19 @@ describe('MaterialItemsCard — the header names every column exactly once', () 
     }
   });
 
-  it('renders no UOM, Purpose or Value column — the mock has none of them', () => {
+  // REWRITTEN 2026-08-20: this case used to hold that there was no Unit column
+  // either ("the mock has none of them"). The client asked for the dropdown
+  // back — see raiseUnitSelect.test.tsx — so only Purpose and Value are banned.
+  it('renders no Purpose or Value column — purpose is asked once for the whole pass', () => {
     renderCard(1);
-    expect(screen.queryByText('Unit')).not.toBeInTheDocument();
     expect(screen.queryByText('UOM')).not.toBeInTheDocument();
     expect(screen.queryByText('Purpose')).not.toBeInTheDocument();
     expect(screen.queryByText('Value')).not.toBeInTheDocument();
   });
 
-  it('renders no Expected Return Date column or input — that field moved to the pass level', () => {
+  // An NRGP draws no date column at all — the RGP half is pinned in
+  // raisePassReturnDate.test.tsx, which mounts the real form.
+  it('renders no Expected Return Date column or input on an NRGP', () => {
     renderCard(1);
     expect(screen.queryByText('Expected Return Date')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Expected Return Date')).not.toBeInTheDocument();
@@ -102,7 +113,7 @@ describe('MaterialItemsCard — every row carries one input per column', () => {
     expect(screen.getAllByLabelText('Make / Model / Size')).toHaveLength(3);
     expect(screen.getAllByLabelText('Serial / Asset Tag')).toHaveLength(3);
     expect(screen.getAllByLabelText('Invoice / Reference No.')).toHaveLength(3);
-    expect(screen.getAllByLabelText('Remarks / Description')).toHaveLength(3);
+    expect(screen.getAllByLabelText('Remarks')).toHaveLength(3);
   });
 
   it('the Quantity input takes whole numbers only — every line raised here is nos', () => {

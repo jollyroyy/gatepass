@@ -113,10 +113,16 @@ describe('Verify — per-item detail the guard needs', () => {
     expect(screen.getByText('₹3,200')).toBeInTheDocument();
   });
 
-  it('shows per-item quantity with its unit', async () => {
+  // The unit is the HOD's choice on the raise form and the guard may not change
+  // it (client, 2026-08-20: "show the selected unit in guard view as
+  // readonly"). It reads in the same words every other surface prints — the raw
+  // code `nos` used to be shown here, which is the abbreviation the client
+  // rejected in 2026-08-11.
+  it('shows per-item quantity with its unit, labelled and read-only', async () => {
     renderVerify();
-    await waitFor(() => expect(screen.getByText('2 nos')).toBeInTheDocument());
-    expect(screen.getByText('3 nos')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('2 Numbers')).toBeInTheDocument());
+    expect(screen.getByText('3 Numbers')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Unit')).not.toBeInTheDocument();
   });
 
   it('totals the declared value across the whole pass', async () => {

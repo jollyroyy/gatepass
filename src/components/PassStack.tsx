@@ -16,10 +16,13 @@ type Props = {
   showRaisedBy?: boolean;
   /** Numbers the cards from 1. Off for a list that is not a register. */
   numbered?: boolean;
+  /** Controls for one card's right-hand side. Only the approver's queue passes
+   *  this; every other stack stays action-free (see PassStackCard's header). */
+  renderActions?: (pass: GatePassView) => React.ReactNode;
 };
 
 export default function PassStack({
-  passes, showRaisedBy = true, numbered = true,
+  passes, showRaisedBy = true, numbered = true, renderActions,
 }: Props): React.ReactElement {
   return (
     <div className="gb-stack">
@@ -30,6 +33,7 @@ export default function PassStack({
             pass={p}
             index={numbered ? i + 1 : undefined}
             showRaisedBy={showRaisedBy}
+            actions={renderActions ? renderActions(p) : undefined}
           />
         ))}
       </ul>

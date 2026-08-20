@@ -154,3 +154,32 @@ describe('/pass/:id renders the Search Pass record, not a second format', () => 
     expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
   });
 });
+
+// Client, 2026-08-20: "the overdue is showing twice when I'm looking at the
+// details page." The stage badge already RENAMES a late open pass to "Overdue"
+// (2026-08-18, twelfth pass), so the separate `is_overdue` pill beside it
+// restated the same word. It is drawn now only when the stage badge says
+// something else — a flagged pass that is ALSO late still carries both facts.
+describe('the record says Overdue once', () => {
+  beforeEach(() => {
+    verifications = [];
+    items = [];
+  });
+
+  it('draws one Overdue badge on a late open RGP', async () => {
+    row = pass({ is_overdue: true, due_state: 'overdue' });
+    renderDetail();
+    await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
+    const head = screen.getByRole('heading', { name: 'RGP Gate Pass Details' }).parentElement!;
+    expect([...head.querySelectorAll('span')].filter((s) => s.textContent === 'Overdue')).toHaveLength(1);
+  });
+
+  it('still says it beside a stage badge that does not, such as a mismatch', async () => {
+    row = pass({ status: 'flagged', flag_reason: 'Count did not match', is_overdue: true, due_state: 'overdue' });
+    renderDetail();
+    await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
+    const head = screen.getByRole('heading', { name: 'RGP Gate Pass Details' }).parentElement!;
+    expect([...head.querySelectorAll('span')].filter((s) => s.textContent === 'Overdue')).toHaveLength(1);
+    expect(head.textContent).toContain('Mismatch');
+  });
+});
