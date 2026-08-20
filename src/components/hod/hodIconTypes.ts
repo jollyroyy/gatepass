@@ -26,4 +26,5 @@ export type HodGlyph =
   | 'people'     // An office staffed by people — HOD, Other Approvers.
   | 'shield'     // Security.
   | 'wallet'     // Finance.
-  | 'alert';     // Overdue Returns — the admin Overview's fifth figure.
+  | 'alert'      // Overdue Returns — the admin Overview's fifth figure.
+  | 'check';     // Completed — the report's own figure; a tick in a circle.

@@ -1,54 +1,94 @@
-// Reports — the admin's pass register, over a date range.
+// GATE PASS REPORT (RGP & NRGP) — the admin's Reports tab, rebuilt to the
+// client's mock-up (2026-08-20): the header and its three buttons, the filter
+// card, six figures, and the register with its pager.
 //
-// ONE REPORT, NOT THREE. The Return Schedule and Department Summary portals
-// were removed 2026-08-17 on the client's call, and the tab bar with them (a
-// switcher with one option is a label). Neither loses a fact the admin cannot
-// reach: expected vs actual return dates are columns of the register itself and
-// the whole return loop is now the dashboard's Returnable Status ring and
-// Overdue Returns panel, both drillable; per-department counts are the
-// dashboard's Department Activity bar list, also drillable, where this page
-// only ever printed a static table. `DeptBreakdownTable` was deleted with them
-// — the Department Summary was its only consumer.
+// TWO COLUMNS THE MOCK DOES NOT DRAW ARE HERE ON THE CLIENT'S INSTRUCTION —
+// Value of Items and Raised By Department — in the table and in the CSV alike.
 //
-// Rows are loaded ONCE and filtered client-side by range, the single-load
-// pattern the old AllPasses used. The KPI board is /admin-dashboard (024-era
-// split: the dashboard is the snapshot, this is the period report).
+// THE SKIN IS THE `.gb-*` ISLAND, not the house theme. Every screen in this app
+// drawn from one of the client's mock-ups renders inside `.gb-board`, and this
+// one now does too; `gb-main` rides beside it so any house component in the
+// subtree takes its LIGHT half instead of the shipped dark default.
+//
+// ROWS ARE LOADED ONCE and everything below is a reading of that one array —
+// the six figures, the two option lists, the table and the pager. No aggregate,
+// no `count: 'exact'`, so a figure and the list under it cannot disagree.
+//
+// FILTERS ARE A DRAFT UNTIL APPLIED, because the mock draws an Apply Filters
+// button (see ReportsFilterBar). The date range is applied first and in LOCAL
+// day bounds — `localDayBounds`, the same cut every dashboard makes, or a
+// "today" report and a "today" KPI disagree for five and a half hours a day.
+//
+// DELETED WITH THIS PASS, not flagged off: `AllPassesReport.tsx` (the old
+// register) and `ReportsToolbar.tsx` (the date + preset strip the mock replaces
+// with a range). Their column set moved to `src/lib/gatePassReport.ts`.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { gp } from '../../supabaseClient';
 import type { GatePassView } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
-import { computeDateRange, localDateString, localDayBounds, type RangePreset } from '../../lib/reportsDateRange';
-import ReportsToolbar from './ReportsToolbar';
-import ReportsFilterBar, { type TypeFilter } from './ReportsFilterBar';
+import { localDateString, localDayBounds } from '../../lib/reportsDateRange';
+import { downloadCsv } from '../../lib/exportUtils';
+import {
+  applyReportFilters,
+  buildReportKpis,
+  REPORT_CSV_COLUMNS,
+  reportOptions,
+  STATUS_FILTERS,
+  TYPE_FILTERS,
+  type ReportFilters,
+} from '../../lib/gatePassReport';
+import { pageOf } from '../../lib/scheduledReturns';
+import { DEFAULT_ROWS_PER_PAGE } from '../../lib/pendingOutFilters';
+import ReportsHeader from './ReportsHeader';
+import ReportsFilterBar from './ReportsFilterBar';
+import ReportsKpiCards from './ReportsKpiCards';
+import ReportsTable from './ReportsTable';
+import GuardPager from '../../components/guard/GuardPager';
 import ReportsPrintHeader from '../../components/ReportsPrintHeader';
-import AllPassesReport from './AllPassesReport';
-import { IS_OPEN_RETURN } from '../../lib/boardDrills';
-import { isExpiredPending } from '../../lib/statusStyles';
 
-/** What the printed sheet and its footer call this report. */
-const REPORT_TITLE = 'Gate Pass Register';
+const REPORT_TITLE = 'Gate Pass Report (RGP & NRGP)';
+const DAY_MS = 86_400_000;
 
-const SKELETON_ROWS = 8;
-// Local (IST) date, not UTC — toISOString() would name yesterday before 05:30 IST.
+// Local (IST) date, not UTC — toISOString() names yesterday before 05:30 IST.
 const TODAY = localDateString(new Date());
+/** The mock opens on a range, not a day: the last 30 days ending today. */
+const OPENING: ReportFilters = {
+  from: localDateString(new Date(Date.now() - 29 * DAY_MS)),
+  to: TODAY,
+  type: 'all',
+  status: 'all',
+  createdBy: '',
+  department: '',
+};
+
+/** How many whole days the range covers, for the cards' "vs last N days" line. */
+function spanDays(f: ReportFilters): number {
+  const { start, end } = localDayBounds(f.from, f.to);
+  return Math.max(1, Math.round((end - start) / DAY_MS));
+}
+
+function inRange(rows: GatePassView[], start: number, end: number): GatePassView[] {
+  return rows.filter((p) => {
+    const t = new Date(p.created_at).getTime();
+    return t >= start && t < end;
+  });
+}
 
 export default function ReportsPage(): React.ReactElement {
   const [rows, setRows] = useState<GatePassView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [date, setDate] = useState(TODAY);
-  const [preset, setPreset] = useState<RangePreset>('today');
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
-  const [deptFilter, setDeptFilter] = useState<string>('all');
-  const [overdueOnly, setOverdueOnly] = useState(false);
-  // Expired passes come off both dashboards (client, 2026-08-18) — this is the
-  // one place the record of them is read, so it filters the whole register.
-  const [expiredOnly, setExpiredOnly] = useState(false);
-  // The register reports how many rows it is actually showing (its own search
-  // applied), so the print header's count is the count that prints.
-  const [displayCount, setDisplayCount] = useState(0);
-
-  const range = useMemo(() => computeDateRange(preset, date), [preset, date]);
+  const [applied, setApplied] = useState<ReportFilters>(OPENING);
+  const [draft, setDraft] = useState<ReportFilters>(OPENING);
+  const [page, setPage] = useState(1);
+  const [size, setSize] = useState<number>(DEFAULT_ROWS_PER_PAGE);
+  // Stamped once at mount — see ReportsHeader for why it does not tick.
+  const [stamp] = useState(() => new Date().toISOString());
+  // A PRINTED REPORT IS THE WHOLE FILTERED SET, not page 3 of 25. The pager is
+  // `no-print` chrome, but a row that never rendered cannot be hidden or shown
+  // by CSS — so printing lifts the page size for exactly one paint and puts it
+  // back. Nothing else in the app pages a printed sheet.
+  const [printAll, setPrintAll] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,114 +111,108 @@ export default function ReportsPage(): React.ReactElement {
     load();
   }, [load]);
 
-  // Client-side date filter: created_at within the inclusive range. Day
-  // boundaries are LOCAL MIDNIGHT (localDayBounds), matching the
-  // dashboard-period convention — the old UTC `T00:00:00Z..T23:59:59Z`
-  // bounds made a "Today" report cover 05:30 IST yesterday to 05:29 IST
-  // today, so it disagreed with every dashboard KPI for 5.5h per day.
-  const ranged = useMemo(() => {
-    const { start, end } = localDayBounds(range.from, range.to);
-    return rows.filter((p) => {
-      const created = new Date(p.created_at).getTime();
-      return created >= start && created < end;
-    });
-  }, [rows, range]);
+  const options = useMemo(() => reportOptions(rows), [rows]);
 
-  // Department options come from the WHOLE loaded set, not `ranged` — a list
-  // that reshuffles itself as the admin changes the date range would drop the
-  // department they had selected out from under them.
-  const deptOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of rows) map.set(p.department_id, p.department_name);
-    return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [rows]);
-
-  // Scope filters are applied here, before the register sees a row, so the
-  // choice holds on screen and on the printed sheet alike.
+  const bounds = useMemo(() => localDayBounds(applied.from, applied.to), [applied]);
   const scoped = useMemo(
-    () =>
-      ranged.filter((p) => {
-        if (typeFilter !== 'all' && p.type !== typeFilter) return false;
-        if (deptFilter !== 'all' && p.department_id !== deptFilter) return false;
-        // Overdue means material still out AND past its date. `is_overdue`
-        // comes off `v_gate_passes` in the site's timezone and is NEVER
-        // recomputed here; `IS_OPEN_RETURN` is the same open-return map the
-        // boards use, so a returned pass cannot appear under this button.
-        if (overdueOnly && !(IS_OPEN_RETURN[p.return_status] && p.is_overdue)) return false;
-        // Expired is `status = 'pending'` plus the view's own `is_expired` —
-        // there is no enum label for it, and `is_expired` alone is meaningless
-        // on a pass that already reached an outcome.
-        if (expiredOnly && !isExpiredPending(p)) return false;
-        return true;
-      }),
-    [ranged, typeFilter, deptFilter, overdueOnly, expiredOnly],
+    () => applyReportFilters(inRange(rows, bounds.start, bounds.end), applied),
+    [rows, bounds, applied],
+  );
+  // The same-length window immediately before this one, narrowed the same way,
+  // so each card's change is a like-for-like comparison.
+  const previous = useMemo(() => {
+    const span = bounds.end - bounds.start;
+    return applyReportFilters(inRange(rows, bounds.start - span, bounds.start), applied);
+  }, [rows, bounds, applied]);
+
+  const days = spanDays(applied);
+  const cards = useMemo(
+    () => buildReportKpis(scoped, previous, `last ${days} days`),
+    [scoped, previous, days],
   );
 
-  function clearFilters() {
-    setTypeFilter('all');
-    setDeptFilter('all');
-    setOverdueOnly(false);
-    setExpiredOnly(false);
+  const current = pageOf(scoped, printAll ? 1 : page, printAll ? Math.max(scoped.length, 1) : size);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(applied);
+
+  useEffect(() => {
+    if (!printAll) return;
+    window.print();
+    setPrintAll(false);
+  }, [printAll]);
+
+  function apply(next: ReportFilters) {
+    setApplied(next);
+    setDraft(next);
+    setPage(1);
   }
 
-  const dateLabel = preset === 'today' ? range.to : `${range.from} to ${range.to}`;
-  // A printed report filtered to one department must SAY so on the paper —
-  // otherwise it reads as the whole org and undercounts by an unknowable amount.
+  // The printed sheet must SAY what it was narrowed to, or it reads as the whole
+  // org and undercounts by an unknowable amount.
   const scopeParts = [
-    deptOptions.find((d) => d.id === deptFilter)?.name,
-    typeFilter === 'all' ? null : typeFilter,
-    overdueOnly ? 'Overdue only' : null,
-    expiredOnly ? 'Expired only' : null,
+    applied.type === 'all' ? null : TYPE_FILTERS.find((t) => t.key === applied.type)?.label,
+    applied.status === 'all' ? null : STATUS_FILTERS.find((s) => s.key === applied.status)?.label,
+    options.createdBy.find((o) => o.id === applied.createdBy)?.name,
+    options.departments.find((o) => o.id === applied.department)?.name,
   ].filter(Boolean);
+  const dateLabel = applied.from === applied.to ? applied.to : `${applied.from} to ${applied.to}`;
   const rangeLabel = scopeParts.length > 0 ? `${dateLabel} · ${scopeParts.join(' · ')}` : dateLabel;
 
   return (
-    <div className="space-y-6 report-sheet">
-      <div className="page-header flex flex-wrap items-center justify-between gap-4">
-        <h1 className="page-title">Reports</h1>
-        <ReportsFilterBar
-          typeFilter={typeFilter}
-          onTypeChange={setTypeFilter}
-          deptFilter={deptFilter}
-          onDeptChange={setDeptFilter}
-          deptOptions={deptOptions}
-          overdueOnly={overdueOnly}
-          onOverdueChange={setOverdueOnly}
-          expiredOnly={expiredOnly}
-          onExpiredChange={setExpiredOnly}
-          onClear={clearFilters}
-        />
-      </div>
+    <div className="gb-board gb-main report-sheet">
+      <ReportsHeader
+        stamp={stamp}
+        onPrint={() => setPrintAll(true)}
+        onExportCsv={() => downloadCsv('gate-pass-report.csv', scoped, REPORT_CSV_COLUMNS)}
+      />
 
-      {error && <div className="alert-error">{error}</div>}
+      {error && <div className="gb-alert">{error}</div>}
 
-      <ReportsToolbar
-        date={date}
+      <ReportsFilterBar
+        draft={draft}
+        onDraftChange={setDraft}
+        createdByOptions={options.createdBy}
+        deptOptions={options.departments}
         today={TODAY}
-        onDateChange={setDate}
-        preset={preset}
-        onPresetChange={setPreset}
-        onPrint={() => window.print()}
+        dirty={dirty}
+        onApply={() => apply(draft)}
+        onReset={() => apply(OPENING)}
       />
 
       <div className="print-only">
-        <ReportsPrintHeader title={REPORT_TITLE} rangeLabel={rangeLabel} entryCount={displayCount} />
+        <ReportsPrintHeader title={REPORT_TITLE} rangeLabel={rangeLabel} entryCount={scoped.length} />
       </div>
 
-      {loading ? (
-        <div className="table-wrap p-4 flex flex-col gap-2">
-          {Array.from({ length: SKELETON_ROWS }).map((_, i) => (
-            <div key={i} className="skeleton h-10 w-full" />
-          ))}
-        </div>
-      ) : (
-        <AllPassesReport rows={scoped} onRowsChanged={setDisplayCount} />
-      )}
+      <ReportsKpiCards cards={cards} loading={loading} />
+
+      <section className="gb-card gb-panel">
+        {loading ? (
+          <div className="gb-empty">
+            <div className="gb-skeleton" />
+          </div>
+        ) : current.total === 0 ? (
+          <div className="gb-empty">No passes match these filters.</div>
+        ) : (
+          <>
+            <div className="gb-scroll">
+              <ReportsTable rows={current.rows} />
+            </div>
+            <GuardPager
+              page={current}
+              size={size}
+              onPage={setPage}
+              onSize={(n) => {
+                setSize(n);
+                setPage(1);
+              }}
+            />
+          </>
+        )}
+      </section>
 
       <div className="print-only report-print-footer">
-        <p className="report-print-meta">End of report · {displayCount} {displayCount === 1 ? 'pass' : 'passes'} · {REPORT_TITLE} · {rangeLabel}</p>
+        <p className="report-print-meta">
+          End of report · {scoped.length} {scoped.length === 1 ? 'pass' : 'passes'} · {REPORT_TITLE} · {rangeLabel}
+        </p>
       </div>
     </div>
   );

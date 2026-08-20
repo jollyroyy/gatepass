@@ -1,8 +1,16 @@
-// The department and RGP/NRGP filters used to live inside AllPassesReport, so
-// they applied to ONE of the three report views. An admin "taking out a report"
-// for Engineering, or for RGP only, expects that choice to hold whichever
-// portal they print. The filters are lifted to ReportsPage and applied to the
-// row set BEFORE it is handed to any view.
+// REWRITTEN 2026-08-20 for the client's "Gate Pass Report (RGP & NRGP)" mock-up.
+//
+// What this file used to hold: the lifted RGP/NRGP segmented toggle and the
+// department select sitting in the house `.page-header`, plus the standalone
+// Overdue and Expired buttons beside them. The client replaced the whole tab
+// with the attached mock-up — a filter CARD of labelled selects with Reset and
+// Apply Filters — so the toggle and the two buttons are gone as controls. NOTHING
+// THEY DID WAS LOST: overdue-only and expired-only are options on the Status
+// select, and the department filter is a select in the same card.
+//
+// The cases below are the same questions asked of the new controls, plus the two
+// columns the client added on top of the mock (Value of Items, Raised By
+// Department) and the Apply-before-it-takes-effect rule.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -12,20 +20,20 @@ import type { GatePassView } from '../../src/types';
 function row(over: Partial<GatePassView>): GatePassView {
   return {
     id: over.id ?? 'x',
-    pass_number: over.pass_number ?? 'RGP-OUT-20260804-0001',
+    pass_number: over.pass_number ?? 'RGP-20260804-0001',
     type: over.type ?? 'RGP',
     direction: 'out',
     status: over.status ?? 'pending',
-    return_status: 'not_applicable',
+    return_status: over.return_status ?? 'not_applicable',
     department_id: over.department_id ?? 'd1',
     department_name: over.department_name ?? 'Engineering',
     department_code: over.department_code ?? 'ENG',
-    raised_by: 'u1',
-    raised_by_name: 'HOD One',
+    raised_by: over.raised_by ?? 'u1',
+    raised_by_name: over.raised_by_name ?? 'HOD One',
     visitor_name: over.visitor_name ?? 'Ravi',
     visitor_company: null,
     vehicle_number: null,
-    purpose: null,
+    purpose: over.purpose ?? 'Raw Materials - Production',
     expected_return_date: null,
     actual_return_date: null,
     verified_by: null,
@@ -34,33 +42,38 @@ function row(over: Partial<GatePassView>): GatePassView {
     flag_reason: null,
     qr_token: 't',
     expires_at: null,
-    // Dated "now" so the default `today` preset always contains the fixtures —
-    // a hardcoded date would silently stop matching the day after it is written.
+    // Dated "now" so the opening 30-day range always contains the fixtures — a
+    // hardcoded date would silently stop matching the day after it is written.
     created_at: new Date().toISOString(),
-    is_overdue: false,
-    is_expired: false,
+    is_overdue: over.is_overdue ?? false,
+    is_expired: over.is_expired ?? false,
     due_state: 'none',
-    item_count: 1,
+    item_count: over.item_count ?? 1,
     total_quantity: 1,
     returned_quantity: 0,
+    total_value: over.total_value ?? 0,
     material_summary: over.material_summary ?? 'Drill',
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 }
 
 const ROWS: GatePassView[] = [
-  row({ id: 'a', pass_number: 'RGP-OUT-20260804-0001', type: 'RGP', department_id: 'd1', department_name: 'Engineering', visitor_name: 'Ravi' }),
-  row({ id: 'b', pass_number: 'NRGP-OUT-20260804-0002', type: 'NRGP', department_id: 'd2', department_name: 'Housekeeping', visitor_name: 'Sunil' }),
-  // Late: an RGP still out, past its date. `is_overdue` and `return_status`
-  // both come off v_gate_passes — nothing recomputes lateness in TypeScript.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  { ...row({ id: 'c', pass_number: 'RGP-20260804-0003', type: 'RGP', visitor_name: 'Late Larry' }),
-    status: 'matched', return_status: 'awaiting_return', is_overdue: true, due_state: 'overdue' } as any,
-  // Dead paperwork: never reached the gate before its own expiry. `is_expired`
-  // comes off v_gate_passes and only means anything while the pass is pending.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  { ...row({ id: 'e', pass_number: 'RGP-20260804-0004', type: 'RGP', visitor_name: 'Gone Gita' }),
-    status: 'pending', is_expired: true } as any,
+  row({ id: 'a', pass_number: 'RGP-20260804-0001', type: 'RGP', total_value: 4500 }),
+  row({
+    id: 'b', pass_number: 'NRGP-20260804-0002', type: 'NRGP',
+    department_id: 'd2', department_name: 'Housekeeping',
+    raised_by: 'u2', raised_by_name: 'HOD Two',
+  }),
+  // Late: an RGP still out, past its date. `is_overdue` and `return_status` both
+  // come off v_gate_passes — nothing recomputes lateness in TypeScript.
+  row({
+    id: 'c', pass_number: 'RGP-20260804-0003', type: 'RGP',
+    status: 'matched', return_status: 'awaiting_return', is_overdue: true,
+  }),
+  // Dead paperwork: never reached the gate before its own expiry.
+  row({ id: 'e', pass_number: 'RGP-20260804-0004', status: 'pending', is_expired: true }),
+  // Finished: an NRGP the gate cleared is not coming back.
+  row({ id: 'f', pass_number: 'NRGP-20260804-0005', type: 'NRGP', status: 'matched' }),
 ];
 
 function thenable(result: { data: unknown; error: unknown }) {
@@ -92,173 +105,157 @@ function renderReports() {
   );
 }
 
+/** Every control writes a DRAFT; only Apply Filters moves it onto the report. */
+async function applyFilter(label: string, value: string) {
+  fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  fireEvent.click(screen.getByRole('button', { name: /Apply Filters/ }));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('Reports — department and pass-type filters', () => {
-  it('shows both passes with no filter applied', async () => {
+describe('Gate Pass Report — the mock-up itself', () => {
+  it('is titled and described exactly as the attachment', async () => {
     renderReports();
-    await waitFor(() => expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument());
-    expect(screen.getByText('NRGP-OUT-20260804-0002')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument());
+
+    // Two: the screen's own h1 and the `print-only` sheet header, which carries
+    // the same title onto the paper.
+    expect(screen.getAllByRole('heading', { name: 'Gate Pass Report (RGP & NRGP)' }).length).toBe(2);
+    expect(
+      screen.getByText('View and download RGP and NRGP gate pass transactions with detailed information.'),
+    ).toBeInTheDocument();
   });
 
-  it('filters to RGP only via the pass-type segmented control', async () => {
+  it('carries the mock\'s three header buttons and its four filter controls', async () => {
     renderReports();
-    await waitFor(() => expect(screen.getByText('NRGP-OUT-20260804-0002')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'RGP' }));
-
-    await waitFor(() => expect(screen.queryByText('NRGP-OUT-20260804-0002')).not.toBeInTheDocument());
-    expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument();
+    for (const name of [/Export/, /^Print$/, /Download/, /Reset/, /Apply Filters/]) {
+      expect(screen.getByRole('button', { name })).toBeInTheDocument();
+    }
+    for (const label of ['From date', 'To date', 'Pass Type', 'Status', 'Created By']) {
+      expect(screen.getByLabelText(label)).toBeInTheDocument();
+    }
   });
 
-  it('filters to NRGP only', async () => {
+  it('renders the six figures, and Total = RGP + NRGP over the same rows', async () => {
     renderReports();
-    await waitFor(() => expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'NRGP' }));
+    const figures = screen.getByRole('group', { name: 'Report figures' });
+    for (const label of ['Total Passes', 'RGP Passes', 'NRGP Passes', 'Completed', 'In Progress', 'Cancelled']) {
+      expect(figures).toHaveTextContent(label);
+    }
+    // 5 rows: 3 RGP + 2 NRGP.
+    expect(figures).toHaveTextContent('5');
+    expect(figures).toHaveTextContent('60.00% of total');
+    expect(figures).toHaveTextContent('40.00% of total');
+  });
 
-    await waitFor(() => expect(screen.queryByText('RGP-OUT-20260804-0001')).not.toBeInTheDocument());
-    expect(screen.getByText('NRGP-OUT-20260804-0002')).toBeInTheDocument();
+  // The two columns the client asked for on top of the mock.
+  it('carries a Value of Items column and a Raised By Department column', async () => {
+    renderReports();
+    await waitFor(() => expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument());
+
+    expect(screen.getByRole('columnheader', { name: 'Value of Items' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Raised By Department' })).toBeInTheDocument();
+    // ₹4,500 is the priced pass; an unpriced one is a dash, never ₹0.
+    expect(screen.getByText('₹4,500')).toBeInTheDocument();
+    expect(screen.getAllByText('Engineering').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Housekeeping').length).toBeGreaterThan(0);
+  });
+
+  // The house `.page-header` toggle and the two standalone buttons are gone —
+  // this fails if either creeps back beside the new card.
+  it('draws no pass-type segmented toggle and no standalone Overdue/Expired buttons', async () => {
+    renderReports();
+    await waitFor(() => expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument());
+
+    expect(screen.queryByRole('group', { name: 'Pass type' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Overdue' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Expired' })).not.toBeInTheDocument();
+  });
+});
+
+describe('Gate Pass Report — the filter card', () => {
+  it('narrows nothing until Apply Filters is pressed', async () => {
+    renderReports();
+    await waitFor(() => expect(screen.getByText('NRGP-20260804-0002')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('Pass Type'), { target: { value: 'RGP' } });
+    // Still there: the draft moved, the report did not.
+    expect(screen.getByText('NRGP-20260804-0002')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Apply Filters/ }));
+    await waitFor(() => expect(screen.queryByText('NRGP-20260804-0002')).not.toBeInTheDocument());
+  });
+
+  it('filters to RGP only, then back with Reset', async () => {
+    renderReports();
+    await waitFor(() => expect(screen.getByText('NRGP-20260804-0002')).toBeInTheDocument());
+
+    await applyFilter('Pass Type', 'RGP');
+    await waitFor(() => expect(screen.queryByText('NRGP-20260804-0002')).not.toBeInTheDocument());
+    expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+    await waitFor(() => expect(screen.getByText('NRGP-20260804-0002')).toBeInTheDocument());
   });
 
   it('filters by department', async () => {
     renderReports();
-    await waitFor(() => expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument());
 
-    fireEvent.change(screen.getByLabelText('Department'), { target: { value: 'd2' } });
-
-    await waitFor(() => expect(screen.queryByText('RGP-OUT-20260804-0001')).not.toBeInTheDocument());
-    expect(screen.getByText('NRGP-OUT-20260804-0002')).toBeInTheDocument();
+    await applyFilter('Department', 'd2');
+    await waitFor(() => expect(screen.queryByText('RGP-20260804-0001')).not.toBeInTheDocument());
+    expect(screen.getByText('NRGP-20260804-0002')).toBeInTheDocument();
   });
 
-  it('offers a Clear button only while a filter is active, and it resets both filters', async () => {
+  it('filters by the person who created the pass', async () => {
     renderReports();
-    await waitFor(() => expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument());
 
-    expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'NRGP' }));
-    fireEvent.change(screen.getByLabelText('Department'), { target: { value: 'd2' } });
-
-    const clear = await screen.findByRole('button', { name: /clear/i });
-    fireEvent.click(clear);
-
-    await waitFor(() => expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument());
-    expect(screen.getByText('NRGP-OUT-20260804-0002')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
-  });
-
-  // The three report portals (All Passes / Return Schedule / Department
-  // Summary) were removed 2026-08-17 on the client's call. A tab bar is not
-  // "empty" here — it is gone, and this fails if one creeps back.
-  it('offers no report-portal tabs — Reports is one register', async () => {
-    renderReports();
-    await waitFor(() => expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument());
-
-    for (const gone of ['All Passes', 'Return Schedule', 'Department Summary']) {
-      expect(screen.queryByRole('button', { name: gone })).not.toBeInTheDocument();
-    }
-  });
-
-  // Both scope controls sit in the page header, top right, beside the title —
-  // not in a card of their own below it. The row of the page a reader's eye
-  // already lands on is where a switch belongs; a full-width card for two
-  // controls was a band of empty space.
-  it('puts the pass-type toggle and the department select in the page header', async () => {
-    const { container } = renderReports();
-    await waitFor(() => expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument());
-
-    const header = container.querySelector('.page-header');
-    expect(header).not.toBeNull();
-    expect(header).toContainElement(screen.getByRole('button', { name: 'RGP' }));
-    expect(header).toContainElement(screen.getByRole('button', { name: 'NRGP' }));
-    expect(header).toContainElement(screen.getByLabelText('Department'));
-  });
-
-  // The toggle names its own states; a "Pass Type" caption beside them is a
-  // word that tells the reader nothing the buttons don't.
-  it('drops the standalone filter card and its captions', async () => {
-    const { container } = renderReports();
-    await waitFor(() => expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument());
-
-    expect(screen.queryByText('Pass Type')).not.toBeInTheDocument();
-    const group = screen.getByRole('group', { name: 'Pass type' });
-    expect(group.closest('.card')).toBeNull();
-    expect(container.querySelector('label[for="report-dept"]')).toBeNull();
-  });
-
-  it('no longer renders the old type/department dropdowns inside the register', async () => {
-    renderReports();
-    await waitFor(() => expect(screen.getByLabelText('Department')).toBeInTheDocument());
-    // The lifted bar owns these; the register keeps only search + Export CSV.
-    expect(screen.queryByRole('option', { name: /All Types/ })).not.toBeInTheDocument();
-    expect(screen.getAllByLabelText('Department')).toHaveLength(1);
+    await applyFilter('Created By', 'u2');
+    await waitFor(() => expect(screen.queryByText('RGP-20260804-0001')).not.toBeInTheDocument());
+    expect(screen.getByText('NRGP-20260804-0002')).toBeInTheDocument();
   });
 });
 
-describe('Reports — the overdue-only button', () => {
-  // Client, 2026-08-18: "the Reports tab in admin — make a button for overdue,
-  // so it would show only the overdue items." It is a filter on the same loaded
-  // rows, applied with the department and type filters before any view sees a
-  // row, so the printed sheet says so too.
-  it('narrows the register to passes that are late, and back again', async () => {
+describe('Gate Pass Report — the Status select', () => {
+  // Client, 2026-08-18: "make a button for overdue, so it would show only the
+  // overdue items." The button became an option; the report is the same.
+  it('narrows to passes that are late', async () => {
     renderReports();
     await waitFor(() => expect(screen.getByText('RGP-20260804-0003')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Overdue' }));
-    await waitFor(() => expect(screen.queryByText('RGP-OUT-20260804-0001')).not.toBeInTheDocument());
+    await applyFilter('Status', 'overdue');
+    await waitFor(() => expect(screen.queryByText('RGP-20260804-0001')).not.toBeInTheDocument());
     expect(screen.getByText('RGP-20260804-0003')).toBeInTheDocument();
-    expect(screen.queryByText('NRGP-OUT-20260804-0002')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Overdue' }));
-    await waitFor(() => expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument());
   });
 
-  it('counts as an active filter, so Clear resets it', async () => {
-    renderReports();
-    await waitFor(() => expect(screen.getByText('RGP-20260804-0003')).toBeInTheDocument());
-
-    fireEvent.click(screen.getByRole('button', { name: 'Overdue' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Clear' }));
-    await waitFor(() => expect(screen.getByText('NRGP-OUT-20260804-0002')).toBeInTheDocument());
-  });
-});
-
-describe('Reports — the expired-only button', () => {
-  // Expired passes were taken off BOTH dashboards on 2026-08-18 (a dead pass is
-  // not something anyone acts on from a board). The client's condition was that
-  // the record is still kept: this is where it is kept, over any date range.
-  it('narrows the register to passes that ran out of time, and back again', async () => {
+  // Expired passes came off both dashboards on 2026-08-18; this report is where
+  // the record of them is still kept, over any range the admin picks.
+  it('narrows to passes that ran out of time, and shows them as Expired', async () => {
     renderReports();
     await waitFor(() => expect(screen.getByText('RGP-20260804-0004')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Expired' }));
-    await waitFor(() => expect(screen.queryByText('RGP-OUT-20260804-0001')).not.toBeInTheDocument());
+    await applyFilter('Status', 'expired');
+    await waitFor(() => expect(screen.queryByText('RGP-20260804-0001')).not.toBeInTheDocument());
     expect(screen.getByText('RGP-20260804-0004')).toBeInTheDocument();
-    expect(screen.queryByText('RGP-20260804-0003')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Expired' }));
-    await waitFor(() => expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument());
+    // The row's own pill — `pending` in the enum, and printing that word would
+    // be a lie about a pass the gate will refuse forever.
+    // Two: the Status select's own option, and the row's pill.
+    expect(screen.getAllByText('Expired').length).toBe(2);
   });
 
-  it('counts as an active filter, so Clear resets it', async () => {
+  it('narrows to the mock\'s Completed bucket', async () => {
     renderReports();
-    await waitFor(() => expect(screen.getByText('RGP-20260804-0004')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('NRGP-20260804-0005')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Expired' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Clear' }));
-    await waitFor(() => expect(screen.getByText('NRGP-OUT-20260804-0002')).toBeInTheDocument());
-  });
-
-  // The register's Status column names the stage, so the expired row must say so
-  // — it is `pending` in the enum, and printing that word would be a lie.
-  it('shows the row as Expired, never as Pending', async () => {
-    renderReports();
-    await waitFor(() => expect(screen.getByText('RGP-20260804-0004')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: 'Expired' }));
-    // Two now: the filter button, and the row's own badge.
-    await waitFor(() => expect(screen.getAllByText('Expired').length).toBe(2));
+    await applyFilter('Status', 'completed');
+    await waitFor(() => expect(screen.queryByText('RGP-20260804-0001')).not.toBeInTheDocument());
+    expect(screen.getByText('NRGP-20260804-0005')).toBeInTheDocument();
   });
 });

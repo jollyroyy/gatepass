@@ -18,7 +18,7 @@
 import { describe, it, expect } from 'vitest';
 import { toCsv, type CsvColumn } from '../../src/lib/exportUtils';
 import { csvCategory, csvDate, csvDateTime, csvReturnStatus, csvStatus, csvUnit } from '../../src/lib/csvCells';
-import { ALL_PASSES_CSV_COLUMNS } from '../../src/pages/Admin/AllPassesReport';
+import { ALL_PASSES_CSV_COLUMNS } from '../../src/lib/gatePassReport';
 import { MY_PASSES_CSV_COLUMNS } from '../../src/pages/HOD/MyPasses';
 
 describe('escaping — nothing a human did not type', () => {

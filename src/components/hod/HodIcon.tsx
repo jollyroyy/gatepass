@@ -86,6 +86,12 @@ const GLYPHS: Record<HodGlyph, React.ReactElement> = {
       <path d="M9.4 9.4l5.2 5.2M14.6 9.4l-5.2 5.2" />
     </svg>
   ),
+  check: (
+    <svg {...SVG}>
+      <circle cx="12" cy="12" r="8.25" />
+      <path d="M8.75 12.25l2.25 2.25 4.25-4.75" />
+    </svg>
+  ),
   wallet: (
     <svg {...SVG}>
       <path d="M4 7.5A1.5 1.5 0 015.5 6h11A1.5 1.5 0 0118 7.5v1.25" />

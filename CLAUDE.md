@@ -65,7 +65,62 @@ live**; **`053` belongs to a parallel session and its state is not known here.**
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **4 rows** — one pending ladder, on `NRGP-20260819-0002`, sitting at level 1 (Security Head). The 60 older passes carry no ladder and reach the gate exactly as they did before. |
 
-**Latest change (2026-08-20, eighteenth pass): THE GUARD'S GATE DECISION IS APPROVE OR
+**Latest change (2026-08-20, nineteenth pass): THE ADMIN'S REPORTS TAB IS THE CLIENT'S
+"Gate Pass Report (RGP & NRGP)" MOCK-UP, box for box — plus the two columns they asked for on
+top of it.** Frontend only — no migration, no RPC change, and ONE query, exactly as before.
+
+- **`src/pages/Admin/ReportsPage.tsx` is its own layout now**, over `ReportsHeader` ·
+  `ReportsFilterBar` · `ReportsKpiCards` · `ReportsTable` and `src/lib/gatePassReport.ts` (pure).
+  **DELETED, not flagged off** — a stale reference is a build error: `AllPassesReport.tsx` (the
+  old register) and `ReportsToolbar.tsx` (the date + preset strip the mock replaces with a
+  range), plus `tests/unit/allPassesReportTabs.test.tsx` with them. `ALL_PASSES_CSV_COLUMNS` moved
+  into the lib under the same name, so `csvExport.test.ts` still walks the column set.
+- **THE SKIN IS THE `.gb-*` ISLAND** (`gb-board gb-main` on one div), which is what makes this
+  page the same white ground, Inter ladder and near-black ink as every other mock-up screen. The
+  new CSS introduces **no new colour** — every value is one of `.gb-board`'s own custom
+  properties — and `src/pages/Admin/Reports*.tsx` carries no hex, so `themeAudit` stays absolute.
+- **TWO COLUMNS THE MOCK DOES NOT DRAW ARE HERE ON THE CLIENT'S INSTRUCTION**: **Value of Items**
+  (`v_gate_passes.total_value`, migration 038 — no schema change was needed) and **Raised By
+  Department**. Both are columns of the CSV too; a report and its export must say the same thing.
+  An unpriced pass prints a dash on screen and an **empty cell** in the file — a dash breaks SUM.
+- **THREE STATUS BUCKETS, DISJOINT AND TOTAL**, so the six cards add up (Total = RGP + NRGP, and
+  Completed + In Progress + Cancelled = Total). Completed is a cleared NRGP or a fully returned
+  RGP; Cancelled is flagged/cancelled **and expired** (`match_pass` refuses an expired pass
+  forever — it is dead paperwork, not work in progress); In Progress is everything else,
+  **including overdue** — late is not finished. The row's PILL says more where more is true:
+  "Overdue" / "Expired" in orange, counted in the bucket above.
+- **THE OVERDUE AND EXPIRED BUTTONS BECAME OPTIONS ON THE Status SELECT.** The client's
+  2026-08-18 request ("make a button for overdue") is not lost — it is now one of six options,
+  the last two being SUBSETS of a bucket rather than buckets of their own.
+- **FILTERS ARE A DRAFT UNTIL APPLIED**, because the mock draws an Apply Filters button and a
+  button that applies what is already applied is a lie. Reset returns to the opening 30-day range.
+  A **Department** select is a fifth control the mock does not draw — it is here because the
+  register now names the department in a column and filtering a printed report to one is a
+  standing feature.
+- **THE HEADER'S THREE BUTTONS MAP ONTO THE TWO ACTIONS THAT EXIST.** This app can write a CSV
+  and it can print; there is no PDF renderer. So Export ▾ is the FORMAT LIST and Print and
+  Download are shortcuts onto its two entries. **PRINTING LIFTS THE PAGER**: a printed report is
+  the whole filtered set, and a row that never rendered cannot be shown by CSS, so the page size
+  is raised for exactly one paint and put back.
+- **The KPI cards are READINGS, not controls** — deliberately unlike the admin Overview's
+  `.gb-ov` row, where every card is a drill. The rows they count are in the table directly
+  underneath, already narrowed by the same filters, and `buildReportKpis` is handed that very
+  array — no aggregate, no second predicate.
+- **The mock's "↑ 12% vs last 23 days" line is REAL**, computed against the same-length window
+  immediately before the range and narrowed the same way. A previous window of zero gets a plain
+  sentence, never a percentage — the same call the admin Overview made about a change from nothing.
+- `HodIcon` gained one glyph, `check`, for the Completed figure.
+- Pinned by a new `tests/unit/gatePassReport.test.ts` (26 — the buckets disjoint and total, the
+  filters, the six figures adding up, the delta's three cases, the cells) and a **rewritten**
+  `reportsFilters.test.tsx` (12 — its own header says what it used to hold and which instruction
+  superseded it). `npm run check` is **1571 tests across 126 files**; the only 2 failures belong
+  to a parallel session's in-flight `054_approval_deputy` work (`approvalLadder.test.ts`), not to
+  this pass. `npm run build` is green.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite and a production build only. The six-across
+  figure row, the filter card's wrap at a narrow width and the printed sheet are exactly the kind
+  of thing only a real render proves.
+
+**Earlier (2026-08-20, eighteenth pass): THE GUARD'S GATE DECISION IS APPROVE OR
 REJECT, and a rejection cannot be submitted without a reason.** Frontend only — no migration, no
 RPC change, no change to any status.
 
@@ -2023,7 +2078,7 @@ Office**: material moves through the mall's service gate, HODs are department he
 MismatchReview, ExpiredReview), `Security/` (GateConsole — the **Search Pass** screen, no longer
 a sidebar tab — GateLookup, Verify, GuardDashboard — the figures-and-quick-actions board — and
 the two pages its figures drill into, PendingOutPage and PendingReturnsPage), `Shared/` also holding the two role-scoped return pages
-(OverdueItemsPage, ReturnsDueTodayPage), `Admin/` (AdminPanel and its tabs, AdminDashboard, ReportsPage), `Shared/`
+(OverdueItemsPage, ReturnsDueTodayPage), `Admin/` (AdminPanel and its tabs, AdminDashboard, and the Reports tab — ReportsPage over ReportsHeader / ReportsFilterBar / ReportsKpiCards / ReportsTable, drawn to the client's report mock-up), `Shared/`
 (PassDetail, PassPrint, Profile). `src/components/passview/` is the Gate Pass Details record — the ONE record format, drawn to the client's mock-up and carrying the approval ladder and the line-by-line return entry,
 rendered both by Search Pass and by `/pass/:id`; `src/components/overdue/` is Overdue Items and `src/components/returns/` is the
 line-level returns table, each one component serving all three roles;

@@ -3094,6 +3094,220 @@
     font-size: 13.5px;
     font-weight: 600;
   }
+
+  /* ==========================================================================
+     GATE PASS REPORT (RGP & NRGP) — the admin Reports tab, drawn to the
+     client's mock-up (2026-08-20).
+
+     It reuses `.gb-board` (the white ground and the palette), `.gb-card`,
+     `.gb-select`, `.gb-table`, `.gb-pill-*`, `.gb-pager` and the `.gb-tint-*`
+     plates, and adds only what the mock draws that nothing else does: the
+     header's three-button cluster, the filter card's labelled controls, and a
+     six-across figure row.
+
+     No new colour is introduced. Every value below is one of `.gb-board`'s own
+     custom properties, so this block cannot drift from the rest of the skin.
+     ========================================================================== */
+
+  /* ---- The header ---------------------------------------------------------- */
+  .gb-rep-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 18px;
+    /* The notification bell is `fixed top-4 right-4`; without this reservation
+     * the mock's date stamp renders underneath it. Same rule as `.gb-page-head`. */
+    padding-right: 76px;
+  }
+  .gb-rep-title {
+    font-family: inherit;
+    font-size: 26px;
+    line-height: 30px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--gb-ink);
+  }
+  .gb-rep-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  .gb-rep-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .gb-rep-menu-wrap { position: relative; }
+  .gb-rep-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 20;
+    min-width: 190px;
+    padding: 6px;
+    background: #ffffff;
+    border: 1px solid var(--gb-line);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px 0 rgb(16 24 40 / 0.12);
+  }
+  .gb-rep-menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 7px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--gb-body);
+  }
+  .gb-rep-menu button:hover { background: var(--gb-head); }
+  /* The header's buttons carry a glyph the return box's do not, so the flex is
+   * added here rather than widened on `.gb-btn-*` — nothing else in the skin
+   * puts an icon in one. */
+  .gb-rep-actions .gb-btn-ghost,
+  .gb-rep-actions .gb-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .gb-rep-actions svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+  /* ---- The filter card ----------------------------------------------------- */
+  .gb-rep-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 16px;
+    padding: 16px 18px;
+    margin-bottom: 18px;
+  }
+  .gb-rep-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 180px;
+  }
+  .gb-rep-field-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gb-muted);
+  }
+  .gb-rep-field .gb-select { width: 100%; }
+  .gb-rep-dates {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--gb-line);
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 4px 8px;
+  }
+  .gb-rep-dates input {
+    border: 0;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gb-body);
+    min-width: 0;
+    width: 100%;
+  }
+  .gb-rep-dates input:focus { outline: none; }
+  .gb-rep-dash { color: var(--gb-muted); font-size: 13px; }
+  .gb-rep-filter-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+  }
+  .gb-rep-filter-actions .gb-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .gb-rep-filter-actions svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  /* ---- The six figures ----------------------------------------------------- */
+  .gb-rep-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  @media (min-width: 768px) {
+    .gb-rep-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1280px) {
+    .gb-rep-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  }
+  /* The mock's card is a READING, not a control — it opens nothing, so it is a
+   * div with no hover lift. The drillable version of this row is the admin
+   * Overview's (`.gb-ov`), and the two must not look pressable alike. */
+  .gb-rep-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+  .gb-rep-kpi-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+  }
+  .gb-rep-kpi-label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gb-muted);
+  }
+  .gb-rep-kpi-figure {
+    display: block;
+    margin-top: 2px;
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--gb-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .gb-rep-kpi-note {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--gb-muted);
+  }
+  .gb-rep-up { color: var(--gb-green); }
+  .gb-rep-down { color: var(--gb-red); }
+
+  /* ---- The table ----------------------------------------------------------- */
+  .gb-rep-gp {
+    font-weight: 600;
+    color: var(--gb-ink);
+    white-space: nowrap;
+  }
+  .gb-rep-purpose {
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .gb-rep-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .gb-rep-kebab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    color: var(--gb-muted);
+    font-size: 16px;
+    line-height: 1;
+  }
+  .gb-rep-kebab:hover { background: var(--gb-head); color: var(--gb-ink); }
 }
 
 @layer utilities {
