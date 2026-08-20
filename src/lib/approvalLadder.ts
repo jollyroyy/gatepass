@@ -53,7 +53,12 @@
 // the fix is a designation, not a truck waiting at the gate.
 import type { GatePassView, UserRole } from '../types';
 import { formatDateOnly } from './formatDate';
-import { APPROVAL_NOTE, APPROVAL_STATE, type PassApprovalRow } from './passApprovalState';
+import {
+  APPROVAL_NOTE,
+  APPROVAL_STATE,
+  GRANDFATHERED_NOTE,
+  type PassApprovalRow,
+} from './passApprovalState';
 
 /** The four offices between the issuing HOD and the gate. Mirrors the
  *  `approval_roles_key_known` check in migration 043 — a fifth office is a
@@ -258,19 +263,32 @@ export function buildApprovalSteps(
       steps.push({
         key: `level-${own.level_no}`,
         label: `Level ${own.level_no} Approval`,
-        who: approverLine(title, own.decided_name ?? own.routed_name ?? row?.full_name),
+        // A ROLLOUT-CLOSED LEVEL NAMES NOBODY (058). `decided_name` is null on
+        // such a row by design, and the usual fall-back to `routed_name` would
+        // print whoever held the office the day the pass was raised — saying
+        // they approved a pass they were never shown.
+        who: approverLine(
+          title,
+          own.grandfathered ? null : own.decided_name ?? own.routed_name ?? row?.full_name,
+        ),
         // WHICH SEAT SIGNED IT, where the department would otherwise sit. A
         // deputy's own department is not the fact a reader of this rung wants,
         // and an unlabelled deputy reads as the office holder — the thing
         // Workday's "On Behalf Of" line exists to prevent.
-        detail: own.decided_as_deputy
-          ? `Standing deputy for the ${title}`
-          : row?.department_name ?? null,
+        detail: own.grandfathered
+          ? null
+          : own.decided_as_deputy
+            ? `Standing deputy for the ${title}`
+            : row?.department_name ?? null,
         at: own.decided_at,
         state: APPROVAL_STATE[own.status],
         // A rejection's reason IS the note — it is the sentence somebody typed
         // and the only answer the raising HOD gets.
-        note: own.status === 'rejected' && own.reason ? own.reason : APPROVAL_NOTE[own.status],
+        note: own.grandfathered
+          ? GRANDFATHERED_NOTE
+          : own.status === 'rejected' && own.reason
+            ? own.reason
+            : APPROVAL_NOTE[own.status],
       });
       continue;
     }

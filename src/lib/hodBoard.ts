@@ -1,4 +1,4 @@
-// THE HOD DASHBOARD'S FOUR FIGURES, and the greeting above them.
+// THE HOD DASHBOARD'S FIVE FIGURES, and the greeting above them.
 //
 // The board an HOD used to get was the admin's `GateBoard` narrowed to one
 // person — two KPI rows, a movement trend, a status ring, a return watch and a
@@ -17,9 +17,10 @@
 // and mixing them up is the mistake this file is arranged to prevent:
 //
 //   TODAY   — cards 1–3. Passes RAISED today, by `created_at` in LOCAL time.
-//   RUNNING — card 4, and the "pending at the gate" note. An obligation does not
-//             stop being open because the calendar rolled over, so a Today-scoped
-//             Overdue card would print 0 while material sat off site.
+//   RUNNING — cards 4 and 5. An obligation does not stop being open because the
+//             calendar rolled over, so a Today-scoped Overdue card would print 0
+//             while material sat off site, and a Today-scoped Pending Approvals
+//             card would print 0 while yesterday's pass sat unsigned.
 //
 // The mock's own numbers say the same thing: it draws 6 RGP issued today above
 // "7 pending at the gate". The note is deliberately NOT a subset of the card it
@@ -28,11 +29,16 @@
 import type { GatePassView } from '../types';
 import type { BoardDrill } from './boardDrills';
 import { IS_OPEN_RETURN } from './boardDrills';
-import { isWaitingAtGate } from './gateQueue';
+import { pendingSplit, pendingSplitNotes } from './pendingSplit';
 import { DAY_MS, dayStart } from './localDay';
 import type { HodGlyph, HodTone } from '../components/hod/hodIconTypes';
 
-export type HodKpiKey = 'total' | 'nrgpIssued' | 'rgpIssued' | 'pendingReturn';
+export type HodKpiKey =
+  | 'total'
+  | 'nrgpIssued'
+  | 'rgpIssued'
+  | 'pendingReturn'
+  | 'pendingApproval';
 
 /** One line under a card's figure. `dot` draws the mock's small coloured bullet;
  *  a note without one is the plain grey line ("All types"). */
@@ -73,34 +79,32 @@ export function overdueReturns(rows: GatePassView[]): GatePassView[] {
   return rows.filter((p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue);
 }
 
-/** "N pending approval" — the total signatures still owed across this HOD's
- *  passes, off `approvalWaitingTotal` in `hodApprovals.ts` so the KPI note and
- *  the Approval Pending strip read the same map and cannot disagree. */
-const pendingApprovalNote = (total: number): HodKpiNote => ({
-  text: `${total} pending approval`,
-  dot: 'purple',
-});
-
 /**
- * The four cards, in the mock-up's order, each carrying its own rows.
+ * The five cards, the mock-up's four in its own order plus Pending Approvals,
+ * each carrying its own rows.
  *
  * `now` is a parameter rather than a `Date.now()` inside, so a test can pin a
- * day boundary without freezing the clock globally. `pendingApprovalTotal`
- * comes from `approvalWaitingTotal(approvalWaiting(rows, approvals))` in the
- * caller — this module counts passes, not approval rows, so it takes the
- * figure rather than the raw table.
+ * day boundary without freezing the clock globally.
+ *
+ * IT NO LONGER TAKES `pendingApprovalTotal`. That was a count of SIGNATURES
+ * still owed (`approvalWaitingTotal`), printed as a note on two cards; the fifth
+ * card counts PASSES, which is what every other figure on this board counts and
+ * what its own drill list renders. The signature counts have not gone anywhere —
+ * they are the four offices on the Approval Pending strip at the foot of the
+ * page, which is the one place that question belongs.
  */
 export function buildHodKpis(
   rows: GatePassView[],
   now: number = Date.now(),
-  pendingApprovalTotal: number = 0,
 ): HodKpiCard[] {
   const today = raisedToday(rows, now);
   const nrgpToday = today.filter((p) => p.type === 'NRGP');
   const rgpToday = today.filter((p) => p.type === 'RGP');
-  // RUNNING, not today's — see the header. The same predicate the RGP Awaiting
-  // Clearance tile used on the old board, imported rather than restated.
-  const atGate = rows.filter((p) => p.type === 'RGP' && isWaitingAtGate(p));
+  // RUNNING, not today's — see the header. `split.waiting` is every pass of
+  // this HOD's that has not been through the gate; the two sub-figures under
+  // the fifth card are that same array cut in half by `awaits_approval`, so
+  // they sum to the figure by construction.
+  const split = pendingSplit(rows);
   const overdue = overdueReturns(rows);
 
   return [
@@ -129,7 +133,12 @@ export function buildHodKpis(
       glyph: 'send',
       tone: 'green',
       value: nrgpToday.length,
-      notes: [pendingApprovalNote(pendingApprovalTotal)],
+      // NO NOTE. The "N pending approval" roll-up this card used to repeat now
+      // has a card of its own (below), where it is broken into the two desks a
+      // waiting pass can be sitting on. Repeating it here would print the same
+      // number three times on one row — the exact thing the client asked to
+      // stop on 2026-08-19 ("show it only once").
+      notes: [],
       drill: {
         key: 'nrgpIssued',
         heading: 'NRGP raised today',
@@ -144,10 +153,9 @@ export function buildHodKpis(
       glyph: 'exchange',
       tone: 'purple',
       value: rgpToday.length,
-      notes: [
-        { text: `${atGate.length} pending at the gate`, dot: 'orange' },
-        pendingApprovalNote(pendingApprovalTotal),
-      ],
+      // NO NOTE, same reason: both lines this card used to carry are the fifth
+      // card now, and unlike these they are not narrowed to RGP.
+      notes: [],
       drill: {
         key: 'rgpIssued',
         heading: 'RGP raised today',
@@ -172,6 +180,34 @@ export function buildHodKpis(
         heading: 'Material past its return date',
         empty: 'Nothing you raised is overdue.',
         rows: overdue,
+      },
+    },
+    {
+      // THE FIFTH CARD — the client's own instruction, 2026-08-20: the admin's
+      // Pending Approvals figure "not only for the admin but for the HOD
+      // dashboard also", subdivided the same way. The mock draws four cards and
+      // none of them is this one; it is here because the two sub-figures the
+      // client asked for had nowhere to hang, and hanging them off "RGP Issued
+      // today" would have scoped a running queue to a day and to one pass type.
+      //
+      // SCOPE IS ALREADY THE HOD's, and is not this module's doing: RLS narrows
+      // to their department (`gate_passes_select`, 002) and `useHodBoardData`
+      // narrows again to what they raised, server-side.
+      key: 'pendingApproval',
+      label: 'Pending Approvals',
+      sub: 'Running',
+      glyph: 'hourglass',
+      tone: 'purple',
+      value: split.waiting.length,
+      notes: pendingSplitNotes(split).map((n) => ({
+        text: n.text,
+        dot: n.key === 'gate' ? ('orange' as HodTone) : ('purple' as HodTone),
+      })),
+      drill: {
+        key: 'pendingApproval',
+        heading: 'Passes not through the gate yet',
+        empty: 'Nothing of yours is waiting.',
+        rows: split.waiting,
       },
     },
   ];

@@ -53,21 +53,102 @@ unchanged and its six probe passes were deleted, leaving **60 rows exactly as be
 **`045`, `047` and `048` belong to a parallel session.** `045` IS applied (`vendor_profiles.address`
 exists and `raise_pass` reads `make_model`); **`047` and `048` are NOT** — no approval-email or
 notification function exists in `gatepass`. `APPLY_ALL.sql` carries every section regardless. **`052` (mail settings) IS APPLIED and probed
-live**; **`053` belongs to a parallel session and its state is not known here.** **`057` IS
-APPLIED** (psql, as `postgres` — so its RLS half is unproved); **`054`, `055` and `056` are NOT
-applied and belong to a parallel session.**
+live**; `053` IS APPLIED (psql). **`054`, `055`, `056`, `057` and `058` ARE ALL APPLIED** — every one of them with psql as
+`postgres`, which bypasses RLS, **so the RLS half of each is unproved**. `scripts/verify-054.mjs` is
+still the next security action.
 
 | Thing | State |
 |---|---|
-| `gatepass.gate_passes` | **63 rows** — real user data. **Not a scratch DB; do not wipe it.** |
+| `gatepass.gate_passes` | **65 rows** — real user data. **Not a scratch DB; do not wipe it.** |
 | `public.departments` | **12 rows** (VMS-owned, shared) — do not wipe |
 | Demo accounts | the `@demo.vms` accounts share password `demo123` and are email-confirmed; shared with VMS. **"all email-confirmed" was WRONG** — 7 real accounts carried `email_confirmed_at is null` and none of them had ever signed in (see the 048 entry). 6 still do, and a password reset is now what confirms them. |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 | `gatepass.approval_roles` | **4 rows — ALL FOUR OFFICES ARE FILLED**, so since `046` was applied every NEWLY raised pass needs four approvals and **the gate cannot see it until it has them**. Security Head **Demi** (re-designated 2026-08-19, fourteenth pass — it had been Jane/`jollyroyy@gmail.com` for the email test) · COO Sudeshna Pal · CEO Sid · Finance HOD GUARDSOHAM. One person holds one office (`049`). Admin → Users → *Gate pass approval ladder* is where they are set. |
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
-| `gatepass.pass_approvals` | **20 rows — five passes climbing the ladder** (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`, `RGP-20260820-0001/0002`). Four of them are past level 1; every one of them is waiting on the **COO**. Renumbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older passes carry no ladder and reach the gate exactly as they did before. |
+| `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-20, twenty-first pass): AN OFFICE CAN HAVE A DEPUTY, A SUPER
+**Latest change (2026-08-20, twenty-second pass): `054`, `055` AND `056` ARE APPLIED AT LAST
+(the missing `list_emergency_releases` was simply that); EVERY PASS RAISED BEFORE THE WORKFLOW
+BEGAN IS APPROVED WITHOUT NAMING AN APPROVER (migration `058`, APPLIED); AND "Pending Approvals"
+IS BROKEN INTO THE TWO DESKS A WAITING PASS CAN ACTUALLY BE SITTING ON, ON BOTH DASHBOARDS.**
+
+- **THE EMERGENCY-RELEASES ERROR WAS AN UNAPPLIED MIGRATION, NOT A BUG.** The client reported
+  *"Could not find the function gatepass.list_emergency_releases without parameters in the schema
+  cache"* under Admin -> Users -> Emergency releases. `054`, `055` and `056` were written on
+  2026-08-20 and never applied; they are **applied now, in order, with psql**
+  (`--single-transaction -v ON_ERROR_STOP=1`, every statement returned). `to_regprocedure`
+  confirms the function exists. **THE RLS HALVES OF ALL THREE ARE STILL UNPROVED** -- psql
+  connects as `postgres` and bypasses every policy. `scripts/verify-054.mjs` is still unwritten
+  and is still the next security action.
+- **MIGRATION `058` -- the ladder of a pre-rollout pass is CLOSED, and it says who closed it:
+  nobody.** Client: "whatever passes were raised before today, make them all approved ... starting
+  today onwards show the exact approval, whether it's pending or not." 046 grandfathered the 60
+  passes that predated the ladder by never snapshotting a vacant office; what it could not foresee
+  was the four offices being FILLED while five passes were mid-flight, leaving them stuck short of
+  the gate.
+  - **IT DOES NOT INVENT AN APPROVER, and that is the whole design.** Setting
+    `decided_by = <some admin>` would make the record read "Approved by X" against four offices X
+    does not hold -- the fabricated audit trail 046 refused to write when it declined to backfill.
+    Instead `pass_approvals.grandfathered` marks the closed rows, `decided_by` stays **NULL**,
+    `decided_at` is stamped (the rollout is a real moment) and `reason` carries the sentence.
+    `pass_approvals_decision_shape` is widened by **exactly one arm**: an `approved` row may have
+    a null decider **only** when `grandfathered` is true; an ordinary approval still needs an
+    author and a moment.
+  - **THE LADDER PRINTS NO NAME ON SUCH A RUNG.** `buildApprovalSteps`'s usual fall-back
+    (`decided_name ?? routed_name ?? current holder`) would name whoever held the office the day
+    the pass was raised. A grandfathered rung reads **"Security Head"** with no bracket, no
+    department, and the note `GRANDFATHERED_NOTE` -- "Approved on rollout - raised before the
+    approval workflow began". `get_pass_approvals` is dropped and recreated to carry the flag
+    (a RETURNS TABLE signature cannot be `create or replace`d).
+  - **THE CUTOFF IS THE DATE PRINTED ON THE PASS, NOT SITE-LOCAL MIDNIGHT.** `set_pass_number`
+    (042) builds `RGP-YYYYMMDD-NNNN` from the **UTC** date while every other date rule in this app
+    runs in `site_tz()`, so a pass raised at 00:31 IST carries YESTERDAY's date on its own face.
+    The client is reading those numbers off the screen, so the cut is made in the same clock:
+    `created_at < 2026-08-20 00:00+00`. **That UTC/site split in 042 is a real inconsistency and
+    is deliberately NOT fixed** -- renumbering a pass is renumbering an audit anchor on printed
+    paper.
+  - **LIVE RESULT, as `postgres`: 10 pending levels closed across three passes** --
+    `NRGP-20260819-0002`, `RGP-20260819-0006`, `RGP-20260819-0007` -- each now
+    `pass_awaits_approval = false`, so the gate can see them. **The two passes raised today
+    (`RGP-20260820-0001/0002`) keep their real, live ladder**, both waiting on the COO. Nothing
+    was deleted and no pass's `status` was touched.
+- **"Pending Approvals" NOW SAYS WHICH DESK** (client: "make two sub-sub things - pending for
+  gate, pending for HOD approvals ... put the proper number in that and make them reliable").
+  `src/lib/pendingSplit.ts` is the one derivation: `isWaitingAtGate` unchanged as the total, cut
+  in two by **`awaits_approval`** -- `v_gate_passes`'s own column from 057, **never recomputed
+  here**.
+  - **THE TWO SUM TO THE CARD BY CONSTRUCTION** -- one predicate and its negation over the SAME
+    array the card counted and its drill opens, so no pass can be missed by both or claimed by
+    both. A falsy `awaits_approval` means the gate: a pass with no ladder owes nothing, which is
+    exactly what every pass closed by 058 now is.
+  - The admin's fourth Overview card keeps its figure and gains two lines under a hairline
+    (`.gb-ov-notes`); its second line reads **"Not through the gate yet"**, because
+    "Waiting at the gate now" became false the day 046 stopped the gate seeing a climbing pass.
+  - **THE HOD BOARD GAINS A FIFTH CARD**, Pending Approvals, with the same two lines -- the mock
+    draws four and none of them is this one, but the sub-figures had nowhere else to hang, and
+    hanging them off "RGP Issued today" would have scoped a running queue to a day and to one
+    pass type. `.gb-kpi-grid` is five tracks at >=1280, matching the admin row.
+    **The NRGP Issued and RGP Issued cards lost their notes entirely** -- they repeated the
+    signature roll-up, which is the repetition the client stopped on 2026-08-19; that question is
+    answered once, on the Approval Pending strip at the foot of the page. `buildHodKpis` no
+    longer takes `pendingApprovalTotal`.
+  - **SCOPE IS NOT THIS CODE'S DOING.** The HOD board is narrowed by RLS to their department and
+    by `.eq('raised_by', ...)` to their own passes, both server-side; `pendingSplit` counts what
+    it is handed, which is what makes the same function correct on both boards.
+  - **LIVE READING (`postgres`): 3 pending gate review, 2 pending approval, 5 waiting.**
+- Pinned by a new `tests/unit/pendingSplit.test.ts` (9 -- the sum invariant on every mix, a
+  missing `awaits_approval` filed under the gate, expired and cleared counted nowhere, both boards
+  reading the same figure), 3 new `approvalLadder` cases (the rollout rung naming nobody, saying
+  why, and leaving a real decision alone) and 7 new `sqlInvariants` cases (every `decided_by`
+  assignment is to null, the one widened arm, the pending-only/cutoff-only UPDATE, the
+  drop-and-recreate). **REWRITTEN, each saying in its own comment what it used to hold**:
+  `adminOverview.test.ts` (the card's note) and two cases in `hodDashboardBoard.test.tsx`.
+  `npm run check` is **1686 tests across 132 files** and `npm run build` is green.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite, a production build and psql only. The HOD's
+  five-across row at 1280, the admin card's new hairline, and the Emergency Releases card actually
+  rendering against the now-live RPC are exactly what only a real render proves.
+
+**Earlier (2026-08-20, twenty-first pass): AN OFFICE CAN HAVE A DEPUTY, A SUPER
 ADMIN CAN RELEASE A STUCK PASS IN WRITING, EVERY EVENT IS ON ONE ADMIN SCREEN, AND THE
 SETTINGS TAB CARRIES ITS PROVISIONS HONESTLY — migrations `054`, `055` and `056`, WRITTEN AND
 NOT APPLIED.** Answering the client's four questions: what happens when an approver cannot

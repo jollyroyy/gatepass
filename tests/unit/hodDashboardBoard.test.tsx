@@ -78,13 +78,17 @@ const MINE: GatePassView[] = [
   // p2 are typed NRGP so a `status: 'pending'` row does not also inflate the
   // RGP card's unrelated "pending at the gate" note. They exist only to carry
   // `pass_approvals` rows for the strip below.
+  // Both carry `awaits_approval: true` — they have pending `pass_approvals`
+  // rows below, so `gatepass.pass_awaits_approval` really would answer true for
+  // them, and the Pending Approvals card's two sub-figures are only meaningful
+  // when the fixture contains one of each kind.
   pass({
     id: 'p1', visitor_name: 'Priya', created_at: FIVE_DAYS_AGO, status: 'pending',
-    type: 'NRGP', pass_number: 'NRGP-20260814-0001',
+    type: 'NRGP', pass_number: 'NRGP-20260814-0001', awaits_approval: true,
   }),
   pass({
     id: 'p2', visitor_name: 'Qasim', created_at: FIVE_DAYS_AGO, status: 'pending',
-    type: 'NRGP', pass_number: 'NRGP-20260814-0002',
+    type: 'NRGP', pass_number: 'NRGP-20260814-0002', awaits_approval: true,
   }),
   pass({ id: 'p3', visitor_name: 'Ravi', created_at: FIVE_DAYS_AGO, status: 'cancelled' }),
   pass({ id: 'p4', visitor_name: 'Sana', created_at: FIVE_DAYS_AGO, status: 'matched', verified_at: FIVE_DAYS_AGO }),
@@ -226,9 +230,13 @@ describe('the HOD dashboard is scoped to this HOD', () => {
     await loaded();
 
     // The colleague's pending RGP raised today would push Total to 5, RGP
-    // Issued to 4 and "pending at the gate" to 2.
+    // Issued to 4 and Pending Approvals to 5.
+    //
+    // REWRITTEN 2026-08-20: the "N pending at the gate" note used to sit on the
+    // RGP Issued card. It is the Pending Approvals card now, is not narrowed to
+    // RGP, and is split in two — see the case below.
     expectFigure('RGP Issued', 3);
-    expect(card('RGP Issued').textContent).toContain('1 pending at the gate');
+    expectFigure('Pending Approvals', 4);
     expect(screen.queryByText('RGP-20260819-0099')).not.toBeInTheDocument();
   });
 
@@ -347,11 +355,14 @@ describe('Quick Actions and the Approval Pending strip', () => {
     // pass IS that approval (see approvalLadder.ts's "Raised By" rung).
     expect(value('HOD Approval')).toBe('0');
 
-    // The KPI cards' own "pending approval" lines read from the same map, so
-    // the strip and the cards cannot disagree: 1 (security) + 0 (finance) +
-    // 2 (other) + 0 (hod) = 3.
-    expect(card('NRGP Issued').textContent).toContain('3 pending approval');
-    expect(card('RGP Issued').textContent).toContain('3 pending approval');
+    // REWRITTEN 2026-08-20: the NRGP Issued and RGP Issued cards used to repeat
+    // this strip's roll-up ("3 pending approval") as a note each. They carry no
+    // note at all now — the Pending Approvals card counts PASSES, which is a
+    // different question from how many SIGNATURES are owed, and printing the
+    // signature figure on three cards was the repetition the client asked to
+    // stop. The strip is the one place that question is answered.
+    expect(card('NRGP Issued').textContent).not.toContain('pending approval');
+    expect(card('RGP Issued').textContent).not.toContain('pending approval');
 
     // No "View all" — this page's own drillable KPI cards already open the
     // very passes an office is waiting on.

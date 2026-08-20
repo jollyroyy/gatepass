@@ -23,6 +23,7 @@ import {
   type ApprovalRoleRow,
   type PassApprovalRow,
 } from '../../src/lib/approvalLadder';
+import { GRANDFATHERED_NOTE } from '../../src/lib/passApprovalState';
 
 function pass(over: Partial<GatePassView> = {}): GatePassView {
   return {
@@ -366,5 +367,53 @@ describe('buildApprovalSteps — a level signed by the office deputy (054)', () 
     expect(level.detail).toBe('Standing deputy for the Security Head');
     expect(level.note).toBe('Vendor not cleared for this material.');
     expect(level.state).toBe('blocked');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A LEVEL CLOSED BY THE ROLLOUT (migration 058)
+//
+// The client asked for every pass raised before the approval workflow began to
+// read as approved. It does — but it must not read as approved BY SOMEBODY.
+// `decided_by` is null on such a row by design, and the ordinary fall-back
+// (`decided_name ?? routed_name ?? current holder`) would print whoever held
+// the office the day the pass was raised, saying they signed a pass they were
+// never shown. That is the fabricated audit trail 046 refused to write.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('buildApprovalSteps — a level closed by the 058 rollout', () => {
+  const ROLLED = approval({
+    status: 'approved',
+    grandfathered: true,
+    decided_name: null,
+    routed_name: 'Sanjay Rao',
+    decided_at: '2026-08-20T06:20:00Z',
+    reason: 'Approved on rollout — this pass was raised before the approval workflow began.',
+  });
+
+  it('reads as approved, and names NOBODY', () => {
+    const steps = buildApprovalSteps(pass({ status: 'pending' }), HELD, 'hod', [ROLLED]);
+    const level = steps.find((s) => s.key === 'level-1')!;
+    expect(level.state).toBe('done');
+    expect(level.who).toBe('Security Head');
+    expect(level.who).not.toContain('Sanjay Rao');
+    expect(level.detail).toBeNull();
+  });
+
+  it('says why in words, so an authorless approval is not mistaken for a bug', () => {
+    const steps = buildApprovalSteps(pass({ status: 'pending' }), HELD, 'hod', [ROLLED]);
+    const level = steps.find((s) => s.key === 'level-1')!;
+    expect(level.note).toBe(GRANDFATHERED_NOTE);
+    expect(level.note).toMatch(/before the approval workflow began/i);
+  });
+
+  it('leaves an ordinary decision on the same pass exactly as it was', () => {
+    // The rollout closed the levels nobody had reached; a level somebody really
+    // did press keeps its name, its department and its moment.
+    const steps = buildApprovalSteps(pass({ status: 'pending' }), HELD, 'hod', [
+      approval({ status: 'approved', decided_name: 'Sanjay Rao', decided_at: '2026-08-19T05:30:00Z' }),
+      { ...ROLLED, role_key: 'coo', level_no: 2 },
+    ]);
+    expect(steps.find((s) => s.key === 'level-1')!.who).toBe('Security Head (Sanjay Rao)');
+    expect(steps.find((s) => s.key === 'level-2')!.who).toBe('COO');
   });
 });

@@ -2538,8 +2538,11 @@
   @media (min-width: 640px) {
     .gb-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
+  /* FIVE across, not the mock's four: the client asked for a Pending Approvals
+   * card on this board too (2026-08-20), and a fifth card on a four-track grid
+   * is an orphan on a second row. Same track count as the admin Overview. */
   @media (min-width: 1280px) {
-    .gb-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .gb-kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   }
 
   /* The WHOLE CARD is the drill control, not the number: a figure this size
@@ -2907,6 +2910,29 @@
     color: var(--gb-ink);
     font-variant-numeric: tabular-nums;
   }
+  /* The Pending Approvals card's two sub-figures (client, 2026-08-20). Same
+   * device as `.gb-kpi-notes` on the HOD board — a hairline, then one dotted
+   * line each — sized to this card's smaller type rather than the HOD card's,
+   * so the row keeps one rhythm. No new colour: both values are `.gb-board`'s
+   * own custom properties. */
+  .gb-ov-notes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 10px;
+    margin-top: 10px;
+    border-top: 1px solid var(--gb-line);
+  }
+  .gb-ov-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gb-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
   .gb-ov-delta {
     display: flex;
     align-items: center;

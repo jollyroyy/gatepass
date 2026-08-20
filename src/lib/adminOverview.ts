@@ -33,7 +33,7 @@
 import type { GatePassView } from '../types';
 import type { BoardDrill } from './boardDrills';
 import { IS_OPEN_RETURN } from './boardDrills';
-import { isWaitingAtGate } from './gateQueue';
+import { pendingSplit, pendingSplitNotes } from './pendingSplit';
 import { DAY_MS, dayStart } from './localDay';
 import type { HodGlyph, HodTone } from '../components/hod/hodIconTypes';
 
@@ -86,6 +86,19 @@ function raisedBetween(rows: GatePassView[], from: number, to: number): GatePass
 
 export type OverviewKey = 'total' | 'rgp' | 'nrgp' | 'pending' | 'overdue';
 
+/** One line under a figure — the mock has no such thing, and exactly one card
+ *  carries them: Pending Approvals, which the client asked to be broken into
+ *  the two desks a waiting pass can actually be sitting on (2026-08-20).
+ *
+ *  THEY ARE READINGS, NOT CONTROLS. The whole card is already the drill button
+ *  and a button inside a button is not valid HTML, so a sub-figure states
+ *  itself and the card's own list is what opens. */
+export interface OverviewNote {
+  key: string;
+  text: string;
+  tone: HodTone;
+}
+
 export interface OverviewCard {
   key: OverviewKey;
   label: string;
@@ -95,6 +108,8 @@ export interface OverviewCard {
   /** What the figure is scoped to, in words. It is the whole of the card's
    *  second line now that no figure compares itself to anything. */
   note: string;
+  /** Empty on four of the five cards. See `OverviewNote`. */
+  notes: OverviewNote[];
   drill: BoardDrill;
 }
 
@@ -116,7 +131,11 @@ export function buildOverviewCards(
   const rgp = win.filter((p) => p.type === 'RGP');
   const nrgp = win.filter((p) => p.type === 'NRGP');
   // RUNNING, and unscoped by the window on purpose — see the file header.
-  const pending = rows.filter(isWaitingAtGate);
+  // `split.waiting` IS the old `rows.filter(isWaitingAtGate)`; the two
+  // sub-figures under the card are that same array cut in half by
+  // `awaits_approval`, so they sum to the figure by construction.
+  const split = pendingSplit(rows);
+  const pending = split.waiting;
   const overdue = rows.filter((p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue);
   const since = `Raised in the last ${days} days`;
 
@@ -128,6 +147,7 @@ export function buildOverviewCards(
       tone: 'blue',
       value: win.length,
       note: since,
+      notes: [],
       drill: {
         key: 'total',
         heading: 'Passes raised in this window',
@@ -142,6 +162,7 @@ export function buildOverviewCards(
       tone: 'green',
       value: rgp.length,
       note: since,
+      notes: [],
       drill: {
         key: 'rgp',
         heading: 'RGP raised in this window',
@@ -156,6 +177,7 @@ export function buildOverviewCards(
       tone: 'purple',
       value: nrgp.length,
       note: since,
+      notes: [],
       drill: {
         key: 'nrgp',
         heading: 'NRGP raised in this window',
@@ -169,11 +191,15 @@ export function buildOverviewCards(
       glyph: 'clock',
       tone: 'orange',
       value: pending.length,
-      note: 'Waiting at the gate now',
+      note: 'Not through the gate yet',
+      notes: pendingSplitNotes(split).map((n) => ({
+        ...n,
+        tone: n.key === 'gate' ? ('orange' as HodTone) : ('purple' as HodTone),
+      })),
       drill: {
         key: 'pending',
-        heading: 'Waiting at the gate',
-        empty: 'Nothing is waiting at the gate.',
+        heading: 'Passes not through the gate yet',
+        empty: 'Nothing is waiting.',
         rows: pending,
       },
     },
@@ -184,6 +210,7 @@ export function buildOverviewCards(
       tone: 'red',
       value: overdue.length,
       note: 'Still out, past its date',
+      notes: [],
       drill: {
         key: 'overdue',
         heading: 'Material past its return date',

@@ -1793,3 +1793,79 @@ describe('056 — the application settings are admin-editable, and honest about 
     expect(bare).toMatch(/id boolean primary key default true check \(id\)/i);
   });
 });
+
+describe('058 — the rollout closes a pre-workflow ladder WITHOUT inventing an approver', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('058'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(migrations);
+  const fnBody = (name: string) => fns.filter((f) => f.name === name).slice(-1)[0].body;
+
+  it('touches nothing in `public` — the two-schema rule', () => {
+    expect(/create\s+(table|view|function|type)\s+public\./i.test(bare)).toBe(false);
+    expect(/alter\s+table\s+public\./i.test(bare)).toBe(false);
+  });
+
+  it('NEVER names a person as the approver of a level nobody signed', () => {
+    // THE WHOLE POINT OF THE MIGRATION. Setting `decided_by` to some admin
+    // would make the record read "Approved by X" against four offices X does
+    // not hold — a fabricated audit trail, the exact thing 046 refused when it
+    // declined to backfill the grandfathered passes.
+    expect(bare).toMatch(/set\s+status\s*=\s*'approved'/i);
+    expect(bare).toMatch(/decided_by\s*=\s*null/i);
+    // Every assignment to `decided_by` in this file is to null, not just one.
+    const assigns = bare.match(/decided_by\s*=\s*\w+/gi) ?? [];
+    expect(assigns.length).toBeGreaterThan(0);
+    for (const a of assigns) expect(a).toMatch(/=\s*null$/i);
+    // But the moment IS real, and the sentence is written down.
+    expect(bare).toMatch(/decided_at\s*=\s*now\(\)/i);
+    expect(bare).toMatch(/reason\s*=\s*'Approved on rollout/i);
+  });
+
+  it('widens the decision shape by exactly ONE arm, and only for a grandfathered row', () => {
+    // An ordinary approval still needs an author and a moment. A null decider
+    // is legal only when the row is marked as the rollout's doing.
+    expect(bare).toMatch(
+      /status = 'approved' and grandfathered and decided_by is null and decided_at is not null/i,
+    );
+    expect(bare).toMatch(
+      /status = 'approved' and not grandfathered and decided_by is not null and decided_at is not null/i,
+    );
+    // The other three arms are unchanged from 046.
+    expect(bare).toMatch(/status = 'pending'\s+and decided_by is null/i);
+    expect(bare).toMatch(/status = 'rejected' and decided_by is not null/i);
+  });
+
+  it('only ever closes a level that is still PENDING, and only on a pass raised before the cutoff', () => {
+    // It must not reopen, re-stamp or overwrite a decision somebody made.
+    expect(bare).toMatch(/where a\.status = 'pending'/i);
+    expect(bare).toMatch(/p\.created_at < v_cutoff/i);
+    expect(bare).toMatch(/v_cutoff constant timestamptz := timestamptz '2026-08-20 00:00:00\+00'/i);
+  });
+
+  it('marks the rows it closed, so the ladder can say so instead of printing a name', () => {
+    expect(bare).toMatch(/add column if not exists grandfathered boolean not null default false/i);
+    expect(bare).toMatch(/set\s+status\s*=\s*'approved',\s*grandfathered\s*=\s*true/i);
+  });
+
+  it('DROPS and recreates `get_pass_approvals`, because its return type gained a column', () => {
+    // `create or replace` cannot change a RETURNS TABLE signature — the rule
+    // CLAUDE.md states and `my_profile()` has been bitten by twice.
+    expect(bare).toMatch(/drop function if exists gatepass\.get_pass_approvals\(uuid\)/i);
+    const body = fnBody('gatepass.get_pass_approvals');
+    expect(body).toMatch(/grandfathered\s+boolean/i);
+    expect(body).toMatch(/a\.grandfathered/i);
+    // And it is still the same guarded, pinned-search-path definer it was.
+    expect(body).toMatch(/set search_path = ''/i);
+    expect(body).toMatch(/if not gatepass\.can_see_pass\(p_pass_id\) then/i);
+    expect(bare).toMatch(/grant execute on function gatepass\.get_pass_approvals\(uuid\) to authenticated/i);
+  });
+
+  it('grants nothing new, and no RPC can ever set the flag', () => {
+    // Only this migration writes `grandfathered`. If an RPC could set it, an
+    // approver could sign a level as "nobody".
+    const setters = bare.match(/grandfathered\s*=\s*true/gi) ?? [];
+    expect(setters.length).toBe(1);
+    expect(bare).not.toMatch(/grant (insert|update|delete) on gatepass\.pass_approvals/i);
+  });
+});

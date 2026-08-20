@@ -179,7 +179,11 @@ describe('the five figures', () => {
     });
 
     it('says what it is, and never how it compares', () => {
-      expect(cardOf([WAITING, LATE], 'pending').note).toBe('Waiting at the gate now');
+      // REWRITTEN 2026-08-20. It used to read 'Waiting at the gate now', which
+      // became false the day 046 stopped the gate seeing a pass still climbing
+      // the ladder: most of this figure is not at the gate at all. The card now
+      // says what it actually counts and breaks it in two underneath.
+      expect(cardOf([WAITING, LATE], 'pending').note).toBe('Not through the gate yet');
       expect(cardOf([WAITING, LATE], 'overdue').note).toBe('Still out, past its date');
     });
   });

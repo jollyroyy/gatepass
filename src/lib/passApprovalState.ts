@@ -25,6 +25,15 @@ export interface PassApprovalRow {
    *  from today's ladder: both seats move, and re-pointing an office next month
    *  must not rewrite who signed this pass last month. */
   decided_as_deputy: boolean;
+  /** True when this level was closed by the 058 ROLLOUT rather than by a person
+   *  — the pass was raised before the approval workflow began, so no office was
+   *  ever asked to sign it. `decided_name` is null on such a row BY DESIGN, and
+   *  the ladder must print the rollout sentence rather than falling back to
+   *  `routed_name`: that name is whoever held the office the day the pass was
+   *  raised, and printing it here would say they approved something they never
+   *  saw. OPTIONAL, and falsy is the safe reading — a fixture or a row from
+   *  before 058 describes an ordinary decision. */
+  grandfathered?: boolean;
 }
 
 /** How a decided (or undecided) level reads. A `Record` and not a chain, so a
@@ -41,3 +50,9 @@ export const APPROVAL_NOTE: Record<PassApprovalRow['status'], string> = {
   rejected: 'Rejected',
 };
 
+/** What a level closed by the rollout says instead of a name and a note. Stated
+ *  once, here, because the ladder and anything else that renders a rung must
+ *  agree — a rung that reads "Approved" with no author is indistinguishable
+ *  from a bug. */
+export const GRANDFATHERED_NOTE =
+  'Approved on rollout — raised before the approval workflow began';
