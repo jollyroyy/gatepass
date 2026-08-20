@@ -1,7 +1,19 @@
 // Migration 039: an admin can no longer remove a blacklist entry directly —
 // they REQUEST whitelisting with a mandatory justification, and the
-// designated CEO decides. This tab lists every request, pending first, then
-// a Decided group underneath. Only the CEO sees Approve/Reject controls.
+// designated CEO decides.
+//
+// THE SCREEN IS A LIST OF NAMES, NOT A LIST OF RECORDS (client, 2026-08-20):
+// each request is a collapsed card and its detail — the block reason, the
+// justification, the decision, and the CEO's Approve/Reject — appears only on
+// the card that was opened. The OPEN CARD IS HELD HERE, one across all three
+// groups, because "one at a time" is a fact about the screen and a card cannot
+// know that another was opened.
+//
+// A DECIDED REQUEST LEAVES THE WAITING LIST (client: "suppose I have already
+// given the approval, that should not appear in the approval waiting list").
+// That is not a filter written twice: a decision RE-READS the list and the row
+// is filed by its own `status`, so the waiting group is by construction the
+// requests that still owe a decision.
 import React, { useCallback, useEffect, useState } from 'react';
 import { gp } from '../../supabaseClient';
 import type { WhitelistRequest } from '../../types';
@@ -15,6 +27,7 @@ export default function WhitelistRequestsTab(): React.ReactElement {
   const [isCeo, setIsCeo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,11 +52,31 @@ export default function WhitelistRequestsTab(): React.ReactElement {
 
   useEffect(() => { load(); }, [load]);
 
+  // A decision moves the request into another group, so the card the reader
+  // was looking at is no longer the one they were deciding on — it is closed
+  // rather than left open under a new heading.
+  const handleDecided = useCallback(() => {
+    setOpenId(null);
+    load();
+  }, [load]);
+
   // ONE SPLIT FEEDS BOTH THE FIGURES AND THE LISTS, so a card cannot stand
   // over a list it does not describe — the board invariant this app has
   // carried since its first KPI.
   const groups = groupWhitelistRequests(requests);
   const kpis = whitelistKpis(groups);
+
+  const cardFor = (r: WhitelistRequest) => (
+    <WhitelistRequestCard
+      key={r.id}
+      request={r}
+      isCeo={isCeo}
+      open={openId === r.id}
+      onToggle={() => setOpenId((cur) => (cur === r.id ? null : r.id))}
+      onDecided={handleDecided}
+      onError={setError}
+    />
+  );
 
   return (
     <div>
@@ -71,11 +104,9 @@ export default function WhitelistRequestsTab(): React.ReactElement {
         <>
           <div className="space-y-3 mb-6">
             {groups.pending.length === 0 ? (
-              <div className="table-wrap empty-state">No pending requests.</div>
+              <div className="table-wrap empty-state">No requests are waiting on the CEO.</div>
             ) : (
-              groups.pending.map((r) => (
-                <WhitelistRequestCard key={r.id} request={r} isCeo={isCeo} onDecided={load} onError={setError} />
-              ))
+              groups.pending.map(cardFor)
             )}
           </div>
 
@@ -90,9 +121,7 @@ export default function WhitelistRequestsTab(): React.ReactElement {
                   {kpis.find((c) => c.key === key)?.title}
                 </h3>
                 <div className="space-y-3 mb-6">
-                  {groups[key].map((r) => (
-                    <WhitelistRequestCard key={r.id} request={r} isCeo={isCeo} onDecided={load} onError={setError} />
-                  ))}
+                  {groups[key].map(cardFor)}
                 </div>
               </React.Fragment>
             ),

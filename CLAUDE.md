@@ -76,7 +76,38 @@ through request → HOD approval → deletion. That is now the next security act
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-20, thirty-first pass): THE WHITELIST SCREEN IS "Whitelist of Vendors"
+**Latest change (2026-08-20, thirty-second pass): A WHITELIST REQUEST IS A COLLAPSED CARD —
+ITS DETAIL APPEARS ONLY ON THE ONE THAT WAS OPENED.** Frontend only — no migration, no RPC
+change, no new query.
+
+- Client: "under the CEO, under the whitelist, you don't show all these things in the dashboard
+  of the whitelist … if I click on an individual card, then only that particular respective
+  details of the whitelisting should appear. Suppose I have already given the approval, that
+  should not appear in the approval waiting list."
+- **THE FACE OF A CARD IS THE VENDOR, ITS LIST TYPE, THE REQUEST DATE AND ITS STATUS** — enough
+  to find the one you came for. The blocked reason, the justification, the decision note and the
+  CEO's Approve/Reject are rendered only when that card is open. A list of ten requests is ten
+  names, not ten essays.
+- **THE OPEN CARD IS HELD BY `WhitelistRequestsTab`, one across all three groups**, because "one
+  at a time" is a fact about the screen and a card cannot know another was opened — the same
+  shape `PassStack` uses for the approver's queue. The face is a real `<button>` with
+  `aria-expanded`, never a clickable div.
+- **A DECIDED REQUEST ALREADY LEFT THE WAITING LIST, and now it is pinned.** Nothing was broken:
+  a decision re-reads `list_whitelist_requests` and every row is filed by its own `status`, so
+  the waiting group is by construction what still owes a decision. What is new is that the card
+  is CLOSED on a decision — leaving it open would have left the reader looking at the record they
+  had just decided, now sitting under a different heading. The empty waiting list says
+  "No requests are waiting on the CEO." rather than the old "No pending requests."
+- The CEO's controls moved into `src/pages/Admin/WhitelistDecisionControls.tsx` — the card became
+  a disclosure and the controls belong to the opened body; both in one file broke the 300-line cap.
+- Pinned by 4 new `whitelistRequests.test.tsx` cases (detail hidden until opened, one at a time,
+  pressing the open card closes it, and an approved request leaving the waiting list with the
+  figures moving to 0/1/0) plus 5 REWRITTEN ones, each watched failing first. `npm run check` is
+  **1885 tests across 148 files**; the only failure in the run was this pass's own
+  `text-navy-400` chevron, now `text-navy-500`, and it is green.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite only.
+
+**Earlier (2026-08-20, thirty-first pass): THE WHITELIST SCREEN IS "Whitelist of Vendors"
 AND CARRIES THREE FIGURES — what is waiting on the CEO, WHAT THEY GRANTED and WHAT THEY
 REJECTED.** Frontend only — no migration, no RPC change, no new query.
 

@@ -66,6 +66,13 @@ const REJECTED_REQUEST: WhitelistRequest = {
   decision_note: 'Payment is not the same as a changed practice.',
 };
 
+const SECOND_PENDING: WhitelistRequest = {
+  ...PENDING_REQUEST,
+  id: 'req-5',
+  list_value: 'Hilltop Traders',
+  justification: 'A different justification entirely.',
+};
+
 const SECOND_APPROVED: WhitelistRequest = {
   ...APPROVED_REQUEST,
   id: 'req-4',
@@ -95,20 +102,78 @@ describe('WhitelistRequestsTab', () => {
     requests = [PENDING_REQUEST];
   });
 
-  it('renders a pending request with its vendor value and the admin justification', async () => {
+  // REWRITTEN 2026-08-20 (thirty-second pass). It used to hold that the
+  // justification rendered as soon as the tab loaded. The client asked for the
+  // opposite ("you don't show all these things in the dashboard of the
+  // whitelist ... if I click on an individual card, then only that particular
+  // respective details of the whitelisting should appear"), so the list is a
+  // row of names and the detail belongs to the card that was opened.
+  it('lists a pending request by name and shows its detail only once the card is opened', async () => {
     render(<WhitelistRequestsTab />);
     await waitFor(() => {
       expect(screen.getByText('BSC Cargo')).toBeTruthy();
     });
+    expect(screen.queryByText(/They have new management/)).toBeNull();
+    expect(screen.queryByText(/Repeated late deliveries/)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /BSC Cargo/ }));
     expect(screen.getByText(/They have new management and have cleared all outstanding dues\./)).toBeTruthy();
+    expect(screen.getByText(/Repeated late deliveries/)).toBeTruthy();
   });
 
-  it('a non-CEO sees no Approve and no Reject control', async () => {
+  it('opens one card at a time — opening a second closes the first', async () => {
+    requests = [PENDING_REQUEST, SECOND_PENDING];
+    render(<WhitelistRequestsTab />);
+    await waitFor(() => expect(screen.getByText('BSC Cargo')).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: /BSC Cargo/ }));
+    expect(screen.getByText(/They have new management/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /Hilltop Traders/ }));
+    expect(screen.queryByText(/They have new management/)).toBeNull();
+    expect(screen.getByText(/A different justification entirely\./)).toBeTruthy();
+  });
+
+  it('pressing the open card again closes it', async () => {
+    render(<WhitelistRequestsTab />);
+    await waitFor(() => expect(screen.getByText('BSC Cargo')).toBeTruthy());
+    const face = screen.getByRole('button', { name: /BSC Cargo/ });
+    fireEvent.click(face);
+    expect(screen.getByText(/They have new management/)).toBeTruthy();
+    fireEvent.click(face);
+    expect(screen.queryByText(/They have new management/)).toBeNull();
+  });
+
+  // The client's second instruction: "suppose I have already given the
+  // approval, that should not appear in the approval waiting list". A decision
+  // re-reads the list, and the decided request moves out of the waiting group
+  // into the one its own figure stands over.
+  it('a request the CEO has just approved leaves the waiting list', async () => {
+    render(<WhitelistRequestsTab />);
+    await waitFor(() => expect(screen.getByText('BSC Cargo')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /BSC Cargo/ }));
+
+    // What the reload will find once the decision has landed.
+    requests = [{ ...PENDING_REQUEST, status: 'approved', decided_by_name: 'Rahul CEO', decided_at: '2026-08-20T09:00:00Z', decision_note: null }];
+
+    fireEvent.click(screen.getByText('Approve'));
+    fireEvent.click(screen.getByText('Yes'));
+
+    await waitFor(() => expect(screen.getByText('No requests are waiting on the CEO.')).toBeTruthy());
+    expect(screen.getByRole('heading', { name: 'Whitelisting Granted' })).toBeTruthy();
+    const figures = Array.from(
+      screen.getByTestId('whitelist-kpis').querySelectorAll('.gpo-total-figure'),
+    ).map((n) => n.textContent);
+    expect(figures).toEqual(['0', '1', '0']);
+  });
+
+  it('a non-CEO sees no Approve and no Reject control, even on an opened card', async () => {
     isCeo = false;
     render(<WhitelistRequestsTab />);
     await waitFor(() => {
       expect(screen.getByText('BSC Cargo')).toBeTruthy();
     });
+    fireEvent.click(screen.getByRole('button', { name: /BSC Cargo/ }));
     expect(screen.queryByText('Approve')).toBeNull();
     expect(screen.queryByText('Reject')).toBeNull();
     expect(screen.getByText(/Only the designated CEO can approve or reject/)).toBeTruthy();
@@ -117,6 +182,7 @@ describe('WhitelistRequestsTab', () => {
   it('the CEO pressing Approve and confirming calls approve_whitelist_request with the request id', async () => {
     render(<WhitelistRequestsTab />);
     await waitFor(() => expect(screen.getByText('BSC Cargo')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /BSC Cargo/ }));
     fireEvent.click(screen.getByText('Approve'));
     fireEvent.click(screen.getByText('Yes'));
     await waitFor(() => {
@@ -127,6 +193,7 @@ describe('WhitelistRequestsTab', () => {
   it('rejecting with a blank note does not call reject_whitelist_request and shows a field error', async () => {
     render(<WhitelistRequestsTab />);
     await waitFor(() => expect(screen.getByText('BSC Cargo')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /BSC Cargo/ }));
     fireEvent.click(screen.getByText('Reject'));
     fireEvent.click(screen.getByText('Submit Rejection'));
     await waitFor(() => {
@@ -138,6 +205,7 @@ describe('WhitelistRequestsTab', () => {
   it('rejecting with a note calls reject_whitelist_request with the id and note', async () => {
     render(<WhitelistRequestsTab />);
     await waitFor(() => expect(screen.getByText('BSC Cargo')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /BSC Cargo/ }));
     fireEvent.click(screen.getByText('Reject'));
     fireEvent.change(screen.getByPlaceholderText('Reason for rejecting'), {
       target: { value: 'Not enough evidence of a real change.' },
@@ -164,6 +232,8 @@ describe('WhitelistRequestsTab', () => {
     await waitFor(() => expect(screen.getByText('WB09AB1234')).toBeTruthy());
     expect(screen.queryByText('Decided')).toBeNull();
     expect(screen.getByRole('heading', { name: 'Whitelisting Granted' })).toBeTruthy();
+    expect(screen.queryByText('Verified the ownership transfer.')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /WB09AB1234/ }));
     expect(screen.getByText('Verified the ownership transfer.')).toBeTruthy();
     expect(screen.queryByText('Approve')).toBeNull();
     expect(screen.queryByText('Reject')).toBeNull();
