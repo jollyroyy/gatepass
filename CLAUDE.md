@@ -70,6 +70,62 @@ security actions.
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
+**Latest change (2026-08-20, twenty-sixth pass): THE APPROVAL EMAIL CARRIES APPROVE AND REJECT
+BUTTONS THAT OPEN THE PASS ITSELF; A DEEP LINK NOW SURVIVES THE SIGN-IN; A TIMELINE ENTRY SETS
+ITS WRITTEN DETAIL IN FROM THE RAIL; AND THE ADMIN'S "Departments & Users" TAB IS CALLED
+"Settings".** Frontend and the Edge Function only — **no migration, no RPC change, no new grant**.
+`supabase functions deploy notify-approval` RAN (four assets uploaded).
+
+- **THE LETTER IS WHERE THE DECISION STARTS** (client: "make sure … it gives this Approve or
+  Reject button in the email approval emails for easy visibility of all the approvers. Once it is
+  clicked on any of those links, it should directly open up the portal or it should open up the
+  PWA application if done from mobile … of course it will ask for the username and password").
+  `decisionLinks()` in `approvalNotice.ts` builds `/pass/<id>?decide=approve` and `?decide=reject`;
+  `wrapHtml`/`wrapText` now take a `Cta[]` instead of one optional link, so the letter carries a
+  solid Approve, an outlined Reject and the queue as a third PLAIN link. Every one of them is also
+  printed as a bare URL underneath — a client that strips anchors is not unusual, and this is the
+  one letter whose whole point is a press.
+  - **⚠ NEITHER LINK DECIDES ANYTHING BY BEING FETCHED, and that is the security of it.** A link
+    in an email is a GET and GETs are prefetched — Outlook Safe Links opens a URL before its
+    reader does — so a URL that approved a pass would approve passes nobody read. There is **no
+    token in the letter and no RPC in the URL**; the link opens the RECORD, the app asks for the
+    password, and the signature is still `approve_pass_level` / `reject_pass_level` under the
+    reader's own JWT. A test bans `token=` and any `rpc/` in the body.
+  - `?decide=reject` **opens the reason modal** (a rejection is refused without a written reason
+    anyway, and that is the button they pressed); **`?decide=approve` approves NOTHING** — it
+    scrolls the bar into view and says so on screen. Threaded `PassDetail` → `PassRecordView` →
+    `ApprovalDecisionBar` as `decide`, and an unrecognised value is ignored rather than guessed at.
+  - **THE PWA IS WHY THESE ARE ORDINARY IN-APP PATHS.** `public/manifest.webmanifest` already
+    ships; on a phone with the app installed the scope match hands the link to the installed app.
+  - **⚠ `APP_BASE_URL` IS STILL `http://localhost:5174`** (set 2026-08-19, and the secrets list
+    shows only a digest — the value was not changed by this pass). **Every button in every letter
+    therefore points at localhost and will not open on anybody else's phone.** Setting it to the
+    Vercel URL is the ONE remaining action before this works for a real approver; nothing in the
+    code needs to change with it.
+- **A DEEP LINK SURVIVES THE SIGN-IN** — `src/lib/postLoginRedirect.ts`, new and pure. The
+  unauthenticated branch of `App.tsx` used to answer every path with a bare
+  `<Navigate to="/login">`, which threw the destination away; it now sends `/login?next=…` and the
+  signed-in `/login` route resumes it through `resumeAfterLogin`. **`next` IS ATTACKER-SUPPLIED**
+  and is accepted only as a same-document path — one leading slash, never two (`//evil.example`
+  is a protocol-relative URL and a real open redirect), no backslash, no scheme — and
+  `isForbidden` still grades it, so a wrong-role target lands on the reader's own home. Pinned by
+  `tests/unit/postLoginRedirect.test.ts` (6).
+- **A TIMELINE ENTRY'S WRITTEN LINES ARE SET IN FROM THE RAIL** (client: "whatever individual
+  written items you show are … a little to the right side of the main timeline straight line, just
+  to show them distinguished from the normal flow under Approval and activity timeline"). The
+  HEADING stays where its dot is — a step that does not line up with its own dot is a rail nobody
+  can scan — and everything under it hangs in ONE `StepDetail` block, so no line can drift out of
+  the indent by being added in the wrong place. `tests/unit/passTimelineIndent.test.tsx` (3).
+- **THE ADMIN SIDEBAR SAYS "Settings"** where it said "Departments & Users" (client). **The ROUTE
+  is unchanged** — `/admin` is still the tab shell holding Departments · Users · Whitelist ·
+  Settings — so every deep link and the super admin's Quick Action tile still land where they did.
+- Pinned by 13 new cases plus 4 rewritten ones in `approvalNotice.test.ts` (its
+  "sends the approver to their queue, not to the record" case says in its own comment what it used
+  to hold). `npm run check` is **1788 tests across 142 files**, green, and `npm run build` is green.
+- **NOT SEEN SIGNED-IN IN A BROWSER, AND NO REAL LETTER HAS BEEN OPENED SINCE THE REDEPLOY.** The
+  two buttons rendering in a real mail client, the localhost links, and the sign-in resuming onto
+  a pass record on a phone are exactly what only a real send and a real render prove.
+
 **Latest change (2026-08-20, twenty-fifth pass): A PASS STILL CLIMBING THE LADDER READS
 "Pending Approval", NOT "Pending Gate Review", EVERYWHERE; AND DEACTIVATING AN APPROVAL OFFICE
 HOLDER NOW VACATES THEIR OFFICE SO THE NEXT PERSON CAN TAKE IT — migration `059`, APPLIED via

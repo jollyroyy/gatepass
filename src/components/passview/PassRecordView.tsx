@@ -57,6 +57,9 @@ type Props = {
    *  not a role — see approverAccess.ts — so it travels beside one, and it is
    *  what decides whether the Approve / Reject bar is drawn at the foot. */
   office?: ApprovalRoleKey | null;
+  /** The decision an approval email asked for, off `?decide=`. Threaded
+   *  straight to the decision bar — see `ApprovalDecisionBar`. */
+  decide?: 'approve' | 'reject' | null;
   /** Re-read the record after a return lands, or after an approval decision. */
   onRecorded?: () => void;
   onClear?: () => void;
@@ -70,7 +73,7 @@ const PrinterGlyph = (
 );
 
 export default function PassRecordView({
-  record, role = null, office = null, onRecorded, onClear,
+  record, role = null, office = null, decide = null, onRecorded, onClear,
 }: Props): React.ReactElement {
   const { pass, items, activity } = record;
   const { roles } = useApprovalRoles();
@@ -192,6 +195,7 @@ export default function PassRecordView({
         pass={pass}
         approvals={approvals}
         office={office}
+        decide={decide}
         onDecided={() => onRecorded?.()}
       />
 

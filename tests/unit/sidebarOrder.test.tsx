@@ -30,7 +30,7 @@ function labels(role: UserRole): string[] {
   // The desktop rail is the last <aside>; the mobile drawer only exists once
   // opened, so a single render gives exactly one copy of the nav.
   const rail = container.querySelector('aside') as HTMLElement;
-  const NAV = ['Dashboard', 'Overdue Items', 'Departments & Users', 'Reports',
+  const NAV = ['Dashboard', 'Overdue Items', 'Settings', 'Reports',
     'Search Pass', 'Pending OUT', 'Pending RGP Return', 'Raise Gate Pass', 'My Passes'];
   const out = [...rail.querySelectorAll('a')]
     .map((a) => a.textContent?.trim() ?? '')
@@ -42,7 +42,7 @@ function labels(role: UserRole): string[] {
 describe('sidebar order', () => {
   it('gives the admin Dashboard first and Overdue Items second', () => {
     expect(labels('admin').slice(0, 4)).toEqual([
-      'Dashboard', 'Overdue Items', 'Departments & Users', 'Reports',
+      'Dashboard', 'Overdue Items', 'Settings', 'Reports',
     ]);
   });
 

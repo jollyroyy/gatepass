@@ -23,7 +23,7 @@
 // waiting on an EARLIER one, the bar still renders — as a sentence naming that
 // office and no buttons. An approver who sees nothing cannot tell "not yet
 // mine" from "this screen is broken".
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { GatePassView } from '../../types';
 import { APPROVAL_ROLE_TITLES, type ApprovalRoleKey } from '../../lib/approvalLadder';
 import type { PassApprovalRow } from '../../lib/passApprovalState';
@@ -43,17 +43,33 @@ type Props = {
   approvals: PassApprovalRow[];
   /** The office the READER holds, or null. Not a role — see approverAccess.ts. */
   office: ApprovalRoleKey | null;
+  /** WHICH BUTTON THE READER PRESSED IN THEIR APPROVAL EMAIL (client,
+   *  2026-08-20), off `/pass/:id?decide=…`. It is an INTENT and never a
+   *  decision: the link is a GET, and GETs are prefetched by mail scanners, so
+   *  arriving here approves nothing. `reject` opens the reason modal — a
+   *  rejection needs a written reason anyway and the reader already chose it;
+   *  `approve` opens nothing at all and leaves the press to the person. */
+  decide?: 'approve' | 'reject' | null;
   /** Re-read the record. The pass has changed status and the ladder has moved,
    *  and only the database knows what to. */
   onDecided: () => void;
 };
 
 export default function ApprovalDecisionBar({
-  pass, approvals, office, onDecided,
+  pass, approvals, office, decide: intent = null, onDecided,
 }: Props): React.ReactElement | null {
   const [busy, setBusy] = useState(false);
-  const [rejecting, setRejecting] = useState(false);
+  const [rejecting, setRejecting] = useState(intent === 'reject');
   const [error, setError] = useState<string | null>(null);
+  const box = useRef<HTMLDivElement | null>(null);
+
+  // Somebody who came from a letter is looking for the two buttons, and on a
+  // phone they are a whole material table below the fold. Scrolled once, on
+  // arrival, and never again — the bar re-renders on every keystroke in the
+  // reason box.
+  useEffect(() => {
+    if (intent) box.current?.scrollIntoView?.({ block: 'center' });
+  }, [intent]);
 
   const mine = myStep(approvals, office);
   // Not routed to me at all, or my rung is already signed: no bar, no sentence.
@@ -92,10 +108,23 @@ export default function ApprovalDecisionBar({
 
   return (
     <div
+      ref={box}
       data-testid="record-approval-actions"
       className="card p-4 flex flex-col gap-3"
     >
       {error && <div className="alert-error">{error}</div>}
+
+      {/* SAY WHY THIS SCREEN OPENED. A reader who pressed Approve in their
+          inbox and landed on a long record needs to know the press was
+          received and that nothing has been signed yet — otherwise they
+          reasonably assume it already happened and close the tab. */}
+      {intent && (
+        <div className="alert-info" data-testid="decide-from-email">
+          {intent === 'approve'
+            ? 'You opened this from an approval email. Nothing has been signed yet — read the pass and press Approve below.'
+            : 'You opened this from an approval email. Give a written reason to reject this pass; nothing has been recorded yet.'}
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="min-w-0">

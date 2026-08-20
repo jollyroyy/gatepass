@@ -188,17 +188,84 @@ function factsHtml(pass: NoticePass): string {
   return `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;">${rows}</table>`;
 }
 
+/** A call to action in a letter. `primary` is the solid button, `secondary` the
+ *  outlined one, `plain` a link that gets no button at all — every one of them
+ *  is also printed as a bare URL underneath.
+ *
+ *  COLOUR CARRIES NOTHING HERE, the same rule the printed slip follows: Approve
+ *  and Reject are told apart by their WORDS, so the letter still works in a
+ *  client that renders no styles at all. */
+export interface Cta {
+  href: string;
+  label: string;
+  kind: 'primary' | 'secondary' | 'plain';
+}
+
+/**
+ * THE DECISION LINKS THAT GO IN THE LETTER (client, 2026-08-20: "make sure …
+ * it gives this Approve or Reject button in the email approval emails for easy
+ * visibility of all the approvers. Once it is clicked on any of those links, it
+ * should directly open up the portal or it should open up the PWA application
+ * if done from mobile … of course it will ask for the username and password").
+ *
+ * ⚠ NEITHER LINK DECIDES ANYTHING BY BEING FETCHED, and that is deliberate.
+ * A link in an email is a GET, and GETs are prefetched: Outlook Safe Links and
+ * every other scanner opens a URL before its reader ever does, so a URL that
+ * approved a pass would approve passes nobody had read. These open the RECORD,
+ * with `?decide=` naming which button was pressed; the app signs the reader in,
+ * shows them the whole pass, and offers the decision on screen. The signature
+ * is still `approve_pass_level` / `reject_pass_level` under their own JWT, and
+ * a rejection still needs the written reason the modal asks for.
+ *
+ * They are ordinary in-app paths, so on a phone with the PWA installed the
+ * scope match hands them to the installed app rather than to the browser; and
+ * `postLoginRedirect.ts` is what carries the destination across the sign-in.
+ */
+export function decisionLinks(baseUrl: string, passId: string): Cta[] {
+  const record = joinUrl(baseUrl, `/pass/${passId}`);
+  return [
+    { href: `${record}?decide=approve`, label: 'Approve', kind: 'primary' },
+    { href: `${record}?decide=reject`, label: 'Reject', kind: 'secondary' },
+  ];
+}
+
 /** The house wrapper. Black on white with no colour-dependent information — the
  *  same rule the printed slip follows, and for the same reason: this is read on
  *  whatever client the reader has, including one that strips styles entirely. */
-function wrapHtml(heading: string, lead: string, pass: NoticePass, cta: { href: string; label: string } | null, tail: string): string {
-  const button = cta
-    ? `<p style="margin:24px 0;"><a href="${escapeHtml(cta.href)}" style="background:#16161A;color:#ffffff;` +
-      `padding:12px 20px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block;">` +
-      `${escapeHtml(cta.label)}</a></p>` +
-      `<p style="font-size:12px;color:#666;margin:0 0 16px;">If the button does not work, open:<br>` +
-      `<a href="${escapeHtml(cta.href)}" style="color:#2B3FA0;">${escapeHtml(cta.href)}</a></p>`
+function wrapHtml(heading: string, lead: string, pass: NoticePass, ctas: Cta[], tail: string): string {
+  const buttons = ctas.filter((c) => c.kind !== 'plain');
+  // Each button is its own inline-block anchor with its own margin — no float
+  // and no flexbox, neither of which Outlook renders, and a decision an
+  // approver cannot press is the whole letter wasted.
+  const row = buttons.length
+    ? `<p style="margin:24px 0;">` +
+      buttons
+        .map((c) =>
+          c.kind === 'secondary'
+            ? `<a href="${escapeHtml(c.href)}" style="border:2px solid #16161A;color:#16161A;` +
+              `padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;` +
+              `display:inline-block;margin:0 8px 8px 0;">${escapeHtml(c.label)}</a>`
+            : `<a href="${escapeHtml(c.href)}" style="background:#16161A;color:#ffffff;` +
+              `padding:12px 20px;border-radius:6px;text-decoration:none;font-weight:600;` +
+              `display:inline-block;margin:0 8px 8px 0;">${escapeHtml(c.label)}</a>`
+        )
+        .join('') +
+      `</p>`
     : '';
+  // EVERY LINK IS ALSO PRINTED AS A BARE URL. A mail client that strips anchors
+  // is not unusual, and this is the one letter whose whole purpose is a press.
+  const fallback = ctas.length
+    ? `<p style="font-size:12px;color:#666;margin:0 0 16px;">If a button does not work, open:<br>` +
+      ctas
+        .map(
+          (c) =>
+            `${escapeHtml(c.label)}: <a href="${escapeHtml(c.href)}" style="color:#2B3FA0;">` +
+            `${escapeHtml(c.href)}</a>`
+        )
+        .join('<br>') +
+      `</p>`
+    : '';
+  const button = row + fallback;
   return (
     `<div style="font-family:Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111;">` +
     `<h1 style="font-size:20px;margin:0 0 12px;">${escapeHtml(heading)}</h1>` +
@@ -213,10 +280,10 @@ function wrapHtml(heading: string, lead: string, pass: NoticePass, cta: { href: 
   );
 }
 
-function wrapText(heading: string, lead: string, pass: NoticePass, cta: { href: string; label: string } | null, tail: string): string {
+function wrapText(heading: string, lead: string, pass: NoticePass, ctas: Cta[], tail: string): string {
   return (
     `${heading}\n\n${lead}\n\n${factsText(pass)}\n` +
-    (cta ? `\n${cta.label}: ${cta.href}\n` : '') +
+    (ctas.length ? `\n${ctas.map((c) => `${c.label}: ${c.href}`).join('\n')}\n` : '') +
     (tail ? `\n${tail}\n` : '') +
     `\n--\nQuest GatePass. This message was sent automatically; replies are not monitored.\n`
   );
@@ -321,7 +388,12 @@ export function buildApprovalNotices(
     'Rejecting closes the pass permanently and needs a written reason.';
 
   const subject = `Approval needed by ${who} — ${pass.pass_number} (${pass.type}), ${rung}`;
-  const link = { href: queueLink, label: 'Open your Pending Approvals' };
+  // The two decisions first, then the whole queue as a plain link for a reader
+  // who would rather work through their list than answer one letter.
+  const link: Cta[] = [
+    ...decisionLinks(baseUrl, pass.id),
+    { href: queueLink, label: 'Open your Pending Approvals', kind: 'plain' },
+  ];
 
   const messages: NoticeMessage[] = [
     {
@@ -395,7 +467,9 @@ export function buildEmergencyNotices(
 ): NoticeMessage[] {
   const heading = `Gate pass ${pass.pass_number} was released without approval`;
   const who = releasedBy ? `${releasedBy} (super admin)` : 'A super admin';
-  const link = { href: joinUrl(baseUrl, '/approvals'), label: 'Open the gate pass' };
+  const link: Cta[] = [
+    { href: joinUrl(baseUrl, `/pass/${pass.id}`), label: 'Open the gate pass', kind: 'primary' },
+  ];
   const tail =
     'This was recorded on the pass permanently, and another admin has to review it. ' +
     'If it should not have happened, say so now rather than later.';

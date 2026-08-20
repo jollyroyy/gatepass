@@ -37,6 +37,17 @@
 // Colour is never the only carrier: every state also has its own words, because
 // this screen is read on a mono print and by readers who do not separate red
 // from orange.
+//
+// THE WRITTEN DETAIL OF A RUNG IS SET IN FROM THE RAIL (client, 2026-08-20:
+// "whatever individual written items you show are … a little to the right side
+// of the main timeline straight line, just to show them distinguished from the
+// normal flow"). The HEADING stays where the dot is — it is the step, and a
+// step that does not line up with its own dot is a rail nobody can scan.
+// Everything written UNDER it — the person, the department, the moment, the
+// note, the guard's remark — hangs off that heading in one indented block, so
+// the chain of steps reads down the left and the prose hangs to the right of
+// it. It is one `<div>` per entry, `StepDetail`, so no line can drift out of
+// the indent by being added in the wrong place.
 import React from 'react';
 import type { ApprovalStep, ApprovalStepState } from '../../lib/approvalLadder';
 import type { VerifyAction, Verification } from '../../types';
@@ -119,6 +130,29 @@ function Rail({
   );
 }
 
+/** The indented block every entry hangs its written lines from. Set in from the
+ *  rail so the headings above them stay the thing a reader scans down. */
+function StepDetail({ children }: { children: React.ReactNode }): React.ReactElement {
+  return (
+    <div className="pl-4 mt-0.5" data-testid="timeline-detail">{children}</div>
+  );
+}
+
+/** The lines under a ladder rung. Both the ladder and the closing return step
+ *  render it, so the two cannot drift apart. */
+function StepLines({ step }: { step: ApprovalStep }): React.ReactElement {
+  return (
+    <StepDetail>
+      {step.who && <p className="text-sm text-navy-700 break-words">{step.who}</p>}
+      {step.detail && <p className="text-xs text-navy-500 break-words">{step.detail}</p>}
+      {step.at && <p className="text-xs text-navy-500 tabular">{formatDateTime(step.at)}</p>}
+      {step.note && (
+        <p className={`text-xs mt-0.5 break-words ${NOTE_INK[step.state]}`}>{step.note}</p>
+      )}
+    </StepDetail>
+  );
+}
+
 type Props = { steps: ApprovalStep[]; activity: ActivityEntry[] };
 
 /** THE RETURN LEG CLOSES THE RAIL, UNDER THE GATE'S OWN EVENTS (client,
@@ -153,12 +187,7 @@ export default function PassTimeline({ steps, activity }: Props): React.ReactEle
             }
           >
             <p className="text-sm font-semibold text-navy-900">{step.label}</p>
-            {step.who && <p className="text-sm text-navy-700 break-words">{step.who}</p>}
-            {step.detail && <p className="text-xs text-navy-500 break-words">{step.detail}</p>}
-            {step.at && <p className="text-xs text-navy-500 tabular">{formatDateTime(step.at)}</p>}
-            {step.note && (
-              <p className={`text-xs mt-0.5 break-words ${NOTE_INK[step.state]}`}>{step.note}</p>
-            )}
+            <StepLines step={step} />
           </Rail>
         ))}
 
@@ -172,8 +201,10 @@ export default function PassTimeline({ steps, activity }: Props): React.ReactEle
               {formatTime(v.created_at)} · {formatDateOnly(v.created_at)}
             </p>
             <p className="text-sm font-semibold text-navy-900">{ACTION_TITLE[v.action]}</p>
-            <p className="text-xs text-navy-500">by {v.security_name || 'security'}</p>
-            {v.remarks && <p className="text-xs text-navy-700 mt-0.5 break-words">{v.remarks}</p>}
+            <StepDetail>
+              <p className="text-xs text-navy-500">by {v.security_name || 'security'}</p>
+              {v.remarks && <p className="text-xs text-navy-700 mt-0.5 break-words">{v.remarks}</p>}
+            </StepDetail>
           </Rail>
         ))}
 
@@ -188,12 +219,7 @@ export default function PassTimeline({ steps, activity }: Props): React.ReactEle
             }
           >
             <p className="text-sm font-semibold text-navy-900">{step.label}</p>
-            {step.who && <p className="text-sm text-navy-700 break-words">{step.who}</p>}
-            {step.detail && <p className="text-xs text-navy-500 break-words">{step.detail}</p>}
-            {step.at && <p className="text-xs text-navy-500 tabular">{formatDateTime(step.at)}</p>}
-            {step.note && (
-              <p className={`text-xs mt-0.5 break-words ${NOTE_INK[step.state]}`}>{step.note}</p>
-            )}
+            <StepLines step={step} />
           </Rail>
         ))}
       </ol>

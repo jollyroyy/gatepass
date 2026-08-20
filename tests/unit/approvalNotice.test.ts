@@ -141,9 +141,36 @@ describe('buildApprovalNotices — a freshly raised pass', () => {
     expect(msgs.some((m) => m.to === 'anita.rao@example.com')).toBe(false);
   });
 
-  it('sends the approver to their queue, not to the record', () => {
+  // REWRITTEN 2026-08-20. It used to hold that the letter carried ONE link and
+  // that it went to the queue "not to the record". The client asked for the
+  // decision itself to be in the inbox — "make sure … it gives this Approve or
+  // Reject button in the email approval emails for easy visibility of all the
+  // approvers. Once it is clicked on any of those links, it should directly
+  // open up the portal" — so the two buttons open the PASS, and the queue is
+  // kept as a third, plain link for a reader who wants their whole list.
+  it('carries an Approve and a Reject button, both opening this pass', () => {
+    for (const body of [msgs[0].html, msgs[0].text]) {
+      expect(body).toContain(`${BASE}/pass/pass-1?decide=approve`);
+      expect(body).toContain(`${BASE}/pass/pass-1?decide=reject`);
+    }
+    expect(msgs[0].html).toContain('Approve');
+    expect(msgs[0].html).toContain('Reject');
+  });
+
+  it('still offers the whole queue', () => {
     expect(msgs[0].html).toContain(`${BASE}/approvals`);
     expect(msgs[0].text).toContain(`${BASE}/approvals`);
+  });
+
+  // A LINK IN AN EMAIL IS A GET, AND GETS ARE PREFETCHED — Outlook Safe Links
+  // and every other scanner opens a URL before the reader ever does. So the
+  // link must not BE the decision: it opens the record, signed in, with the
+  // decision offered on screen. Nothing in the URL records anything.
+  it('carries no token, and nothing that could decide a pass by being fetched', () => {
+    const body = `${msgs[0].html}
+${msgs[0].text}`;
+    expect(body).not.toMatch(/token=/i);
+    expect(body).not.toMatch(/approve_pass_level|rest\/v1|rpc\//i);
   });
 
   it('carries the facts an approver needs to decide without opening the app', () => {

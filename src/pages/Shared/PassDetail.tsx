@@ -82,6 +82,13 @@ export default function PassDetail({
 
   const { pass } = record;
 
+  // THE APPROVAL EMAIL'S OWN BUTTON (client, 2026-08-20). Anything that is not
+  // one of the two words is ignored rather than guessed at: the parameter comes
+  // off the URL bar, and a third value must open a plain record, not a
+  // half-understood one.
+  const asked = searchParams.get('decide');
+  const decide = asked === 'approve' || asked === 'reject' ? asked : null;
+
   return (
     <div className="flex flex-col gap-5">
       {showCreated && (
@@ -164,6 +171,7 @@ export default function PassDetail({
         record={record}
         role={role}
         office={office}
+        decide={decide}
         onRecorded={() => setReloadKey((k) => k + 1)}
       />
     </div>
