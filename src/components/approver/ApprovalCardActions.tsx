@@ -15,6 +15,10 @@
 // of it. The two go through the SAME `approvalActions.ts` wrappers — never the
 // RPCs directly — so both send the next office's letter.
 //
+// APPROVE SITS FIRST, REJECT SECOND (client, 2026-08-20). It is the ordinary
+// outcome, and the destructive one is the one that should take a beat longer to
+// reach for.
+//
 // A rejection is irreversible (046 closes the pass), so it opens the same
 // 500-character `RejectApprovalModal` the record uses. Approve is one press:
 // it moves the pass forward and nothing is destroyed.
@@ -55,19 +59,19 @@ export default function ApprovalCardActions({ pass, onDecided }: Props): React.R
       <div className="gpo-act-row">
         <button
           type="button"
-          className="gpo-act gpo-act-reject"
-          disabled={busy}
-          onClick={() => setRejecting(true)}
-        >
-          Reject
-        </button>
-        <button
-          type="button"
           className="gpo-act gpo-act-approve"
           disabled={busy}
           onClick={() => void approve()}
         >
           {busy ? 'Working…' : 'Approve'}
+        </button>
+        <button
+          type="button"
+          className="gpo-act gpo-act-reject"
+          disabled={busy}
+          onClick={() => setRejecting(true)}
+        >
+          Reject
         </button>
       </div>
       {error && <span className="gpo-act-error">{error}</span>}

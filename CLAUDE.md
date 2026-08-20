@@ -70,6 +70,39 @@ security actions.
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
+**Latest change (2026-08-20, twenty-seventh pass): AN APPROVER CAN UNFOLD A CARD IN THE QUEUE
+AND READ THE PASS'S INDIVIDUAL ITEM LINES BEFORE SIGNING, AND APPROVE NOW SITS AHEAD OF REJECT.**
+Frontend only — no migration, no RPC change, no new query type.
+
+- **THE CARD UNFOLDS** (client: "for each stacked card there is an option to expand the stacked
+  card, also just to see the details about the item and its individual item details … before
+  Approval or rejection"). `src/components/PassStackItems.tsx` is the panel: `# · Item ·
+  Description · Make / Model · Serial / ID · Purpose · Quantity · Value`, over the SAME
+  `usePassItems` the guard's Pending OUT row and My Passes' card already use.
+  - **ONE CARD AT A TIME, LOADED ON DEMAND.** The open card is held by `PassStack`, not by each
+    card — "one at a time" is a fact about the LIST, and a page of ten passes must not keep ten
+    item queries alive. Closing throws the rows away rather than caching a set the database could
+    invalidate underneath.
+  - **NARROWED TO THE APPROVER'S QUEUE by the same mechanism the buttons were**: `expandable` is a
+    prop the LIST supplies, and only `/approvals` supplies it. Every other stack — the admin's
+    drills, the HOD's register, the overdue board — still has no control of any kind on a card,
+    which `passStackCard.test.tsx`'s "it expands nothing" case still pins.
+  - **THE PANEL CARRIES NO CONTROL**, and a test holds that: the decision is the two buttons on
+    the right and the bar at the foot of the record. `invoice_no` is deliberately not shown — an
+    accounts fact, the same call the guard's Verify table makes.
+  - The chevron is a SIBLING of the link, never inside it (a button nested in an anchor behaves
+    differently in every browser). An expandable card is a flex COLUMN — `.gpo-card-stacked` — with
+    the old row as `.gpo-card-main`, so the plain card's geometry is untouched. No new colour:
+    every value is one of `.gb-board`'s custom properties, so `themeAudit` stays absolute.
+- **APPROVE IS FIRST, REJECT SECOND** (client). It is the ordinary outcome; the irreversible one
+  should take a beat longer to reach for.
+- Pinned by 5 new cases in `pendingApprovalsPage.test.tsx` (nothing rendered or queried until the
+  chevron is pressed, the lines and their per-line details, one card open at a time, no control in
+  the panel, and the button order). `npm run check` is **1810 tests across 143 files**, green, and
+  `npm run build` is green.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite and a production build only. The eight-column
+  panel inside a card at a narrow width is exactly what only a real render proves.
+
 **Latest change (2026-08-20, twenty-sixth pass): THE APPROVAL EMAIL CARRIES APPROVE AND REJECT
 BUTTONS THAT OPEN THE PASS ITSELF; A DEEP LINK NOW SURVIVES THE SIGN-IN; A TIMELINE ENTRY SETS
 ITS WRITTEN DETAIL IN FROM THE RAIL; AND THE ADMIN'S "Departments & Users" TAB IS CALLED

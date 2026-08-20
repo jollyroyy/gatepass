@@ -75,10 +75,28 @@ function resetRows(): void {
     approval({ gate_pass_id: 'p3', role_key: 'security_head', level_no: 1, status: 'pending' }),
     approval({ gate_pass_id: 'p3', role_key: 'coo', level_no: 2, status: 'pending' }),
   ];
+  ITEMS = [
+    item({}),
+    item({ id: 'i2', line_no: 2, name: 'Scaffold Clamp', description: 'Double coupler',
+      quantity: 40, serial_no: null, approx_value: null, make_model: null, remarks: null }),
+  ];
   rpcCalls.length = 0;
 }
 
-const ITEMS: unknown[] = [];
+let ITEMS: unknown[] = [];
+
+function item(over: Record<string, unknown>): unknown {
+  return {
+    id: 'i1', gate_pass_id: 'p2', line_no: 1, name: 'Steel Prop',
+    description: 'Adjustable formwork prop', purpose: 'Formwork Support',
+    expected_return_date: null, quantity: 12, unit: 'nos', serial_no: 'SP-001',
+    approx_value: 4500, make_model: 'Acrow 3.2m', invoice_no: 'INV-77',
+    remarks: 'Two are scratched', returned_qty: 0, returned_at: null,
+    outstanding_qty: 12, pass_number: 'NRGP-00081', pass_status: 'pending',
+    return_status: 'not_applicable',
+    ...over,
+  };
+}
 
 function builder(table: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -237,5 +255,70 @@ describe('No approval office', () => {
     );
     expect(await screen.findByText('This account does not hold an approval office.')).toBeInTheDocument();
     expect(screen.queryByText('RGP-00057')).not.toBeInTheDocument();
+  });
+});
+
+// EXPANDING A CARD BEFORE DECIDING (client, 2026-08-20: "for each stacked card
+// there is an option to expand the stacked card, also just to see the details
+// about the item and its individual item details … before Approval or
+// rejection"). The lines load on demand, one card at a time — an approver with
+// a page of twenty passes must not fire twenty item queries for tables nobody
+// opened.
+describe("Reading a pass's material lines on the card", () => {
+  it('draws an expand control on every card and shows nothing until it is pressed', async () => {
+    await renderPage();
+    const cards = screen.getAllByTestId('pass-stack-card');
+    expect(screen.queryByTestId('pass-stack-items')).not.toBeInTheDocument();
+    for (const card of cards) {
+      expect(within(card).getByRole('button', { name: /items on/i })).toHaveAttribute('aria-expanded', 'false');
+    }
+  });
+
+  it("unfolds THIS pass's individual item details in place", async () => {
+    await renderPage();
+    const card = screen.getAllByTestId('pass-stack-card')[0];
+    fireEvent.click(within(card).getByRole('button', { name: /items on/i }));
+
+    const panel = await within(card).findByTestId('pass-stack-items');
+    expect(within(panel).getByText('Steel Prop')).toBeInTheDocument();
+    expect(within(panel).getByText('Adjustable formwork prop')).toBeInTheDocument();
+    // The per-line details, not merely a count: make/model, serial and value.
+    expect(within(panel).getByText('Acrow 3.2m')).toBeInTheDocument();
+    expect(within(panel).getByText('SP-001')).toBeInTheDocument();
+    expect(within(panel).getByText('₹4,500')).toBeInTheDocument();
+    expect(within(panel).getByText('Scaffold Clamp')).toBeInTheDocument();
+    // An unpriced / unnamed line reads as a dash, never ₹0 or a blank cell.
+    expect(within(panel).getAllByText('—').length).toBeGreaterThan(0);
+  });
+
+  it('keeps one card open at a time', async () => {
+    await renderPage();
+    const cards = screen.getAllByTestId('pass-stack-card');
+    fireEvent.click(within(cards[0]).getByRole('button', { name: /items on/i }));
+    await within(cards[0]).findByTestId('pass-stack-items');
+
+    fireEvent.click(within(cards[1]).getByRole('button', { name: /items on/i }));
+    await within(cards[1]).findByTestId('pass-stack-items');
+    expect(within(cards[0]).queryByTestId('pass-stack-items')).not.toBeInTheDocument();
+  });
+
+  it('leaves the decision where it was — the panel carries no control', async () => {
+    await renderPage();
+    const card = screen.getAllByTestId('pass-stack-card')[0];
+    fireEvent.click(within(card).getByRole('button', { name: /items on/i }));
+    const panel = await within(card).findByTestId('pass-stack-items');
+    expect(within(panel).queryAllByRole('button')).toHaveLength(0);
+    expect(within(card).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+  });
+
+  // Client, 2026-08-20: "put the approve first and then reject at the second".
+  it('puts Approve ahead of Reject', async () => {
+    await renderPage();
+    const card = screen.getAllByTestId('pass-stack-card')[0];
+    const labels = within(card)
+      .getAllByRole('button')
+      .map((b) => b.textContent?.trim())
+      .filter((t) => t === 'Approve' || t === 'Reject');
+    expect(labels).toEqual(['Approve', 'Reject']);
   });
 });

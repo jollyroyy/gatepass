@@ -9,6 +9,12 @@
 // the number over the cards cannot say 5 above a stack of 4. Narrowing with the
 // search or a filter narrows BOTH, because they are one array read twice.
 //
+// A CARD ALSO UNFOLDS (client, 2026-08-20: "for each stacked card there is an
+// option to expand the stacked card, also just to see the details about the
+// item and its individual item details … before Approval or rejection"). The
+// chevron beside the two buttons opens this pass's own material lines in place,
+// so an office holder reads what they are signing without leaving the queue.
+//
 // EACH CARD CARRIES APPROVE / REJECT ON ITS RIGHT (client, 2026-08-20: "on the
 // right-hand side he can click on approve or reject, and rejection also should
 // come with a mandatory justification" · "as simple, clear and minimal as
@@ -219,6 +225,11 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
                 <PassStack
                   passes={view.rows}
                   renderActions={(p) => <ApprovalCardActions pass={p} onDecided={reload} />}
+                  // A CARD UNFOLDS ITS OWN MATERIAL LINES (client, 2026-08-20:
+                  // "just to see the details about the item and its individual
+                  // item details … before Approval or rejection"). One card at
+                  // a time, loaded on demand — see `PassStackItems`.
+                  expandable
                 />
                 <div className="gb-card gb-panel gpo-stack-foot">
                   <GuardPager

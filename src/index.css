@@ -2442,6 +2442,40 @@
   .gpo-act-reject:hover:not(:disabled) { background: var(--gb-red-soft); }
   .gpo-act-error { font-size: 12px; color: var(--gb-red); max-width: 220px; text-align: right; }
 
+  /* ---- A card that unfolds its own material lines ------------------------- */
+  /* The approver's queue alone (client, 2026-08-20). A plain card is one flex
+   * ROW; an expandable one stacks that row over the item panel, so the plate
+   * becomes a column and the row it used to be is `.gpo-card-main`. */
+  .gpo-card-stacked { flex-direction: column; align-items: stretch; gap: 0; }
+  .gpo-card-main {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .gpo-card-chev {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid var(--gb-line);
+    background: #ffffff;
+    color: var(--gb-muted);
+  }
+  .gpo-card-chev:hover { background: var(--gb-head); color: var(--gb-ink); }
+  .gpo-card-chev .gpo-chev { display: inline-flex; width: 18px; height: 18px; }
+  .gpo-items {
+    border-top: 1px solid var(--gb-line);
+    padding: 12px 14px 14px;
+    background: var(--gb-head);
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+  }
+  .gpo-items-note { font-size: 13px; color: var(--gb-muted); }
+  .gpo-items-table { background: #ffffff; }
+  .gpo-items-table td { white-space: nowrap; }
+
   .gpo-stack-foot { padding: 0 14px; }
 
   /* ---- The three-dot menu ------------------------------------------------- */

@@ -11,7 +11,8 @@
 // `MyPassCard` (the HOD's register) — are DELETED, so a stale reference is a
 // build error rather than a third card style nobody notices.
 //
-// THE WHOLE CARD IS A LINK TO `/pass/:id`, and it expands nothing. The card
+// THE WHOLE CARD IS A LINK TO `/pass/:id`, and it expands nothing unless the
+// list asks it to (`expandable`, below — the approver's queue alone). The card
 // used to open in place and show the pass's facts and material lines inside
 // itself; now it goes where the guard's cards go — to the ONE gate pass record,
 // which carries the full item table with each line's value, the total, the
@@ -29,6 +30,18 @@
 // and Reject on its right-hand side. The prop is a node the LIST supplies, so
 // this card knows nothing about approvals and every other stack in the app is
 // still action-free by construction. See `ApprovalCardActions.tsx`.
+//
+// THAT SAME QUEUE MAY ALSO UNFOLD (client, 2026-08-20: "for each stacked card
+// there is an option to expand the stacked card, also just to see the details
+// about the item and its individual item details … before Approval or
+// rejection"). `expandable` adds a chevron and, when open, `PassStackItems`
+// underneath — the pass's own material lines, loaded on demand. The card holds
+// no state for it: which card is open is the LIST's business, because only the
+// list can keep it to one at a time.
+//
+// THE CHEVRON IS A SIBLING OF THE LINK, NEVER INSIDE IT. A button nested in an
+// anchor is invalid and behaves differently in every browser, which is why the
+// tools column has always sat beside `.gpo-card-face` rather than within it.
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView } from '../types';
@@ -38,6 +51,16 @@ import { parseCompanyInfo } from '../lib/companyInfo';
 import { passStageStyle } from '../lib/passStage';
 import { TYPE_PILL } from '../lib/guardBoard';
 import { stageTone, type GbTone } from '../lib/passStackCard';
+import PassStackItems from './PassStackItems';
+
+const ChevronGlyph = (
+  <svg
+    viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+  >
+    <path d="M6 9l6 6 6-6" />
+  </svg>
+);
 
 /** The left edge follows the pill, so a stack can be read by its margin alone
  *  before a single word of it is. */
@@ -77,18 +100,24 @@ type Props = {
   /** Controls drawn under the stage pill, on the right. Supplied by the LIST —
    *  only the approver's queue supplies any. */
   actions?: React.ReactNode;
+  /** Draws the chevron that unfolds this pass's material lines. Off unless the
+   *  list asks for it. */
+  expandable?: boolean;
+  /** Whether THIS card is the open one. The list owns it — one at a time. */
+  open?: boolean;
+  onToggle?: () => void;
 };
 
 export default function PassStackCard({
-  pass, index, showRaisedBy = true, actions,
+  pass, index, showRaisedBy = true, actions, expandable = false, open = false, onToggle,
 }: Props): React.ReactElement {
   const company = parseCompanyInfo(pass.visitor_company);
   const stage = passStageStyle(pass);
   const tone = stageTone(pass);
   const isRgp = pass.type === 'RGP';
 
-  return (
-    <li className={`gpo-card ${EDGE[tone]}`} data-testid="pass-stack-card">
+  const face = (
+    <>
       <Link to={`/pass/${pass.id}`} className="gpo-card-face">
         <span className="gpo-card-id">
           <span className="gpo-pass-no">
@@ -140,7 +169,44 @@ export default function PassStackCard({
       <div className={actions ? 'gpo-card-tools gpo-card-tools-stacked' : 'gpo-card-tools'}>
         <span className={`gb-pill gb-pill-${tone}`}>{stage.label}</span>
         {actions}
+        {expandable && (
+          <button
+            type="button"
+            className="gpo-card-chev"
+            aria-expanded={open}
+            aria-label={`${open ? 'Hide' : 'Show'} items on ${pass.pass_number}`}
+            onClick={onToggle}
+          >
+            <span
+              className="gpo-chev"
+              style={{ transform: open ? 'rotate(180deg)' : undefined }}
+            >
+              {ChevronGlyph}
+            </span>
+          </button>
+        )}
       </div>
+    </>
+  );
+
+  // A plain card is one flex ROW (the face beside its tools). An expandable one
+  // stacks that row over the item panel, so the wrapper turns into a column and
+  // the row it used to be becomes `.gpo-card-main`.
+  if (!expandable) {
+    return (
+      <li className={`gpo-card ${EDGE[tone]}`} data-testid="pass-stack-card">
+        {face}
+      </li>
+    );
+  }
+
+  return (
+    <li
+      className={`gpo-card gpo-card-stacked ${EDGE[tone]}`}
+      data-testid="pass-stack-card"
+    >
+      <div className="gpo-card-main">{face}</div>
+      {open && <PassStackItems passId={pass.id} />}
     </li>
   );
 }

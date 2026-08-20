@@ -6,7 +6,7 @@
 // same variables and a light `color-scheme`, and NOTHING else. It deliberately
 // paints no ground of its own: the cards are white plates, and the page around
 // them stays the house surface in whichever theme the reader chose.
-import React from 'react';
+import React, { useState } from 'react';
 import type { GatePassView } from '../types';
 import PassStackCard from './PassStackCard';
 
@@ -19,11 +19,18 @@ type Props = {
   /** Controls for one card's right-hand side. Only the approver's queue passes
    *  this; every other stack stays action-free (see PassStackCard's header). */
   renderActions?: (pass: GatePassView) => React.ReactNode;
+  /** Lets a card unfold its own material lines (client, 2026-08-20). The OPEN
+   *  card is held here rather than in each card, because "one at a time" is a
+   *  fact about the list: a page of twenty passes must not end up with twenty
+   *  item queries alive at once. */
+  expandable?: boolean;
 };
 
 export default function PassStack({
-  passes, showRaisedBy = true, numbered = true, renderActions,
+  passes, showRaisedBy = true, numbered = true, renderActions, expandable = false,
 }: Props): React.ReactElement {
+  const [openId, setOpenId] = useState<string | null>(null);
+
   return (
     <div className="gb-stack">
       <ul className="gpo-stack" data-testid="pass-stack">
@@ -34,6 +41,9 @@ export default function PassStack({
             index={numbered ? i + 1 : undefined}
             showRaisedBy={showRaisedBy}
             actions={renderActions ? renderActions(p) : undefined}
+            expandable={expandable}
+            open={expandable && openId === p.id}
+            onToggle={() => setOpenId((cur) => (cur === p.id ? null : p.id))}
           />
         ))}
       </ul>
