@@ -30,6 +30,7 @@ import type { GatePassView } from '../types';
 import type { BoardDrill } from './boardDrills';
 import { IS_OPEN_RETURN } from './boardDrills';
 import { pendingSplit, pendingSplitNotes } from './pendingSplit';
+import { rejectionNotes, rejectionSplit, type RejectionApprovalRow } from './rejectionSplit';
 import { DAY_MS, dayStart } from './localDay';
 import type { HodGlyph, HodTone } from '../components/hod/hodIconTypes';
 
@@ -38,7 +39,8 @@ export type HodKpiKey =
   | 'nrgpIssued'
   | 'rgpIssued'
   | 'pendingReturn'
-  | 'pendingApproval';
+  | 'pendingApproval'
+  | 'rejected';
 
 /** One line under a card's figure. `dot` draws the mock's small coloured bullet;
  *  a note without one is the plain grey line ("All types"). */
@@ -96,6 +98,12 @@ export function overdueReturns(rows: GatePassView[]): GatePassView[] {
 export function buildHodKpis(
   rows: GatePassView[],
   now: number = Date.now(),
+  /** `pass_approvals` rows for these passes — what tells a rejection made ON
+   *  THE LADDER apart from a pass the HOD merely voided when it expired. The
+   *  board already reads them for the two strips at its foot; defaulting to
+   *  empty keeps every existing caller and fixture working, and an empty
+   *  ladder simply means no pass was rejected by an approver. */
+  approvals: RejectionApprovalRow[] = [],
 ): HodKpiCard[] {
   const today = raisedToday(rows, now);
   const nrgpToday = today.filter((p) => p.type === 'NRGP');
@@ -106,6 +114,10 @@ export function buildHodKpis(
   // they sum to the figure by construction.
   const split = pendingSplit(rows);
   const overdue = overdueReturns(rows);
+  // TODAY, like the three cards it sits beside — not running. A rejection is an
+  // event, and a running count of every pass ever rejected grows without bound
+  // and stops being something anybody acts on.
+  const rejected = rejectionSplit(today, approvals);
 
   return [
     {
@@ -208,6 +220,33 @@ export function buildHodKpis(
         heading: 'Passes not through the gate yet',
         empty: 'Nothing of yours is waiting.',
         rows: split.waiting,
+      },
+    },
+    {
+      // THE SIXTH CARD — client, 2026-08-20: "show a dashboard KPI card of
+      // rejected under all HOD, and under the rejected KPI card give the total
+      // number. Below that put it — rejected at security gate, rejected by
+      // approver — show exact count."
+      //
+      // The two notes SUM to the figure by construction (`rejectionSplit`), and
+      // a pass the HOD voided because it expired is in neither: nobody rejected
+      // it. See `src/lib/rejectionSplit.ts` for why `flag_reason` being null is
+      // not what separates the two desks.
+      key: 'rejected',
+      label: 'Rejected',
+      sub: 'Today',
+      glyph: 'alert',
+      tone: 'red',
+      value: rejected.all.length,
+      notes: rejectionNotes(rejected).map((n) => ({
+        text: n.text,
+        dot: n.key === 'gate' ? ('red' as HodTone) : ('purple' as HodTone),
+      })),
+      drill: {
+        key: 'rejected',
+        heading: 'Passes rejected today',
+        empty: 'Nothing of yours was rejected today.',
+        rows: rejected.all,
       },
     },
   ];

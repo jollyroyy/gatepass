@@ -141,6 +141,20 @@ NOTHING ANYWHERE SAYS "MISMATCHED".** Frontend only — no migration, no RPC cha
   column-count cases, and nine label assertions across `passStage` / `passTimeline` /
   `csvExport` / `approvalLadder` / `passRowCompact` / `mismatchNotice` / `reportStatusStage` /
   `passRecordEverywhere` / `passRecordTimelineMerge`.
+- **THE HOD BOARD HAS A SIXTH CARD, "Rejected"** (client: "show a dashboard KPI card of rejected
+  under all HOD, and under the rejected KPI card give the total number. Below that put it —
+  rejected at security gate, rejected by approver — show exact count"). TODAY, like the three
+  cards beside it; `.gb-kpi-grid` is six tracks at >=1280.
+  - **THE TWO DESKS ARE TOLD APART BY THE LADDER'S OWN ROWS, NOT BY `flag_reason` BEING NULL.**
+    That null is what the bell's rejection notice uses and it is NOT exact:
+    `hod_void_expired_pass` (041) also writes `cancelled` with no flag reason, so a pass that
+    merely ran out of time would have been counted as an approver's rejection. A pass counts as
+    rejected by an approver only when `pass_approvals` actually carries a `rejected` row for it.
+  - AT THE GATE is `flagged` OR `cancelled` **with** the guard's reason still on it — the guard
+    rejecting and the HOD upholding that rejection are the same event, decided at the barrier.
+  - **A VOIDED EXPIRED PASS IS IN NEITHER BUCKET**, so the figure is the two summed rather than
+    a count of every `cancelled` row. Nobody rejected it. `src/lib/rejectionSplit.ts`, pinned by
+    `tests/unit/rejectionSplit.test.ts` (6) plus 2 render cases.
 - **THE FULL GATE IS NOT GREEN, AND NOT BECAUSE OF THIS WORK.** `npx vitest run` is **1725
   passing, 9 failing**, and every failure is in `myPasses.test.tsx` / `passStackCard.test.tsx` —
   **a PARALLEL SESSION's in-flight rewrite of My Passes** (`MyPasses.tsx`, `MyPassesTable.tsx`,

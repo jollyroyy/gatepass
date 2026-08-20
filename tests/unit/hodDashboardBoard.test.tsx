@@ -323,6 +323,33 @@ describe("the four figures, and the two scopes they mix", () => {
   });
 });
 
+describe('the Rejected card', () => {
+  // Client, 2026-08-20: "show a dashboard KPI card of rejected under all HOD,
+  // and under the rejected KPI card give the total number. Below that put it —
+  // rejected at security gate, rejected by approver — show exact count."
+  it('prints the total and the two desks it is made of, which sum to it', async () => {
+    renderBoard();
+    await loaded();
+
+    // t3 is `flagged` and raised today: the guard rejected it at the barrier.
+    // Nothing of this HOD's was rejected on the ladder today.
+    const rejected = card('Rejected');
+    expect(rejected).toHaveTextContent('1');
+    expect(rejected).toHaveTextContent('1 pass rejected at security gate');
+    expect(rejected).toHaveTextContent('0 passes rejected by approver');
+  });
+
+  it('drills into the very rows it counted', async () => {
+    renderBoard();
+    await loaded();
+    fireEvent.click(card('Rejected'));
+    await waitFor(() => expect(stack()).toBeInTheDocument());
+    // Eve's pass is the flagged one; nothing else of this HOD's is rejected.
+    expect(within(stack()).getByText(/Eve/)).toBeInTheDocument();
+    expect(within(stack()).getAllByTestId('pass-stack-card')).toHaveLength(1);
+  });
+});
+
 describe('Quick Actions and the Approval Pending strip', () => {
   it('offers ONE Raise tile, opening the raise form with no pass type pre-chosen', async () => {
     // 2026-08-19: the client dropped the two Raise NRGP / Raise RGP tiles for

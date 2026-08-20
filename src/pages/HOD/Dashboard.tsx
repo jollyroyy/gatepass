@@ -60,7 +60,10 @@ export default function Dashboard(): React.ReactElement {
   // still owed; the Pending Approvals CARD counts passes, which is why the two
   // are derived separately and neither is a roll-up of the other.
   const officeWaiting = useMemo(() => approvalWaiting(rows, approvals), [rows, approvals]);
-  const cards = useMemo(() => buildHodKpis(rows, stamp), [rows, stamp]);
+  // `approvals` is the SAME array the two strips at the foot read — it is what
+  // tells a rejection made on the ladder apart from a pass that merely expired
+  // and was voided (see `rejectionSplit.ts`). One read, three figures.
+  const cards = useMemo(() => buildHodKpis(rows, stamp, approvals), [rows, stamp, approvals]);
   // THE FOOT OF THE PAGE — who today's still-waiting passes are sitting with
   // (client, 2026-08-20). It hands the hook the approvals this page has ALREADY
   // read, so the board still makes exactly the two queries it made before, and

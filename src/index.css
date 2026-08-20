@@ -2547,11 +2547,11 @@
   @media (min-width: 640px) {
     .gb-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
-  /* FIVE across, not the mock's four: the client asked for a Pending Approvals
-   * card on this board too (2026-08-20), and a fifth card on a four-track grid
-   * is an orphan on a second row. Same track count as the admin Overview. */
+  /* SIX across, not the mock's four: the client asked for a Pending Approvals
+   * card on this board (2026-08-20) and then a Rejected one, and a spare card
+   * on a four-track grid is an orphan on a second row. */
   @media (min-width: 1280px) {
-    .gb-kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .gb-kpi-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   }
 
   /* The WHOLE CARD is the drill control, not the number: a figure this size
