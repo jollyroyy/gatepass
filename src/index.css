@@ -193,6 +193,10 @@
 
     --gb-purple: #9333ea;
     --gb-purple-tint: #f3e8ff;
+    /* The lightest rung of the purple ramp, added 2026-08-20 for the approver
+     * board's first KPI card; the other three hues have carried a `-soft` since
+     * the guard skin landed. */
+    --gb-purple-soft: #faf5ff;
 
 }
 
@@ -2243,6 +2247,49 @@
     border-color: var(--gb-line);
     cursor: default;
   }
+  /* THREE OF THEM ON ONE ROW, on the approver's board (client, 2026-08-20:
+   * "make a KPI card for that in the dashboard"). One track on a phone, three
+   * from 900px — a figure and its label do not survive being squeezed into a
+   * third of a narrow screen. `.gpo-total` was written as the overdue board's
+   * ONE card, so inside the row it drops its own width cap and bottom margin
+   * and the row carries them instead. */
+  .gpo-total-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  @media (min-width: 900px) {
+    .gpo-total-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  .gpo-total-row .gpo-total { max-width: none; margin-bottom: 0; }
+
+  /* The two repaints. Base `.gpo-total` is red — it was written for overdue,
+   * which is an accusation — and red is exactly right for the third card, so
+   * only the first two are restated here. */
+  .gpo-total--purple {
+    border-color: var(--gb-purple-tint);
+    background: var(--gb-purple-soft);
+  }
+  .gpo-total--purple:hover:not(:disabled) {
+    border-color: var(--gb-purple);
+    box-shadow: 0 2px 8px 0 rgb(147 51 234 / 0.12);
+  }
+  .gpo-total--purple:focus-visible {
+    box-shadow: 0 0 0 3px var(--gb-purple-tint), 0 0 0 4px var(--gb-purple);
+  }
+  .gpo-total--green {
+    border-color: var(--gb-green-line);
+    background: var(--gb-green-soft);
+  }
+  .gpo-total--green:hover:not(:disabled) {
+    border-color: var(--gb-green);
+    box-shadow: 0 2px 8px 0 rgb(22 163 74 / 0.12);
+  }
+  .gpo-total--green:focus-visible {
+    box-shadow: 0 0 0 3px var(--gb-green-soft), 0 0 0 4px var(--gb-green);
+  }
+
   .gpo-total-body { min-width: 0; flex: 1 1 auto; }
   .gpo-total-title {
     display: block;

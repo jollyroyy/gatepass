@@ -27,6 +27,23 @@
 // full reading. Both go through `approvalActions.ts`, never the RPCs, so
 // whichever surface is used the next office still gets its letter.
 //
+// AND THE BOARD REMEMBERS WHAT THIS PERSON DECIDED (client, 2026-08-20: "all
+// four approvers should be able to see all the gate passes that they have
+// approved and rejected. Make a KPI card for that in the dashboard. As well
+// when they drill down on those cards, they should be able to list off all
+// those things exactly as they are seeing the approval/rejection requests in
+// the same stack format but without any approval/reject button"). Three
+// figures now, one open at a time, and the two history stacks are the SAME
+// `PassStack` — simply handed no `renderActions`, which is how every other
+// stack in this app is already action-free. Nothing about a decided pass can
+// be pressed, which is also the truth of it: `approve_pass_level` refuses a
+// pass that is no longer `pending`, and a rejection is terminal.
+//
+// EVERY FIGURE IS THE LENGTH OF ITS OWN FILTERED ARRAY, so the search and the
+// two selects narrow all three cards and the open stack together — the board
+// invariant, not a nicety: a filtered list under an unfiltered number is the
+// exact disagreement it exists to prevent.
+//
 // THE QUEUE IS RE-READ AFTER EVERY DECISION, never patched: only the database
 // knows whether that press was the pass's last level.
 //
@@ -44,6 +61,7 @@ import GuardPager from '../../components/guard/GuardPager';
 import { Link } from 'react-router-dom';
 import PassStack from '../../components/PassStack';
 import ApprovalCardActions from '../../components/approver/ApprovalCardActions';
+import ApprovalKpiCards, { type ApprovalCardKey } from '../../components/approver/ApprovalKpiCards';
 import { APPROVAL_ROLE_TITLES, type ApprovalRoleKey } from '../../lib/approvalLadder';
 import {
   applyApprovalFilters,
@@ -53,7 +71,9 @@ import {
   sortOldestFirst,
   type PendingApprovalFilters,
 } from '../../lib/pendingApprovals';
+import { decidedByMe } from '../../lib/approvalHistory';
 import { pageOf } from '../../lib/scheduledReturns';
+import type { GatePassView } from '../../types';
 import { usePendingApprovals } from '../../lib/usePendingApprovals';
 
 /** Ten cards is about a screen and a half. A card is tall where a table row is
@@ -67,20 +87,12 @@ const SearchGlyph = (
   </svg>
 );
 
-const Chevron = ({ open }: { open: boolean }): React.ReactElement => (
-  <svg
-    className="gpo-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-    strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
-    style={{ transform: open ? 'rotate(180deg)' : undefined }}
-  >
-    <path d="M6 9l6 6 6-6" />
-  </svg>
-);
-
 export default function PendingApprovals({ office }: { office: ApprovalRoleKey | null }): React.ReactElement {
-  const { passes, approvals, loading, error, reload } = usePendingApprovals(office);
+  const { passes, approvals, userId, loading, error, reload } = usePendingApprovals(office);
   const [filters, setFilters] = useState<PendingApprovalFilters>(DEFAULT_APPROVAL_FILTERS);
-  const [open, setOpen] = useState(true);
+  // Which figure is drilled open, or `null` for none. The queue opens first:
+  // it is the one list with work in it.
+  const [card, setCard] = useState<ApprovalCardKey | null>('pending');
   const [page, setPage] = useState(1);
   const [size, setSize] = useState<number>(PAGE_SIZE);
   const [stamp] = useState(() => new Date().toISOString());
@@ -89,16 +101,48 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
     () => (office ? sortOldestFirst(inMyQueue(passes, approvals, office)) : []),
     [passes, approvals, office]
   );
-  const departments = useMemo(() => departmentOptions(queue), [queue]);
-  const rows = useMemo(() => applyApprovalFilters(queue, filters), [queue, filters]);
+  const approved = useMemo(
+    () => decidedByMe(passes, approvals, userId, 'approved'),
+    [passes, approvals, userId]
+  );
+  const rejected = useMemo(
+    () => decidedByMe(passes, approvals, userId, 'rejected'),
+    [passes, approvals, userId]
+  );
+
+  // ONE OPTION LIST OVER ALL THREE: whichever card is open, a department
+  // offered here has rows behind it somewhere on this board.
+  const departments = useMemo(
+    () => departmentOptions([...queue, ...approved, ...rejected]),
+    [queue, approved, rejected]
+  );
+
+  // Each figure is its OWN filtered array, so all three narrow together and
+  // none of them can stand over a list it does not describe.
+  const lists: Record<ApprovalCardKey, GatePassView[]> = useMemo(() => ({
+    pending: applyApprovalFilters(queue, filters),
+    approved: applyApprovalFilters(approved, filters),
+    rejected: applyApprovalFilters(rejected, filters),
+  }), [queue, approved, rejected, filters]);
+
+  const counts: Record<ApprovalCardKey, number> = {
+    pending: lists.pending.length,
+    approved: lists.approved.length,
+    rejected: lists.rejected.length,
+  };
+  const rows = card ? lists[card] : [];
   const view = pageOf(rows, page, size);
-  // THE FIGURE IS THE STACK'S OWN LENGTH. Not `queue.length` — a filtered list
-  // under an unfiltered number is exactly the disagreement this rule exists to
-  // prevent.
   const total = rows.length;
 
   function narrow(next: PendingApprovalFilters): void {
     setFilters(next);
+    setPage(1);
+  }
+
+  /** Pressing the open card closes it; pressing another opens that one from
+   *  its first page — the pager belongs to whichever stack is on screen. */
+  function pickCard(next: ApprovalCardKey): void {
+    setCard((cur) => (cur === next ? null : next));
     setPage(1);
   }
 
@@ -137,26 +181,7 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
         </div>
       ) : (
         <>
-          <button
-            type="button"
-            className="gpo-total"
-            aria-expanded={open}
-            aria-controls="approval-stack"
-            disabled={total === 0}
-            onClick={() => setOpen((v) => !v)}
-          >
-            <GuardIcon glyph="exchange" tone="purple" shape="square" />
-            <span className="gpo-total-body">
-              <span className="gpo-total-title">Awaiting Your Approval</span>
-              <span className="gpo-total-figure">{total}</span>
-              <span className="gpo-total-note">
-                {total === 0
-                  ? 'Nothing is waiting on your signature'
-                  : 'Waiting on you — tap to see them'}
-              </span>
-            </span>
-            {total > 0 && <Chevron open={open} />}
-          </button>
+          <ApprovalKpiCards counts={counts} active={card} onSelect={pickCard} />
 
           {/* THE CEO'S SECOND QUEUE (client, 2026-08-20; migration 053). One
               link, drawn for that office alone — a COO or a Security Head has
@@ -211,24 +236,32 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
             </select>
           </div>
 
-          {total === 0 ? (
+          {counts.pending + counts.approved + counts.rejected === 0 ? (
             <div className="gb-card gb-panel">
               <div className="gb-empty">
-                {queue.length === 0
+                {queue.length + approved.length + rejected.length === 0
                   ? 'Nothing is waiting on your signature.'
                   : 'No request matches these filters.'}
               </div>
             </div>
           ) : (
-            open && (
+            card !== null && total > 0 && (
               <div id="approval-stack">
                 <PassStack
                   passes={view.rows}
-                  renderActions={(p) => <ApprovalCardActions pass={p} onDecided={reload} />}
+                  // NO CONTROL ON A DECIDED PASS (client, 2026-08-20: "without
+                  // any approval/reject button").
+                  renderActions={
+                    card === 'pending'
+                      ? (p) => <ApprovalCardActions pass={p} onDecided={reload} />
+                      : undefined
+                  }
                   // A CARD UNFOLDS ITS OWN MATERIAL LINES (client, 2026-08-20:
                   // "just to see the details about the item and its individual
                   // item details … before Approval or rejection"). One card at
-                  // a time, loaded on demand — see `PassStackItems`.
+                  // a time, loaded on demand — see `PassStackItems`. A
+                  // decided pass unfolds too: reading back what was signed is
+                  // the whole point of these two lists.
                   expandable
                 />
                 <div className="gb-card gb-panel gpo-stack-foot">

@@ -103,6 +103,59 @@ Frontend only — no migration, no RPC change, no new query type.
 - **NOT SEEN SIGNED-IN IN A BROWSER**: the suite and a production build only. The eight-column
   panel inside a card at a narrow width is exactly what only a real render proves.
 
+**Latest change (2026-08-20, twenty-seventh pass): AN OFFICE HOLDER'S BOARD CARRIES THREE
+FIGURES — what is waiting on them, WHAT THEY APPROVED and WHAT THEY REJECTED — and each one
+drills into the same stack, the two history ones with nothing to press.** Frontend only — **no
+migration, no RPC change, no new grant**.
+
+- Client: "all four approvers should be able to see all the gate passes that they have approved
+  and rejected. Make a KPI card for that in the dashboard. As well when they drill down on those
+  cards, they should be able to list off all those things exactly as they are seeing the
+  approval/rejection requests in the same stack format but without any approval/reject button."
+- **NO MIGRATION WAS NEEDED, and that is worth knowing before anyone writes one.**
+  `pass_routed_to_me()` (046) has never been narrowed to a PENDING rung, so `gate_passes_select`
+  already lets an office holder read a pass their office has a row on **at every stage** — after
+  the gate cleared it, after a rejection closed it. The history was readable all along; nothing
+  read it.
+- **`src/lib/approvalHistory.ts` is the derivation, and it tests `decided_by`, NOT the office.**
+  A decision is a fact about the PERSON who pressed the button (`approve_pass_level` writes their
+  own uid), so somebody re-designated from one chair to another keeps every signature they gave
+  and cannot claim one their SUCCESSOR gave for the office they used to hold. Two kinds of row
+  fall out of that single test for free, with no second predicate to keep in step: a
+  **grandfathered** rung (058, `decided_by` NULL — nobody signed it) and an **emergency release**
+  (055, `decided_by` is the super admin, who holds none of these offices).
+- **THE PASSES READ IS NO LONGER `status = 'pending'`, and it is narrowed by id instead.**
+  `usePendingApprovals` now reads `pass_approvals` FIRST, derives every pass id this office has a
+  rung on (or this person decided), and fetches exactly those. Dropping the status filter without
+  narrowing would have handed a Security Head who is also a `guard` account the whole register —
+  046 gives a guard every pass that owes no signature. It also resolves the signed-in uid once,
+  defensively: a failure leaves the two history lists EMPTY rather than showing somebody else's
+  signatures.
+- **EVERY FIGURE IS THE LENGTH OF ITS OWN FILTERED ARRAY**, so the search and the two selects
+  narrow all three cards and the open stack together. The board invariant, unchanged since the
+  first KPI in this app: no card can stand over a list it does not describe.
+- **ONE CARD OPEN AT A TIME** (`ApprovalKpiCards`), the queue open first because it is the one
+  list with work in it; pressing the open card closes it, and the pager belongs to whichever
+  stack is on screen. A zero card is disabled and STAYS on screen saying zero.
+- **THE TWO HISTORY STACKS ARE THE SAME `PassStack`, simply handed no `renderActions`** — which
+  is how every other stack in this app is already action-free, so "without any approval/reject
+  button" cost one conditional and no second component. It is also the truth of it:
+  `approve_pass_level` refuses a pass that is no longer `pending`, and a rejection is terminal.
+  A decided card still UNFOLDS its material lines: reading back what was signed is the point.
+- Two new `GuardIcon` glyphs (`check`, `cross`), a `.gpo-total-row` of three (one track on a
+  phone, three from 900px) and two repaints of `.gpo-total` — which is red because it was written
+  for the overdue board, and red is exactly right for the third card. `--gb-purple-soft` is new;
+  no hex entered `src/components/*`, so `themeAudit` stays absolute.
+- Pinned by a new `tests/unit/approvalHistory.test.ts` (8) and 6 new
+  `pendingApprovalsPage.test.tsx` cases. The two "no button" cases were **watched failing** first,
+  against a build that drew the actions on every stack.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: `npm run check` only. The three-across figure row at 900px
+  is exactly what only a real render proves.
+- **⚠ ONE UNRELATED FAILURE IN THE GATE, NOT FROM THIS WORK.** `tests/security/clientSecrets.test.ts`
+  fails on `src/lib/functionalRoles.ts`, a PARALLEL SESSION's new untracked file, which names
+  `service_role` in a type union and in comments. That test bans the string anywhere under `src/`.
+  It is not in this commit. Everything else is green: **1851 passing across 145 files**.
+
 **Latest change (2026-08-20, twenty-sixth pass): THE APPROVAL EMAIL CARRIES APPROVE AND REJECT
 BUTTONS THAT OPEN THE PASS ITSELF; A DEEP LINK NOW SURVIVES THE SIGN-IN; A TIMELINE ENTRY SETS
 ITS WRITTEN DETAIL IN FROM THE RAIL; AND THE ADMIN'S "Departments & Users" TAB IS CALLED

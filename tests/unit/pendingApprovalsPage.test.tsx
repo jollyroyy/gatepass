@@ -68,12 +68,31 @@ function resetRows(): void {
     }),
     // Routed to my office (coo) but held up by security_head — read-only.
     pass({ id: 'p3', pass_number: 'RGP-00058', created_at: '2026-08-19T02:00:00Z' }),
+    // Already decided by me: one signed, one turned back. Both have moved on
+    // from `pending`, which is the whole reason the passes read cannot be
+    // narrowed to that status any more.
+    pass({ id: 'p4', pass_number: 'RGP-00040', status: 'matched' }),
+    pass({ id: 'p5', pass_number: 'NRGP-00041', type: 'NRGP', status: 'cancelled' }),
+    // Approved on somebody ELSE's signature — mine to read, never mine to claim.
+    pass({ id: 'p6', pass_number: 'RGP-00042', status: 'matched' }),
   ];
   APPROVALS = [
     approval({ gate_pass_id: 'p1', role_key: 'coo', level_no: 2, status: 'pending' }),
     approval({ gate_pass_id: 'p2', role_key: 'coo', level_no: 2, status: 'pending' }),
     approval({ gate_pass_id: 'p3', role_key: 'security_head', level_no: 1, status: 'pending' }),
     approval({ gate_pass_id: 'p3', role_key: 'coo', level_no: 2, status: 'pending' }),
+    approval({
+      gate_pass_id: 'p4', role_key: 'coo', level_no: 2, status: 'approved',
+      decided_by: 'u1', decided_at: '2026-08-19T10:00:00Z',
+    }),
+    approval({
+      gate_pass_id: 'p5', role_key: 'coo', level_no: 2, status: 'rejected',
+      decided_by: 'u1', decided_at: '2026-08-19T11:00:00Z', reason: 'Wrong vendor',
+    }),
+    approval({
+      gate_pass_id: 'p6', role_key: 'coo', level_no: 2, status: 'approved',
+      decided_by: 'somebody-else', decided_at: '2026-08-19T12:00:00Z',
+    }),
   ];
   ITEMS = [
     item({}),
@@ -321,4 +340,70 @@ describe("Reading a pass's material lines on the card", () => {
       .filter((t) => t === 'Approve' || t === 'Reject');
     expect(labels).toEqual(['Approve', 'Reject']);
   });
+});
+
+// THE TWO HISTORY CARDS (client, 2026-08-20: "all four approvers should be able
+// to see all the gate passes that they have approved and rejected. Make a KPI
+// card for that in the dashboard. As well when they drill down on those cards,
+// they should be able to list off all those things exactly as they are seeing
+// the approval/rejection requests in the same stack format but without any
+// approval/reject button").
+describe('What this office holder has already decided', () => {
+  it('counts what I approved and what I rejected, on their own cards', async () => {
+    const { container } = await renderPage();
+    const figures = [...container.querySelectorAll('.gpo-total-figure')].map((n) => n.textContent);
+    // Awaiting 2 (p1, p2) · Approved 1 (p4) · Rejected 1 (p5). p6 was approved
+    // by somebody else and belongs on nobody's card here.
+    expect(figures).toEqual(['2', '1', '1']);
+    expect(screen.getByText('Approved by You')).toBeInTheDocument();
+    expect(screen.getByText('Rejected by You')).toBeInTheDocument();
+  });
+
+  it('drills into the approved stack, in the same card format', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText('Approved by You'));
+    await waitFor(() => expect(screen.getByText('RGP-00040')).toBeInTheDocument());
+    const cards = screen.getAllByTestId('pass-stack-card');
+    expect(cards).toHaveLength(1);
+    expect(screen.queryByText('RGP-00057')).not.toBeInTheDocument();
+  });
+
+  it('offers NO approve or reject on a decided pass', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText('Approved by You'));
+    await waitFor(() => expect(screen.getByText('RGP-00040')).toBeInTheDocument());
+    const card = screen.getAllByTestId('pass-stack-card')[0];
+    expect(within(card).queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    expect(within(card).queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument();
+  });
+
+  it('drills into the rejected stack, also action-free', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText('Rejected by You'));
+    await waitFor(() => expect(screen.getByText('NRGP-00041')).toBeInTheDocument());
+    const card = screen.getAllByTestId('pass-stack-card')[0];
+    expect(within(card).queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    expect(within(card).queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument();
+  });
+
+  it('opens one card at a time, and pressing the open one closes it', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText('Approved by You'));
+    await waitFor(() => expect(screen.getByText('RGP-00040')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Approved by You'));
+    await waitFor(() => expect(screen.queryByTestId('pass-stack-card')).not.toBeInTheDocument());
+  });
+
+  it('narrows every figure with one search, so no card stands over a list it does not describe',
+    async () => {
+      const { container } = await renderPage();
+      fireEvent.change(screen.getByLabelText('Search by Pass ID / Vendor / Purpose'),
+        { target: { value: 'RGP-00040' } });
+      await waitFor(() => {
+        const figures = [...container.querySelectorAll('.gpo-total-figure')].map((n) => n.textContent);
+        expect(figures).toEqual(['0', '1', '0']);
+      });
+      fireEvent.click(screen.getByText('Approved by You'));
+      await waitFor(() => expect(screen.getAllByTestId('pass-stack-card')).toHaveLength(1));
+    });
 });

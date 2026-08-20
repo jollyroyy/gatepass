@@ -20,7 +20,7 @@ const SVG = {
   strokeLinejoin: 'round',
 } as const;
 
-export type GuardGlyph = 'truck' | 'returned' | 'exchange' | 'scan' | 'clock' | 'alert';
+export type GuardGlyph = 'truck' | 'returned' | 'exchange' | 'scan' | 'clock' | 'alert' | 'check' | 'cross';
 export type GuardTone = 'orange' | 'blue' | 'green' | 'purple' | 'red';
 
 const GLYPHS: Record<GuardGlyph, React.ReactElement> = {
@@ -61,6 +61,19 @@ const GLYPHS: Record<GuardGlyph, React.ReactElement> = {
     <svg {...SVG}>
       <circle cx="12" cy="12" r="8.25" />
       <path d="M12 7.75V12l2.75 1.75" />
+    </svg>
+  ),
+  // A tick — a decision this reader already gave. The approver's board.
+  check: (
+    <svg {...SVG}>
+      <path d="M4.75 12.5l4.5 4.5 10-10" />
+    </svg>
+  ),
+  // A cross, drawn to the same weight as the tick beside it: the two figures
+  // sit on one row and must read as a pair.
+  cross: (
+    <svg {...SVG}>
+      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
     </svg>
   ),
   // The one glyph drawn as a solid disc, exactly as the mock-up draws it:
