@@ -1,63 +1,80 @@
-// HOD's own pass list. The three SCOPE controls all sit together in the page
-// header, top right — period presets, a single-day calendar, and the RGP/NRGP
-// toggle — with status tabs, "awaiting return" and text search below. Status
-// and "awaiting return" live in the URL so the Dashboard KPI cards can
-// deep-link straight into a filtered view. The period, date and type filters
-// are deliberately local state, not URL params — they are viewing preferences,
-// not destinations.
+// MY PASSES — the client's list mock-up (2026-08-20), drawn in the `.gb-*`
+// skin every other mock-up screen in this app wears: white ground, Inter, near-
+// black ink, and not one new colour.
+//
+// THE SHAPE IS THE MOCK'S: a title and one line under it, a search bar and a
+// Filters button top right, the three type tabs with their counts, the stack of
+// pass cards, and the pager. Everything the page could narrow by before is
+// still here — the period and the calendar are the two dropdowns on top
+// (client, 2026-08-20), and the status choice, Awaiting Return and Export CSV
+// moved INTO the Filters panel rather than being dropped (see
+// MyPassesFilters.tsx).
+//
+// THE DEPARTMENT IS DRAWN FOR AN ADMIN ALONE. An HOD's register is one
+// department by RLS, so the column said the same word down the whole page
+// (client, 2026-08-20). The role comes from `my_profile()` — the same server
+// answer route access is decided from — and defaults to NOT showing it while
+// the profile is still resolving: a column that appears a beat after the list
+// is worse than one that never does.
+//
+// Status and "awaiting return" stay in the URL so the Dashboard's KPI cards can
+// still deep-link straight into a filtered view. The period, date, type tab and
+// search are deliberately local state — they are viewing preferences, not
+// destinations.
 //
 // The calendar and the period presets are ONE choice, not two: a picked date
-// wins and narrows the stack to that single local day, and clicking any period
-// clears it. Two independent windows silently intersecting would let an HOD
-// pick a date inside "Today" and see nothing, with no control showing why. The
-// CSV export needs no wiring for either — it writes `filtered`, the rows the
-// stack is showing.
-import React, { useCallback, useEffect, useState } from 'react';
+// wins and narrows to that single local day, and clicking any period clears it.
+// Two independent windows silently intersecting would let an HOD pick a date
+// inside "Today" and see nothing, with no control showing why. The CSV export
+// needs no wiring for either — it writes `filtered`, the rows the stack shows.
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { gp } from '../../supabaseClient';
-import type { GatePassView, PassStatus, PassType } from '../../types';
-import { PASS_TYPE_LIST, PASS_TYPES } from '../../lib/passTypes';
+import { isAdmin, type GatePassView, type PassStatus } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
 import { downloadCsv, type CsvColumn } from '../../lib/exportUtils';
 import { csvCategory, csvDateTime, csvReturnStatus, csvStatus, csvText } from '../../lib/csvCells';
+import { myPassesPeriodBounds, type MyPassesPeriod } from '../../lib/myPassesPeriod';
 import {
-  MY_PASSES_PERIODS,
-  myPassesPeriodBounds,
-  type MyPassesPeriod,
-} from '../../lib/myPassesPeriod';
+  applyMyPassTab,
+  matchesMyPassSearch,
+  MY_PASS_TABS,
+  MY_PASS_TAB_LABELS,
+  myPassTabCounts,
+  type MyPassTab,
+} from '../../lib/myPassesList';
+import { DEFAULT_ROWS_PER_PAGE } from '../../lib/pendingOutFilters';
 import { localDateString, localDayBounds } from '../../lib/reportsDateRange';
-import PeriodFilter from '../../components/PeriodFilter';
+import { pageOf } from '../../lib/scheduledReturns';
+import { useMyProfile } from '../../lib/useMyProfile';
+import GuardPager from '../../components/guard/GuardPager';
+import MyPassesFilters, {
+  FiltersButton,
+  PeriodSelect,
+  type StatusTab,
+} from '../../components/mypasses/MyPassesFilters';
 import MyPassesTable from './MyPassesTable';
 
-const STATUS_TABS: { key: PassStatus | 'all'; label: string }[] = [
-  { key: 'all', label: 'All' },
+const STATUS_TABS: StatusTab[] = [
+  { key: 'all', label: 'All statuses' },
   { key: 'pending', label: 'Pending for Gate Approval' },
   // The `matched` status axis, named for what actually happened: security
   // cleared it out. No surface calls a pass "Matched" any more (client,
-  // 2026-08-18) — the word described the check, not the pass, and it read as
-  // finished on an RGP still standing outside the mall.
+  // 2026-08-18) — the word described the check, not the pass.
   { key: 'matched', label: 'Cleared at Gate' },
-  { key: 'flagged', label: 'Mismatched' },
+  { key: 'flagged', label: 'Rejected at Security Gate' },
 ];
 
 const VALID_STATUSES: PassStatus[] = ['pending', 'matched', 'flagged'];
-
-type TypeFilter = PassType | 'all';
 
 // Local (IST) date, not UTC — toISOString() would name yesterday before 05:30
 // IST and put today out of the calendar's reach.
 const TODAY = localDateString(new Date());
 
-const TYPE_SEGMENTS: { key: TypeFilter; label: string }[] = [
-  { key: 'all', label: 'All' },
-  ...PASS_TYPE_LIST.map((t) => ({ key: t as TypeFilter, label: PASS_TYPES[t].code })),
-];
-
 // `material_description` / `quantity` / `unit` used to be here. Migration 013
 // moved the material lines out of `gate_passes` into `gate_pass_items`, and
 // nobody updated this list — so the HOD's export carried three headers with a
-// blank cell under every one of them. They are replaced by the summary columns
-// the view actually has, which is what this page's own table renders.
+// blank cell under every one of them.
 export const MY_PASSES_CSV_COLUMNS: CsvColumn<GatePassView>[] = [
   { key: 'pass_number', header: 'Pass No' },
   { key: 'type', header: 'Type', format: csvCategory },
@@ -72,16 +89,20 @@ export const MY_PASSES_CSV_COLUMNS: CsvColumn<GatePassView>[] = [
 
 export default function MyPasses(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { profile } = useMyProfile();
+  const showDepartment = isAdmin(profile?.role ?? null);
   const [rows, setRows] = useState<GatePassView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [tab, setTab] = useState<MyPassTab>('all');
   const [search, setSearch] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [size, setSize] = useState<number>(DEFAULT_ROWS_PER_PAGE);
   // Empty means "no single day picked" — the period presets are in charge.
   const [date, setDate] = useState('');
   // Default Last 30 Days: My Passes is the HISTORY page — the dashboard links
-  // here for "older passes", so a Today default would show a nearly empty
-  // stack. Today and the other windows are one click away.
+  // here for "older passes", so a Today default would show a nearly empty stack.
   const [period, setPeriod] = useState<MyPassesPeriod>('last30');
 
   const statusParam = searchParams.get('status');
@@ -95,6 +116,7 @@ export default function MyPasses(): React.ReactElement {
     if (key === 'all') next.delete('status');
     else next.set('status', key);
     setSearchParams(next, { replace: true });
+    setPage(1);
   }
 
   function toggleAwaitingReturn() {
@@ -102,6 +124,7 @@ export default function MyPasses(): React.ReactElement {
     if (onlyAwaitingReturn) next.delete('ret');
     else next.set('ret', 'awaiting_return');
     setSearchParams(next, { replace: true });
+    setPage(1);
   }
 
   const load = useCallback(async () => {
@@ -133,100 +156,125 @@ export default function MyPasses(): React.ReactElement {
   function pickPeriod(next: MyPassesPeriod) {
     setDate('');
     setPeriod(next);
+    setPage(1);
   }
 
-  const filtered = rows.filter((p) => {
-    const t = new Date(p.created_at).getTime();
-    if (t < start || t >= end) return false;
-    if (statusFilter !== 'all' && p.status !== statusFilter) return false;
-    if (typeFilter !== 'all' && p.type !== typeFilter) return false;
-    if (onlyAwaitingReturn && p.return_status !== 'awaiting_return') return false;
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      const hit =
-        p.pass_number.toLowerCase().includes(q) ||
-        p.visitor_name.toLowerCase().includes(q) ||
-        (p.vehicle_number ?? '').toLowerCase().includes(q);
-      if (!hit) return false;
-    }
-    return true;
-  });
+  function pickDate(next: string) {
+    setDate(next);
+    setPage(1);
+  }
+
+  // Everything EXCEPT the type tab, so the tab counts are over what the reader
+  // has already narrowed to and the three of them still add up.
+  const scoped = useMemo(
+    () =>
+      rows.filter((p) => {
+        const t = new Date(p.created_at).getTime();
+        if (t < start || t >= end) return false;
+        if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+        if (onlyAwaitingReturn && p.return_status !== 'awaiting_return') return false;
+        return matchesMyPassSearch(p, search);
+      }),
+    [rows, start, end, statusFilter, onlyAwaitingReturn, search]
+  );
+
+  const counts = useMemo(() => myPassTabCounts(scoped), [scoped]);
+  const filtered = useMemo(() => applyMyPassTab(scoped, tab), [scoped, tab]);
+  const current = pageOf(filtered, page, size);
 
   function handleExport() {
     downloadCsv('my-passes.csv', filtered, MY_PASSES_CSV_COLUMNS);
   }
 
   return (
-    <div>
-      <div className="page-header flex items-start justify-between flex-wrap gap-3">
+    <div className="gb-board gb-main mp-page">
+      <div className="gb-page-head">
         <div>
-          <h1 className="page-title">My Passes</h1>
-          <p className="page-subtitle">All gate passes raised for your departments.</p>
+          <h1 className="gb-page-title">My Passes</h1>
+          <p className="mp-sub">View all gate passes you have raised.</p>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <PeriodFilter value={period} onChange={pickPeriod} periods={MY_PASSES_PERIODS} label="My Passes period" />
+        <div className="gb-search-row">
+          <PeriodSelect value={period} onChange={pickPeriod} />
           <input
             type="date"
             aria-label="Date"
+            className="gb-select mp-date"
             value={date}
             max={TODAY}
-            onChange={(e) => setDate(e.target.value)}
-            className="input w-auto text-sm"
+            onChange={(e) => pickDate(e.target.value)}
           />
-          <div className="tab-group" role="group" aria-label="Pass type">
-            {TYPE_SEGMENTS.map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                aria-pressed={key === typeFilter}
-                onClick={() => setTypeFilter(key)}
-                className={key === typeFilter ? 'tab-active text-xs px-4 py-1.5' : 'tab-inactive text-xs px-4 py-1.5'}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="gb-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="6.5" />
+              <path d="M16 16l4.5 4.5" />
+            </svg>
+            <input
+              type="search"
+              aria-label="Search by GP No. or Purpose"
+              placeholder="Search by GP No. or Purpose..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+            />
           </div>
-          <button type="button" className="btn-secondary" onClick={handleExport}>
-            Export CSV
-          </button>
+          <FiltersButton open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} />
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 mb-6">
-        <div className="tab-group w-fit">
-          {STATUS_TABS.map((tab) => (
+      <MyPassesFilters
+        open={filtersOpen}
+        statusTabs={STATUS_TABS}
+        status={statusFilter}
+        onStatus={setStatusFilter}
+        awaitingReturn={onlyAwaitingReturn}
+        onAwaitingReturn={toggleAwaitingReturn}
+        onExport={handleExport}
+      />
+
+      <div className="gb-toolbar mp-toolbar">
+        <div className="gb-tabs" role="tablist" aria-label="Pass type">
+          {MY_PASS_TABS.map((key) => (
             <button
-              key={tab.key}
+              key={key}
               type="button"
-              className={statusFilter === tab.key ? 'tab-active' : 'tab-inactive'}
-              onClick={() => setStatusFilter(tab.key)}
+              role="tab"
+              aria-selected={tab === key}
+              className="gb-tab"
+              onClick={() => {
+                setTab(key);
+                setPage(1);
+              }}
             >
-              {tab.label}
+              {MY_PASS_TAB_LABELS[key]} ({counts[key]})
             </button>
           ))}
         </div>
-
-        <div className="flex flex-wrap gap-3 items-center">
-          <button
-            type="button"
-            onClick={toggleAwaitingReturn}
-            className={onlyAwaitingReturn ? 'tab-active' : 'tab-inactive'}
-          >
-            Awaiting Return
-          </button>
-
-          <input
-            className="input w-auto min-w-[220px]"
-            placeholder="Search pass no / visitor / vehicle…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
       </div>
 
-      {error && <div className="alert-error mb-6">{error}</div>}
+      {error && <div className="gb-alert">{error}</div>}
 
-      <MyPassesTable rows={rows} filtered={filtered} loading={loading} />
+      <MyPassesTable
+        rows={rows}
+        filtered={current.rows}
+        loading={loading}
+        showDepartment={showDepartment}
+      />
+
+      {!loading && current.total > 0 && (
+        <div className="mp-foot">
+          <GuardPager
+            page={current}
+            size={size}
+            onPage={setPage}
+            onSize={(n) => {
+              setSize(n);
+              setPage(1);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

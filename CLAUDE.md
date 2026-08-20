@@ -69,6 +69,74 @@ ladder as four real office holders is the next security action.
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
+**Latest change (2026-08-20, twenty-fourth pass): MY PASSES IS THE CLIENT'S OWN LIST
+MOCK-UP — a stack of pass cards with the type in colour, the period and the day as two
+dropdowns on top, everything else behind one Filters button, and a card that unfolds its own
+material lines. Frontend only — no migration, no RPC change, and the SAME one query as before.**
+
+- **`src/pages/HOD/MyPasses.tsx` is the `.gb-*` island now** (`gb-board gb-main`), over
+  `src/components/mypasses/*` (`MyPassCard` · `MyPassItems` · `MyPassesFilters` · `MyPassIcon`)
+  and `src/lib/myPassesList.ts` (pure). The page CHROME is REUSED, not redrawn: `.gb-page-head`,
+  `.gb-search`, `.gb-toolbar`/`.gb-tabs` and `GuardPager` are the guard's own, so "Showing 1 to
+  10 of 24 entries" means the same thing here as on every other table in the app. The new CSS
+  introduces **no new colour** — every value is one of `.gb-board`'s custom properties — and
+  `src/components/mypasses/*` carries no hex, so `themeAudit` stays absolute.
+- **THIS IS THE ONE STACKED LIST THAT IS NO LONGER `PassStackCard`.** The 2026-08-19 rule (every
+  stacked list in the app draws the guard's six-fact plate) still holds for the drills, the
+  overdue board, the approval queue and My Passes' own siblings — the client redrew THIS screen
+  alone. `passStackCard.test.tsx`'s "My Passes is the same stack" block was **REWRITTEN** and now
+  pins the opposite, with a comment saying what it used to hold.
+- **THE DEPARTMENT IS THE ADMIN'S FACT ALONE** (client: "for the HODs there is no need to show
+  the department because he already knows about the department… show the department only for the
+  admin"). `showDepartment` comes from `my_profile()`'s role through `isAdmin`, and defaults to
+  FALSE while the profile is resolving — a column that appears a beat after the list is worse
+  than one that never does. **A deliberate departure from the mock, which draws the column.**
+- **THE VALUE IS A FACT ON EVERY CARD** (client), read off `v_gate_passes.total_value`
+  (migration 038) and **never re-summed from the item rows** — the rule the overdue KPI lives by.
+  `0` prints a dash: `approx_value` is optional, so "nothing declared" is not "₹0".
+- **A CARD UNFOLDS ITS OWN MATERIAL LINES** (client: "upon clicking on it they might be able to
+  see the exact items also in the stacked card"). The face is a `<Link>` to `/pass/:id` and the
+  chevron is a SIBLING `<button>` — a button nested in an anchor is invalid and behaves
+  differently in every browser, which is why `.gpo-card` is built the same way. `usePassItems`
+  loads on disclosure, **one card open at a time** (the state is in `MyPassesTable`), so a page of
+  twenty passes makes no item query until somebody asks. The lines are a READING: no control, and
+  the quantity column names its unit through `quantityHeading`/`quantityCell`.
+- **THE PERIOD IS A DROPDOWN ON TOP, BESIDE THE CALENDAR** (client: "same drop down, like the
+  selection date on top … last 30 days, last three months, six months"). The seven period chips
+  are gone; `MY_PASSES_PERIODS` gained an eighth entry, **`last3m` (90 days — three 30-day
+  months, the same month `last6m` counts in)**. The date and the period are still ONE choice: a
+  picked day wins, and picking a period clears it.
+- **NOTHING WAS DROPPED TO FIT THE MOCK.** The status choice, Awaiting Return and Export CSV
+  moved behind the **Filters** button (a disclosure that pushes the list down, not a popover —
+  nothing to trap an outside click). Status and `ret` are still URL params, so the HOD
+  dashboard's KPI cards still deep-link into a filtered view. The status TAB STRIP became a
+  select inside that panel, keeping this pass's own rename ("Rejected at Security Gate").
+- **THE TABS ARE THE TYPE, AND THE THREE FIGURES ADD UP BY CONSTRUCTION** — `myPassTabCounts`
+  makes `all` `rows.length` and `NRGP` the remainder, over the array the stack renders after
+  every OTHER filter. No aggregate, no second predicate.
+- **`.gb-pill-purple` IS A NEW PILL**, because the mock colours an NRGP purple where the guard's
+  screens colour it green. `--gb-purple-tint` doubles as its border (there is no
+  `--gb-purple-line`). `TYPE_PILL` in `guardBoard.ts` is untouched — this page reads its own
+  `MY_PASS_TYPE_PILL`.
+- **The search matches MORE than its label promises, on purpose.** The mock's placeholder is
+  "Search by GP No. or Purpose"; `matchesMyPassSearch` also tests the person and the vehicle,
+  which this page has always found a pass by. Removing that would cost a real capability to make
+  a placeholder literally true.
+- Pinned by a new `tests/unit/myPassesList.test.ts` (11 — the sum invariant, the search's four
+  fields, the two label maps being `.gb-*` classes only) and a **REWRITTEN**
+  `tests/unit/myPasses.test.tsx` (18 — its header says what it used to hold: seven period
+  buttons and a `tab-group` type toggle in a `.page-header`), plus one rewritten block in
+  `passStackCard.test.tsx` and two new cases in `myPassesPeriod.test.ts`.
+- **ADMIN HAS NO My Passes TAB.** The client asked for this "under All Hod and All Admin", and
+  the component is role-aware as described — but `/my-passes` is in `ROLE_ROUTES.hod` only, and
+  the admin's register is Reports (`/all-passes`), which is a different mock-up. **The admin
+  half of that instruction is therefore NOT reachable today**; adding the tab is one line in
+  `roleRoutes.ts` plus one in `Sidebar.tsx`, and is deliberately not done unasked (an admin
+  raises no passes, so a screen titled "My Passes" would be empty or, worse, site-wide).
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite and a typecheck only. The card's five facts
+  wrapping at 1024, the unfolded item table inside a card, and the purple NRGP plate are exactly
+  what only a real render proves.
+
 **Latest change (2026-08-20, twenty-third pass): THE REPORT'S DATE SELECTION CARRIES SEVEN
 READY-MADE RANGES; BOTH DASHBOARDS SAY AT THE FOOT WHO TODAY'S PASSES ARE WAITING WITH; A LINE
 IS PRICED ON THE RAISE FORM AGAIN; THE HOD'S PASS RECORD DROPS THE AMBER ATTENTION STRIP; AND

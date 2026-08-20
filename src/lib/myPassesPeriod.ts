@@ -21,6 +21,7 @@ export type MyPassesPeriod =
   | 'today'
   | 'last7'
   | 'last30'
+  | 'last3m'
   | 'last6m'
   | 'weekly'
   | 'monthly'
@@ -30,6 +31,7 @@ export const MY_PASSES_PERIODS: { key: MyPassesPeriod; label: string }[] = [
   { key: 'today', label: 'Today' },
   { key: 'last7', label: 'Last 7 Days' },
   { key: 'last30', label: 'Last 30 Days' },
+  { key: 'last3m', label: 'Last 3 Months' },
   { key: 'last6m', label: 'Last 6 Months' },
   { key: 'weekly', label: 'Weekly' },
   { key: 'monthly', label: 'Monthly' },
@@ -56,6 +58,10 @@ export function myPassesPeriodBounds(period: MyPassesPeriod): { start: number; e
       return { start: today.getTime() - 6 * DAY_MS, end };
     case 'last30':
       return { start: today.getTime() - 29 * DAY_MS, end };
+    case 'last3m':
+      // 3 x 30 days, the same 30-day month 'last6m' below counts in — client,
+      // 2026-08-20, asked for a three-month window beside the six-month one.
+      return { start: today.getTime() - 89 * DAY_MS, end };
     case 'last6m':
       // 6 × 30 days — the same 30-day month the dashboard's "monthly" uses.
       return { start: today.getTime() - 179 * DAY_MS, end };

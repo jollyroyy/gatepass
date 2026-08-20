@@ -1,5 +1,7 @@
 // Verifies each My Passes period's [start, end) bounds. Mirrors
-// the dashboards' old period test but for the SEVEN My Passes periods, including the
+// the dashboards' old period test but for the EIGHT My Passes periods — seven
+// until 2026-08-20, when the client asked for a three-month window beside the
+// six-month one — including the
 // calendar-aligned ones: weekly starts on the Monday of the current week,
 // monthly on the 1st of the month, yearly on Jan 1 — all ending at the same
 // local-midnight-tomorrow bound the dashboards use.
@@ -14,11 +16,12 @@ function expectedEnd(): number {
 }
 
 describe('MY_PASSES_PERIODS', () => {
-  it('lists exactly the seven periods, in the order the HOD asked for', () => {
+  it('lists exactly the eight periods, in the order the HOD asked for', () => {
     expect(MY_PASSES_PERIODS.map((p) => p.key)).toEqual([
       'today',
       'last7',
       'last30',
+      'last3m',
       'last6m',
       'weekly',
       'monthly',
@@ -28,6 +31,7 @@ describe('MY_PASSES_PERIODS', () => {
       'Today',
       'Last 7 Days',
       'Last 30 Days',
+      'Last 3 Months',
       'Last 6 Months',
       'Weekly',
       'Monthly',
@@ -57,6 +61,11 @@ describe('myPassesPeriodBounds', () => {
   it('last30 spans exactly 30 days', () => {
     const { start, end } = myPassesPeriodBounds('last30');
     expect(end - start).toBe(30 * DAY_MS);
+  });
+
+  it('last3m spans exactly 90 days — three 30-day months, like last6m', () => {
+    const { start, end } = myPassesPeriodBounds('last3m');
+    expect(end - start).toBe(90 * DAY_MS);
   });
 
   it('last6m spans exactly 180 days', () => {

@@ -136,17 +136,24 @@ describe('every stacked list draws the guard’s card', () => {
   });
 });
 
-describe('My Passes is the same stack', () => {
-  it('draws the guard’s card and hides the HOD’s own name', () => {
+// REWRITTEN (client, 2026-08-20). This block used to hold that My Passes drew
+// `PassStackCard` — "draws the guard's card and hides the HOD's own name" —
+// which was true from 2026-08-19, when every stacked list in the app was made
+// one card. The client then redrew MY PASSES ALONE to a mock-up of its own, so
+// that page has `MyPassCard` now. What is pinned here instead is that the guard's
+// card did NOT follow it: this list no longer draws `pass-stack-card`, and every
+// other stack in the app still does (the drills above).
+describe('My Passes has a card of its own now', () => {
+  it('does not draw the guard’s stacked card, and still opens the record', () => {
     const rows = [pass()];
     render(
       <MemoryRouter>
-        <MyPassesTable rows={rows} filtered={rows} loading={false} />
+        <MyPassesTable rows={rows} filtered={rows} loading={false} showDepartment={false} />
       </MemoryRouter>,
     );
-    expect(screen.getByTestId('pass-stack-card')).toBeInTheDocument();
+    expect(screen.queryByTestId('pass-stack-card')).not.toBeInTheDocument();
     expect(screen.queryByText('Requested By')).not.toBeInTheDocument();
-    expect(within(screen.getByTestId('pass-stack-card')).getByRole('link'))
+    expect(screen.getByRole('link', { name: /RGP-20260818-0001/ }))
       .toHaveAttribute('href', '/pass/p1');
   });
 });
