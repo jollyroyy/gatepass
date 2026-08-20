@@ -19,6 +19,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 const PROFILES = [
   { id: 'u1', full_name: 'Sanjay Rao', email: 'sanjay@demo.vms', role: 'staff', created_at: '2026-08-01T00:00:00Z' },
   { id: 'u2', full_name: 'Priya Nair', email: 'priya@demo.vms', role: 'staff', created_at: '2026-08-01T00:00:00Z' },
+  // Suspended (migration 040/059). `is_active` is optional on Profile, so the
+  // two above stand for "flag absent, therefore active".
+  {
+    id: 'u3', full_name: 'Deepa Menon', email: 'deepa@demo.vms', role: 'staff',
+    created_at: '2026-08-01T00:00:00Z', is_active: false,
+  },
 ];
 
 /** Only the Security Head office is filled. The COO's empty seat is what the
@@ -113,6 +119,26 @@ describe('the approval ladder card offers a deputy seat (054)', () => {
     await renderCard();
     expect((screen.getByLabelText('CEO deputy') as HTMLSelectElement).disabled).toBe(true);
     expect((screen.getByLabelText('Security Head deputy') as HTMLSelectElement).disabled).toBe(false);
+  });
+
+  // A SUSPENDED ACCOUNT CANNOT BE SEATED (migration 059). `my_approval_role()`
+  // gates on `is_user_active`, so designating one produces an office that reads
+  // as staffed and can approve nothing — which is exactly how an office ends up
+  // silently dead while passes pile up behind it.
+  it('offers only ACTIVE accounts on either seat', async () => {
+    await renderCard();
+    for (const label of ['Security Head account', 'Security Head deputy']) {
+      const options = Array.from((screen.getByLabelText(label) as HTMLSelectElement).options)
+        .map((o) => o.textContent ?? '');
+      expect(options.some((o) => o.includes('Sanjay Rao'))).toBe(true);
+      expect(options.some((o) => o.includes('Priya Nair'))).toBe(true);
+      expect(options.some((o) => o.includes('Deepa Menon'))).toBe(false);
+    }
+  });
+
+  it('says on screen that deactivating a holder vacates their office', async () => {
+    await renderCard();
+    expect(document.body.textContent).toMatch(/deactivating a holder vacates their office/i);
   });
 
   it('no longer claims that designating somebody grants no access', async () => {

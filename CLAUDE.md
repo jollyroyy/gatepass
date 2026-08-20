@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-20
 
-Full gate: **1667 tests across 131 files** (`npm run check`), green — and **`npm run build` is
+Full gate: **1768 tests across 138 files** (`npm run check`), green — and **`npm run build` is
 green again**, which it had not been since the raise-form CSS landed (see the twelfth pass).
 Migrations **`001`–`047` and `049`–`051` are applied to the live DB.** `044` was found UNAPPLIED on
 2026-08-19 — the overdue card's Contact Vendor and Add Remark had shipped against RPCs that did
@@ -53,15 +53,16 @@ unchanged and its six probe passes were deleted, leaving **60 rows exactly as be
 **`045`, `047` and `048` belong to a parallel session.** `045` IS applied (`vendor_profiles.address`
 exists and `raise_pass` reads `make_model`); **`047` and `048` are NOT** — no approval-email or
 notification function exists in `gatepass`. `APPLY_ALL.sql` carries every section regardless. **`052` (mail settings) IS APPLIED and probed
-live**; `053` IS APPLIED (psql). **`054`, `055`, `056`, `057` and `058` ARE ALL APPLIED** — every one of them with psql as
+live**; `053` IS APPLIED (psql). **`054`, `055`, `056`, `057`, `058` and `059` ARE ALL APPLIED** — every one of them with psql as
 `postgres`, which bypasses RLS. **`054`, `055` and `056` ARE NOW PROBED 69/69 with real anon-key
 JWTs** (`scripts/verify-054.mjs` 17/17, `-055` 26/26, `-056` 26/26 — see the twenty-second pass);
-**the RLS half of `057` and `058` is still unproved**, and a `verify-057.mjs` driving the linear
-ladder as four real office holders is the next security action.
+**the RLS half of `057`, `058` and `059` is still unproved** — `verify-059.mjs` (deactivate an
+office holder, re-seat the office, reactivate them) and then `verify-057.mjs` are the next two
+security actions.
 
 | Thing | State |
 |---|---|
-| `gatepass.gate_passes` | **65 rows** — real user data. **Not a scratch DB; do not wipe it.** |
+| `gatepass.gate_passes` | **67 rows** (2026-08-20, twenty-fifth pass) — real user data. **Not a scratch DB; do not wipe it.** |
 | `public.departments` | **12 rows** (VMS-owned, shared) — do not wipe |
 | Demo accounts | the `@demo.vms` accounts share password `demo123` and are email-confirmed; shared with VMS. **"all email-confirmed" was WRONG** — 7 real accounts carried `email_confirmed_at is null` and none of them had ever signed in (see the 048 entry). 6 still do, and a password reset is now what confirms them. |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
@@ -69,7 +70,71 @@ ladder as four real office holders is the next security action.
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-20, twenty-fourth pass): MY PASSES IS THE CLIENT'S OWN LIST
+**Latest change (2026-08-20, twenty-fifth pass): A PASS STILL CLIMBING THE LADDER READS
+"Pending Approval", NOT "Pending Gate Review", EVERYWHERE; AND DEACTIVATING AN APPROVAL OFFICE
+HOLDER NOW VACATES THEIR OFFICE SO THE NEXT PERSON CAN TAKE IT — migration `059`, APPLIED via
+psql (every statement returned; `UPDATE 0 / DELETE 0` — nobody was seated while suspended).**
+
+- **THE BADGE NAMES THE DESK THE PASS IS ACTUALLY ON** (client: "the passes which are pending
+  for approval are showing as pending gate approvals, which should not be okay … after all the
+  approvals, if it is only waiting for the gate approval, then only show the pending for gate
+  approval, across all the views"). `AWAITING_APPROVAL_STYLE` in `statusStyles.ts`, chosen by a
+  sixth arm in `passStageStyle` — so **every card, every drill, the record, the register and the
+  CSV move together**, because they all render that one function.
+  - **IT IS NOT A NEW ENUM LABEL AND NO MIGRATION WAS NEEDED.** Such a pass is `status =
+    'pending'` exactly like one at the barrier; the difference is `v_gate_passes.awaits_approval`
+    (057), READ and never recomputed. **Falsy is the safe reading** — a pass with no ladder owes
+    nothing, which is every pre-workflow pass and every level closed by 058.
+  - **EXPIRY STILL OUTRANKS IT**, and the arm is narrowed to `pending`: `hod_reviewed` is the HOD
+    overriding a flag the gate raised, which cannot have happened to a pass the gate never saw.
+  - Amber, like Pending Gate Review — both mean "waiting on somebody", and the WORDS say which
+    desk. `STAGE_TONES` gained the label; `passStackCard.test.tsx`'s label sweep now walks it.
+  - **The submitted-pass modal was the one surface that could still lie**, because `raise_pass`
+    returns a `gate_passes` ROW with no `awaits_approval`. `RaisePass` now makes one narrow,
+    failure-tolerant read of the view for that single field; the modal renders `passStageStyle`.
+  - **MY PASSES' STATUS TAB IS "Pending"**, not "Pending for Gate Approval": that filter is the
+    `pending` STATUS, which covers both desks, and naming one would mislabel the other half of
+    its own list.
+- **MIGRATION `059` — AN APPROVAL OFFICE IS HELD BY EXACTLY ONE *ACTIVE* PERSON** (client:
+  "if one of the roles, like COO and security head, is deactivated and created again, that should
+  allow me to deactivate one person from that role and create another new person in that same
+  role … but make sure only one account is tacked to that role at the same point in time").
+  - **TWO HOLDERS WERE ALREADY IMPOSSIBLE** — `role_key` is the primary key and `set_approval_role`
+    upserts on it, so a replacement is an atomic swap; 049 stops one person holding two offices.
+    **What was broken is that deactivation LEFT THE SEAT OCCUPIED**: `my_approval_role()` gates on
+    `is_user_active` (040), so the office was silently DEAD — passes routed to it piled up with
+    nobody able to sign, while the ladder card read as staffed — and 049 then refused to seat that
+    person anywhere else.
+  - `admin_soft_delete_user` now **deletes their `approval_roles` row and clears any deputy seat
+    pointing at them**. `set_approval_role` / `set_approval_deputy` **refuse a deactivated account**
+    in a sentence. A sweep at the end of the migration applies the same rule to anybody already
+    seated while suspended (live: nobody was).
+  - **REACTIVATION IS NOT A ONE-WAY DOOR.** Vacating the seat destroys the evidence 057 used
+    ("has this person anything to come back to"), so `user_status.vacated_approval_office`
+    remembers the office they held when suspended; `admin_reactivate_user` accepts it and clears
+    it. **IT DOES NOT RE-SEAT THEM** — somebody else may be in the chair, and re-seating would
+    displace a working approver. Written with `coalesce`, so a second deactivation cannot forget
+    the office the first one took.
+  - **⚠ KNOWN CONSEQUENCE, DELIBERATE.** 046 never snapshots a VACANT office, so a pass raised
+    between the deactivation and the replacement does not owe that office a signature at all. The
+    alternative (refuse to deactivate until a replacement is named) is the opposite of what the
+    client asked for, and a suspended holder is a dead office either way — the choice is between a
+    level nobody CAN sign and a level nobody is ASKED to sign. **The Deactivate dialog says this
+    on screen, naming the office**, and passes already climbing are signed by whoever is
+    designated next (046 resolves authority from the OFFICE at the moment of the press).
+  - **The ladder card lists ACTIVE accounts only**, and `useApprovalRoles` gained a `reload` the
+    Users tab calls after a deactivation or a reactivation — a ladder read once at mount would go
+    on naming somebody the database no longer seats.
+- Pinned by 8 new `sqlInvariants` cases (each watched FAILING against a deliberately broken 059),
+  a new `tests/unit/approvalOfficeVacancy.test.tsx` (3), 2 new `approvalDeputyCard` cases (the
+  active-only sweep watched failing first), and 4 new `passStage` cases plus one on the tone map.
+  `npm run check` is **1768 tests across 138 files**, green.
+- **NOT SEEN SIGNED-IN IN A BROWSER, AND 059's RLS HALF IS NOT PROVED**: psql applies as
+  `postgres` and bypasses every policy, so no `scripts/verify-059.mjs` has driven a real admin
+  JWT through deactivate → re-designate → reactivate. That probe is the next security action, and
+  it is now ahead of `verify-057.mjs` in the queue.
+
+**Earlier (2026-08-20, twenty-fourth pass): MY PASSES IS THE CLIENT'S OWN LIST
 MOCK-UP — a stack of pass cards with the type in colour, the period and the day as two
 dropdowns on top, everything else behind one Filters button, and a card that unfolds its own
 material lines. Frontend only — no migration, no RPC change, and the SAME one query as before.**
