@@ -14,6 +14,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 
 vi.mock('../../src/pages/Admin/DepartmentsTab', () => ({ default: () => <div>departments pane</div> }));
 vi.mock('../../src/pages/Admin/UsersTab', () => ({ default: () => <div>users pane</div> }));
+vi.mock('../../src/pages/Admin/FunctionalRolesTab', () => ({ default: () => <div>roles pane</div> }));
 vi.mock('../../src/pages/Admin/BlacklistTab', () => ({ default: () => <div>blacklist pane</div> }));
 vi.mock('../../src/pages/Admin/WhitelistRequestsTab', () => ({ default: () => <div>whitelist pane</div> }));
 vi.mock('../../src/pages/Admin/MailSettingsCard', () => ({ default: () => <div>mail settings pane</div> }));
@@ -25,12 +26,30 @@ vi.mock('../../src/lib/useMyProfile', () => ({
 import AdminPanel from '../../src/pages/Admin/AdminPanel';
 
 describe('AdminPanel tabs', () => {
-  it('offers exactly Departments, Users, Blacklist, Whitelist Requests and Settings, in that order', () => {
+  // REWRITTEN 2026-08-20. It used to hold that the strip was exactly
+  // Departments · Users · Blacklist · Whitelist Requests · Settings. The client
+  // asked for Functional Roles "just beside the users and departments", so the
+  // tab is asserted BY POSITION as well as by name — third, immediately after
+  // the two it was asked to sit beside.
+  it('offers exactly Departments, Users, Functional Roles, Blacklist, Whitelist Requests and Settings, in that order', () => {
     render(<AdminPanel />);
     const labels = screen
       .getAllByRole('button')
       .map((b) => b.textContent?.trim());
-    expect(labels).toEqual(['Departments', 'Users', 'Blacklist', 'Whitelist Requests', 'Settings']);
+    expect(labels).toEqual([
+      'Departments',
+      'Users',
+      'Functional Roles',
+      'Blacklist',
+      'Whitelist Requests',
+      'Settings',
+    ]);
+  });
+
+  it('opens the roles screen on that tab', () => {
+    render(<AdminPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Functional Roles' }));
+    expect(screen.getByText('roles pane')).toBeTruthy();
   });
 
   // Client, 2026-08-20: the inbox every approval letter is redirected to must

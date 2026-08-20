@@ -15,6 +15,7 @@
 import React, { useState } from 'react';
 import DepartmentsTab from './DepartmentsTab';
 import UsersTab from './UsersTab';
+import FunctionalRolesTab from './FunctionalRolesTab';
 import BlacklistTab from './BlacklistTab';
 import WhitelistRequestsTab from './WhitelistRequestsTab';
 import CeoApproverCard from './CeoApproverCard';
@@ -24,11 +25,13 @@ import MailSettingsCard from './MailSettingsCard';
 import AppSettingsCard from './AppSettingsCard';
 import { useMyProfile } from '../../lib/useMyProfile';
 
-type Tab = 'departments' | 'users' | 'blacklist' | 'whitelist' | 'settings';
+type Tab = 'departments' | 'users' | 'roles' | 'blacklist' | 'whitelist' | 'settings';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'departments', label: 'Departments' },
   { key: 'users', label: 'Users' },
+  // Beside Users and Departments, on the client's own instruction (2026-08-20).
+  { key: 'roles', label: 'Functional Roles' },
   { key: 'blacklist', label: 'Blacklist' },
   { key: 'whitelist', label: 'Whitelist Requests' },
   { key: 'settings', label: 'Settings' },
@@ -51,6 +54,7 @@ export default function AdminPanel(): React.ReactElement {
         <UsersTab />
       </div>
     ),
+    roles: <FunctionalRolesTab />,
     blacklist: <BlacklistTab />,
     settings: (
       <div className="space-y-6">

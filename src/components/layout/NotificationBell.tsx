@@ -43,6 +43,14 @@ export default function NotificationBell(): React.ReactElement {
         dismiss(notifId);
         return;
       }
+      // NOT A PASS (060). The id is a department deletion request and the
+      // decision lives on the HOD's own dashboard, so this row must never be
+      // routed to `/pass/:id` — that record does not exist.
+      if (type === 'dept_delete') {
+        dismiss(notifId);
+        navigate('/dashboard');
+        return;
+      }
       const route = DECISION_ROUTE[type];
       if (route) {
         navigate(`${route}/${passId}`);

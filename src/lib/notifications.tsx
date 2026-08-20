@@ -28,7 +28,17 @@ import { gp, supabase } from '../supabaseClient';
 import { factKey, readDismissed, writeDismissed } from './notificationDismissals';
 import type { GatePassView, UserRole } from '../types';
 
-export type NotificationType = 'flagged' | 'expired' | 'matched' | 'new_pass' | 'rejected';
+export type NotificationType =
+  | 'flagged'
+  | 'expired'
+  | 'matched'
+  | 'new_pass'
+  | 'rejected'
+  // The one notice on this bell that is NOT about a gate pass (migration 060):
+  // an admin wants to delete a department this HOD heads, and only they can
+  // approve it. `passId` carries the REQUEST id — it is the dismissal key and
+  // nothing else; the row opens the dashboard, where the decision lives.
+  | 'dept_delete';
 
 export interface AppNotification {
   id: string;
@@ -102,6 +112,14 @@ export function expiredMessage(passNumber: string): string {
  *  it, and a sentence repeated in the bell is a sentence that can be read
  *  without knowing who said it. Rejection is terminal — the pass is closed and
  *  a fresh one is the only way forward, which is why the line says so. */
+/** The words the HOD reads when an admin asks to delete their department. It
+ *  says the department is still there, because that is the fact the reader
+ *  needs: nothing has happened yet and nothing will without them. */
+export function deptDeleteMessage(departmentName: string, by: string | null): string {
+  const who = by ? ` by ${by}` : '';
+  return `${departmentName} has been proposed for deletion${who}. Nothing has been deleted — open your dashboard to approve or refuse it.`;
+}
+
 export function rejectedMessage(passNumber: string): string {
   return `${passNumber} was rejected during approval and is now closed. Open it to see which level rejected it and why, then raise a new pass if the material still needs to go out.`;
 }
@@ -259,6 +277,42 @@ export function NotificationProvider({ session, role, children }: Props): React.
               timestamp: p.updated_at ?? p.created_at,
             });
           }
+        }
+        // ─── The department deletion queue (060) ─────────────────────────────
+        // ITS OWN try/catch, deliberately NOT in the Promise.all above: this is
+        // the one notice on the bell that is not about a gate pass, and a
+        // failure to read it must not cost the reader their mismatch, expiry
+        // and rejection notices. The RPC answers with what THIS reader is
+        // entitled to and with nothing at all for somebody who heads no
+        // department, so there is no filter to get wrong here.
+        try {
+          const deptRes = await gp().rpc('list_department_delete_requests');
+          type Row = {
+            id: string;
+            department_name: string;
+            requested_name: string | null;
+            status: string;
+            can_decide: boolean;
+            created_at: string;
+          };
+          for (const r of ((deptRes?.data ?? null) as Row[] | null) ?? []) {
+            // Only what is waiting on THIS reader. A decided request is history,
+            // and the dashboard card is where history is not shown either.
+            if (r.status !== 'pending' || !r.can_decide) continue;
+            addNotification({
+              id: genId(),
+              type: 'dept_delete',
+              title: 'Department Deletion Request',
+              message: deptDeleteMessage(r.department_name, r.requested_name),
+              // The REQUEST id, not a pass id: it is what makes the dismissal
+              // key unique per request. Nothing navigates to /pass with it.
+              passId: r.id,
+              passNumber: r.department_name,
+              timestamp: r.created_at,
+            });
+          }
+        } catch {
+          /* No deletion notices. The three above are already on the bell. */
         }
       } catch {
         // The bell is an aid, never a gate. A failed read leaves it empty rather

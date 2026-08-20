@@ -59,18 +59,111 @@ JWTs** (`scripts/verify-054.mjs` 17/17, `-055` 26/26, `-056` 26/26 — see the t
 **the RLS half of `057`, `058` and `059` is still unproved** — `verify-059.mjs` (deactivate an
 office holder, re-seat the office, reactivate them) and then `verify-057.mjs` are the next two
 security actions.
+**`060` (department deletion needs the HOD) and `061` (an approver sees a pass only when it is
+their turn) ARE BOTH APPLIED**, and **`061` IS PROBED 36/36 with real anon-key JWTs**
+(`scripts/verify-061.mjs` — it borrows the four offices, hands them back, and its four probe
+passes were deleted, leaving 67 rows exactly as before). **`060`'s RLS half is NOT probed**: it
+was applied with psql as `postgres`, and no `scripts/verify-060.mjs` has driven a real admin JWT
+through request → HOD approval → deletion. That is now the next security action.
 
 | Thing | State |
 |---|---|
 | `gatepass.gate_passes` | **67 rows** (2026-08-20, twenty-fifth pass) — real user data. **Not a scratch DB; do not wipe it.** |
-| `public.departments` | **12 rows** (VMS-owned, shared) — do not wipe |
+| `public.departments` | **15 rows** (2026-08-20, counted as `postgres`; the old "12 rows" line was stale) — VMS-owned, shared, do not wipe. **Every one of them has at least one `public.profiles` row pointing at it**, which is why every delete raised 23503 until `060`. |
 | Demo accounts | the `@demo.vms` accounts share password `demo123` and are email-confirmed; shared with VMS. **"all email-confirmed" was WRONG** — 7 real accounts carried `email_confirmed_at is null` and none of them had ever signed in (see the 048 entry). 6 still do, and a password reset is now what confirms them. |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 | `gatepass.approval_roles` | **4 rows — ALL FOUR OFFICES ARE FILLED**, so since `046` was applied every NEWLY raised pass needs four approvals and **the gate cannot see it until it has them**. Security Head **Demi** (re-designated 2026-08-19, fourteenth pass — it had been Jane/`jollyroyy@gmail.com` for the email test) · COO Sudeshna Pal · CEO Sid · Finance HOD GUARDSOHAM. One person holds one office (`049`). Admin → Users → *Gate pass approval ladder* is where they are set. |
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-20, twenty-seventh pass): AN APPROVER CAN UNFOLD A CARD IN THE QUEUE
+**Latest change (2026-08-20, twenty-eighth pass): THE FOUR APPROVAL OFFICES CAN SIGN IN AGAIN;
+A DEPARTMENT IS DELETED ONLY BY ITS OWN HOD (migration `060`, APPLIED); AN APPROVER CANNOT SEE A
+PASS UNTIL IT IS THEIR TURN (migration `061`, APPLIED AND PROBED 36/36); AND ADMIN HAS A
+Functional Roles TAB.**
+
+- **NOBODY WAS DEACTIVATED — THE APP SAID THEY WERE.** The client could not sign in as the
+  Security Head, the COO or the Finance HOD: all three read "Account Deactivated".
+  `gatepass.user_status` holds **no row for any of the four office holders** (checked as
+  `postgres`), so none of them was suspended. `fetchAccessState` asked **`isAccountActive`**,
+  which is false for any `staff` row — and an office holder is created as VMS `staff` by 046.
+  It now asks **`isDirectoryActive`**, the question the admin directory already asked, with the
+  office read alongside the role in `App.tsx`. A suspension still outranks the office, and a bare
+  `staff` row with no office still reaches nothing (it falls through to the role check, which
+  says "No Gate Pass Access" — the message that fits the cause). Pinned by
+  `tests/unit/approverSignIn.test.ts` (5), watched failing first.
+- **MIGRATION `060` — DELETING A DEPARTMENT: the foreign key that always refused it, and the
+  HOD's approval that must now be asked for.**
+  - **`admin_delete_department` (022) COULD NOT DELETE ANY DEPARTMENT AT ALL.** It cleared
+    `hod_departments` and then deleted the parent row, while `public.profiles.department_id` still
+    pointed at it under a plain `no action` FK. Every live department has somebody assigned, so
+    every press returned 23503 — "This action conflicts with related data". The assignment is now
+    cleared with the department: it says where somebody works today, not where a pass went.
+    Writing a VALUE into a VMS column through a definer RPC is what `admin_create_user` already
+    does; **nothing in `public` is altered**.
+  - **AN ADMIN MAY NO LONGER DELETE A STAFFED DEPARTMENT ON THEIR OWN** (client). A department
+    with an ACTIVE HOD (`is_user_active`, 040) raises a row in
+    `gatepass.department_delete_requests`; that HOD approves or refuses it on their dashboard, and
+    **approving is what performs the deletion** (the client's own choice between one decision and
+    two). A department nobody heads is still deleted on the press — the client's own narrowing.
+  - **WHAT THE HOD CANNOT OVERRIDE**: gate passes / gate pass items (a pass names its department
+    on printed paper), and VMS's `public.visits` / `public.recurring_visits` (another product's
+    history, on a NOT NULL column). Each is refused with its own sentence and its own count,
+    BEFORE anybody is asked to decide. `gatepass.vendor_profiles` IS deleted with the department —
+    it is this app's auto-fill record for one department's raise form and cannot outlive it.
+  - The request table is **RLS-on with no policy and no grant**: the RPCs are the only readers and
+    writers. `department_id` is `on delete set null` with the **name and code snapshot beside it**,
+    because approving destroys the row it points at and a cascade would erase the decision in the
+    act of carrying it out.
+  - Admin → Departments now says which of the two happened and **names the HOD it went to**, shows
+    a waiting request on the department's own row, and can **withdraw** it (not a decision — no
+    decider is written). The HOD's card is `src/components/hod/DepartmentDeleteRequests.tsx`,
+    drawn only when something is actually waiting on that reader, with a two-press approve and a
+    written reason on a refusal. The bell carries the notice as well (`dept_delete`, the one
+    notification on it that is not about a gate pass — it opens the dashboard, never `/pass/:id`).
+- **MIGRATION `061` — AN APPROVER CANNOT SEE A PASS UNTIL IT IS THEIR TURN** (client: "the
+  next-level approver should not be able to see anything about that gate pass until and unless
+  the security approves it … strictly implement this").
+  - **THE ORDER OF ACTING WAS ALREADY LINEAR.** `approve_pass_level` has refused any caller who is
+    not the lowest still-pending rung since 046, and 061 does not touch it. What was wrong is
+    VISIBILITY: the 046 trigger snapshots all four levels at once, so `pass_routed_to_me` answered
+    true from the moment the pass was raised and the COO could READ (and list) a pass the Security
+    Head had not signed.
+  - The rule is now one line: **I see a pass routed to my office when every rung BELOW mine is
+    approved.** `<> 'approved'` rather than `= 'pending'` on purpose — **a pass rejected below an
+    office stays invisible to it for ever**, because the turn never reached that desk.
+  - **ONE FUNCTION IS THE WHOLE CHANGE**, which is what makes it trustworthy: that predicate is
+    the approver arm of `gate_passes_select` AND `gate_pass_items_select`, and `pass_approvals`,
+    `pass_remarks` and `emergency_releases` all read it through `can_see_pass`. The queue, the
+    record, the material lines, the ladder rungs and the remarks narrow together, and there is
+    deliberately no second copy of the rule in a screen or a query.
+  - **PROBED 36/36 LIVE** (`scripts/verify-061.mjs`, real anon-key JWTs): on raise only the
+    Security Head sees the pass, its items and its ladder; each approval reveals it to exactly one
+    more office and no other; an office goes on seeing what it signed; the gate stays blind until
+    the ladder finishes and then sees it; and a pass rejected at level 1 is invisible to all three
+    offices above. The ladder was left exactly as found and the probe's four passes were deleted.
+- **ADMIN → Functional Roles**, third tab, beside Departments and Users (client). Every role in
+  the system with **what it is for and what holding it actually lets somebody do**, written from
+  the policies and RPCs that enforce it — `src/lib/functionalRoles.ts`, over
+  `src/pages/Admin/FunctionalRolesTab.tsx`.
+  - **A NEW KIND OF ROLE CANNOT BE INVENTED, AND THE PAGE SAYS SO.** A role is either a value of
+    VMS's `profiles.role` enum (a table this app must not alter) or one of the four
+    `approval_roles` keys (fixed by a CHECK). So "create" means **Create Role Holder** — the Users
+    tab's OWN `AddUserModal`, not a copy — and "assign" is `ApprovalLadderCard`, rendered here as
+    well as on Users because it is one component reading one RPC and the two cannot disagree.
+  - An office is shown by its ONE HOLDER, a VMS role by its ACTIVE headcount; printing a headcount
+    against the CEO would describe an authority the database cannot grant twice.
+  - Admin and super_admin say plainly that they **cannot be granted from this portal** (021 needs
+    the service-role key), and `staff` says it opens nothing on its own.
+- Pinned by `approverSignIn.test.ts` (5), `departmentDeleteRequests.test.ts` (17),
+  `departmentDeleteCard.test.tsx` (6), `functionalRoles.test.ts` (11), `functionalRolesTab.test.tsx`
+  (5), 21 new `sqlInvariants` cases across 060/061 (the 061 predicate case was watched FAILING
+  against a deliberately broken migration), and a **REWRITTEN** `adminPanelTabs.test.tsx` case
+  whose comment says what it used to hold.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite, a typecheck, the psql applies and the live 061
+  probe only. The HOD's deletion card, the admin's new tab and the Departments row's waiting
+  strip are exactly what only a real render proves.
+
+**Earlier (2026-08-20, twenty-seventh pass): AN APPROVER CAN UNFOLD A CARD IN THE QUEUE
 AND READ THE PASS'S INDIVIDUAL ITEM LINES BEFORE SIGNING, AND APPROVE NOW SITS AHEAD OF REJECT.**
 Frontend only — no migration, no RPC change, no new query type.
 
@@ -2430,7 +2523,8 @@ the query and `GateConsole` renders the results full width above the queue.
 - **The HOD's "Mismatches needing review" queue is GONE** (2026-08-19, with the old board). The
   bell's mismatch notice is now the only route to `/mismatch/:id`. Accepted with the client, who
   asked for the dashboard to be their mock-up exactly.
-- **`src/lib/notifications.tsx` is 386 lines**, over the 300-line cap. It was already 347 before
+- **`src/lib/notifications.tsx` is 434 lines**, over the 300-line cap (the department-deletion
+  notice added on 2026-08-20 grew a file that was already over). It was already 347 before
   the rejection notice was added to it; the honest fix is extracting the mount-time derivation
   into its own hook.
 - **The admin lost the overdue DEPARTMENT CHART and the 7-day TREND** when `/overdue` became one
