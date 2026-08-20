@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-20
 
-Full gate: **1521 tests across 124 files** (`npm run check`), green — and **`npm run build` is
+Full gate: **1667 tests across 131 files** (`npm run check`), green — and **`npm run build` is
 green again**, which it had not been since the raise-form CSS landed (see the twelfth pass).
 Migrations **`001`–`047` and `049`–`051` are applied to the live DB.** `044` was found UNAPPLIED on
 2026-08-19 — the overdue card's Contact Vendor and Add Remark had shipped against RPCs that did
@@ -53,7 +53,9 @@ unchanged and its six probe passes were deleted, leaving **60 rows exactly as be
 **`045`, `047` and `048` belong to a parallel session.** `045` IS applied (`vendor_profiles.address`
 exists and `raise_pass` reads `make_model`); **`047` and `048` are NOT** — no approval-email or
 notification function exists in `gatepass`. `APPLY_ALL.sql` carries every section regardless. **`052` (mail settings) IS APPLIED and probed
-live**; **`053` belongs to a parallel session and its state is not known here.**
+live**; **`053` belongs to a parallel session and its state is not known here.** **`057` IS
+APPLIED** (psql, as `postgres` — so its RLS half is unproved); **`054`, `055` and `056` are NOT
+applied and belong to a parallel session.**
 
 | Thing | State |
 |---|---|
@@ -63,9 +65,182 @@ live**; **`053` belongs to a parallel session and its state is not known here.**
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 | `gatepass.approval_roles` | **4 rows — ALL FOUR OFFICES ARE FILLED**, so since `046` was applied every NEWLY raised pass needs four approvals and **the gate cannot see it until it has them**. Security Head **Demi** (re-designated 2026-08-19, fourteenth pass — it had been Jane/`jollyroyy@gmail.com` for the email test) · COO Sudeshna Pal · CEO Sid · Finance HOD GUARDSOHAM. One person holds one office (`049`). Admin → Users → *Gate pass approval ladder* is where they are set. |
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
-| `gatepass.pass_approvals` | **4 rows** — one pending ladder, on `NRGP-20260819-0002`, sitting at level 1 (Security Head). The 60 older passes carry no ladder and reach the gate exactly as they did before. |
+| `gatepass.pass_approvals` | **20 rows — five passes climbing the ladder** (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`, `RGP-20260820-0001/0002`). Four of them are past level 1; every one of them is waiting on the **COO**. Renumbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older passes carry no ladder and reach the gate exactly as they did before. |
 
-**Latest change (2026-08-20, nineteenth pass): THE ADMIN'S REPORTS TAB IS THE CLIENT'S
+**Latest change (2026-08-20, twenty-first pass): AN OFFICE CAN HAVE A DEPUTY, A SUPER
+ADMIN CAN RELEASE A STUCK PASS IN WRITING, EVERY EVENT IS ON ONE ADMIN SCREEN, AND THE
+SETTINGS TAB CARRIES ITS PROVISIONS HONESTLY — migrations `054`, `055` and `056`, WRITTEN AND
+NOT APPLIED.** Answering the client's four questions: what happens when an approver cannot
+approve, when none of them can, what stops a stolen password, and how anybody reads the logs.
+
+- **THE MARKET'S ANSWER, AND THE LITTLE OF IT TAKEN.** SAP, Oracle, ServiceNow, Coupa and
+  Workday all solve approver absence with a named stand-in plus escalation on a timer; for total
+  unavailability the standard is break-glass, and SAP GRC's Firefighter is the reference. Its
+  four essentials are a pre-named pool, a written reason at the moment of use, a natural end, and
+  review by somebody who was not the actor — the same four NIST SP 800-53 (AC-2, AU-6), ISO
+  27001 A.8.2 and SOX/COSO on management override converge on. Those four are built.
+  **DELIBERATELY NOT BUILT**: date-bounded vacation rules, self-service delegation, approval
+  SLAs, reminder jobs, auto-approval on timeout, quorum voting. A standing deputy needs nothing
+  switched on before leave, which is exactly when it would be forgotten.
+- **`054` — EVERY OFFICE MAY HAVE ONE STANDING DEPUTY.** `approval_roles.deputy_id`, and
+  `my_approval_role()` widened by one `or`. **That single `or` is why this migration is small**:
+  both RLS policies, `pass_routed_to_me`, `pass_awaits_approval`, both decision RPCs and the
+  whole slip-order rule already resolve authority through that one function, so a deputy inherits
+  the entire existing workflow. `approvalDecision.ts` needed NO change — it reasons about
+  offices, not people.
+  - **ONE PERSON, ONE SEAT — 049 EXTENDED, NOT CONTRADICTED.** 049 made `user_id` unique because
+    `my_approval_role()` is a scalar over a query that can yield several rows and Postgres returns
+    an arbitrary one. A deputy reopens exactly that hazard, so `deputy_id` gets a partial unique
+    index AND both setters refuse anyone already seated, in either direction, naming the seat.
+    The property that falls out is the load-bearing one: **no human can ever sign two rungs of
+    the same pass.**
+  - **`pass_approvals.decided_as_deputy` is a STORED column, not a join** — the seat is a fact
+    about the MOMENT of the decision and both seats move. The record renders "Standing deputy for
+    the Security Head" where the department would otherwise sit (Workday's "On Behalf Of").
+  - The letter goes to the deputy as well as the holder, deduplicated by address, with its own
+    lead — "you hold the X office" is false for a deputy.
+  - **`ApprovalLadderCard`'s copy said designating somebody "grants no access of any kind". 046
+    made that FALSE and nobody revised it.** Corrected here, on screen and in the header.
+- **`055` — EMERGENCY RELEASE.** `emergency_release_pass(pass, reason)`, **super_admin only**
+  (the inline `app_role() <> 'super_admin'` form, 039's precedent — `is_admin()` would hand the
+  ladder to the same group that administers it), reason 10–500 chars, clears every still-pending
+  level at once and writes `gatepass.emergency_releases`.
+  - **⚠ IT DOES NOT TOUCH `gate_passes.status`, and that is the whole trick.** The pass stays
+    `pending`; clearing the rows makes `pass_awaits_approval()` false, so the guard can see it and
+    `match_pass` works normally. Therefore: **no UPDATE grant on `gate_passes`** (sqlInvariants
+    still passes), **`block_unapproved_gate_move` is never tripped**, and **no new enum label** —
+    which could not be USED in the transaction that adds it anyway.
+  - `pass_approvals.emergency` marks the cleared levels, because `decided_by` there is the super
+    admin who holds none of those offices. Without it the ladder would read "Approved by X"
+    against four offices X does not hold — a fabricated audit trail, the exact thing 046 refuses
+    when it declines to backfill the grandfathered passes.
+  - **`review_emergency_release` REFUSES the person who released it.** That one line is the
+    control; everything else is bookkeeping. It is `is_admin()` and not super_admin **on purpose**
+    — a wider reviewer pool is what makes the refusal bite.
+  - A permanent red banner on the record for every reader, an Admin → Users card listing
+    unreviewed releases first, and an `emergency_release` letter to every skipped office. **The
+    Edge Function DERIVES which letter to write** from an `emergency` key 055 adds to
+    `approval_notice_payload` — 047's rule that the caller sends a pass id and nothing else still
+    holds, so no browser can ask this system to describe an event that did not happen.
+- **`/activity` — THE ACTIVITY LOG, and it needed NO migration.** Three reads of tables the pass
+  record's own timeline already merges, widened from one pass to all of them, over pure
+  `src/lib/activityLog.ts`. Admin only. Filterable by day and free text, CSV through the existing
+  `exportUtils`. **An emergency release never reads as an approval there** — that case is pinned.
+  - **THE WINDOW IS THE FIRST QUERY'S**: approvals and gate events are narrowed to the passes
+    RAISED in the window, so a decision made today on a pass raised in June is outside a 30-day
+    view. Stated on screen. The alternative is scanning every approval row on every page load.
+- **`056` — Admin → Settings gains an Application settings card**, 052's pattern exactly
+  (single-row boolean PK, RLS on with no policy and no grant, `is_admin()`-gated definer
+  getter/setter).
+  - **ONE FIELD ENFORCES SOMETHING: the idle sign-out timer.** `SessionTimeout.tsx` reads it
+    instead of its constant. **`get_session_timeout()` is granted to every signed-in user** and
+    returns that one integer — their own browser is what enforces it, so gating it would leave a
+    setting that only changed the behaviour of the admin who set it. The 2FA flag stays
+    admin-only: "there is no second factor here" is reconnaissance about a control.
+    **The default is still FIVE minutes**, and a test pins that, so making it configurable did
+    not quietly change it for anyone who never sets one.
+  - **THREE FIELDS ENFORCE NOTHING, and the screen says so under each.**
+    `require_approver_2fa`, `app_name`, `brand_color` are stored provisions (client: keep the
+    option, do not set it up now). **⚠ A control labelled "Require 2FA" that silently does
+    nothing is WORSE than no control** — an admin who flips it and walks away believes their
+    approvers are protected. `twoFactorNote()` and `brandingNote()` are therefore load-bearing
+    and are tested like behaviour; if either is ever removed, delete the field rather than
+    quieten the sentence. Same honest precedent as 052's SMTP columns.
+  - `MailField.tsx` is renamed **`SettingField.tsx`** — nothing about it was ever mail-specific
+    except the filename, and a second identical component is worse than a rename.
+- **PASSWORD RE-ENTRY IS NOT A SECOND FACTOR**, and the client was told so plainly: it is
+  re-authentication (GitHub's "sudo mode") and accomplishes nothing against somebody who already
+  has the password. The ceiling above TOTP is transaction-bound signing — PSD2 "dynamic linking"
+  and 21 CFR Part 11 §11.70 both bind the signature to the specific record — which is achievable
+  with passkeys and beyond what a gate pass warrants.
+- Pinned by `approvalDeputyCard.test.tsx` (5), `emergencyRelease.test.ts` (11),
+  `activityLog.test.ts` (10), `appSettings.test.ts` (11), 3 new `approvalLadder` cases, 5 new
+  `approvalNotice` cases, and 28 new `sqlInvariants` cases across 054/055/056. Every security
+  case was watched FAILING against a deliberately broken migration before being kept.
+  `npm run check` is **1667 tests across 131 files** and `npm run build` is green.
+- **NOT APPLIED AND NOT PROBED.** `054`, `055` and `056` are written, concatenated into
+  `APPLY_ALL.sql`, and have never touched the live database. **The next action is applying them
+  and writing `scripts/verify-054.mjs`** — a deputy approving a pass their principal never
+  touched, both directions of the one-seat refusal, a non-super-admin refused the release, the
+  guard seeing and matching a released pass, and the releaser refused their own review. None of
+  that can be proved as `postgres`, which bypasses RLS.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite and a production build only.
+
+**Latest change (2026-08-20, twentieth pass): THE LADDER IS SECURITY HEAD → COO →
+FINANCE HOD → CEO, CLIMBED ONE RUNG AT A TIME; A PASS STILL CLIMBING IT NO LONGER OFFERS THE
+GATE A BUTTON; THE HOD GETS THE ADMIN'S REPORT FOR THEIR OWN DEPARTMENT; AND AN OFFICE HOLDER
+CAN BE DEACTIVATED. Migration `057`, APPLIED via psql (every statement returned).**
+
+- **THE ONE-AT-A-TIME RULE WAS NEVER BROKEN — the ORDER changed, and the ERROR was a button.**
+  Client: "make the approval process linear, one by one: 1. The security head has to approve
+  2. COO 3. Finance 4. CEO", reported alongside *"This gate pass has not been approved by every
+  level yet"* hitting the Security Head after they approved.
+  - `approve_pass_level` has refused any caller who is not the LOWEST still-pending rung since
+    046, and the live table showed exactly that. **What the client actually hit is that THE
+    SECURITY HEAD ON THIS DEPLOYMENT IS A `guard` ACCOUNT** (`sec@demo.vms`; 043 allows it).
+    046's `gate_passes_select` gives an office holder `pass_routed_to_me(id)`, so they can read
+    a pass that is still climbing — correct, they must read what they sign — but they also keep
+    every gate screen. The pass they had just approved at level 1 sat in their own Pending OUT
+    queue with **Approve OUT** on it, and pressing it ran `match_pass` into
+    `block_unapproved_gate_move`. **That trigger is right and is untouched.**
+  - **`v_gate_passes` GAINS `awaits_approval`** (TRAP 2: dropped and rebuilt, grant re-applied,
+    `security_invoker` restated), defined as `gatepass.pass_awaits_approval(p.id)` — SECURITY
+    DEFINER, so it answers the same for every reader and costs one PK probe per row.
+    `canVerifyAtGate` reads it and the guard queue filters `.eq('awaits_approval', false)`
+    server-side. **Never recomputed in TypeScript**, the rule `is_overdue` lives by. The field
+    is OPTIONAL on `GatePassView` so pre-057 fixtures still type-check, and falsy is the safe
+    reading: no ladder, nothing owed.
+  - **FINANCE IS LEVEL 3 AND THE CEO IS LEVEL 4**, reversing the order 043 took off the printed
+    A5 slip — the CEO now signs on a pass finance has already costed. Stated in THREE places
+    that must move together: `APPROVAL_LADDER`, `SIGNATURE_ROWS` (`signatureBlocks.ts`) and
+    `pass_approvals.level_no` + its CHECK. **The 20 existing rows were renumbered** (the check
+    is dropped, the rows updated, the check re-added — no single UPDATE can satisfy both
+    mappings at once); every ceo/finance row was `pending`, so no climbed rung moved.
+    054's stale copy of the mapping was corrected in place.
+- **AN OFFICE HOLDER GETS EDIT AND DEACTIVATE** (client: "all these four roles should have the
+  deactivate and edit option also for the admin"). This REVERSES 046's rule that such a row
+  carried no suspend/restore control. Deactivation already worked server-side —
+  `admin_soft_delete_user` refuses only an admin target and the caller themselves, and
+  `my_approval_role()` gates on `is_user_active`, so suspending an approver really does empty
+  their queue. **REACTIVATION was the half that was broken and would have shipped a one-way
+  door**: 040's `admin_reactivate_user` refuses every target whose role is not guard/hod, and
+  an office holder is `staff`. `057` widens that test to "has this person anything to come back
+  TO" — guard/hod OR a row in `approval_roles`. **A bare `staff` row is still refused**, and
+  040's reason for refusing it is still right. `handleReactivateClick` sends an office holder
+  straight to the RPC rather than through the role-choice modal, which would have offered
+  Guard/HOD to a COO and cost them their office on the way back in.
+- **THE HOD HAS A Reports TAB — THE ADMIN'S SCREEN, THEIR OWN DEPARTMENT** (client: "the same
+  report tab section... exactly the same type of thing... for all the HODs but only for their
+  department. Remove the department and raised by column... both from the column header and the
+  filter section"). `/reports` in `ROLE_ROUTES.hod` (sidebar: Dashboard · My Passes · Overdue
+  Items · Reports), rendering `src/pages/HOD/HodReports.tsx`.
+  - **ONE SCREEN, NOT A FORK.** `ReportsPage`, `ReportsFilterBar` and `ReportsTable` each take
+    a `showPeople?: boolean` defaulting to TRUE, so the admin's `/all-passes` is byte-for-byte
+    unchanged; `HodReports` is `<ReportsPage showPeople={false} />` and nothing else. A copied
+    register is two registers that drift.
+  - **THE DEPARTMENT SCOPE IS RLS's, not a filter's** — no `.eq()` anywhere. 046's
+    `gate_passes_select` already narrows an `hod` to `department_id in (select
+    my_department_ids())`, which is why the two hidden controls had nothing left to narrow.
+  - `reportCsvColumns(showPeople)` drops the same two columns from the export, because a report
+    and its export must say the same thing. `REPORT_CSV_COLUMNS` / `ALL_PASSES_CSV_COLUMNS` are
+    unchanged under their old names, so `csvExport.test.ts` still walks the admin column set.
+- Pinned by a new `tests/unit/approvalOrderLinear.test.ts` (10 — the order on all three
+  surfaces, a walk that proves exactly ONE office may act at each of the four steps, finance
+  refused ahead of the COO, and the gate button withheld/restored/left alone on a pass with no
+  ladder), a new `tests/unit/hodReports.test.tsx` (5) and 10 new `sqlInvariants` cases.
+  **REWRITTEN, each saying in its own comment what it used to hold**: `approvalLadder.test.ts`,
+  `passPrintSignatures.test.tsx`, `createApproverUser.test.tsx`, `approvalDecision.test.ts`.
+- **NOT SEEN SIGNED-IN IN A BROWSER, AND THE RLS HALF IS NOT PROVED.** `057` was applied with
+  psql as `postgres`, which bypasses every policy — there is no `scripts/verify-057.mjs` run.
+  What IS verified: the 20 rows renumbered and read back, `awaits_approval` reading `t` on the
+  five climbing passes and `f` on a matched one, and `npm run check` green. Nobody has signed in
+  as the COO and watched their letter arrive, and no HOD has opened `/reports`.
+- **This working tree also carries a PARALLEL SESSION's in-flight work** — migrations `054`
+  (approval deputy), `055` (emergency release) and `056` (app settings), none of them applied to
+  the live DB, plus their screens. It is committed alongside because the two sessions edited the
+  same files and cannot be separated; its state is not described here.
+
+**Earlier (2026-08-20, nineteenth pass): THE ADMIN'S REPORTS TAB IS THE CLIENT'S
 "Gate Pass Report (RGP & NRGP)" MOCK-UP, box for box — plus the two columns they asked for on
 top of it.** Frontend only — no migration, no RPC change, and ONE query, exactly as before.
 
@@ -1720,6 +1895,21 @@ the query and `GateConsole` renders the results full width above the queue.
 - Pinned by `tests/unit/phoneSearch.test.ts` (6) and `tests/unit/gateLookupPhone.test.tsx` (5).
 
 ### Known, not fixed
+
+- **`src/lib/approvalNotice.ts` is 437 lines**, well over the 300-line cap, and **it cannot be
+  split**: Deno needs a `.ts` extension on a local import and the app's tooling needs none, so
+  importing nothing is the only way one file serves both runtimes. `approvalNotice.test.ts` fails
+  if an import ever appears there. A justified exception rather than debt to pay down.
+- **NO IP ADDRESS, DEVICE OR BROWSER IS RECORDED FOR ANY ACTION**, so the Activity Log cannot say
+  which machine did something. **`verifications.device_info` EXISTS (014) and `match_pass` /
+  `flag_pass` both accept a `p_device_info`** — nothing in `src/` has ever sent one, so every row
+  is null. Making it real is a frontend change, not a migration.
+- **`gatepass.scan_attempts` and `gatepass.email_log` have no UI.** Both are recorded and both are
+  admin-readable; the Activity Log deliberately leaves them out, because neither is what "who
+  approved this" means and hundreds of scans would bury the decisions.
+- **The approval ladder keeps only CURRENT designations, not their history.** Who held an office
+  on a past date cannot be reconstructed. No pass record is affected — each names whoever actually
+  signed it, and `pass_approvals.routed_to` keeps the holder snapshotted at raise.
 
 - **The HOD's "Mismatches needing review" queue is GONE** (2026-08-19, with the old board). The
   bell's mismatch notice is now the only route to `/mismatch/:id`. Accepted with the client, who

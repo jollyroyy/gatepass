@@ -32,6 +32,10 @@
 //     any email because he or she already raised it. That means approval is
 //     already taken." So this module now produces EXACTLY ONE KIND OF MESSAGE:
 //     a request to the office that must act next, and nothing else.
+//     SINCE 054 THAT ONE REQUEST MAY GO TO TWO PEOPLE — the office's holder and
+//     its standing deputy — because either of them may sign it. That is still
+//     one office being asked one question; it is not a second kind of letter,
+//     and nobody who cannot act on the pass is written to.
 //     COST, STATED: the HOD learns of a rejection in the app alone — the bell's
 //     notice, derived on mount from `status = 'cancelled' and flag_reason is
 //     null` — and hears nothing by mail. That is the client's instruction; if
@@ -79,6 +83,11 @@ export interface NoticeApproval {
   approver_id: string;
   approver_name: string | null;
   approver_email: string | null;
+  /** The office's STANDING DEPUTY (migration 054), resolved TODAY exactly as
+   *  the holder is — authority is read at the moment of the press, so the
+   *  address has to be too. Null is the ordinary case: an office with no cover. */
+  deputy_name?: string | null;
+  deputy_email?: string | null;
   decided_at: string | null;
   reason: string | null;
 }
@@ -91,7 +100,7 @@ export interface NoticeApproval {
  * rather than collapsed to a string so that adding a second kind stays a typed
  * change and `email_log.kind` keeps meaning something.
  */
-export type NoticeKind = 'awaiting_you';
+export type NoticeKind = 'awaiting_you' | 'emergency_release';
 
 export interface NoticeMessage {
   to: string;
@@ -311,14 +320,118 @@ export function buildApprovalNotices(
     'Approving passes it to the next office on the ladder, or releases it to the gate if you are the last. ' +
     'Rejecting closes the pass permanently and needs a written reason.';
 
-  return [
+  const subject = `Approval needed by ${who} — ${pass.pass_number} (${pass.type}), ${rung}`;
+  const link = { href: queueLink, label: 'Open your Pending Approvals' };
+
+  const messages: NoticeMessage[] = [
     {
       to: current.approver_email,
       toName: current.approver_name,
       kind: 'awaiting_you',
-      subject: `Approval needed by ${who} — ${pass.pass_number} (${pass.type}), ${rung}`,
-      text: wrapText(heading, lead, pass, { href: queueLink, label: 'Open your Pending Approvals' }, tail),
-      html: wrapHtml(heading, lead, pass, { href: queueLink, label: 'Open your Pending Approvals' }, tail),
+      subject,
+      text: wrapText(heading, lead, pass, link, tail),
+      html: wrapHtml(heading, lead, pass, link, tail),
     },
   ];
+
+  // THE STANDING DEPUTY IS ASKED TOO (054). Either seat may sign, so a deputy
+  // who is never written to is cover that only works for somebody already
+  // watching the screen — which is precisely the person who did not need cover.
+  //
+  // Its own lead, not a copy of the holder's: "you hold the CEO office" is
+  // false for a deputy, and a letter that misstates why it is asking is how a
+  // reader learns to distrust the rest of it.
+  //
+  // The address is compared case-insensitively before sending twice. One person
+  // seated as both is already refused by the database, but a holder and deputy
+  // sharing a mailbox is not — and two identical letters in one inbox reads as
+  // a bug in the system rather than a quirk of the mailbox.
+  const deputyEmail = current.deputy_email?.trim();
+  if (deputyEmail && deputyEmail.toLowerCase() !== current.approver_email.trim().toLowerCase()) {
+    const dGreeting = current.deputy_name ? `Hello ${current.deputy_name},` : 'Hello,';
+    const dLead =
+      `${dGreeting} you are the standing deputy for the ${title} office` +
+      `${current.approver_name ? `, held by ${current.approver_name}` : ''}. This gate pass has ` +
+      `reached that level (${rung}) and cannot leave the gate until it is approved. ` +
+      'You may approve or reject it yourself.';
+    messages.push({
+      to: deputyEmail,
+      toName: current.deputy_name ?? null,
+      kind: 'awaiting_you',
+      subject,
+      text: wrapText(heading, dLead, pass, link, tail),
+      html: wrapHtml(heading, dLead, pass, link, tail),
+    });
+  }
+
+  return messages;
+}
+
+
+/**
+ * THE PASS WAS RELEASED WITHOUT YOU (migration 055).
+ *
+ * A super admin can clear a stuck ladder when nobody on it can be reached. The
+ * people whose signatures were skipped are exactly the people who must hear
+ * about it, and hear about it from the system rather than from whoever
+ * remembers to mention it — NIST AU-6 and SAP GRC's Firefighter controller step
+ * both put alerting at the moment of use, not in a monthly report.
+ *
+ * WHO IS WRITTEN TO: every office the pass owed, holder and standing deputy
+ * alike, deduplicated by address. NOT the raising HOD — the same client rule
+ * that removed every other receipt (see the header); their pass moved, which is
+ * what they wanted, and the record carries the banner.
+ *
+ * The reason is quoted verbatim and is not summarised. It is the entire
+ * justification, and a reader deciding whether to challenge the release needs
+ * the actual words.
+ */
+export function buildEmergencyNotices(
+  pass: NoticePass,
+  approvals: NoticeApproval[],
+  releasedBy: string | null,
+  reason: string,
+  baseUrl: string
+): NoticeMessage[] {
+  const heading = `Gate pass ${pass.pass_number} was released without approval`;
+  const who = releasedBy ? `${releasedBy} (super admin)` : 'A super admin';
+  const link = { href: joinUrl(baseUrl, '/approvals'), label: 'Open the gate pass' };
+  const tail =
+    'This was recorded on the pass permanently, and another admin has to review it. ' +
+    'If it should not have happened, say so now rather than later.';
+
+  const seen = new Set<string>();
+  const messages: NoticeMessage[] = [];
+
+  for (const a of approvals) {
+    // Both seats of every office, in ladder order. `to` is deduplicated because
+    // a holder and deputy may share a mailbox, and two identical letters read
+    // as a bug rather than as thoroughness.
+    for (const [addr, name] of [
+      [a.approver_email, a.approver_name] as const,
+      [a.deputy_email ?? null, a.deputy_name ?? null] as const,
+    ]) {
+      const clean = addr?.trim();
+      if (!clean) continue;
+      const key = clean.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const greeting = name ? `Hello ${name},` : 'Hello,';
+      const lead =
+        `${greeting} ${who} released this gate pass past the approval ladder, so it can leave ` +
+        `the gate without the ${titleOf(a.role_key)} approval you would normally give. ` +
+        `The reason recorded was: "${reason}"`;
+      messages.push({
+        to: clean,
+        toName: name,
+        kind: 'emergency_release',
+        subject: `Released without approval — ${pass.pass_number} (${pass.type})`,
+        text: wrapText(heading, lead, pass, link, tail),
+        html: wrapHtml(heading, lead, pass, link, tail),
+      });
+    }
+  }
+
+  return messages;
 }

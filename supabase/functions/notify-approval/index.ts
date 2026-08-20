@@ -42,6 +42,7 @@ import { loadMailConfig } from '../_shared/mailConfig.ts';
 // test that fails if an import appears in it.
 import {
   buildApprovalNotices,
+  buildEmergencyNotices,
   type NoticeApproval,
   type NoticePass,
 } from '../../../src/lib/approvalNotice.ts';
@@ -136,7 +137,27 @@ Deno.serve(async (req: Request) => {
     created_at: String(p.created_at),
   };
 
-  const messages = buildApprovalNotices(pass, raw.approvals ?? [], baseUrl);
+  // WHICH LETTER TO WRITE IS DERIVED, NEVER TOLD. The caller sends a pass id
+  // and nothing else (see this file's header), so the presence of the
+  // `emergency` object in the payload — which only exists because a super admin
+  // actually released this pass (055) — is what selects the second kind. A
+  // released pass owes nothing, so `buildApprovalNotices` would return an empty
+  // array for it anyway; branching makes that explicit instead of accidental.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const emergency = (raw as any).emergency as
+    | { released_name?: string | null; reason?: string | null }
+    | null
+    | undefined;
+
+  const messages = emergency
+    ? buildEmergencyNotices(
+        pass,
+        raw.approvals ?? [],
+        emergency.released_name ?? null,
+        emergency.reason ?? '',
+        baseUrl,
+      )
+    : buildApprovalNotices(pass, raw.approvals ?? [], baseUrl);
 
   // Read ONCE per invocation, not per letter: the settings cannot change
   // half way through a send, and a second round trip per message would be a

@@ -1462,3 +1462,334 @@ describe('053 — the CEO office decides whitelist requests', () => {
       .toBe(false);
   });
 });
+
+describe('054 — an office may have one standing deputy, and one person one seat', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('054'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(migrations);
+  /** The LAST definition wins — 054 restates several of 043/046/049/051. */
+  const fnBody = (name: string) => fns.filter((f) => f.name === name).slice(-1)[0].body;
+
+  it('touches nothing in `public` — the two-schema rule', () => {
+    expect(/create\s+(table|view|function|type)\s+public\./i.test(bare)).toBe(false);
+    expect(/alter\s+table\s+public\./i.test(bare)).toBe(false);
+  });
+
+  it('lets a deputy act for the office, without widening my_approval_role beyond one row', () => {
+    // The whole migration hangs off this one `or`: every RLS policy, both
+    // decision RPCs and the slip-order rule resolve authority through this
+    // function, so widening it here is what gives a deputy the existing
+    // workflow. It stays SCALAR only because three separate rules keep it to
+    // one row — 049's unique user_id, 054's unique deputy_id, and the two
+    // setters refusing to seat one person twice.
+    const body = fnBody('gatepass.my_approval_role');
+    expect(body).toMatch(/r\.user_id = auth\.uid\(\)\s+or\s+r\.deputy_id = auth\.uid\(\)/i);
+    expect(body).toMatch(/gatepass\.is_user_active\(auth\.uid\(\)\)/i);
+  });
+
+  it('keeps one person to one seat, by index AND by sentence in both directions', () => {
+    // 049's hazard exactly: a scalar over several rows returns an arbitrary
+    // one, silently. A deputy reopens it unless a deputy is unique too.
+    expect(bare).toMatch(
+      /create unique index[\s\S]*?approval_roles_one_deputy_per_person[\s\S]*?\(deputy_id\)[\s\S]*?where deputy_id is not null/i,
+    );
+    // A holder cannot be made a deputy...
+    expect(fnBody('gatepass.set_approval_deputy')).toMatch(/One person holds one approval seat/i);
+    // ...and a deputy cannot be made a holder.
+    expect(fnBody('gatepass.set_approval_role')).toMatch(/standing deputy for the % office/i);
+  });
+
+  it('refuses to let the holder be their own deputy', () => {
+    expect(bare).toMatch(/constraint approval_roles_deputy_is_not_holder/i);
+    expect(bare).toMatch(/check \(deputy_id is null or deputy_id <> user_id\)/i);
+  });
+
+  it('admits nobody but an admin to either deputy RPC', () => {
+    for (const name of ['gatepass.set_approval_deputy', 'gatepass.clear_approval_deputy']) {
+      const body = fnBody(name);
+      expect(body).toMatch(/if not gatepass\.is_admin\(\) then/i);
+      expect(body).toMatch(/security definer/i);
+      expect(body).toMatch(/set search_path = ''/i);
+    }
+  });
+
+  it('records WHICH SEAT signed, as a stored column rather than a join', () => {
+    // The seat is a fact about the moment of the decision, and both seats move.
+    // A join back to approval_roles would retroactively rewrite history every
+    // time an office was re-pointed.
+    expect(bare).toMatch(/alter table gatepass\.pass_approvals[\s\S]*?decided_as_deputy boolean not null default false/i);
+    for (const name of ['gatepass.approve_pass_level', 'gatepass.reject_pass_level']) {
+      expect(fnBody(name)).toMatch(/decided_as_deputy\s*=\s*coalesce\(v_as_deputy, false\)/i);
+    }
+  });
+
+  it('leaves the slip order, the pass status rules and the rejection reason exactly as 046 set them', () => {
+    // A deputy is a second signer, not a second set of rules.
+    for (const name of ['gatepass.approve_pass_level', 'gatepass.reject_pass_level']) {
+      const body = fnBody(name);
+      expect(body).toMatch(/An earlier approval level has not signed this pass yet/i);
+      expect(body).toMatch(/This gate pass is no longer waiting for approval/i);
+      expect(body).toMatch(/This gate pass is not waiting on your approval/i);
+    }
+    expect(fnBody('gatepass.reject_pass_level')).toMatch(/A rejection needs a reason/i);
+  });
+
+  it('drops and recreates the two readers whose return type changed, and re-grants them', () => {
+    // `create or replace function` cannot change a return type. The grant dies
+    // with the drop, so it must be re-applied in the same transaction.
+    const lower = bare.toLowerCase();
+    for (const fn of ['gatepass.get_pass_approvals(uuid)', 'gatepass.get_approval_ladder()']) {
+      expect(lower).toContain(`drop function if exists ${fn}`);
+      expect(lower).toContain(`grant execute on function ${fn} to authenticated`);
+    }
+  });
+
+  it('tells the deputy about the pass, resolving them TODAY rather than at raise', () => {
+    // 051's rule, applied to the second seat: authority is resolved at the
+    // moment of the press, so the address has to be too.
+    const body = fnBody('gatepass.approval_notice_payload');
+    expect(body).toMatch(/'deputy_email',\s*dep\.email/i);
+    expect(body).toMatch(/left join public\.profiles\s+dep on dep\.id = r\.deputy_id/i);
+  });
+
+  it('never exposes an approver address to a signed-in reader', () => {
+    // 047's rule, restated because this migration touches both functions:
+    // the payload carries emails and stays service_role-only; the ladder is
+    // readable by every signed-in user and must carry none.
+    expect(bare).not.toMatch(/grant execute on function gatepass\.approval_notice_payload[^;]*authenticated/i);
+    const ladder = fnBody('gatepass.get_approval_ladder');
+    expect(ladder).not.toMatch(/\bemail\b/i);
+  });
+});
+
+describe('055 — an emergency release is written down, and reviewed by somebody else', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('055'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(migrations);
+  const fnBody = (name: string) => fns.filter((f) => f.name === name).slice(-1)[0].body;
+
+  it('touches nothing in `public` — the two-schema rule', () => {
+    expect(/create\s+(table|view|function|type)\s+public\./i.test(bare)).toBe(false);
+    expect(/alter\s+table\s+public\./i.test(bare)).toBe(false);
+  });
+
+  it('admits ONLY a super admin, the way 039 does — never is_admin()', () => {
+    // An ordinary admin already creates users and resets passwords. Gating this
+    // on is_admin() would hand the entire approval ladder to the same group
+    // that administers it.
+    const body = fnBody('gatepass.emergency_release_pass');
+    expect(body).toMatch(/gatepass\.app_role\(\) <> 'super_admin'/i);
+    expect(body).not.toMatch(/if not gatepass\.is_admin\(\) then/i);
+  });
+
+  it('will not release without a written reason', () => {
+    expect(fnBody('gatepass.emergency_release_pass')).toMatch(/length\(v_reason\) < 10/i);
+    expect(bare).toMatch(/constraint emergency_releases_reason_is_written/i);
+    expect(bare).toMatch(/length\(btrim\(reason\)\) between 10 and 500/i);
+  });
+
+  it('refuses to let the releaser review their own release', () => {
+    // The whole control. Without this line an override is a bypass.
+    const body = fnBody('gatepass.review_emergency_release');
+    expect(body).toMatch(/if v_released_by = auth\.uid\(\) then/i);
+    expect(body).toMatch(/reviewed by somebody other than/i);
+  });
+
+  it('lets a WIDER pool review than release, or the refusal could not bite', () => {
+    // If reviewing needed super_admin too, a lone super admin could release and
+    // then self-review in two clicks — which the check above only prevents when
+    // somebody else is actually eligible.
+    const body = fnBody('gatepass.review_emergency_release');
+    expect(body).toMatch(/if not gatepass\.is_admin\(\) then/i);
+    expect(body).not.toMatch(/<> 'super_admin'/i);
+  });
+
+  it('never touches the pass status, and adds no update or delete grant on gate_passes', () => {
+    // The release clears the pending approval rows, which makes
+    // pass_awaits_approval() false. It must not move the pass itself: that
+    // would trip block_unapproved_gate_move and break the RPC-only state
+    // machine that sqlInvariants enforces elsewhere in this file.
+    expect(bare).not.toMatch(/update gatepass\.gate_passes/i);
+    expect(bare).not.toMatch(/grant[^;]*(update|delete)[^;]*on\s+(table\s+)?gatepass\.gate_passes/i);
+  });
+
+  it('marks the levels it cleared as emergency, rather than forging four signatures', () => {
+    // decided_by is the super admin, who holds none of these offices. Without
+    // this flag the ladder would read "Approved by <admin>" against four
+    // offices they do not hold — a fabricated audit trail.
+    expect(bare).toMatch(/add column if not exists emergency boolean not null default false/i);
+    expect(fnBody('gatepass.emergency_release_pass')).toMatch(/emergency\s*=\s*true/i);
+  });
+
+  it('gives no signed-in role a write on the log itself', () => {
+    expect(bare).toMatch(/alter table gatepass\.emergency_releases enable row level security/i);
+    expect(bare).not.toMatch(/create policy[\s\S]*?on gatepass\.emergency_releases for (insert|update|delete)/i);
+    expect(bare).not.toMatch(/grant[^;]*(insert|update|delete)[^;]*on\s+(table\s+)?gatepass\.emergency_releases/i);
+  });
+
+  it('keeps the release log readable by exactly the people who can read the pass', () => {
+    // An override nobody can see is not a control. can_see_pass is SECURITY
+    // INVOKER, so this inherits gate_passes_select rather than restating it.
+    expect(bare).toMatch(/using \(gatepass\.can_see_pass\(gate_pass_id\)\)/i);
+  });
+
+  it('pins search_path on every definer function it adds', () => {
+    for (const name of [
+      'gatepass.emergency_release_pass',
+      'gatepass.review_emergency_release',
+      'gatepass.list_emergency_releases',
+    ]) {
+      const body = fnBody(name);
+      expect(body).toMatch(/security definer/i);
+      expect(body).toMatch(/set search_path = ''/i);
+    }
+  });
+});
+
+describe('057 — the ladder is linear in the client order, and an unapproved pass offers no gate action', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('057'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(migrations);
+  const fnBody = (name: string) => fns.filter((f) => f.name === name).slice(-1)[0].body;
+
+  it('touches nothing in `public` — the two-schema rule', () => {
+    expect(/create\s+(table|view|function|type)\s+public\./i.test(bare)).toBe(false);
+    expect(/alter\s+table\s+public\./i.test(bare)).toBe(false);
+  });
+
+  it('pins Finance to level 3 and the CEO to level 4 in the check constraint', () => {
+    // The client's order (2026-08-20). This reverses 043's, which took the CEO
+    // third off the printed slip.
+    const check = bare.match(/add constraint pass_approvals_level_matches[\s\S]*?\);/i)![0];
+    expect(check).toMatch(/when 'finance_head'\s*then 3/i);
+    expect(check).toMatch(/when 'ceo'\s*then 4/i);
+    expect(check).toMatch(/when 'security_head'\s*then 1/i);
+    expect(check).toMatch(/when 'coo'\s*then 2/i);
+  });
+
+  it('drops the old constraint BEFORE renumbering, or no single update could satisfy it', () => {
+    const drop = bare.search(/drop constraint if exists pass_approvals_level_matches/i);
+    const update = bare.search(/update gatepass\.pass_approvals set level_no/i);
+    const add = bare.search(/add constraint pass_approvals_level_matches/i);
+    expect(drop).toBeGreaterThan(-1);
+    expect(update).toBeGreaterThan(drop);
+    expect(add).toBeGreaterThan(update);
+  });
+
+  it('snapshots new passes in the same order the constraint enforces', () => {
+    // Two copies of one mapping is exactly the drift this pins against: a
+    // trigger writing level 3 for the CEO would fail the check on every raise.
+    const body = fnBody('gatepass.snapshot_pass_approvals');
+    expect(body).toMatch(/when 'finance_head'\s*then 3/i);
+    expect(body).toMatch(/when 'ceo'\s*then 4/i);
+  });
+
+  it('rebuilds the view rather than replacing it, and re-grants select in the same file', () => {
+    // TRAP 2 (CLAUDE.md): `create or replace view` cannot absorb a new column,
+    // and a rebuild drops every grant with it.
+    expect(bare).toMatch(/drop view if exists gatepass\.v_gate_passes/i);
+    expect(bare).toMatch(/create view gatepass\.v_gate_passes with \(security_invoker = true\)/i);
+    expect(bare).toMatch(/grant select on gatepass\.v_gate_passes to authenticated/i);
+  });
+
+  it('defines awaits_approval on the view, once, from the definer function', () => {
+    // Never recomputed in TypeScript — the same rule is_overdue lives by.
+    expect(bare).toMatch(/gatepass\.pass_awaits_approval\(p\.id\) as awaits_approval/i);
+  });
+
+  it('leaves the trigger that refuses an unapproved gate move completely alone', () => {
+    // The screen stops drawing the button; the database keeps refusing the
+    // press. Weakening 046's trigger here would turn a UX fix into a hole.
+    expect(bare).not.toMatch(/block_unapproved_gate_move/i);
+    expect(bare).not.toMatch(/drop trigger[^;]*gate_passes_block_unapproved/i);
+  });
+
+  it('lets an office holder be reactivated, without letting a bare staff row be', () => {
+    // 040 refused every non-guard/hod target. An office holder is `staff` (046)
+    // and would have been stuck deactivated for ever; a roleless staff row still
+    // has nothing to come back to and is still refused.
+    const body = fnBody('gatepass.admin_reactivate_user');
+    expect(body).toMatch(/from gatepass\.approval_roles/i);
+    expect(body).toMatch(/v_role not in \('guard', 'hod'\) and v_office is null/i);
+    expect(body).toMatch(/if not gatepass\.is_admin\(\) then/i);
+  });
+
+  it('adds no update or delete grant on gate_passes', () => {
+    expect(bare).not.toMatch(/grant[^;]*(update|delete)[^;]*on\s+(table\s+)?gatepass\.gate_passes/i);
+  });
+
+  it('pins search_path on every definer function it restates', () => {
+    for (const name of ['gatepass.snapshot_pass_approvals', 'gatepass.admin_reactivate_user']) {
+      const body = fnBody(name);
+      expect(body).toMatch(/security definer/i);
+      expect(body).toMatch(/set search_path = ''/i);
+    }
+  });
+});
+
+describe('056 — the application settings are admin-editable, and honest about their reach', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('056'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(migrations);
+  const fnBody = (name: string) => fns.filter((f) => f.name === name).slice(-1)[0].body;
+
+  it('touches nothing in `public` — the two-schema rule', () => {
+    expect(/create\s+(table|view|function|type)\s+public\./i.test(bare)).toBe(false);
+    expect(/alter\s+table\s+public\./i.test(bare)).toBe(false);
+  });
+
+  it('gives no signed-in role any privilege on the table itself — 052 pattern', () => {
+    expect(bare).toMatch(/alter table gatepass\.app_settings enable row level security/i);
+    expect(bare).not.toMatch(/grant\s+[\w, ()]*on\s+(table\s+)?gatepass\.app_settings\s+to\s+authenticated/i);
+    expect(bare).not.toMatch(/create policy[\s\S]*?on gatepass\.app_settings/i);
+  });
+
+  it('checks that both the full reader and the writer are admins', () => {
+    for (const name of ['gatepass.get_app_settings', 'gatepass.set_app_settings']) {
+      const body = fnBody(name);
+      expect(body).toMatch(/if not gatepass\.is_admin\(\) then/i);
+      expect(body).toMatch(/security definer/i);
+      expect(body).toMatch(/set search_path = ''/i);
+    }
+  });
+
+  it('lets EVERY signed-in user read the idle timeout, and nothing else', () => {
+    // Their own browser is what enforces it, so gating it would leave a setting
+    // that only changed the behaviour of the admin who set it. It must not leak
+    // the 2FA flag on the way — "there is no second factor here" is
+    // reconnaissance about a control.
+    const body = fnBody('gatepass.get_session_timeout');
+    expect(bare).toMatch(/grant execute on function gatepass\.get_session_timeout\(\) to authenticated/i);
+    expect(body).toMatch(/session_timeout_minutes/i);
+    expect(body).not.toMatch(/require_approver_2fa/i);
+    expect(body).toMatch(/gatepass\.app_role\(\) is not null/i);
+  });
+
+  it('never returns the 2FA flag to a non-admin through the full getter either', () => {
+    // The full document is admin-gated; this is the belt to that braces.
+    const body = fnBody('gatepass.get_app_settings');
+    expect(body).toMatch(/require_approver_2fa/i);
+    expect(body).toMatch(/if not gatepass\.is_admin\(\) then/i);
+  });
+
+  it('bounds the timeout in the database, so no setting can sign everyone out instantly', () => {
+    expect(bare).toMatch(/session_timeout_minutes between 5 and 1440/i);
+    expect(fnBody('gatepass.set_app_settings')).toMatch(/between 5 minutes and 24 hours/i);
+  });
+
+  it('restates every CHECK as a sentence, because 23514 is not mapped to one', () => {
+    const body = fnBody('gatepass.set_app_settings');
+    expect(body).toMatch(/40 characters or fewer/i);
+    expect(body).toMatch(/six-digit hex code/i);
+  });
+
+  it('reads as one row, always', () => {
+    // 052's single-row lock: a second row is a primary key violation rather
+    // than a settings table nobody can read deterministically.
+    expect(bare).toMatch(/id boolean primary key default true check \(id\)/i);
+  });
+});

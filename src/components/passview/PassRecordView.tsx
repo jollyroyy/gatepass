@@ -39,11 +39,14 @@ import { canVerifyAtGate } from '../../lib/phoneSearch';
 import { buildApprovalSteps, canRecordReturns } from '../../lib/approvalLadder';
 import { useApprovalRoles } from '../../lib/useApprovalRoles';
 import { usePassApprovals } from '../../lib/usePassApprovals';
+import { usePassEmergencyRelease } from '../../lib/usePassEmergencyRelease';
+import { formatDateTime } from '../../lib/formatDate';
 import Badge from '../Badge';
 import PassRecordSummary from './PassRecordSummary';
 import PassRecordReturns from './PassRecordReturns';
 import PassTimeline from './PassTimeline';
 import ApprovalDecisionBar from './ApprovalDecisionBar';
+import EmergencyReleaseBar from './EmergencyReleaseBar';
 
 type Props = {
   record: GatePassRecord;
@@ -75,6 +78,10 @@ export default function PassRecordView({
   // before any office was designated carries none, and the ladder falls back to
   // grading the org chart — see approvalLadder.ts.
   const approvals = usePassApprovals(pass.id);
+  // A release happens on this very screen, so the banner needs re-reading
+  // without a navigation — hence the nonce. See usePassEmergencyRelease.
+  const [releaseNonce, setReleaseNonce] = React.useState(0);
+  const released = usePassEmergencyRelease(pass.id, releaseNonce);
 
   // The reader's role decides how a vacant office reads on a pass with no
   // ladder of its own: for a guard the signed slip is in hand, so all four
@@ -130,6 +137,28 @@ export default function PassRecordView({
         </div>
       </div>
 
+      {/* THE OVERRIDE IS STATED ON THE FACE OF THE PASS, permanently and to
+          every reader of it — the raising HOD, the offices that were skipped,
+          the guard at the barrier and every admin. An emergency release that
+          only an admin screen knows about is not a control, it is a bypass
+          with paperwork. The reason is printed verbatim because it is the
+          whole justification, and whether a second admin has reviewed it yet
+          is the other half of the story. */}
+      {released && (
+        <div data-testid="emergency-banner" className="alert-error">
+          <p className="font-semibold">
+            Released under emergency on {formatDateTime(released.released_at)} — the approvals this
+            pass still owed were cleared without them.
+          </p>
+          <p className="mt-1">{released.reason}</p>
+          <p className="mt-1 text-xs">
+            {released.reviewed_at
+              ? `Reviewed by an admin on ${formatDateTime(released.reviewed_at)}.`
+              : 'Not yet reviewed. An admin other than the one who released it has to review this.'}
+          </p>
+        </div>
+      )}
+
       <PassRecordSummary pass={pass} gateName={gateName} />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
@@ -164,6 +193,19 @@ export default function PassRecordView({
         approvals={approvals}
         office={office}
         onDecided={() => onRecorded?.()}
+      />
+
+      {/* BREAK GLASS — a super admin only, and only while the ladder is still
+          owed something (055). It sits BELOW the office's own Approve/Reject so
+          that signing properly is always the first thing offered. */}
+      <EmergencyReleaseBar
+        pass={pass}
+        approvals={approvals}
+        role={role}
+        onReleased={() => {
+          setReleaseNonce((n) => n + 1);
+          onRecorded?.();
+        }}
       />
 
       {canApprove && (

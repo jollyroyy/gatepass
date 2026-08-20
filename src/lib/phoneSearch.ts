@@ -57,11 +57,22 @@ export function passMatchesPhone(pass: GatePassView, query: string): boolean {
 }
 
 /** True when the gate can still act on this pass — the same rule the queue
- *  uses (status in pending/hod_reviewed, own expiry not yet passed), so a
- *  search result and the queue can never disagree about what is actionable.
- *  `match_pass` refuses everything else, and a button that always fails is
- *  worse than no button. */
+ *  uses (status in pending/hod_reviewed, own expiry not yet passed, every
+ *  approval level signed), so a search result and the queue can never disagree
+ *  about what is actionable. `match_pass` refuses everything else, and a button
+ *  that always fails is worse than no button.
+ *
+ *  THE LADDER TEST IS NOT REDUNDANT WITH RLS. 046 hides an unapproved pass from
+ *  a `guard`, so for almost everybody this line can never fire — but an office
+ *  holder who is ALSO a guard account (043 explicitly allows the Security Head
+ *  to be one) reads the pass through `pass_routed_to_me`, keeps every gate
+ *  screen, and was therefore shown Approve OUT on a pass they had just approved
+ *  at level 1. Pressing it hit `block_unapproved_gate_move` and reported "This
+ *  gate pass has not been approved by every level yet" (client, 2026-08-20).
+ *  `awaits_approval` comes off `v_gate_passes` (migration 057) and is never
+ *  recomputed here. */
 export function canVerifyAtGate(pass: GatePassView, now: Date = new Date()): boolean {
   if (pass.status !== 'pending' && pass.status !== 'hod_reviewed') return false;
+  if (pass.awaits_approval) return false;
   return new Date(pass.expires_at).getTime() > now.getTime();
 }

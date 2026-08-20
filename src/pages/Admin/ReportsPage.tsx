@@ -31,7 +31,7 @@ import { downloadCsv } from '../../lib/exportUtils';
 import {
   applyReportFilters,
   buildReportKpis,
-  REPORT_CSV_COLUMNS,
+  reportCsvColumns,
   reportOptions,
   STATUS_FILTERS,
   TYPE_FILTERS,
@@ -74,7 +74,19 @@ function inRange(rows: GatePassView[], start: number, end: number): GatePassView
   });
 }
 
-export default function ReportsPage(): React.ReactElement {
+type Props = {
+  /** False on the HOD's own Reports tab (`src/pages/HOD/HodReports.tsx`,
+   *  2026-08-20, client: "the same report tab section you built for the
+   *  admin... do it for the listing for all the HODs too, but only for their
+   *  own department. Remove the Department and Raised By columns for an
+   *  individual HOD"). ONE screen serves both roles rather than a forked
+   *  copy that could drift — this prop is the whole difference. Defaults
+   *  true so the admin route (`/all-passes`, which renders `<ReportsPage />`
+   *  with no prop) is completely unchanged. */
+  showPeople?: boolean;
+};
+
+export default function ReportsPage({ showPeople = true }: Props): React.ReactElement {
   const [rows, setRows] = useState<GatePassView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -151,8 +163,10 @@ export default function ReportsPage(): React.ReactElement {
   const scopeParts = [
     applied.type === 'all' ? null : TYPE_FILTERS.find((t) => t.key === applied.type)?.label,
     applied.status === 'all' ? null : STATUS_FILTERS.find((s) => s.key === applied.status)?.label,
-    options.createdBy.find((o) => o.id === applied.createdBy)?.name,
-    options.departments.find((o) => o.id === applied.department)?.name,
+    // Neither control exists on the HOD's screen (createdBy/department stay
+    // '' there), so this can never contribute a part — nothing to guard on.
+    showPeople ? options.createdBy.find((o) => o.id === applied.createdBy)?.name : null,
+    showPeople ? options.departments.find((o) => o.id === applied.department)?.name : null,
   ].filter(Boolean);
   const dateLabel = applied.from === applied.to ? applied.to : `${applied.from} to ${applied.to}`;
   const rangeLabel = scopeParts.length > 0 ? `${dateLabel} · ${scopeParts.join(' · ')}` : dateLabel;
@@ -162,7 +176,7 @@ export default function ReportsPage(): React.ReactElement {
       <ReportsHeader
         stamp={stamp}
         onPrint={() => setPrintAll(true)}
-        onExportCsv={() => downloadCsv('gate-pass-report.csv', scoped, REPORT_CSV_COLUMNS)}
+        onExportCsv={() => downloadCsv('gate-pass-report.csv', scoped, reportCsvColumns(showPeople))}
       />
 
       {error && <div className="gb-alert">{error}</div>}
@@ -176,6 +190,7 @@ export default function ReportsPage(): React.ReactElement {
         dirty={dirty}
         onApply={() => apply(draft)}
         onReset={() => apply(OPENING)}
+        showPeople={showPeople}
       />
 
       <div className="print-only">
@@ -194,7 +209,7 @@ export default function ReportsPage(): React.ReactElement {
         ) : (
           <>
             <div className="gb-scroll">
-              <ReportsTable rows={current.rows} />
+              <ReportsTable rows={current.rows} showPeople={showPeople} />
             </div>
             <GuardPager
               page={current}

@@ -294,3 +294,59 @@ describe('joinUrl', () => {
     expect(joinUrl('https://x.example.com', 'approvals')).toBe('https://x.example.com/approvals');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 054 — the office's STANDING DEPUTY is asked too. Still one office being asked
+// one question; a deputy nobody writes to is cover that only helps the person
+// who was already watching the screen.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('buildApprovalNotices — the standing deputy (054)', () => {
+  it('writes to the deputy as well as the holder, with the same subject', () => {
+    const withDeputy = LADDER.map((a) =>
+      a.level_no === 1 ? { ...a, deputy_name: 'Priya Nair', deputy_email: 'priya@example.com' } : a,
+    );
+    const out = buildApprovalNotices(PASS, withDeputy, BASE);
+    expect(out).toHaveLength(2);
+    expect(out.map((m) => m.to)).toEqual(['ravi.menon@example.com', 'priya@example.com']);
+    // One question, so one subject — the two letters are the same ask.
+    expect(out[0].subject).toBe(out[1].subject);
+    expect(out.every((m) => m.kind === 'awaiting_you')).toBe(true);
+  });
+
+  it('tells the deputy WHY they are being asked, rather than that they hold the office', () => {
+    // "You hold the Security Head office" is false for a deputy, and a letter
+    // that misstates its own reason teaches the reader to distrust the rest.
+    const withDeputy = LADDER.map((a) =>
+      a.level_no === 1 ? { ...a, deputy_name: 'Priya Nair', deputy_email: 'priya@example.com' } : a,
+    );
+    const deputyMsg = buildApprovalNotices(PASS, withDeputy, BASE)[1];
+    expect(deputyMsg.text).toMatch(/Hello Priya Nair,/);
+    expect(deputyMsg.text).toMatch(/standing deputy for the Security Head office/i);
+    expect(deputyMsg.text).not.toMatch(/you hold the Security Head office/i);
+  });
+
+  it('sends ONE letter when the holder and deputy share a mailbox', () => {
+    // The database refuses to seat one person twice, but it cannot stop two
+    // people sharing an inbox. Two identical letters there read as a bug.
+    const shared = LADDER.map((a) =>
+      a.level_no === 1 ? { ...a, deputy_name: 'Priya Nair', deputy_email: 'RAVI.MENON@example.com ' } : a,
+    );
+    expect(buildApprovalNotices(PASS, shared, BASE)).toHaveLength(1);
+  });
+
+  it('still writes to the holder when the office has no deputy at all', () => {
+    // The ordinary case, and the one every existing pass is in.
+    expect(buildApprovalNotices(PASS, LADDER, BASE)).toHaveLength(1);
+  });
+
+  it('never writes to a deputy of an office whose turn it is NOT', () => {
+    // The ladder is sequential. A deputy for the CEO must not hear about a pass
+    // sitting at level 1 any more than the CEO does.
+    const ceoDeputy = LADDER.map((a) =>
+      a.level_no === 3 ? { ...a, deputy_name: 'Late Arrival', deputy_email: 'late@example.com' } : a,
+    );
+    const out = buildApprovalNotices(PASS, ceoDeputy, BASE);
+    expect(out).toHaveLength(1);
+    expect(out[0].to).toBe('ravi.menon@example.com');
+  });
+});

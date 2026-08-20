@@ -2,7 +2,7 @@
 //
 // Rows 1–2 are the approval chain, signed BEFORE the material moves. Read
 // left→right, top→bottom it is:
-//   Issuing HOD → Security Head → COO → CEO → Finance HOD
+//   Issuing HOD → Security Head → COO → Finance HOD → CEO
 // Row 3 is what happens AT the gate, signed as it moves:
 //   Security Verification → Receiver Signature
 //
@@ -31,8 +31,12 @@ export const SIGNATURE_ROWS: SignatureBlock[][] = [
     { label: 'COO', caption: 'Signature & Stamp' },
   ],
   [
-    { label: 'CEO', caption: 'Signature & Stamp' },
+    // Finance before the CEO (client, 2026-08-20). The order here IS the
+    // approval order — `APPROVAL_LADDER` in `src/lib/approvalLadder.ts` and
+    // migration 057 carry the same one, and the three move together or the
+    // paper and the screen number the same office differently.
     { label: 'Finance HOD', caption: 'Signature & Stamp' },
+    { label: 'CEO', caption: 'Signature & Stamp' },
   ],
   [
     { label: 'Security Verification', caption: 'Signature & Stamp' },

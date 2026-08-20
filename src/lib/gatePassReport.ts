@@ -273,3 +273,22 @@ export const REPORT_CSV_COLUMNS: CsvColumn<GatePassView>[] = [
 /** Kept under its old name so `tests/unit/csvExport.test.ts` and any future
  *  export audit still walk this column set — it IS the all-passes export. */
 export const ALL_PASSES_CSV_COLUMNS = REPORT_CSV_COLUMNS;
+
+/**
+ * The register's CSV columns for a reader who does not get the two people/
+ * department columns (2026-08-20 — the HOD's own Reports tab: "remove the
+ * Department and Raised By columns for an individual HOD, both from the
+ * column header and from the filter section"). An HOD's report is already
+ * scoped to their own department by RLS (`gate_passes_select`, migration 046)
+ * and to themself as the only raiser it could ever contain in most cases —
+ * printing a column that can answer only one way is not information, and
+ * naming the OTHER department a mis-provisioned account could see would be
+ * worse than useless. `REPORT_CSV_COLUMNS` itself is untouched — the admin's
+ * export, and `tests/unit/csvExport.test.ts`, still walk the full set.
+ */
+export function reportCsvColumns(showPeople: boolean): CsvColumn<GatePassView>[] {
+  if (showPeople) return REPORT_CSV_COLUMNS;
+  return REPORT_CSV_COLUMNS.filter(
+    (c) => c.header !== 'Raised By Department' && c.header !== 'Created By',
+  );
+}

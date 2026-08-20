@@ -24,7 +24,7 @@ import {
   type MailSettingsForm,
   type MailSettingsErrors,
 } from '../../lib/mailSettings';
-import MailField from './MailField';
+import SettingField from './SettingField';
 import LastSendNote, { type SendAttempt } from './LastSendNote';
 
 export default function MailSettingsCard(): React.ReactElement {
@@ -141,7 +141,7 @@ export default function MailSettingsCard(): React.ReactElement {
       {error && <div className="alert-error">{error}</div>}
       {saved && !error && <div className="alert-success">Mail settings saved.</div>}
 
-      <MailField
+      <SettingField
         id="mail-override-to"
         label="Send all approval mail to"
         value={form.overrideTo}
@@ -154,14 +154,14 @@ export default function MailSettingsCard(): React.ReactElement {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <MailField
+        <SettingField
           id="mail-from-name"
           label="Sender name"
           value={form.fromName}
           onChange={(v) => set('fromName', v)}
           placeholder="Quest GatePass"
         />
-        <MailField
+        <SettingField
           id="mail-from-email"
           label="Sender address"
           value={form.fromEmail}
@@ -181,7 +181,7 @@ export default function MailSettingsCard(): React.ReactElement {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="sm:col-span-2">
-            <MailField
+            <SettingField
               id="mail-smtp-host"
               label="SMTP host"
               value={form.smtpHost}
@@ -189,7 +189,7 @@ export default function MailSettingsCard(): React.ReactElement {
               placeholder="smtp.company.com"
             />
           </div>
-          <MailField
+          <SettingField
             id="mail-smtp-port"
             label="Port"
             value={form.smtpPort}
@@ -217,14 +217,14 @@ export default function MailSettingsCard(): React.ReactElement {
               ))}
             </select>
           </div>
-          <MailField
+          <SettingField
             id="mail-smtp-username"
             label="SMTP username"
             value={form.smtpUsername}
             onChange={(v) => set('smtpUsername', v)}
             autoComplete="off"
           />
-          <MailField
+          <SettingField
             id="mail-smtp-password"
             label="SMTP password"
             value={form.smtpPassword}

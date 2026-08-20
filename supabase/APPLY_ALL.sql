@@ -10905,6 +10905,1528 @@ grant execute on function gatepass.list_whitelist_requests(text) to authenticate
 notify pgrst, 'reload schema';
 
 -- ═══════════════════════════════════════════════════════════
+-- 054_approval_deputy.sql
+-- ═══════════════════════════════════════════════════════════
+-- ============================================================================
+-- 054 — every approval office may have ONE STANDING DEPUTY
+--
+-- THE GAP THIS CLOSES. Until now the ladder had exactly one way to move: the
+-- sitting holder of an office pressed Approve. There is no delegation, no
+-- escalation, no timeout and no reminder anywhere in 043/046/049 —
+-- `pass_approvals` carries `created_at` and `decided_at` and nothing that ages.
+-- So a CEO on leave stopped every pass at level 3 until somebody re-pointed the
+-- office, which moves the whole queue permanently and leaves no trace of why.
+--
+-- WHAT THE MARKET DOES, and what is taken from it. SAP (substitution), Oracle
+-- (vacation rules), ServiceNow, Coupa and Workday (delegation) all solve this
+-- the same two ways: a named stand-in, and escalation on a timer. Only the
+-- first is built here. A date-bounded delegation has to be switched on BEFORE
+-- the absence, which is precisely when it is forgotten, and it buys nothing a
+-- mall management office needs. Two details are worth stealing and are stolen:
+--
+--   * Coupa refuses to delegate DOWNWARD — a stand-in must hold equal or
+--     greater authority. Here the ADMIN picks the deputy, so that is a policy
+--     rule enforced by who gets chosen rather than by a seniority column this
+--     schema has no way to know.
+--   * Workday stamps the audit trail "On Behalf Of X". `decided_as_deputy`
+--     below is that stamp, and the reason it is a stored column rather than a
+--     join is in section 4.
+--
+-- ONE PERSON, ONE SEAT — 049 EXTENDED, NOT CONTRADICTED. 049 made `user_id`
+-- unique because `my_approval_role()` is a scalar `returns text` over a query
+-- that can yield several rows, and Postgres hands back an arbitrary one rather
+-- than erroring. A deputy widens that query, so it reopens exactly that hazard
+-- unless a deputy is unique too. Hence a partial unique index on `deputy_id`,
+-- AND the two setters refusing anyone who already occupies a seat of either
+-- kind. The rule that falls out is: **one human can never sign two rungs of the
+-- same pass**, which is the four-eyes property the whole ladder rests on.
+--
+-- WHY THIS MIGRATION IS SMALL. Authority in 046 is resolved through
+-- `my_approval_role()` at the moment of the press. Both RLS policies,
+-- `pass_routed_to_me`, `pass_awaits_approval`, `approve_pass_level`,
+-- `reject_pass_level` and the whole slip-order rule read through that one
+-- function. Widening it by one `or` is what gives the deputy the entire
+-- existing workflow — the queue, the record, the RLS visibility and the guard's
+-- blindness to an unapproved pass — with nothing else changed.
+--
+-- WHAT A DEPUTY IS NOT. Not a role, not a login, not a route: exactly like the
+-- office itself (046), it is a grant carried beside whatever VMS role the
+-- person already has. And it does not change WHAT a pass owes — the levels are
+-- still snapshotted at raise by the 046 trigger and are untouched here.
+-- ============================================================================
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 1. The column
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Nullable: an office with no deputy is the normal case and must stay legal.
+-- `on delete set null` matches `routed_to` in 046 — deleting a person empties
+-- the seat rather than deleting the office, which would take the ladder with it.
+alter table gatepass.approval_roles
+  add column if not exists deputy_id uuid references public.profiles(id) on delete set null;
+
+-- The holder cannot be their own deputy. Not pedantry: `my_approval_role()`
+-- would still return one row, but `decided_as_deputy` would then be recorded
+-- false for a person who is listed in both seats, and the audit line would be
+-- deciding which of two true things to say.
+alter table gatepass.approval_roles
+  drop constraint if exists approval_roles_deputy_is_not_holder;
+alter table gatepass.approval_roles
+  add constraint approval_roles_deputy_is_not_holder
+  check (deputy_id is null or deputy_id <> user_id);
+
+-- Partial, unlike 049's — `deputy_id` IS nullable and the empty seat is the
+-- common case, so every vacant office would collide on a plain unique index.
+create unique index if not exists approval_roles_one_deputy_per_person
+  on gatepass.approval_roles (deputy_id)
+  where deputy_id is not null;
+
+comment on index gatepass.approval_roles_one_deputy_per_person is
+  'One deputy seat per person, for the reason 049 gives for holders: gatepass.my_approval_role() is a scalar over this table and would silently return an arbitrary one of several. See migration 054.';
+
+comment on column gatepass.approval_roles.deputy_id is
+  'Optional standing stand-in for this office. May approve exactly what the holder may, at any time, with no date window. Recorded on the decision as decided_as_deputy. See migration 054.';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 2. Authority follows either seat
+-- ═══════════════════════════════════════════════════════════════════════════
+-- The ONE function this migration exists to widen. Still returns at most one
+-- row: `user_id` is unique (049), `deputy_id` is unique among non-nulls (above),
+-- and section 3 refuses to seat one person in both. All three are load-bearing
+-- together — drop any one and this silently becomes arbitrary again.
+--
+-- `is_user_active` still gates it, so suspending a deputy empties their queue
+-- exactly as it does a holder's (040).
+create or replace function gatepass.my_approval_role()
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r.role_key
+    from gatepass.approval_roles r
+   where (r.user_id = auth.uid() or r.deputy_id = auth.uid())
+     and gatepass.is_user_active(auth.uid());
+$$;
+
+comment on function gatepass.my_approval_role() is
+  'The approval office this caller may act for — as its holder OR as its standing deputy (054) — or null. Scalar by design: three separate rules guarantee at most one row. Suspended accounts hold nothing.';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 3. Seating people — and refusing anyone who already has a seat
+-- ═══════════════════════════════════════════════════════════════════════════
+-- The office title as a person reads it. Four functions below need this same
+-- mapping inside a refusal sentence; 049 inlined the `case` once and a second
+-- copy is a second thing to get wrong. Not SECURITY DEFINER — it reads nothing,
+-- so it needs no elevated rights and no search_path pin.
+create or replace function gatepass.approval_office_title(p_role_key text)
+returns text
+language sql
+immutable
+as $$
+  select case p_role_key
+           when 'security_head' then 'Security Head'
+           when 'coo'           then 'COO'
+           when 'ceo'           then 'CEO'
+           when 'finance_head'  then 'Finance HOD'
+           else                      p_role_key
+         end;
+$$;
+
+revoke all on function gatepass.approval_office_title(text) from public;
+
+-- Restated from 049 with ONE added refusal: a person already sitting as some
+-- office's deputy cannot also be made a holder. Everything else — the admin
+-- gate, the known-key check, the existence check, the "already holds" check and
+-- the upsert — is 049's, unchanged.
+--
+-- Both checks EXCLUDE the office being set, so re-designating the same person
+-- to the office they already hold stays a no-op rather than an error.
+create or replace function gatepass.set_approval_role(p_role_key text, p_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_exists boolean;
+  v_held   text;
+begin
+  if not gatepass.is_admin() then
+    raise exception 'Only an admin can designate a gate pass approver.';
+  end if;
+
+  if p_role_key not in ('security_head', 'coo', 'ceo', 'finance_head') then
+    raise exception 'Unknown approval level.';
+  end if;
+
+  select exists (select 1 from public.profiles p where p.id = p_user_id) into v_exists;
+  if not v_exists then
+    raise exception 'That user does not exist.';
+  end if;
+
+  select r.role_key into v_held
+    from gatepass.approval_roles r
+   where r.user_id = p_user_id
+     and r.role_key <> p_role_key;
+
+  if v_held is not null then
+    raise exception 'That person already holds the % office. One person holds one approval office — vacate the other one first.',
+      gatepass.approval_office_title(v_held);
+  end if;
+
+  -- New in 054. Includes the office being set: making this office's own deputy
+  -- its holder must clear the deputy seat first, or the row would violate
+  -- approval_roles_deputy_is_not_holder with a constraint name instead of a
+  -- sentence.
+  select r.role_key into v_held
+    from gatepass.approval_roles r
+   where r.deputy_id = p_user_id;
+
+  if v_held is not null then
+    raise exception 'That person is the standing deputy for the % office. One person holds one approval seat — clear that deputy first.',
+      gatepass.approval_office_title(v_held);
+  end if;
+
+  insert into gatepass.approval_roles (role_key, user_id, designated_by, designated_at)
+  values (p_role_key, p_user_id, auth.uid(), now())
+  on conflict (role_key) do update
+    set user_id       = excluded.user_id,
+        designated_by = excluded.designated_by,
+        designated_at = excluded.designated_at;
+end;
+$$;
+
+-- The deputy's own setter. Admin-gated like its holder counterpart, and for the
+-- same reason 043 gives: designating somebody is an org-chart act, not a
+-- security escalation the designator gains anything from.
+--
+-- AN UNDESIGNATED OFFICE CANNOT TAKE A DEPUTY, and that is not an arbitrary
+-- order of operations: `approval_roles.user_id` is NOT NULL, so the row simply
+-- cannot exist without a holder. Saying so is better than a null-violation.
+create or replace function gatepass.set_approval_deputy(p_role_key text, p_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_exists boolean;
+  v_holder uuid;
+  v_seat   text;
+begin
+  if not gatepass.is_admin() then
+    raise exception 'Only an admin can designate a gate pass deputy.';
+  end if;
+
+  if p_role_key not in ('security_head', 'coo', 'ceo', 'finance_head') then
+    raise exception 'Unknown approval level.';
+  end if;
+
+  select exists (select 1 from public.profiles p where p.id = p_user_id) into v_exists;
+  if not v_exists then
+    raise exception 'That user does not exist.';
+  end if;
+
+  select r.user_id into v_holder
+    from gatepass.approval_roles r
+   where r.role_key = p_role_key;
+
+  if v_holder is null then
+    raise exception 'The % office has nobody in it yet. Designate the office holder before naming a deputy.',
+      gatepass.approval_office_title(p_role_key);
+  end if;
+
+  if v_holder = p_user_id then
+    raise exception 'That person already holds the % office. A deputy stands in for the holder, so it has to be somebody else.',
+      gatepass.approval_office_title(p_role_key);
+  end if;
+
+  select r.role_key into v_seat
+    from gatepass.approval_roles r
+   where r.user_id = p_user_id;
+
+  if v_seat is not null then
+    raise exception 'That person holds the % office. One person holds one approval seat — vacate that office first.',
+      gatepass.approval_office_title(v_seat);
+  end if;
+
+  select r.role_key into v_seat
+    from gatepass.approval_roles r
+   where r.deputy_id = p_user_id
+     and r.role_key <> p_role_key;
+
+  if v_seat is not null then
+    raise exception 'That person is already the standing deputy for the % office. One person holds one approval seat.',
+      gatepass.approval_office_title(v_seat);
+  end if;
+
+  update gatepass.approval_roles r
+     set deputy_id = p_user_id
+   where r.role_key = p_role_key;
+end;
+$$;
+
+create or replace function gatepass.clear_approval_deputy(p_role_key text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not gatepass.is_admin() then
+    raise exception 'Only an admin can change a gate pass deputy.';
+  end if;
+
+  update gatepass.approval_roles r
+     set deputy_id = null
+   where r.role_key = p_role_key;
+end;
+$$;
+
+grant execute on function gatepass.set_approval_deputy(text, uuid) to authenticated;
+grant execute on function gatepass.clear_approval_deputy(text)     to authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 4. The decision records WHICH SEAT signed it
+-- ═══════════════════════════════════════════════════════════════════════════
+-- `decided_by` already names the human. This says which capacity they acted in,
+-- and it is a STORED COLUMN rather than a join back to `approval_roles` on
+-- purpose: the seat is a fact about the MOMENT of the decision, and both seats
+-- move. Re-pointing an office next month must not retroactively turn "approved
+-- by the CEO" into "approved by a deputy", or the other way round. This is the
+-- same argument 046 makes for snapshotting `routed_to`, and the same one 051
+-- makes for NOT snapshotting the mail address — a decision is history, an
+-- address is a lookup.
+alter table gatepass.pass_approvals
+  add column if not exists decided_as_deputy boolean not null default false;
+
+comment on column gatepass.pass_approvals.decided_as_deputy is
+  'True when the person named by decided_by signed as the office''s standing deputy rather than as its holder, recorded at the moment of the decision. See migration 054.';
+
+-- Both decision RPCs are restated from 046 with ONE added assignment each.
+-- Every guard, every sentence and the slip-order rule are unchanged — a deputy
+-- is refused out-of-turn approval exactly as a holder is, because both resolve
+-- through the same `my_approval_role()`.
+create or replace function gatepass.approve_pass_level(p_pass_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_role      text := gatepass.my_approval_role();
+  v_mine      smallint;
+  v_lowest    smallint;
+  v_status    text;
+  v_as_deputy boolean;
+begin
+  if v_role is null then
+    raise exception 'You do not hold a gate pass approval office.';
+  end if;
+
+  select g.status::text into v_status
+    from gatepass.gate_passes g where g.id = p_pass_id;
+  if v_status is null then
+    raise exception 'That gate pass does not exist.';
+  end if;
+  if v_status <> 'pending' then
+    raise exception 'This gate pass is no longer waiting for approval.';
+  end if;
+
+  select a.level_no into v_mine
+    from gatepass.pass_approvals a
+   where a.gate_pass_id = p_pass_id
+     and a.role_key = v_role
+     and a.status = 'pending';
+  if v_mine is null then
+    raise exception 'This gate pass is not waiting on your approval.';
+  end if;
+
+  select min(a.level_no) into v_lowest
+    from gatepass.pass_approvals a
+   where a.gate_pass_id = p_pass_id
+     and a.status = 'pending';
+
+  if v_mine <> v_lowest then
+    raise exception 'An earlier approval level has not signed this pass yet.';
+  end if;
+
+  select coalesce(r.deputy_id = auth.uid(), false) into v_as_deputy
+    from gatepass.approval_roles r
+   where r.role_key = v_role;
+
+  update gatepass.pass_approvals a
+     set status            = 'approved',
+         decided_by        = auth.uid(),
+         decided_at        = now(),
+         decided_as_deputy = coalesce(v_as_deputy, false)
+   where a.gate_pass_id = p_pass_id
+     and a.role_key = v_role;
+end;
+$$;
+
+create or replace function gatepass.reject_pass_level(p_pass_id uuid, p_reason text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_role      text := gatepass.my_approval_role();
+  v_mine      smallint;
+  v_lowest    smallint;
+  v_status    text;
+  v_as_deputy boolean;
+  v_reason    text := btrim(coalesce(p_reason, ''));
+begin
+  if v_role is null then
+    raise exception 'You do not hold a gate pass approval office.';
+  end if;
+
+  if length(v_reason) = 0 then
+    raise exception 'A rejection needs a reason.';
+  end if;
+  v_reason := left(v_reason, 500);
+
+  select g.status::text into v_status
+    from gatepass.gate_passes g where g.id = p_pass_id;
+  if v_status is null then
+    raise exception 'That gate pass does not exist.';
+  end if;
+  if v_status <> 'pending' then
+    raise exception 'This gate pass is no longer waiting for approval.';
+  end if;
+
+  select a.level_no into v_mine
+    from gatepass.pass_approvals a
+   where a.gate_pass_id = p_pass_id
+     and a.role_key = v_role
+     and a.status = 'pending';
+  if v_mine is null then
+    raise exception 'This gate pass is not waiting on your approval.';
+  end if;
+
+  select min(a.level_no) into v_lowest
+    from gatepass.pass_approvals a
+   where a.gate_pass_id = p_pass_id
+     and a.status = 'pending';
+
+  if v_mine <> v_lowest then
+    raise exception 'An earlier approval level has not signed this pass yet.';
+  end if;
+
+  select coalesce(r.deputy_id = auth.uid(), false) into v_as_deputy
+    from gatepass.approval_roles r
+   where r.role_key = v_role;
+
+  update gatepass.pass_approvals a
+     set status            = 'rejected',
+         decided_by        = auth.uid(),
+         decided_at        = now(),
+         decided_as_deputy = coalesce(v_as_deputy, false),
+         reason            = v_reason
+   where a.gate_pass_id = p_pass_id
+     and a.role_key = v_role;
+
+  update gatepass.gate_passes
+     set status = 'cancelled'::gatepass.pass_status
+   where id = p_pass_id;
+
+  insert into gatepass.verifications
+    (gate_pass_id, action, security_user_id, remarks)
+  values
+    (p_pass_id, 'cancelled'::gatepass.verify_action, auth.uid(), v_reason);
+end;
+$$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 5. The readers
+-- ═══════════════════════════════════════════════════════════════════════════
+-- BOTH are DROPPED and recreated rather than replaced: `create or replace
+-- function` cannot change a RETURN TYPE, and both of these gain a column. The
+-- grant goes with the drop, so it is re-applied in the same transaction — the
+-- rule CLAUDE.md states and `my_profile()` has already been bitten by twice.
+
+drop function if exists gatepass.get_pass_approvals(uuid);
+
+create function gatepass.get_pass_approvals(p_pass_id uuid)
+returns table (
+  role_key          text,
+  level_no          smallint,
+  status            text,
+  routed_name       text,
+  decided_name      text,
+  decided_at        timestamptz,
+  reason            text,
+  decided_as_deputy boolean
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not gatepass.can_see_pass(p_pass_id) then
+    raise exception 'That gate pass does not exist, or is not yours to read.';
+  end if;
+
+  return query
+    select a.role_key,
+           a.level_no,
+           a.status,
+           rp.full_name,
+           dp.full_name,
+           a.decided_at,
+           a.reason,
+           a.decided_as_deputy
+      from gatepass.pass_approvals a
+      left join public.profiles rp on rp.id = a.routed_to
+      left join public.profiles dp on dp.id = a.decided_by
+     where a.gate_pass_id = p_pass_id
+     order by a.level_no;
+end;
+$$;
+
+grant execute on function gatepass.get_pass_approvals(uuid) to authenticated;
+
+-- The ladder card needs to show both seats, so the admin can see at a glance
+-- which offices have cover and which do not. `deputy_name` is LEFT-joined for
+-- the reason the pass view gives: a narrowed VMS policy must degrade to a
+-- missing NAME, never to a missing office.
+drop function if exists gatepass.get_approval_ladder();
+
+create function gatepass.get_approval_ladder()
+returns table (
+  role_key        text,
+  user_id         uuid,
+  full_name       text,
+  department_name text,
+  designated_at   timestamptz,
+  deputy_id       uuid,
+  deputy_name     text
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r.role_key,
+         r.user_id,
+         p.full_name,
+         d.name as department_name,
+         r.designated_at,
+         r.deputy_id,
+         dp.full_name as deputy_name
+    from gatepass.approval_roles r
+    left join public.profiles    p on p.id = r.user_id
+    left join public.departments d on d.id = p.department_id
+    left join public.profiles   dp on dp.id = r.deputy_id
+   where gatepass.app_role() is not null
+   order by case r.role_key
+              when 'security_head' then 1
+              when 'coo'           then 2
+              when 'finance_head'  then 3
+              when 'ceo'           then 4
+            end;
+$$;
+
+grant execute on function gatepass.get_approval_ladder() to authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 6. The letter tells the deputy too
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Restated from 051 with two keys added. A deputy who is never written to is a
+-- deputy who does not know there is anything to sign, which would leave this
+-- whole migration working only for somebody already watching the screen.
+--
+-- The deputy is resolved from `approval_roles` — TODAY's deputy, exactly as 051
+-- made the holder today's holder, and for the identical reason: authority is
+-- resolved at the moment of the press, so the address must be too. There is no
+-- `routed_to` fallback for a deputy because a pass was never routed to one; a
+-- vacant deputy seat simply yields nulls, and the sender drops the recipient.
+--
+-- Everything else — the name, the jsonb shape, the service_role-only grant —
+-- is unchanged.
+create or replace function gatepass.approval_notice_payload(p_pass_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'pass', (
+      select jsonb_build_object(
+               'id',                   p.id,
+               'pass_number',          p.pass_number,
+               'type',                 p.type,
+               'status',               p.status,
+               'visitor_name',         p.visitor_name,
+               'purpose',              p.purpose,
+               'vendor_name',          gatepass.company_name_of(p.visitor_company),
+               'department_name',      d.name,
+               'raised_by',            p.raised_by,
+               'raised_by_name',       rb.full_name,
+               'raised_by_email',      rb.email,
+               'item_count',           coalesce(it.item_count, 0),
+               'total_value',          coalesce(it.total_value, 0),
+               'expected_return_date', p.expected_return_date,
+               'created_at',           p.created_at
+             )
+        from gatepass.gate_passes p
+        left join public.departments d on d.id = p.department_id
+        left join public.profiles   rb on rb.id = p.raised_by
+        left join lateral (
+               select count(*) as item_count, sum(i.approx_value) as total_value
+                 from gatepass.gate_pass_items i
+                where i.gate_pass_id = p.id
+             ) it on true
+       where p.id = p_pass_id
+    ),
+    'approvals', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'role_key',       a.role_key,
+               'level_no',       a.level_no,
+               'status',         a.status,
+               'approver_id',    coalesce(r.user_id, a.routed_to),
+               'approver_name',  coalesce(cur.full_name, ap.full_name),
+               'approver_email', coalesce(cur.email, ap.email),
+               'deputy_name',    dep.full_name,
+               'deputy_email',   dep.email,
+               'decided_at',     a.decided_at,
+               'reason',         a.reason
+             ) order by a.level_no)
+        from gatepass.pass_approvals a
+        left join gatepass.approval_roles r on r.role_key = a.role_key
+        left join public.profiles       cur on cur.id = r.user_id
+        left join public.profiles        ap on ap.id  = a.routed_to
+        left join public.profiles       dep on dep.id = r.deputy_id
+       where a.gate_pass_id = p_pass_id
+    ), '[]'::jsonb)
+  );
+$$;
+
+comment on function gatepass.approval_notice_payload(uuid) is
+  'One approval notification''s worth of facts, addresses included. Each level is addressed to whoever holds that office TODAY (051) and to its standing deputy (054), falling back to the holder snapshotted at raise when the office is now vacant. service_role ONLY; every signed-in reader uses get_approval_ladder() (043/054), which carries no address.';
+
+notify pgrst, 'reload schema';
+
+-- ═══════════════════════════════════════════════════════════
+-- 055_emergency_release.sql
+-- ═══════════════════════════════════════════════════════════
+-- ============================================================================
+-- 055 — EMERGENCY RELEASE: a super admin can clear a stuck ladder, in writing,
+--       and a different admin has to review it afterwards
+--
+-- THE QUESTION THIS ANSWERS. 046 made the ladder mandatory and 054 gave every
+-- office a standing deputy, so an absent approver is covered. What is still not
+-- covered is nobody being reachable at all — a Sunday night, a power cut, four
+-- people on one flight — while a truck waits at the barrier. Before this
+-- migration the only route was an admin re-pointing offices one by one on the
+-- ladder card, which grants real authority to whoever is to hand, leaves that
+-- grant standing afterwards, and records nothing about why any of it happened.
+-- That is a worse outcome than a documented override, which is the whole
+-- argument for this migration existing.
+--
+-- WHAT THIS IS MODELLED ON. SAP GRC's Emergency Access Management (Firefighter)
+-- is the reference implementation, and stripped of its enterprise scaffolding
+-- it is exactly four things: a small PRE-NAMED pool who may invoke it, a
+-- WRITTEN REASON captured at the moment of use, a NATURAL END, and MANDATORY
+-- REVIEW BY SOMEBODY WHO WAS NOT THE ACTOR. NIST SP 800-53 (AC-2, AU-6), ISO
+-- 27001:2022 A.8.2 and SOX/COSO on "management override of controls" all land
+-- on the same four. Here they are, in order:
+--
+--   1. THE POOL is `super_admin`, checked inline. 039 (`set_ceo_approver`) is
+--      the only other place in this schema that demands more than `is_admin()`,
+--      and it is the precedent this follows deliberately: an ordinary admin can
+--      already create users and reset passwords, so gating on `is_admin()`
+--      would hand the whole ladder to the same group that administers it.
+--   2. THE REASON is NOT NULL, 10–500 characters, and is copied onto every
+--      level it clears. Ten rather than one because "ok", "." and "asap" are
+--      not reasons, and this column is the entire defence if the release is
+--      ever questioned.
+--   3. THE END is inherent: this releases ONE pass, once. There is no elevated
+--      session to expire, nothing to un-grant, and no standing permission
+--      created — which is precisely why it is safer than the re-designation it
+--      replaces.
+--   4. THE REVIEW is `review_emergency_release`, and it REFUSES the person who
+--      invoked it. That refusal is the control; everything else is bookkeeping.
+--      Without it this is not an override, it is a bypass.
+--
+-- ⚠ WHY THIS DOES NOT TOUCH `gate_passes.status`, and it matters. The pass stays
+--   `pending`. Clearing the pending `pass_approvals` rows makes
+--   `pass_awaits_approval()` false, and from that instant the pass behaves like
+--   any other approved one: the guard can SEE it (046's `gate_passes_select`),
+--   `lookup_pass` stops answering `awaiting_approval`, and `match_pass` works
+--   normally. So this migration:
+--     * adds NO update or delete grant on `gate_passes` — the RPC-only state
+--       machine is untouched, and `sqlInvariants` still passes;
+--     * never trips `block_unapproved_gate_move`, because it moves no status;
+--     * invents no new pass status, which would need an enum label that cannot
+--       be USED in the same transaction that adds it (the APPLY_ALL.sql trap).
+--   The release is recorded on the APPROVALS, where the missing signatures
+--   actually are, rather than smuggled into the pass's own state.
+--
+-- WHAT IS DELIBERATELY NOT BUILT: no auto-expiry, no time-boxed elevated
+-- session, no quorum. A second approver would deadlock the exact situation this
+-- exists for — nobody being reachable — and the four-eyes property is preserved
+-- where it can actually be honoured, at the review.
+-- ============================================================================
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 1. The record of the override, and of its review
+-- ═══════════════════════════════════════════════════════════════════════════
+-- One row per released pass, which is why `gate_pass_id` is the primary key: a
+-- pass whose ladder has already been cleared has nothing left to release, and
+-- the RPC refuses a second attempt rather than writing a second row.
+--
+-- `released_by` is NOT NULL and has NO `on delete set null`, unlike `routed_to`
+-- and `decided_by` elsewhere in this schema. Deleting the person must not be
+-- able to anonymise an override — `on delete restrict` (the default here, via
+-- the plain reference) makes the account undeletable while the record stands,
+-- and that is the correct trade for the one table in this app whose entire
+-- purpose is accountability.
+create table if not exists gatepass.emergency_releases (
+  gate_pass_id uuid primary key references gatepass.gate_passes(id) on delete cascade,
+  released_by  uuid not null references public.profiles(id),
+  reason       text not null,
+  released_at  timestamptz not null default now(),
+  reviewed_by  uuid references public.profiles(id) on delete set null,
+  reviewed_at  timestamptz,
+  review_note  text,
+
+  -- Ten characters is the shortest thing that can be a reason. 500 matches the
+  -- rejection reason in 046, so the two free-text fields on this ladder have
+  -- one limit between them.
+  constraint emergency_releases_reason_is_written
+    check (length(btrim(reason)) between 10 and 500),
+
+  -- A review is who AND when, or neither. A reviewed_at with no reviewer is an
+  -- audit line that says something happened and refuses to say who did it.
+  constraint emergency_releases_review_is_whole
+    check ((reviewed_by is null) = (reviewed_at is null))
+);
+
+comment on table gatepass.emergency_releases is
+  'One row per gate pass released past its approval ladder by a super admin (055). Carries the written justification captured at the moment of use, and the independent review that must follow it.';
+
+create index if not exists emergency_releases_unreviewed_idx
+  on gatepass.emergency_releases (released_at desc)
+  where reviewed_at is null;
+
+alter table gatepass.emergency_releases enable row level security;
+
+-- Readable by exactly the people who can already read the pass — which is the
+-- raising HOD, the offices it was routed to, every admin, and (once released)
+-- the guard. That is the point: an override nobody can see is not a control.
+-- `can_see_pass` is SECURITY INVOKER, so this inherits `gate_passes_select`
+-- rather than restating it.
+drop policy if exists emergency_releases_select_with_pass on gatepass.emergency_releases;
+create policy emergency_releases_select_with_pass
+  on gatepass.emergency_releases for select to authenticated
+  using (gatepass.can_see_pass(gate_pass_id));
+
+grant select on gatepass.emergency_releases to authenticated;
+
+-- No insert, update or delete policy and no such grant, for anybody. The two
+-- RPCs below are the only writers — the same rule `gate_passes` itself follows.
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 2. The mark on the levels that were never actually signed
+-- ═══════════════════════════════════════════════════════════════════════════
+-- WITHOUT THIS COLUMN the ladder would read "Approved by Sudeshna Pal" against
+-- four offices Sudeshna Pal does not hold, which is a fabricated audit trail —
+-- the exact thing 046's header refuses to do when it declines to backfill the
+-- 60 grandfathered passes. With it, the rung reads "Released under emergency"
+-- and names the reason.
+alter table gatepass.pass_approvals
+  add column if not exists emergency boolean not null default false;
+
+comment on column gatepass.pass_approvals.emergency is
+  'True when this level was cleared by gatepass.emergency_release_pass (055) rather than signed by the office. decided_by is then the super admin who released the pass, NOT an approver.';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 3. The release
+-- ═══════════════════════════════════════════════════════════════════════════
+create or replace function gatepass.emergency_release_pass(p_pass_id uuid, p_reason text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_status  text;
+  v_owed    integer;
+  v_reason  text := btrim(coalesce(p_reason, ''));
+begin
+  -- 039's inline form, not is_admin(). See the header.
+  if gatepass.app_role() <> 'super_admin' then
+    raise exception 'Only a super admin can release a gate pass past its approval ladder.';
+  end if;
+
+  if length(v_reason) < 10 then
+    raise exception 'An emergency release needs a written reason of at least 10 characters.';
+  end if;
+  v_reason := left(v_reason, 500);
+
+  select g.status::text into v_status
+    from gatepass.gate_passes g where g.id = p_pass_id;
+  if v_status is null then
+    raise exception 'That gate pass does not exist.';
+  end if;
+
+  -- A cancelled pass was REJECTED by an office, or voided by its HOD. Releasing
+  -- it would overturn a decision somebody made and wrote a reason for, which is
+  -- a different and much larger power than unsticking a silent queue. A matched
+  -- pass has already left. Neither is what this is for.
+  if v_status <> 'pending' then
+    raise exception 'This gate pass is no longer waiting for approval.';
+  end if;
+
+  select count(*) into v_owed
+    from gatepass.pass_approvals a
+   where a.gate_pass_id = p_pass_id
+     and a.status = 'pending';
+
+  if v_owed = 0 then
+    raise exception 'This gate pass does not owe any approvals — there is nothing to release.';
+  end if;
+
+  -- Every remaining level at once. Releasing them one at a time would leave a
+  -- pass that is half-overridden if the caller stopped, and the ladder's own
+  -- slip order makes a partial release meaningless anyway.
+  update gatepass.pass_approvals a
+     set status     = 'approved',
+         decided_by = auth.uid(),
+         decided_at = now(),
+         reason     = v_reason,
+         emergency  = true
+   where a.gate_pass_id = p_pass_id
+     and a.status = 'pending';
+
+  insert into gatepass.emergency_releases (gate_pass_id, released_by, reason)
+  values (p_pass_id, auth.uid(), v_reason);
+end;
+$$;
+
+revoke all on function gatepass.emergency_release_pass(uuid, text) from public;
+grant execute on function gatepass.emergency_release_pass(uuid, text) to authenticated;
+
+comment on function gatepass.emergency_release_pass(uuid, text) is
+  'Clears every approval level a pending gate pass still owes, in one act, recording the super admin who did it and why. Does not change the pass''s own status — see migration 055.';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 4. The review, by somebody else
+-- ═══════════════════════════════════════════════════════════════════════════
+-- `is_admin()` and not `super_admin`: requiring the same privilege as the
+-- release would mean a single super admin could release and then review their
+-- own override in two clicks, which is the failure this whole section exists to
+-- prevent. Widening the reviewer pool is what makes the refusal below bite.
+create or replace function gatepass.review_emergency_release(p_pass_id uuid, p_note text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_released_by uuid;
+  v_reviewed    timestamptz;
+begin
+  if not gatepass.is_admin() then
+    raise exception 'Only an admin can review an emergency release.';
+  end if;
+
+  select e.released_by, e.reviewed_at into v_released_by, v_reviewed
+    from gatepass.emergency_releases e
+   where e.gate_pass_id = p_pass_id;
+
+  if v_released_by is null then
+    raise exception 'That gate pass was not released under emergency.';
+  end if;
+
+  -- THE FOUR-EYES CONTROL, and the only line in this migration that turns an
+  -- override into a reviewed one.
+  if v_released_by = auth.uid() then
+    raise exception 'An emergency release has to be reviewed by somebody other than the person who made it.';
+  end if;
+
+  -- A review is a one-way act, like every other decision on this ladder. Re-
+  -- reviewing would let a later admin quietly replace an earlier one's note.
+  if v_reviewed is not null then
+    raise exception 'This emergency release has already been reviewed.';
+  end if;
+
+  update gatepass.emergency_releases e
+     set reviewed_by = auth.uid(),
+         reviewed_at = now(),
+         review_note = nullif(btrim(coalesce(p_note, '')), '')
+   where e.gate_pass_id = p_pass_id;
+end;
+$$;
+
+revoke all on function gatepass.review_emergency_release(uuid, text) from public;
+grant execute on function gatepass.review_emergency_release(uuid, text) to authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 5. Reading them back
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SECURITY DEFINER for the names alone: `public.profiles` is VMS's and is
+-- narrowed by 006, so a plain join from the client would return an override
+-- with nobody's name on it. Admin-gated because this is the review queue, and
+-- an admin is who works it. Unreviewed first, oldest first within that — the
+-- order the work should actually be done in.
+create or replace function gatepass.list_emergency_releases()
+returns table (
+  gate_pass_id  uuid,
+  pass_number   text,
+  released_by   uuid,
+  released_name text,
+  reason        text,
+  released_at   timestamptz,
+  reviewed_by   uuid,
+  reviewed_name text,
+  reviewed_at   timestamptz,
+  review_note   text
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not gatepass.is_admin() then
+    raise exception 'Only an admin can read the emergency release log.';
+  end if;
+
+  return query
+    select e.gate_pass_id,
+           g.pass_number,
+           e.released_by,
+           rp.full_name,
+           e.reason,
+           e.released_at,
+           e.reviewed_by,
+           vp.full_name,
+           e.reviewed_at,
+           e.review_note
+      from gatepass.emergency_releases e
+      left join gatepass.gate_passes g on g.id = e.gate_pass_id
+      left join public.profiles     rp on rp.id = e.released_by
+      left join public.profiles     vp on vp.id = e.reviewed_by
+     order by (e.reviewed_at is not null), e.released_at desc;
+end;
+$$;
+
+revoke all on function gatepass.list_emergency_releases() from public;
+grant execute on function gatepass.list_emergency_releases() to authenticated;
+
+-- The pass record needs the banner without being an admin — the raising HOD
+-- must see why their pass moved. One row, scoped by the table's own policy, so
+-- this is SECURITY INVOKER and carries no name: the banner names the person
+-- through `list_emergency_releases` on the admin side and prints the reason
+-- alone elsewhere.
+create or replace function gatepass.pass_emergency_release(p_pass_id uuid)
+returns table (
+  released_at timestamptz,
+  reason      text,
+  reviewed_at timestamptz
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select e.released_at, e.reason, e.reviewed_at
+    from gatepass.emergency_releases e
+   where e.gate_pass_id = p_pass_id;
+$$;
+
+grant execute on function gatepass.pass_emergency_release(uuid) to authenticated;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 6. The letter the skipped offices get
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 047's payload, with ONE key added. The Edge Function must be able to tell
+-- "this pass was just released" from "this pass just reached the next office"
+-- WITHOUT being told which by its caller — 047's header makes that a rule, and
+-- it is a real one: the browser sends a pass id and nothing else, so no client
+-- can ask this system to send a letter describing an event that did not happen.
+-- The presence of this object IS the event, derived from the database's own
+-- record of it.
+--
+-- Same name, same return type, same service_role-only grant, so `create or
+-- replace` is legal here and the function keeps its existing privileges.
+create or replace function gatepass.approval_notice_payload(p_pass_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select (
+    select jsonb_build_object(
+      'pass', (
+        select jsonb_build_object(
+                 'id',                   p.id,
+                 'pass_number',          p.pass_number,
+                 'type',                 p.type,
+                 'status',               p.status,
+                 'visitor_name',         p.visitor_name,
+                 'purpose',              p.purpose,
+                 'vendor_name',          gatepass.company_name_of(p.visitor_company),
+                 'department_name',      d.name,
+                 'raised_by',            p.raised_by,
+                 'raised_by_name',       rb.full_name,
+                 'raised_by_email',      rb.email,
+                 'item_count',           coalesce(it.item_count, 0),
+                 'total_value',          coalesce(it.total_value, 0),
+                 'expected_return_date', p.expected_return_date,
+                 'created_at',           p.created_at
+               )
+          from gatepass.gate_passes p
+          left join public.departments d on d.id = p.department_id
+          left join public.profiles   rb on rb.id = p.raised_by
+          left join lateral (
+                 select count(*) as item_count, sum(i.approx_value) as total_value
+                   from gatepass.gate_pass_items i
+                  where i.gate_pass_id = p.id
+               ) it on true
+         where p.id = p_pass_id
+      ),
+      'approvals', coalesce((
+        select jsonb_agg(jsonb_build_object(
+                 'role_key',       a.role_key,
+                 'level_no',       a.level_no,
+                 'status',         a.status,
+                 'approver_id',    coalesce(r.user_id, a.routed_to),
+                 'approver_name',  coalesce(cur.full_name, ap.full_name),
+                 'approver_email', coalesce(cur.email, ap.email),
+                 'deputy_name',    dep.full_name,
+                 'deputy_email',   dep.email,
+                 'decided_at',     a.decided_at,
+                 'reason',         a.reason
+               ) order by a.level_no)
+          from gatepass.pass_approvals a
+          left join gatepass.approval_roles r on r.role_key = a.role_key
+          left join public.profiles       cur on cur.id = r.user_id
+          left join public.profiles        ap on ap.id  = a.routed_to
+          left join public.profiles       dep on dep.id = r.deputy_id
+         where a.gate_pass_id = p_pass_id
+      ), '[]'::jsonb)
+    )
+  )
+  || jsonb_build_object(
+       'emergency', (
+         select jsonb_build_object(
+                  'released_at',   e.released_at,
+                  'released_name', rp.full_name,
+                  'reason',        e.reason,
+                  'reviewed_at',   e.reviewed_at
+                )
+           from gatepass.emergency_releases e
+           left join public.profiles rp on rp.id = e.released_by
+          where e.gate_pass_id = p_pass_id
+       )
+     );
+$$;
+
+comment on function gatepass.approval_notice_payload(uuid) is
+  'One approval notification''s worth of facts, addresses included (047/051/054), plus the emergency release that cleared this pass if there was one (055). The presence of the `emergency` key is what tells the sender which letter to write — the caller never says. service_role ONLY.';
+
+notify pgrst, 'reload schema';
+
+-- ═══════════════════════════════════════════════════════════
+-- 056_app_settings.sql
+-- ═══════════════════════════════════════════════════════════
+-- ============================================================================
+-- 056 — APP SETTINGS: one admin-editable row for the things a deployment wants
+--       to change without a redeploy
+--
+-- Shaped exactly like 052's `mail_settings`, and for the same reasons: a
+-- single-row lock on a boolean primary key, RLS enabled with NO policy and NO
+-- grant on the table, and every read and write through an `is_admin()`-gated
+-- SECURITY DEFINER function. Read 052's header first — this migration adds
+-- nothing new to that pattern, it applies it.
+--
+-- ⚠ TWO OF THESE FIELDS ENFORCE SOMETHING TODAY AND THREE DO NOT. That split is
+--   deliberate, it is stated on the screen, and it must stay stated:
+--
+--     ENFORCED NOW
+--       * `session_timeout_minutes` — `src/components/SessionTimeout.tsx` is an
+--         idle timer that already signs a user out; it reads this instead of a
+--         constant. Real from the day this ships.
+--
+--     STORED, ENFORCING NOTHING (yet)
+--       * `require_approver_2fa` — THERE IS NO SECOND FACTOR IN THIS SYSTEM.
+--         Supabase Auth ships TOTP and the enforcement point would be an `aal2`
+--         check inside `approve_pass_level`, but none of that is built. The
+--         client asked for the switch to exist now and be turned on later.
+--         ⚠ A CONTROL LABELLED "Require 2FA" THAT SILENTLY DOES NOTHING IS
+--         WORSE THAN NO CONTROL — an admin who flips it and walks away believes
+--         approvers are protected. The card therefore says, on its face, that
+--         it is not enforced. If that sentence is ever removed, this column
+--         becomes a lie; delete the column instead.
+--       * `app_name`, `brand_color` — branding, saved and not applied. The app
+--         keeps its shipped Quest identity until a later phase wires them.
+--         Same honest precedent as 052's SMTP columns, which are stored and
+--         send nothing.
+--
+-- WHY NOT WAIT AND ADD THEM WHEN THEY WORK? Because the client asked for the
+-- provisions, and a settings table that has to be migrated again for each one
+-- is three more migrations against a live database. The cost of doing it this
+-- way is exactly one thing: the screen must never overstate what a field does.
+-- ============================================================================
+
+create table if not exists gatepass.app_settings (
+  -- 052's single-row lock: `id` can only ever be true, so a second row is a
+  -- primary key violation rather than a settings table nobody can read
+  -- deterministically.
+  id boolean primary key default true check (id),
+
+  -- Null = "use what the app ships with". Never the empty string — "unset"
+  -- must have exactly one spelling, the rule 052 states.
+  app_name    text check (app_name    is null or (btrim(app_name) <> '' and length(app_name) <= 40)),
+  brand_color text check (brand_color is null or brand_color ~ '^#[0-9A-Fa-f]{6}$'),
+
+  -- NOT NULL with a default of false: "nobody has decided yet" and "2FA is not
+  -- required" are the same thing here, and a nullable boolean would invite a
+  -- three-state read of a two-state fact.
+  require_approver_2fa boolean not null default false,
+
+  -- Five minutes is the shortest timeout that is not an accident; a day is the
+  -- longest that is still a timeout. Null means "use the app's own default"
+  -- (5 minutes, `SessionTimeout.tsx`'s shipped value), so clearing the field
+  -- restores the shipped behaviour rather than locking everybody out with a
+  -- zero.
+  session_timeout_minutes int check (
+    session_timeout_minutes is null or session_timeout_minutes between 5 and 1440
+  ),
+
+  updated_by uuid references public.profiles(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+comment on table gatepass.app_settings is
+  'One row. Admin-editable application settings (056). Read and written only through get_app_settings/set_app_settings — see the header for which fields enforce something and which are stored provisions.';
+
+alter table gatepass.app_settings enable row level security;
+
+-- NO POLICY AND NO GRANT for `authenticated`, exactly as 052. Nothing but the
+-- three functions below ever touches this table.
+--
+-- `require_approver_2fa` is withheld from non-admins on purpose: "there is no
+-- second factor on this deployment" is reconnaissance about a control, not
+-- decoration. The idle timeout is NOT withheld — see get_session_timeout()
+-- below for why that one has to be readable by everyone.
+
+create or replace function gatepass.get_app_settings()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $fn$
+declare
+  v jsonb;
+begin
+  if not gatepass.is_admin() then
+    raise exception 'Only an admin can read the application settings.';
+  end if;
+
+  select jsonb_build_object(
+           'app_name',                s.app_name,
+           'brand_color',             s.brand_color,
+           'require_approver_2fa',    s.require_approver_2fa,
+           'session_timeout_minutes', s.session_timeout_minutes,
+           'updated_at',              s.updated_at,
+           'updated_by_name',         p.full_name
+         )
+    into v
+    from gatepass.app_settings s
+    left join public.profiles p on p.id = s.updated_by
+   where s.id;
+
+  -- A table that has never been written is not an error: it is the state every
+  -- deployment starts in. The caller gets a document of nulls rather than a
+  -- null document, so the form renders identically either way (052's rule).
+  return coalesce(v, jsonb_build_object('require_approver_2fa', false));
+end;
+$fn$;
+
+grant execute on function gatepass.get_app_settings() to authenticated;
+
+create or replace function gatepass.set_app_settings(
+  p_app_name                text,
+  p_brand_color             text,
+  p_require_approver_2fa    boolean,
+  p_session_timeout_minutes int
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $fn$
+declare
+  v_name  text := nullif(btrim(coalesce(p_app_name, '')), '');
+  v_color text := nullif(btrim(coalesce(p_brand_color, '')), '');
+begin
+  if not gatepass.is_admin() then
+    raise exception 'Only an admin can change the application settings.';
+  end if;
+
+  -- The CHECKs are restated as sentences, 052's rule: a constraint violation
+  -- reaches the browser as 23514, which this app deliberately does not map to
+  -- a readable message.
+  if v_name is not null and length(v_name) > 40 then
+    raise exception 'The application name has to be 40 characters or fewer.';
+  end if;
+
+  if v_color is not null and v_color !~ '^#[0-9A-Fa-f]{6}$' then
+    raise exception 'A brand colour has to be a six-digit hex code, like #C6A15B.';
+  end if;
+
+  if p_session_timeout_minutes is not null
+     and (p_session_timeout_minutes < 5 or p_session_timeout_minutes > 1440) then
+    raise exception 'The sign-out timer has to be between 5 minutes and 24 hours.';
+  end if;
+
+  insert into gatepass.app_settings as a (
+    id, app_name, brand_color, require_approver_2fa, session_timeout_minutes,
+    updated_by, updated_at
+  )
+  values (
+    true, v_name, v_color, coalesce(p_require_approver_2fa, false), p_session_timeout_minutes,
+    auth.uid(), now()
+  )
+  on conflict (id) do update
+    set app_name                = excluded.app_name,
+        brand_color             = excluded.brand_color,
+        require_approver_2fa    = excluded.require_approver_2fa,
+        session_timeout_minutes = excluded.session_timeout_minutes,
+        updated_by              = excluded.updated_by,
+        updated_at              = excluded.updated_at;
+
+  return gatepass.get_app_settings();
+end;
+$fn$;
+
+grant execute on function gatepass.set_app_settings(text, text, boolean, int) to authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- The one setting EVERY signed-in user has to be able to read
+-- ═══════════════════════════════════════════════════════════════════════════
+-- `get_app_settings()` above is admin-only, and correctly so: whether a second
+-- factor is required is reconnaissance about a control. But the idle timeout
+-- governs the guard at the barrier and the HOD at their desk, not just the
+-- admin who set it — their own browser is what has to enforce it, so their own
+-- browser has to know the number. Gating it would leave a setting that only
+-- changed the behaviour of the person who changed it.
+--
+-- Withholding it would also protect nothing: a signed-in user can measure their
+-- own idle timeout by waiting. This returns that ONE integer and no other field.
+create or replace function gatepass.get_session_timeout()
+returns int
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.session_timeout_minutes
+    from gatepass.app_settings s
+   where s.id
+     and gatepass.app_role() is not null;
+$$;
+
+grant execute on function gatepass.get_session_timeout() to authenticated;
+
+comment on function gatepass.get_session_timeout() is
+  'The idle sign-out time in minutes, or null for the app''s own default. Readable by every signed-in user because their own browser enforces it (056). Returns nothing else from app_settings.';
+
+notify pgrst, 'reload schema';
+
+-- ═══════════════════════════════════════════════════════════
+-- 057_linear_approval_order.sql
+-- ═══════════════════════════════════════════════════════════
+-- ============================================================================
+-- 057 — the ladder is Security Head → COO → Finance HOD → CEO, and a pass that
+--       is still climbing it never offers the gate a button
+--
+-- TWO THINGS, and they are one client report. 2026-08-20:
+--
+--   "After the approval the security head is getting this error [`This gate
+--    pass has not been approved by every level yet`] so make sure you make the
+--    approval process linear, one by one: 1. The security head has to approve
+--    2. COO 3. Finance 4. CEO. The approval cannot progress until the first,
+--    second, third, and fourth levels are approved."
+--
+-- ── 1. THE ORDER. ───────────────────────────────────────────────────────────
+-- 043 took its order from the printed A5 slip, which prints
+-- `Security Head → COO → CEO → Finance HOD`, and 046 froze that into
+-- `pass_approvals.level_no` and its own CHECK. The client has now put Finance
+-- BEFORE the CEO: the CEO signs last, on a pass finance has already costed.
+-- So `finance_head` is level 3 and `ceo` is level 4 — here, in the snapshot
+-- trigger, in the check constraint, and on the printed slip
+-- (`src/pages/Shared/signatureBlocks.ts` moves with this migration; the screen
+-- and the paper must name the same offices in the same order, or a guard
+-- comparing the two finds a level on one that is missing from the other).
+--
+-- THE EXISTING ROWS ARE RENUMBERED, unlike almost everything else in this app.
+-- `level_no` is not an audit fact — it is the ORDER the remaining signatures
+-- are collected in, and every ceo/finance row on this database is `pending`
+-- (checked as `postgres`, 2026-08-20: 5 passes, 20 rows, `security_head` the
+-- only office that has decided anything). Renumbering a DECIDED row would
+-- change nothing about who signed or when; it would only move a rung that has
+-- already been climbed.
+--
+-- ── 2. THE ERROR. ───────────────────────────────────────────────────────────
+-- The linear rule was never broken. `approve_pass_level` has refused any caller
+-- who is not the LOWEST still-pending rung since 046, and the live table shows
+-- exactly that — `security_head` approved, the other three still pending. What
+-- the client actually hit is this, and it is real:
+--
+--   THE SECURITY HEAD ON THIS DEPLOYMENT IS A `guard` ACCOUNT (sec@demo.vms;
+--   043 explicitly allows it). 046's `gate_passes_select` gives an office
+--   holder `pass_routed_to_me(id)`, so that person can see a pass that is still
+--   climbing — which is correct, they have to read what they are signing. But
+--   they ALSO keep every gate screen. So the pass they had just approved at
+--   level 1 appeared in their own Pending OUT queue carrying an **Approve OUT**
+--   button, and pressing it ran `match_pass`, and `block_unapproved_gate_move`
+--   refused it with the sentence the client quoted.
+--
+--   The trigger is right and is untouched. What was wrong is a screen drawing a
+--   button the database was always going to refuse — the one thing this
+--   codebase's own rule (`canVerifyAtGate` restates what `match_pass` enforces,
+--   so a button that always fails is never drawn) exists to prevent. It could
+--   not, because nothing on `v_gate_passes` said whether a pass still owed a
+--   signature.
+--
+-- So the view gains `awaits_approval`, and the gate queue filters on it
+-- SERVER-SIDE. TRAP 2 (CLAUDE.md) applies: `create or replace view` cannot
+-- absorb a new column, so the view is DROPPED and rebuilt with its grant
+-- re-applied in the same transaction, and `security_invoker = true` is restated
+-- — without it the view runs as its owner and every HOD reads every department.
+-- The body below is 038's, edited mechanically rather than retyped.
+--
+-- `gatepass.pass_awaits_approval(id)` rather than an inline EXISTS: it is
+-- SECURITY DEFINER, so it answers the same for every reader and costs one
+-- primary-key probe per row, where an inline subquery under `security_invoker`
+-- would re-run `can_see_pass` for every pass on every report.
+--
+-- WHAT THIS DOES NOT DO: it does not hide the pass from the office holder. They
+-- still read it, still find it in their approvals queue, and still sign it. It
+-- removes exactly one thing — the gate action on a pass the gate may not clear.
+-- ============================================================================
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 1. Finance signs third, the CEO signs last
+-- ═══════════════════════════════════════════════════════════════════════════
+-- The constraint has to come off before the rows can move: it pins level_no to
+-- role_key row by row, so no single UPDATE can satisfy both mappings at once.
+alter table gatepass.pass_approvals
+  drop constraint if exists pass_approvals_level_matches;
+
+update gatepass.pass_approvals set level_no = 3 where role_key = 'finance_head';
+update gatepass.pass_approvals set level_no = 4 where role_key = 'ceo';
+
+alter table gatepass.pass_approvals
+  add constraint pass_approvals_level_matches
+  check (level_no = case role_key
+                      when 'security_head' then 1
+                      when 'coo'           then 2
+                      when 'finance_head'  then 3
+                      when 'ceo'           then 4
+                    end);
+
+comment on constraint pass_approvals_level_matches on gatepass.pass_approvals is
+  'Slip order: Security Head 1, COO 2, Finance HOD 3, CEO 4 (client, 2026-08-20 - Finance signs before the CEO).';
+
+-- The snapshot, restated from 046 (and from 054, which re-stated it for the
+-- deputy work) with the two levels swapped. Everything else about it is
+-- unchanged: it is a trigger and not a line inside `raise_pass`, a vacant
+-- office is never snapshotted, and what a pass owes freezes the day it is
+-- raised.
+--
+-- `create or replace function` keeps the existing trigger bound to it, so the
+-- trigger is deliberately NOT dropped and re-created here — that would open a
+-- window, however short, in which an insert snapshots nothing at all.
+create or replace function gatepass.snapshot_pass_approvals()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into gatepass.pass_approvals (gate_pass_id, role_key, level_no, routed_to)
+  select new.id,
+         r.role_key,
+         (case r.role_key
+            when 'security_head' then 1
+            when 'coo'           then 2
+            when 'finance_head'  then 3
+            when 'ceo'           then 4
+          end)::smallint,
+         r.user_id
+    from gatepass.approval_roles r;
+
+  return new;
+end;
+$$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 2. The view says whether a pass still owes a signature
+-- ═══════════════════════════════════════════════════════════════════════════
+drop view if exists gatepass.v_gate_passes;
+
+create view gatepass.v_gate_passes with (security_invoker = true) as
+ SELECT p.id,
+    p.pass_number,
+    p.type,
+    p.status,
+    p.department_id,
+    p.raised_by,
+    p.visitor_name,
+    p.visitor_company,
+    p.vehicle_number,
+    p.purpose,
+    p.expected_return_date,
+    p.return_status,
+    p.actual_return_date,
+    p.verified_by,
+    p.verified_at,
+    p.flag_reason,
+    p.created_at,
+    p.updated_at,
+    p.qr_token,
+    p.expires_at,
+    p.direction,
+    p.image_url,
+    p.category,
+    ( SELECT max(f.created_at) AS max
+           FROM gatepass.verifications f
+          WHERE f.gate_pass_id = p.id AND f.action = 'flagged'::gatepass.verify_action) AS flagged_at,
+    ( SELECT max(r.created_at) AS max
+           FROM gatepass.verifications r
+          WHERE r.gate_pass_id = p.id AND r.action = 'hod_reviewed'::gatepass.verify_action) AS hod_reviewed_at,
+    p.return_status = 'awaiting_return'::gatepass.return_status AND p.expected_return_date IS NOT NULL AND p.expected_return_date < (now() AT TIME ZONE gatepass.site_tz())::date AS is_overdue,
+    p.status = 'pending'::gatepass.pass_status AND p.expires_at < now() AS is_expired,
+        CASE
+            WHEN p.expected_return_date IS NULL OR (p.return_status::text <> ALL (ARRAY['awaiting_return'::text, 'partially_returned'::text])) THEN 'not_applicable'::text
+            WHEN p.expected_return_date < (now() AT TIME ZONE gatepass.site_tz())::date THEN 'overdue'::text
+            WHEN p.expected_return_date = (now() AT TIME ZONE gatepass.site_tz())::date THEN 'due_today'::text
+            WHEN p.expected_return_date = ((now() AT TIME ZONE gatepass.site_tz())::date + 1) THEN 'due_soon'::text
+            ELSE 'ok'::text
+        END AS due_state,
+    gatepass.pass_awaits_approval(p.id) AS awaits_approval,
+    COALESCE(it.item_count, 0::bigint) AS item_count,
+    COALESCE(it.total_quantity, 0::numeric) AS total_quantity,
+    COALESCE(it.returned_quantity, 0::numeric) AS returned_quantity,
+    it.material_summary,
+    COALESCE(it.total_value, 0::numeric) AS total_value,
+    d.name AS department_name,
+    d.code AS department_code,
+    rb.full_name AS raised_by_name,
+    vb.full_name AS verified_by_name
+   FROM gatepass.gate_passes p
+     LEFT JOIN LATERAL ( SELECT count(*) AS item_count,
+            sum(i.quantity) AS total_quantity,
+            sum(i.returned_qty) AS returned_quantity,
+            string_agg(i.name, ', '::text ORDER BY i.line_no) AS material_summary,
+            sum(i.approx_value) AS total_value
+           FROM gatepass.gate_pass_items i
+          WHERE i.gate_pass_id = p.id) it ON true
+     LEFT JOIN public.departments d ON d.id = p.department_id
+     LEFT JOIN gatepass.profile_names rb ON rb.id = p.raised_by
+     LEFT JOIN gatepass.profile_names vb ON vb.id = p.verified_by;
+
+grant select on gatepass.v_gate_passes to authenticated;
+
+comment on view gatepass.v_gate_passes is
+  'Pass rows with rollups. is_overdue / is_expired / due_state / total_value / '
+  'awaits_approval are defined HERE and exactly once - never recompute them in '
+  'TypeScript. awaits_approval true means the pass is still climbing the '
+  'approval ladder, and no gate action on it can succeed (046).';
+
+notify pgrst, 'reload schema';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 3. An office holder can be suspended AND restored
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Client, 2026-08-20: "make sure that all these four roles should have the
+-- deactivate and edit option also for the admin."
+--
+-- Edit already worked, and so did Deactivate on the server:
+-- `admin_soft_delete_user` refuses only an admin target and the caller's own
+-- account, and an office holder is neither. The admin DIRECTORY simply drew no
+-- Deactivate control on those rows (a deliberate rule since 046 — "their office
+-- moves on the ladder card, not from a row action"), and this instruction
+-- overrules it. `UsersTable.tsx` moves with this migration.
+--
+-- REACTIVATION IS THE HALF THAT WAS ACTUALLY BROKEN, and it would have shipped
+-- as a one-way door: an office holder's VMS role is `staff` (046 — the role for
+-- "does not use VMS"), and 040's `admin_reactivate_user` refuses any target
+-- whose role is not guard/hod, with "Give this person a role (Guard or HOD)
+-- before reactivating." So an admin could suspend a COO and then have no way
+-- back except through the portal's role-choice modal, which would make them a
+-- guard and cost them their office.
+--
+-- 040's REASON for that refusal is still exactly right and is NOT relaxed: a
+-- bare `staff` row has no access whether the flag is true or false, so flipping
+-- it would report a restoration that restored nothing. An office holder is the
+-- one `staff` row that is false — `gatepass.approval_roles` is what grants them
+-- their route and their queue, and `my_approval_role()` gates on
+-- `is_user_active`, which is precisely the flag this function writes. So the
+-- test becomes "has this person anything to come back TO", and holding an
+-- office is one of the two ways to have something.
+--
+-- Body copied from 040 with that one condition widened; everything else —
+-- the admin check, the not-found check, the upsert — is verbatim.
+create or replace function gatepass.admin_reactivate_user(p_user_id uuid)
+returns json
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_role   text;
+  v_office text;
+begin
+  if not gatepass.is_admin() then
+    raise exception 'Only an admin can reactivate users.';
+  end if;
+
+  select p.role::text into v_role from public.profiles p where p.id = p_user_id;
+
+  if not found then
+    raise exception 'User not found.';
+  end if;
+
+  select r.role_key into v_office
+    from gatepass.approval_roles r
+   where r.user_id = p_user_id;
+
+  if v_role not in ('guard', 'hod') and v_office is null then
+    raise exception 'Give this person a role (Guard or HOD) before reactivating.';
+  end if;
+
+  insert into gatepass.user_status (user_id, is_active, deactivated_at, deactivated_by, updated_at)
+  values (p_user_id, true, null, null, now())
+  on conflict (user_id) do update
+    set is_active      = true,
+        deactivated_at = null,
+        deactivated_by = null,
+        updated_at     = now();
+
+  return json_build_object('id', p_user_id::text, 'reactivated', true);
+end;
+$$;
+
+grant execute on function gatepass.admin_reactivate_user(uuid) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ═══════════════════════════════════════════════════════════
 -- 005_seed_hod_departments.sql
 -- ═══════════════════════════════════════════════════════════
 -- ============================================================================

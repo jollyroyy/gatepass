@@ -32,24 +32,33 @@ const FUNNEL = (
 type Props = {
   draft: ReportFilters;
   onDraftChange: (next: ReportFilters) => void;
-  createdByOptions: ReportOption[];
-  deptOptions: ReportOption[];
+  createdByOptions?: ReportOption[];
+  deptOptions?: ReportOption[];
   today: string;
   onApply: () => void;
   onReset: () => void;
   /** True while the draft differs from what the report is actually showing. */
   dirty: boolean;
+  /** False on the HOD's own Reports tab (2026-08-20, client: "remove the
+   *  Department and Raised By columns for an individual HOD, both from the
+   *  column header and from the filter section"). Both selects answer a
+   *  question RLS has already answered for an HOD — their rows are their own
+   *  department's — so there is nothing left for either control to narrow.
+   *  Defaults true so the admin's card, which this component still is, is
+   *  unchanged by the new prop. */
+  showPeople?: boolean;
 };
 
 export default function ReportsFilterBar({
   draft,
   onDraftChange,
-  createdByOptions,
-  deptOptions,
+  createdByOptions = [],
+  deptOptions = [],
   today,
   onApply,
   onReset,
   dirty,
+  showPeople = true,
 }: Props): React.ReactElement {
   const set = (patch: Partial<ReportFilters>) => onDraftChange({ ...draft, ...patch });
 
@@ -105,35 +114,39 @@ export default function ReportsFilterBar({
         </select>
       </label>
 
-      <label className="gb-rep-field">
-        <span className="gb-rep-field-label">Created By</span>
-        <select
-          className="gb-select"
-          aria-label="Created By"
-          value={draft.createdBy}
-          onChange={(e) => set({ createdBy: e.target.value })}
-        >
-          <option value="">All Users</option>
-          {createdByOptions.map((o) => (
-            <option key={o.id} value={o.id}>{o.name}</option>
-          ))}
-        </select>
-      </label>
+      {showPeople && (
+        <label className="gb-rep-field">
+          <span className="gb-rep-field-label">Created By</span>
+          <select
+            className="gb-select"
+            aria-label="Created By"
+            value={draft.createdBy}
+            onChange={(e) => set({ createdBy: e.target.value })}
+          >
+            <option value="">All Users</option>
+            {createdByOptions.map((o) => (
+              <option key={o.id} value={o.id}>{o.name}</option>
+            ))}
+          </select>
+        </label>
+      )}
 
-      <label className="gb-rep-field">
-        <span className="gb-rep-field-label">Department</span>
-        <select
-          className="gb-select"
-          aria-label="Department"
-          value={draft.department}
-          onChange={(e) => set({ department: e.target.value })}
-        >
-          <option value="">All departments</option>
-          {deptOptions.map((o) => (
-            <option key={o.id} value={o.id}>{o.name}</option>
-          ))}
-        </select>
-      </label>
+      {showPeople && (
+        <label className="gb-rep-field">
+          <span className="gb-rep-field-label">Department</span>
+          <select
+            className="gb-select"
+            aria-label="Department"
+            value={draft.department}
+            onChange={(e) => set({ department: e.target.value })}
+          >
+            <option value="">All departments</option>
+            {deptOptions.map((o) => (
+              <option key={o.id} value={o.id}>{o.name}</option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <div className="gb-rep-filter-actions">
         <button

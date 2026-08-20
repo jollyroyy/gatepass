@@ -43,13 +43,17 @@ export const ROLE_ROUTES: Record<UserRole, string[]> = {
   // land — the review screens that offer "void it" or "raise it again". HOD-only:
   // those decisions are the raising HOD's, and `hod_review_flagged_pass` /
   // `hod_void_expired_pass` refuse anyone else regardless of what this list says.
-  hod: ['/dashboard', '/raise', '/my-passes', '/overdue', '/returns', '/mismatch', '/expired', '/pass', '/profile'],
+  // `/reports` is the HOD's own copy of the admin's Gate Pass Report screen
+  // (client, 2026-08-20), scoped to their own department by RLS alone — see
+  // `src/pages/HOD/HodReports.tsx`. It sits right after `/overdue`, so the
+  // sidebar reads Dashboard · My Passes · Overdue Items · Reports.
+  hod: ['/dashboard', '/raise', '/my-passes', '/overdue', '/reports', '/returns', '/mismatch', '/expired', '/pass', '/profile'],
   // Admin manages departments, users, and sees everything. THE ORDER OF THIS
   // LIST IS THE ORDER OF THE SIDEBAR (Sidebar.tsx sorts by it), so `/overdue`
   // sits second, straight under the board — client, 2026-08-18: "make the
   // overdue item the second tab in the admin view, keep the dashboard first".
-  admin: ['/admin-dashboard', '/overdue', '/admin', '/all-passes', '/returns', '/pass', '/profile'],
-  super_admin: ['/admin-dashboard', '/overdue', '/admin', '/all-passes', '/returns', '/pass', '/profile'],
+  admin: ['/admin-dashboard', '/overdue', '/admin', '/all-passes', '/activity', '/returns', '/pass', '/profile'],
+  super_admin: ['/admin-dashboard', '/overdue', '/admin', '/all-passes', '/activity', '/returns', '/pass', '/profile'],
   // Staff have no business in this app at all.
   staff: [],
 };

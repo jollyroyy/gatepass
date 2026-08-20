@@ -1,6 +1,10 @@
-// One labelled input on the mail settings card — label, box, its own error and
-// its own hint. Extracted so `MailSettingsCard` reads as the eight settings it
-// holds rather than as eight copies of the same markup.
+// One labelled input on a settings card — label, box, its own error and its own
+// hint. Extracted so a settings card reads as the settings it holds rather than
+// as N copies of the same markup.
+//
+// It was `MailField.tsx` until 056 gave the panel a second card. Nothing about
+// it was ever mail-specific except the filename, and a second identical
+// component is worse than a rename.
 //
 // The error sits UNDER the field it belongs to, never as a summary at the top:
 // this form has three addresses and a port on it, and "that is not valid" at
@@ -20,7 +24,7 @@ interface Props {
   autoComplete?: string;
 }
 
-export default function MailField({
+export default function SettingField({
   id, label, value, onChange, error, hint,
   type = 'text', placeholder, inputMode, autoComplete,
 }: Props): React.ReactElement {

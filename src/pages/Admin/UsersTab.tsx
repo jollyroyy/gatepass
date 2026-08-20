@@ -150,9 +150,16 @@ export default function UsersTab(): React.ReactElement {
    * raises on exactly that, so it opens the role choice first — the button is
    * offered on both, which is what the client asked for, and on neither is it
    * a control that fails when pressed.
+   *
+   * AN OFFICE HOLDER IS THE THIRD CASE, and it goes straight to the RPC even
+   * though their VMS role is `staff`. They HAVE something to come back to —
+   * their row in `approval_roles` — and migration 057 widened
+   * `admin_reactivate_user` to say so. Sending them through the role choice
+   * would offer Guard/HOD to a COO and cost them their office on the way back
+   * in, which is the opposite of restoring what was suspended.
    */
   function handleReactivateClick(profile: Profile) {
-    if (isAssignableRole(profile.role)) {
+    if (isAssignableRole(profile.role) || officeByUserId.has(profile.id)) {
       void handleReactivate(profile);
       return;
     }

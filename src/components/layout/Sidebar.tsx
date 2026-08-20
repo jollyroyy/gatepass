@@ -80,6 +80,21 @@ export const ALL_LINKS: NavLink[] = [
     to: '/all-passes', label: 'Reports', roles: ['admin', 'super_admin'],
     icon: <svg {...ICON_PROPS}><rect x="3" y="4.5" width="18" height="15" rx="1.5" /><path strokeLinecap="round" d="M3 9.75h18M9 9.75V19.5" /></svg>,
   },
+  {
+    // Every recorded event, across every pass. Admin only, because it reads the
+    // whole site — an HOD's own passes already carry their timelines.
+    to: '/activity', label: 'Activity Log', roles: ['admin', 'super_admin'],
+    icon: <svg {...ICON_PROPS}><circle cx="12" cy="12" r="8.25" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5V12l3 1.5" /></svg>,
+  },
+  {
+    // The HOD's own copy of the admin's report screen (client, 2026-08-20),
+    // scoped to their own department by RLS — see HodReports.tsx. A different
+    // route from the admin's `/all-passes` on purpose: the two screens are
+    // reached by different roles from different sidebars and must never be
+    // confused by a shared URL.
+    to: '/reports', label: 'Reports', roles: ['hod'],
+    icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5h6l4.5 4.5v10.5a1.5 1.5 0 01-1.5 1.5h-9a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 011.5-1.5z" /><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75l2 2 4-4.5" /></svg>,
+  },
 
 ];
 

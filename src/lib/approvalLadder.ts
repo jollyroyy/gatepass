@@ -3,12 +3,14 @@
 // It is the printed slip's own chain and nothing else — `signatureBlocks.ts`
 // has carried it since the beginning:
 //
-//     Issuing HOD → Security Head → COO → CEO → Finance HOD → the gate
+//     Issuing HOD → Security Head → COO → Finance HOD → CEO → the gate
 //
 // so the screen and the paper name the same five offices in the same order
 // (client, 2026-08-19: "just match the print slip"). Change one and change the
 // other, or a guard comparing the slip in their hand to the record on the
-// tablet finds a level on one that is missing from the other.
+// tablet finds a level on one that is missing from the other. The CEO moved
+// from third to LAST on 2026-08-20, on the client's instruction — see
+// `APPROVAL_LADDER` below, `signatureBlocks.ts`, and migration 057.
 //
 // SINCE MIGRATION 046 IT IS A WORKFLOW — for the passes that carry one. 043
 // recorded only WHO holds each office, and this module graded a level on
@@ -68,6 +70,11 @@ export interface ApprovalRoleRow {
   full_name: string | null;
   department_name: string | null;
   designated_at: string;
+  /** The office's optional STANDING DEPUTY (migration 054) — a second person
+   *  who may approve exactly what the holder may, with no date window. Null is
+   *  the ordinary case: an office with no cover. */
+  deputy_id: string | null;
+  deputy_name: string | null;
 }
 
 /** The title printed beside the level. "Finance HOD" and not "Finance Head"
@@ -81,12 +88,21 @@ export const APPROVAL_ROLE_TITLES: Record<ApprovalRoleKey, string> = {
 
 /** Slip order, and the order the levels are numbered in. An array rather than
  *  the Record's key order, because level numbers depend on it and object key
- *  order is a language detail, not a promise. */
+ *  order is a language detail, not a promise.
+ *
+ *  FINANCE SIGNS THIRD AND THE CEO SIGNS LAST (client, 2026-08-20: "1. The
+ *  security head has to approve 2. COO 3. Finance 4. CEO"). This REVERSES the
+ *  order 043 took off the printed A5 slip, which had the CEO third — the CEO
+ *  now signs on a pass finance has already costed. `signatureBlocks.ts` and
+ *  migration 057 move with it, and they must be moved together: the paper, the
+ *  screen and `pass_approvals.level_no` are one order stated in three places,
+ *  and a guard comparing the slip in their hand to the record on the tablet
+ *  must not find a level on one that is missing from the other. */
 export const APPROVAL_LADDER: { key: ApprovalRoleKey; level: number }[] = [
   { key: 'security_head', level: 1 },
   { key: 'coo', level: 2 },
-  { key: 'ceo', level: 3 },
-  { key: 'finance_head', level: 4 },
+  { key: 'finance_head', level: 3 },
+  { key: 'ceo', level: 4 },
 ];
 
 /** "COO (Vikram Singh)" — the office first, the person in brackets (client).
@@ -243,7 +259,13 @@ export function buildApprovalSteps(
         key: `level-${own.level_no}`,
         label: `Level ${own.level_no} Approval`,
         who: approverLine(title, own.decided_name ?? own.routed_name ?? row?.full_name),
-        detail: row?.department_name ?? null,
+        // WHICH SEAT SIGNED IT, where the department would otherwise sit. A
+        // deputy's own department is not the fact a reader of this rung wants,
+        // and an unlabelled deputy reads as the office holder — the thing
+        // Workday's "On Behalf Of" line exists to prevent.
+        detail: own.decided_as_deputy
+          ? `Standing deputy for the ${title}`
+          : row?.department_name ?? null,
         at: own.decided_at,
         state: APPROVAL_STATE[own.status],
         // A rejection's reason IS the note — it is the sentence somebody typed

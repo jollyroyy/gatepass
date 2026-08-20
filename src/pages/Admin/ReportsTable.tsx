@@ -78,9 +78,18 @@ function RowMenu({ pass }: { pass: GatePassView }): React.ReactElement {
   );
 }
 
-type Props = { rows: GatePassView[] };
+type Props = {
+  rows: GatePassView[];
+  /** False on the HOD's own Reports tab (2026-08-20, client: "remove the
+   *  Department and Raised By columns for an individual HOD"). An HOD's rows
+   *  are already narrowed to their own department by RLS, and to themself as
+   *  raiser — a column that can answer only one way says nothing. Defaults
+   *  true so the admin's register, which this component still is, is
+   *  untouched by the new prop. */
+  showPeople?: boolean;
+};
 
-export default function ReportsTable({ rows }: Props): React.ReactElement {
+export default function ReportsTable({ rows, showPeople = true }: Props): React.ReactElement {
   const navigate = useNavigate();
 
   return (
@@ -93,9 +102,9 @@ export default function ReportsTable({ rows }: Props): React.ReactElement {
           <th>Purpose / Description</th>
           <th>Items</th>
           <th>Value of Items</th>
-          <th>Raised By Department</th>
+          {showPeople && <th>Raised By Department</th>}
           <th>Status</th>
-          <th>Created By</th>
+          {showPeople && <th>Created By</th>}
           <th aria-label="Actions" />
         </tr>
       </thead>
@@ -112,11 +121,11 @@ export default function ReportsTable({ rows }: Props): React.ReactElement {
             </td>
             <td className="whitespace-nowrap">{itemsLabel(p.item_count)}</td>
             <td className="gb-rep-value">{valueText(p.total_value)}</td>
-            <td>{p.department_name ?? '—'}</td>
+            {showPeople && <td>{p.department_name ?? '—'}</td>}
             <td>
               <span className={`gb-pill ${reportStatusPill(p)}`}>{reportStatusLabel(p)}</span>
             </td>
-            <td>{p.raised_by_name ?? '—'}</td>
+            {showPeople && <td>{p.raised_by_name ?? '—'}</td>}
             <td className="no-print">
               <RowMenu pass={p} />
             </td>

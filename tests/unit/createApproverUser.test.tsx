@@ -90,8 +90,9 @@ describe('Add User — the four approval offices are offered', () => {
       'hod',
       'security_head',
       'coo',
-      'ceo',
+      // Ladder order, Finance before the CEO (2026-08-20).
       'finance_head',
+      'ceo',
     ]);
   });
 
@@ -175,8 +176,11 @@ describe('Edit User — the four approval offices are selectable', () => {
     await renderTab();
     fireEvent.click(within(rowFor('Guard One')).getByRole('button', { name: 'Edit' }));
     const select = screen.getByLabelText('Role') as HTMLSelectElement;
+    // LADDER ORDER, Finance before the CEO (2026-08-20) — `CREATABLE_ROLES`
+    // lists the four offices in the sequence they actually sign in. This case
+    // used to expect …'coo', 'ceo', 'finance_head'.
     expect([...select.options].map((o) => o.value)).toEqual([
-      'guard', 'hod', 'security_head', 'coo', 'ceo', 'finance_head',
+      'guard', 'hod', 'security_head', 'coo', 'finance_head', 'ceo',
     ]);
   });
 

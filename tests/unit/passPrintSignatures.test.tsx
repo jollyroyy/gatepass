@@ -4,11 +4,14 @@
 // with the direction the material is travelling.
 //
 // Row 1 (approvals):   Issuing HOD · Security Head · COO
-// Row 2 (approvals):   CEO · Finance HOD
+// Row 2 (approvals):   Finance HOD · CEO
 // Row 3 (at the gate): Security Verification · Receiver Signature
 //
 // Read left→right, top→bottom the approval order is Issuing HOD → Security Head
-// → COO → CEO → Finance HOD. Three boxes per row is a print constraint, not a
+// → COO → Finance HOD → CEO (the CEO moved from third to last on 2026-08-20,
+// on the client's instruction — see `APPROVAL_LADDER` and migration 057; this
+// file's own cases below were rewritten with it). Three boxes per row is a
+// print constraint, not a
 // grouping: five across an A5 sheet leaves ~18mm per box, too narrow for a
 // rubber stamp.
 import React from 'react';
@@ -89,19 +92,24 @@ describe('signature block definitions', () => {
     for (const row of SIGNATURE_ROWS) expect(row.length).toBeLessThanOrEqual(3);
   });
 
-  it('runs the approval chain issuing → security → COO → CEO → finance', () => {
+  // REWRITTEN 2026-08-20: this used to run …→ COO → CEO → finance, and the case
+  // under it pinned the CEO immediately after the COO. The client reordered the
+  // ladder so the CEO signs LAST; the slip and the screen must agree, or a
+  // guard comparing the two finds a level on one that is missing from the other.
+  it('runs the approval chain issuing → security → COO → finance → CEO', () => {
     expect(SIGNATURE_ROWS.flat().slice(0, 5).map((b) => b.label)).toEqual([
       'Issuing HOD',
       'Security Head',
       'COO',
-      'CEO',
       'Finance HOD',
+      'CEO',
     ]);
   });
 
-  it('places the CEO block immediately after the COO block', () => {
+  it('places the CEO block last of the five, immediately after Finance HOD', () => {
     const labels = SIGNATURE_ROWS.flat().map((b) => b.label);
-    expect(labels.indexOf('CEO')).toBe(labels.indexOf('COO') + 1);
+    expect(labels.indexOf('CEO')).toBe(labels.indexOf('Finance HOD') + 1);
+    expect(labels.indexOf('Finance HOD')).toBe(labels.indexOf('COO') + 1);
   });
 
   it('puts gate verification and the receiver last, on their own row', () => {

@@ -19,6 +19,7 @@ import RaisePass from './pages/HOD/RaisePass';
 import MyPasses from './pages/HOD/MyPasses';
 import MismatchReview from './pages/HOD/MismatchReview';
 import ExpiredReview from './pages/HOD/ExpiredReview';
+import HodReports from './pages/HOD/HodReports';
 import GateConsole from './pages/Security/GateConsole';
 import Verify from './pages/Security/Verify';
 import GuardDashboard from './pages/Security/GuardDashboard';
@@ -27,6 +28,7 @@ import PendingReturnsPage from './pages/Security/PendingReturnsPage';
 import AdminPanel from './pages/Admin/AdminPanel';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import ReportsPage from './pages/Admin/ReportsPage';
+import ActivityLogPage from './pages/Admin/ActivityLogPage';
 
 import PassDetail from './pages/Shared/PassDetail';
 import PassPrint from './pages/Shared/PassPrint';
@@ -228,6 +230,7 @@ export default function App(): React.ReactElement {
           <Route path="/my-passes" element={<MyPasses />} />
           <Route path="/mismatch/:id" element={<MismatchReview />} />
           <Route path="/expired/:id" element={<ExpiredReview />} />
+          <Route path="/reports" element={<HodReports />} />
 
           {/* Security */}
           <Route path="/guard-dashboard" element={<GuardDashboard />} />
@@ -240,6 +243,7 @@ export default function App(): React.ReactElement {
           <Route path="/admin" element={<AdminPanel />} />
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
           <Route path="/all-passes" element={<ReportsPage />} />
+          <Route path="/activity" element={<ActivityLogPage />} />
 
           {/* Overdue Items and Returns Due Today are ONE page each, scoped by
               role inside — see OverdueItemsPage.tsx. Both are where a board's

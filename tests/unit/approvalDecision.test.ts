@@ -14,11 +14,16 @@ function row(over: Partial<ApprovalStepRow>): ApprovalStepRow {
   return { role_key: 'security_head', level_no: 1, status: 'pending', ...over };
 }
 
+// The real ladder, in the order migration 057 and `APPROVAL_LADDER` carry:
+// Security Head → COO → Finance HOD → CEO (the CEO moved to last on
+// 2026-08-20). Nothing in this module reads a role_key's meaning — it works off
+// `level_no` alone — but a fixture that disagrees with the live numbering is a
+// fixture that stops describing anything.
 const LADDER: ApprovalStepRow[] = [
   row({ role_key: 'security_head', level_no: 1 }),
   row({ role_key: 'coo', level_no: 2 }),
-  row({ role_key: 'ceo', level_no: 3 }),
-  row({ role_key: 'finance_head', level_no: 4 }),
+  row({ role_key: 'finance_head', level_no: 3 }),
+  row({ role_key: 'ceo', level_no: 4 }),
 ];
 
 describe('lowestPendingLevel', () => {
@@ -35,7 +40,8 @@ describe('lowestPendingLevel', () => {
 
 describe('myStep', () => {
   it('finds my office s row, and is null when the pass is not routed to me', () => {
-    expect(myStep(LADDER, 'ceo')?.level_no).toBe(3);
+    expect(myStep(LADDER, 'ceo')?.level_no).toBe(4);
+    expect(myStep(LADDER, 'finance_head')?.level_no).toBe(3);
     expect(myStep(LADDER, null)).toBeNull();
     expect(myStep([row({ role_key: 'coo', level_no: 2 })], 'ceo')).toBeNull();
   });

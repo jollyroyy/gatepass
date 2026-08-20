@@ -64,10 +64,24 @@ export function useGuardQueues(scope: GuardQueueScope = 'both'): GuardQueues {
           // while the pass's own expiry has not passed. `is_expired` covers
           // `pending` alone; filtering `expires_at` covers both states
           // uniformly and never needs recomputing on the client.
+          //
+          // AND ONLY A PASS THAT HAS FINISHED CLIMBING THE LADDER. For an
+          // ordinary guard this filter can never remove a row — 046's RLS has
+          // already made an unapproved pass invisible to them. It is here for
+          // the one reader it is not invisible to: an OFFICE HOLDER WHO IS ALSO
+          // A GUARD (043 allows the Security Head to be a `guard` account), who
+          // reads the pass through `pass_routed_to_me` and was therefore shown
+          // it in this queue, with an Approve OUT button, moments after
+          // approving it at level 1. That button could only ever fail — the
+          // trigger `block_unapproved_gate_move` refuses `match_pass` — and
+          // failing is exactly what the client reported on 2026-08-20. The pass
+          // is still theirs to sign; it is simply not theirs to clear yet, and
+          // `/approvals` is where they sign it.
           wantOut
             ? base()
                 .in('status', ['pending', 'hod_reviewed'])
                 .gte('expires_at', nowIso)
+                .eq('awaits_approval', false)
                 .order('created_at', { ascending: true })
             : Promise.resolve({ data: [], error: null }),
           // BOTH open return states, unfiltered by date. `partially_returned`

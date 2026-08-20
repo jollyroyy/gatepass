@@ -104,6 +104,21 @@ export default function UsersTable({
                 </td>
                 <td className="tabular whitespace-nowrap">{formatDateOnly(p.created_at)}</td>
                 <td className="text-right">
+                  {/* AN OFFICE HOLDER GETS EDIT AND DEACTIVATE LIKE ANYONE
+                      ELSE (client, 2026-08-20: "make sure that all these four
+                      roles should have the deactivate and edit option also for
+                      the admin"). This REVERSES 046's rule that a row holding
+                      one of the four offices carried no suspend/restore control
+                      at all, on the grounds that `approval_roles` — not the
+                      `staff` role — is what grants them their access. That
+                      argument was never the whole story: `my_approval_role()`
+                      gates on `is_user_active`, so suspending an office holder
+                      really does empty their queue, and it was the one kind of
+                      account an admin could not shut out. Migration 057 makes
+                      the return trip work too — 040's `admin_reactivate_user`
+                      refused every `staff` target, which would have made
+                      Deactivate a one-way door for a COO. Their OFFICE is still
+                      moved on the ladder card; this suspends the person. */}
                   {!isAdminRole(p.role) ? (
                     <div className="flex items-center justify-end gap-2">
                       <button
@@ -113,14 +128,7 @@ export default function UsersTable({
                       >
                         Edit
                       </button>
-                      {office ? (
-                        // An office holder is VMS `staff` too, but they are not
-                        // an inactive account — `approval_roles` is what grants
-                        // them their route and their queue (046), so there is
-                        // nothing here to suspend or restore. Their office is
-                        // moved on the ladder card, not from a row action.
-                        null
-                      ) : !active ? (
+                      {!active ? (
                         // EVERY inactive row offers Reactivate, including a
                         // roleless `staff` one — the client asked for exactly
                         // that. What differs is what the press does:

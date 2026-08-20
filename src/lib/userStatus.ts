@@ -66,8 +66,11 @@ export const CREATABLE_ROLES: { key: CreatableRole; label: string; kind: 'role' 
   ...ASSIGNABLE_ROLES.map((r) => ({ ...r, kind: 'role' as const })),
   { key: 'security_head', label: APPROVAL_ROLE_TITLES.security_head, kind: 'office' },
   { key: 'coo', label: APPROVAL_ROLE_TITLES.coo, kind: 'office' },
-  { key: 'ceo', label: APPROVAL_ROLE_TITLES.ceo, kind: 'office' },
+  // Ladder order, Finance before the CEO (2026-08-20) — the same order
+  // `APPROVAL_LADDER` and the printed slip carry, so a control that lists the
+  // four offices lists them in the sequence they actually sign in.
   { key: 'finance_head', label: APPROVAL_ROLE_TITLES.finance_head, kind: 'office' },
+  { key: 'ceo', label: APPROVAL_ROLE_TITLES.ceo, kind: 'office' },
 ];
 
 const APPROVAL_OFFICE_KEYS: Record<ApprovalRoleKey, true> = {

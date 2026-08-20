@@ -233,6 +233,17 @@ export interface GatePassView extends GatePass {
   is_expired: boolean;
   due_state: DueState;
 
+  /** True while this pass still owes a signature on the approval ladder
+   *  (migration 057; the view calls `gatepass.pass_awaits_approval`). NO GATE
+   *  ACTION ON SUCH A PASS CAN SUCCEED — 046's `block_unapproved_gate_move`
+   *  refuses `match_pass` even though it is SECURITY DEFINER — so this is what
+   *  keeps an Approve OUT button off it. A guard normally cannot see such a
+   *  pass at all; an office holder who is ALSO a guard can, which is exactly
+   *  the case that shipped the "has not been approved by every level yet"
+   *  error. Optional so the 60-odd fixtures that predate the column still
+   *  type-check, and false-y is the safe reading: no ladder, nothing owed. */
+  awaits_approval?: boolean;
+
   /** When security first flagged this pass (migration 035 — from
    *  `verifications`, not `verified_at`, which the LATEST verification
    *  overwrites). Null on a pass that was never flagged. Cards use it to show

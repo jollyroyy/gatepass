@@ -20,6 +20,11 @@ export interface PassApprovalRow {
   decided_name: string | null;
   decided_at: string | null;
   reason: string | null;
+  /** True when `decided_name` signed as the office's STANDING DEPUTY rather
+   *  than as its holder (migration 054). Stored on the decision, not derived
+   *  from today's ladder: both seats move, and re-pointing an office next month
+   *  must not rewrite who signed this pass last month. */
+  decided_as_deputy: boolean;
 }
 
 /** How a decided (or undecided) level reads. A `Record` and not a chain, so a

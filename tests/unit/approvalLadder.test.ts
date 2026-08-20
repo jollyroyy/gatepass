@@ -53,23 +53,30 @@ function role(key: string, name: string, dept: string | null = 'Security'): Appr
     full_name: name,
     department_name: dept,
     designated_at: '2026-08-01T00:00:00Z',
+    deputy_id: null,
+    deputy_name: null,
   };
 }
 
 const FULL: ApprovalRoleRow[] = [
   role('security_head', 'Arun Kumar', 'Security'),
   role('coo', 'Vikram Singh', 'Operations'),
-  role('ceo', 'Neha Sharma', 'Executive'),
   role('finance_head', 'Sameer Khan', 'Finance & Accounts'),
+  role('ceo', 'Neha Sharma', 'Executive'),
 ];
 
 describe('the ladder mirrors the printed slip', () => {
-  it('is Security Head, COO, CEO, Finance HOD — in slip order', () => {
+  // REWRITTEN 2026-08-20. This case used to hold the order 043 took off the
+  // printed slip — Security Head, COO, **CEO**, Finance HOD. The client moved
+  // the CEO to LAST ("1. The security head has to approve 2. COO 3. Finance
+  // 4. CEO"), so the CEO now signs on a pass finance has already costed, and
+  // `signatureBlocks.ts` and migration 057 moved with it.
+  it('is Security Head, COO, Finance HOD, CEO — in slip order', () => {
     expect(APPROVAL_LADDER.map((l) => l.key)).toEqual([
-      'security_head', 'coo', 'ceo', 'finance_head',
+      'security_head', 'coo', 'finance_head', 'ceo',
     ]);
     expect(APPROVAL_LADDER.map((l) => APPROVAL_ROLE_TITLES[l.key])).toEqual([
-      'Security Head', 'COO', 'CEO', 'Finance HOD',
+      'Security Head', 'COO', 'Finance HOD', 'CEO',
     ]);
   });
 
@@ -98,8 +105,8 @@ describe('buildApprovalSteps', () => {
     expect(levels.map((s) => s.who)).toEqual([
       'Security Head (Arun Kumar)',
       'COO (Vikram Singh)',
-      'CEO (Neha Sharma)',
       'Finance HOD (Sameer Khan)',
+      'CEO (Neha Sharma)',
     ]);
     expect(levels.map((s) => s.at)).toEqual([null, null, null, null]);
     expect(levels.every((s) => s.state === 'done')).toBe(true);
@@ -123,7 +130,7 @@ describe('buildApprovalSteps', () => {
     expect(levels).toHaveLength(4);
     expect(levels.every((s) => s.state === 'done')).toBe(true);
     expect(levels.every((s) => /signed on the printed pass/i.test(s.note ?? ''))).toBe(true);
-    expect(levels.map((s) => s.who)).toEqual(['Security Head', 'COO', 'CEO', 'Finance HOD']);
+    expect(levels.map((s) => s.who)).toEqual(['Security Head', 'COO', 'Finance HOD', 'CEO']);
   });
 
   it('still names the holder for a guard when the office IS held', () => {
@@ -231,12 +238,13 @@ function approval(over: Partial<PassApprovalRow> = {}): PassApprovalRow {
     decided_name: null,
     decided_at: null,
     reason: null,
+    decided_as_deputy: false,
     ...over,
   };
 }
 
 const HELD: ApprovalRoleRow[] = [
-  { role_key: 'security_head', user_id: 'u9', full_name: 'Sanjay Rao', department_name: 'Security', designated_at: '2026-08-19T04:00:00Z' },
+  { role_key: 'security_head', user_id: 'u9', full_name: 'Sanjay Rao', department_name: 'Security', designated_at: '2026-08-19T04:00:00Z', deputy_id: null, deputy_name: null },
 ];
 
 describe('buildApprovalSteps — a pass with a real ladder of its own (046)', () => {
@@ -304,5 +312,59 @@ describe('buildApprovalSteps — a pass with a real ladder of its own (046)', ()
     const levels = steps.filter((s) => s.key.startsWith('level-'));
     expect(levels).toHaveLength(APPROVAL_LADDER.length);
     expect(levels.every((l) => l.state === 'unset' && l.note === 'Not designated yet')).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 054 — a STANDING DEPUTY may sign in the holder's place, and the rung says so.
+// The stamp is read off the decision (`decided_as_deputy`), never off today's
+// ladder: both seats move, and re-pointing an office next month must not
+// rewrite who signed a pass last month.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('buildApprovalSteps — a level signed by the office deputy (054)', () => {
+  it('names the seat that signed, in place of the department', () => {
+    // Workday's "On Behalf Of" line. An unlabelled deputy reads as the office
+    // holder, which is the one thing an audit trail must not let happen — and
+    // the deputy's own department is not the fact this rung is about.
+    const steps = buildApprovalSteps(
+      pass(),
+      HELD,
+      'hod',
+      [approval({ status: 'approved', decided_name: 'Priya Nair', decided_as_deputy: true, decided_at: '2026-08-20T05:30:00Z' })],
+    );
+    const level = steps.find((s) => s.key === 'level-1')!;
+    expect(level.detail).toBe('Standing deputy for the Security Head');
+    expect(level.who).toBe('Security Head (Priya Nair)');
+    expect(level.state).toBe('done');
+  });
+
+  it('still shows the department when the holder signed it themselves', () => {
+    const steps = buildApprovalSteps(
+      pass(),
+      HELD,
+      'hod',
+      [approval({ status: 'approved', decided_name: 'Sanjay Rao', decided_as_deputy: false })],
+    );
+    expect(steps.find((s) => s.key === 'level-1')!.detail).toBe('Security');
+  });
+
+  it('says so on a REJECTION too, without displacing the reason', () => {
+    // The reason is the only answer the raising HOD gets, so it keeps the note;
+    // the seat goes where the department was.
+    const steps = buildApprovalSteps(
+      pass(),
+      HELD,
+      'hod',
+      [approval({
+        status: 'rejected',
+        decided_name: 'Priya Nair',
+        decided_as_deputy: true,
+        reason: 'Vendor not cleared for this material.',
+      })],
+    );
+    const level = steps.find((s) => s.key === 'level-1')!;
+    expect(level.detail).toBe('Standing deputy for the Security Head');
+    expect(level.note).toBe('Vendor not cleared for this material.');
+    expect(level.state).toBe('blocked');
   });
 });

@@ -19,7 +19,9 @@ import BlacklistTab from './BlacklistTab';
 import WhitelistRequestsTab from './WhitelistRequestsTab';
 import CeoApproverCard from './CeoApproverCard';
 import ApprovalLadderCard from './ApprovalLadderCard';
+import EmergencyReleasesCard from './EmergencyReleasesCard';
 import MailSettingsCard from './MailSettingsCard';
+import AppSettingsCard from './AppSettingsCard';
 import { useMyProfile } from '../../lib/useMyProfile';
 
 type Tab = 'departments' | 'users' | 'blacklist' | 'whitelist' | 'settings';
@@ -42,11 +44,20 @@ export default function AdminPanel(): React.ReactElement {
     users: (
       <div className="space-y-6">
         <ApprovalLadderCard />
+        {/* Sits beside the ladder because it is the same subject: who may sign,
+            and what happened when nobody could. Renders NOTHING at all when no
+            pass has ever been released under emergency (055). */}
+        <EmergencyReleasesCard />
         <UsersTab />
       </div>
     ),
     blacklist: <BlacklistTab />,
-    settings: <MailSettingsCard />,
+    settings: (
+      <div className="space-y-6">
+        <AppSettingsCard />
+        <MailSettingsCard />
+      </div>
+    ),
     whitelist: (
       <div className="space-y-6">
         <CeoApproverCard isSuperAdmin={isSuperAdmin} />
