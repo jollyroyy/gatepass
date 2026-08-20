@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase, getUserRole } from './supabaseClient';
 import type { UserRole } from './types/index';
 import { homeFor, isForbidden } from './lib/roleRoutes';
+import { loginPathFor, nextAfterLogin, pathnameOf } from './lib/postLoginRedirect';
 import { fetchMyApprovalRole } from './lib/approverAccess';
 import type { ApprovalRoleKey } from './lib/approvalLadder';
 import { fetchAccessState } from './lib/profiles';
@@ -62,6 +63,15 @@ function RouteGuard({
   return <>{children}</>;
 }
 
+/** Where a reader goes once they have signed in on a `/login?next=…` URL: the
+ *  path they were reaching for, when it is a real path in this app and their
+ *  role may reach it, otherwise their own home. */
+function resumeAfterLogin(search: string, role: UserRole | null, isApprover: boolean): string {
+  const target = nextAfterLogin(search);
+  if (target && !isForbidden(pathnameOf(target), role, isApprover)) return target;
+  return homeFor(role, isApprover);
+}
+
 function FullPageLoader(): React.ReactElement {
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-50">
@@ -74,7 +84,7 @@ function FullPageLoader(): React.ReactElement {
 }
 
 export default function App(): React.ReactElement {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [resolving, setResolving] = useState(true);
@@ -114,7 +124,10 @@ export default function App(): React.ReactElement {
       let mustChange = false;
       let active = true;
       try {
-        const access = await fetchAccessState();
+        // The office is part of the question: an office holder's VMS role is
+        // `staff`, and without it every approver reads as a deactivated
+        // account. See fetchAccessState.
+        const access = await fetchAccessState(Boolean(held));
         mustChange = access.mustChangePassword;
         active = access.isActive;
       } catch {
@@ -169,10 +182,15 @@ export default function App(): React.ReactElement {
   }
 
   if (!session) {
+    // THE DEEP LINK SURVIVES THE SIGN-IN (client, 2026-08-20). The approval
+    // emails' Approve and Reject buttons open the pass record itself, and the
+    // reader is almost always signed out when they press one — so the path they
+    // asked for rides across the login on `?next=` instead of being thrown
+    // away. See `postLoginRedirect.ts` for why that parameter is not trusted.
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to={loginPathFor(pathname, search)} replace />} />
       </Routes>
     );
   }
@@ -223,7 +241,19 @@ export default function App(): React.ReactElement {
     <AppShell session={session} role={role} isApprover={office !== null}>
       <RouteGuard role={role} isApprover={office !== null}>
         <Routes>
-          <Route path="/login" element={<Navigate to={homeFor(role, office !== null)} replace />} />
+          {/* Signed in and still on `/login`: this is the moment the emailed
+              deep link resumes. `isForbidden` still grades the destination —
+              the parameter is untrusted, and a wrong-role target must land on
+              this reader's own home rather than on a screen that will bounce. */}
+          <Route
+            path="/login"
+            element={
+              <Navigate
+                to={resumeAfterLogin(search, role, office !== null)}
+                replace
+              />
+            }
+          />
 
           {/* HOD */}
           <Route path="/dashboard" element={<HodDashboard />} />

@@ -16,7 +16,7 @@
 // `pub().from('profiles')` call reappears.
 import { gp } from '../supabaseClient';
 import type { Profile, UserRole } from '../types';
-import { isAccountActive } from './userStatus';
+import { isDirectoryActive } from './userStatus';
 
 /** Shape the RPCs return: identical to Profile except `role` arrives as text. */
 type ProfileRow = Omit<Profile, 'role'> & { role: string };
@@ -84,13 +84,21 @@ export async function fetchMustChangePassword(): Promise<boolean> {
  * both gate the whole app, so asking for them separately would be two RPCs to
  * answer one question, with the second able to disagree with the first.
  *
- * `isActive` is the DERIVED answer (`isAccountActive`), not the raw column: a
- * `staff` row is flagged active and still reaches nothing.
+ * `isActive` is the DERIVED answer (`isDirectoryActive`), not the raw column:
+ * a `staff` row with nothing else going for it is flagged active and still
+ * reaches nothing.
+ *
+ * `hasOffice` is load-bearing and is why this takes an argument at all. An
+ * approval office holder (046) is created as VMS `staff` — the role for "does
+ * not use VMS" — and their `gatepass.approval_roles` row is what grants them
+ * their route and their queue. Asked `isAccountActive`, this said false about
+ * all four offices, so every one of them was shown "Account Deactivated" and
+ * none could sign in to anything, with no suspension anywhere in the database.
  *
  * Throws on a failed lookup. App.tsx decides to fail open on that, not this
  * file — being unable to reach the database is not proof anybody is suspended.
  */
-export async function fetchAccessState(): Promise<{
+export async function fetchAccessState(hasOffice = false): Promise<{
   mustChangePassword: boolean;
   isActive: boolean;
 }> {
@@ -99,7 +107,7 @@ export async function fetchAccessState(): Promise<{
     mustChangePassword: Boolean(profile?.must_change_password),
     // No profile row at all is not a suspension — the role check in App.tsx is
     // what turns that into NoAccess, with a message that fits the cause.
-    isActive: profile ? isAccountActive(profile.role, profile.is_active) : true,
+    isActive: profile ? isDirectoryActive(profile.role, profile.is_active, hasOffice) : true,
   };
 }
 
