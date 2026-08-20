@@ -18,10 +18,6 @@ vi.mock('../../src/pages/Admin/FunctionalRolesTab', () => ({ default: () => <div
 vi.mock('../../src/pages/Admin/BlacklistTab', () => ({ default: () => <div>blacklist pane</div> }));
 vi.mock('../../src/pages/Admin/WhitelistRequestsTab', () => ({ default: () => <div>whitelist pane</div> }));
 vi.mock('../../src/pages/Admin/MailSettingsCard', () => ({ default: () => <div>mail settings pane</div> }));
-vi.mock('../../src/pages/Admin/CeoApproverCard', () => ({ default: () => <div>CEO approver</div> }));
-vi.mock('../../src/lib/useMyProfile', () => ({
-  useMyProfile: () => ({ profile: { role: 'admin' }, loading: false, error: null, saveName: vi.fn(), setAvatarUrl: vi.fn() }),
-}));
 
 import AdminPanel from '../../src/pages/Admin/AdminPanel';
 

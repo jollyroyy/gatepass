@@ -72,11 +72,36 @@ through request → HOD approval → deletion. That is now the next security act
 | `public.departments` | **15 rows** (2026-08-20, counted as `postgres`; the old "12 rows" line was stale) — VMS-owned, shared, do not wipe. **Every one of them has at least one `public.profiles` row pointing at it**, which is why every delete raised 23503 until `060`. |
 | Demo accounts | the `@demo.vms` accounts share password `demo123` and are email-confirmed; shared with VMS. **"all email-confirmed" was WRONG** — 7 real accounts carried `email_confirmed_at is null` and none of them had ever signed in (see the 048 entry). 6 still do, and a password reset is now what confirms them. |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
-| `gatepass.approval_roles` | **4 rows — ALL FOUR OFFICES ARE FILLED**, so since `046` was applied every NEWLY raised pass needs four approvals and **the gate cannot see it until it has them**. Security Head **Demi** (re-designated 2026-08-19, fourteenth pass — it had been Jane/`jollyroyy@gmail.com` for the email test) · COO Sudeshna Pal · CEO Sid · Finance HOD GUARDSOHAM. One person holds one office (`049`). Admin → Users → *Gate pass approval ladder* is where they are set. |
+| `gatepass.approval_roles` | **4 rows — ALL FOUR OFFICES ARE FILLED**, so since `046` was applied every NEWLY raised pass needs four approvals and **the gate cannot see it until it has them**. Re-read live as `postgres` on 2026-08-20 (thirtieth pass) and the holders have MOVED since the fourteenth pass: Security Head **securityhead** (`securityhead@demo.quest`) · COO **Questmallcoo** (`coo@demo.quest`) · CEO **Questmallceo** (`ceo@demo.quest`) · Finance HOD **financehod** (`financehod@demo.quest`). One person holds one office (`049`). Admin → Users → *Gate pass approval ladder* is the ONLY place they are set, and since 053 the CEO office is also what decides whitelist requests. |
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-20, twenty-ninth pass): AN APPROVER'S CARD NAMES THE DEPARTMENT AND
+**Latest change (2026-08-20, thirtieth pass): THE ADMIN PANEL NO LONGER CARRIES A SECOND CEO
+DESIGNATION.** Frontend only — no migration, no RPC change, no grant change.
+
+- **The Whitelist Requests tab warned "No CEO approver is designated — no whitelist request can be
+  approved until one is set", and that warning was FALSE.** Since `053`, `is_ceo()` is true for the
+  holder of the CEO office on the approval ladder as well as for a `gatepass.ceo_approver` row, and
+  the ladder CEO is filled. Checked live as `postgres`: **`gatepass.ceo_approver` is 0 rows** and
+  `approval_roles.ceo` is **Questmallceo (`ceo@demo.quest`)**, so the person who decides these
+  requests exists and the card was warning about the one designation nobody can ever fill —
+  `set_ceo_approver` (039) is super-admin-only AND namable only on an ADMIN account, and a ladder
+  CEO is a VMS `staff` account.
+- **`src/pages/Admin/CeoApproverCard.tsx` is DELETED** (with `tests/unit/ceoApproverCard.test.tsx`
+  and the `CeoApprover` type), so a stale reference is a build error. `AdminPanel`'s whitelist tab
+  is `<WhitelistRequestsTab />` alone and the file no longer reads `useMyProfile` at all. Pinned by
+  a new `adminPanelTabs.test.tsx` case, watched failing first.
+- **The CEO is designated in exactly one place now**: Admin → Users → *Gate pass approval ladder*.
+- **⚠ THE SCHEMA HALF IS DELIBERATELY LEFT ALONE.** `gatepass.ceo_approver`, `get_ceo_approver` and
+  `set_ceo_approver` still exist and `is_ceo()` still reads the table, so a row written there would
+  still grant the blacklist override — the two RPCs simply have **no caller in `src/`** any more.
+  Dropping them is one migration (drop both functions, narrow `is_ceo()` to `approval_roles`, drop
+  the table); it is not done here because it changes who `is_ceo()` answers true for, which is a
+  security decision and not what was asked. It is a no-op on this deployment today (0 rows).
+- **NOT SEEN SIGNED-IN IN A BROWSER**: `npm run check` (**1862 tests across 146 files, green**) and
+  the live `postgres` reads only.
+
+**Earlier (2026-08-20, twenty-ninth pass): AN APPROVER'S CARD NAMES THE DEPARTMENT AND
 THE PURPOSE.** Frontend only — no migration, no RPC change, no new query.
 
 - Client: "we also put the department name and the reason or the purpose of that RGP or an NRGP
@@ -2525,6 +2550,11 @@ the query and `GateConsole` renders the results full width above the queue.
 - Pinned by `tests/unit/phoneSearch.test.ts` (6) and `tests/unit/gateLookupPhone.test.tsx` (5).
 
 ### Known, not fixed
+
+- **`gatepass.get_ceo_approver` and `set_ceo_approver` have no caller in `src/`** (2026-08-20,
+  thirtieth pass) — the Admin panel's CEO-designation card was deleted. `is_ceo()` still reads
+  `gatepass.ceo_approver`, which is empty, so the mechanism is unreachable from the portal but is
+  still live over PostgREST for a super admin. See "never leave unused schema".
 
 - **`src/lib/approvalNotice.ts` is 437 lines**, well over the 300-line cap, and **it cannot be
   split**: Deno needs a `.ts` extension on a local import and the app's tooling needs none, so

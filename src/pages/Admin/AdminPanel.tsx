@@ -1,10 +1,13 @@
 // Admin landing page: thin tab shell only. Departments and Users each own
 // their data-fetching and mutations — this file just switches between them.
 //
-// The Whitelist tab is the CEO's queue (039). It carries the CEO-designation
-// card above the queue because the two are one setting and one consequence:
-// with nobody designated, every request in the list below is unapprovable, and
-// splitting them across screens would hide that.
+// The Whitelist tab is the CEO's queue (039). It carries NO CEO-designation
+// card: since 053 `is_ceo()` is true for the holder of the CEO office on the
+// approval ladder, so the person who decides these requests is designated once,
+// on the Users tab, beside the three offices they sign gate passes with. The
+// second designation it used to carry (`gatepass.ceo_approver`, 039 — super
+// admin only, and namable only on an ADMIN account, which no ladder CEO is)
+// could therefore only ever warn that nobody held an office somebody did hold.
 //
 // The Users tab carries the gate pass approval ladder (043) for the same
 // reason: it is four people picked out of the very directory listed under it.
@@ -18,12 +21,10 @@ import UsersTab from './UsersTab';
 import FunctionalRolesTab from './FunctionalRolesTab';
 import BlacklistTab from './BlacklistTab';
 import WhitelistRequestsTab from './WhitelistRequestsTab';
-import CeoApproverCard from './CeoApproverCard';
 import ApprovalLadderCard from './ApprovalLadderCard';
 import EmergencyReleasesCard from './EmergencyReleasesCard';
 import MailSettingsCard from './MailSettingsCard';
 import AppSettingsCard from './AppSettingsCard';
-import { useMyProfile } from '../../lib/useMyProfile';
 
 type Tab = 'departments' | 'users' | 'roles' | 'blacklist' | 'whitelist' | 'settings';
 
@@ -39,9 +40,6 @@ const TABS: { key: Tab; label: string }[] = [
 
 export default function AdminPanel(): React.ReactElement {
   const [tab, setTab] = useState<Tab>('departments');
-  const { profile } = useMyProfile();
-  const isSuperAdmin = profile?.role === 'super_admin';
-
   const rendered: Record<Tab, React.ReactElement> = {
     departments: <DepartmentsTab />,
     users: (
@@ -62,12 +60,7 @@ export default function AdminPanel(): React.ReactElement {
         <MailSettingsCard />
       </div>
     ),
-    whitelist: (
-      <div className="space-y-6">
-        <CeoApproverCard isSuperAdmin={isSuperAdmin} />
-        <WhitelistRequestsTab />
-      </div>
-    ),
+    whitelist: <WhitelistRequestsTab />,
   };
 
   return (

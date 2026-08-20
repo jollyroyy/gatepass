@@ -495,12 +495,6 @@ export interface WhitelistRequest {
   decision_note: string | null;
 }
 
-export interface CeoApprover {
-  user_id: string;
-  full_name: string | null;
-  designated_at: string;
-}
-
 // ─── Bulk create result ───────────────────────────────────────────────────
 export interface BulkCreateResult {
   pass_id: string;
