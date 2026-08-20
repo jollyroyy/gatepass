@@ -249,6 +249,12 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
               <div id="approval-stack">
                 <PassStack
                   passes={view.rows}
+                  // THE DEPARTMENT AND THE PURPOSE (client, 2026-08-20: "we
+                  // also put the department name and the reason or the purpose
+                  // of that RGP or an NRGP pass in the stat list across all the
+                  // approvers"). One stack serves all three figures, so what is
+                  // read before signing is what is read back afterwards.
+                  showContext
                   // NO CONTROL ON A DECIDED PASS (client, 2026-08-20: "without
                   // any approval/reject button").
                   renderActions={

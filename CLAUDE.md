@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-20
 
-Full gate: **1768 tests across 138 files** (`npm run check`), green — and **`npm run build` is
+Full gate: **1866 tests across 147 files** (`npm run check`), green — and **`npm run build` is
 green again**, which it had not been since the raise-form CSS landed (see the twelfth pass).
 Migrations **`001`–`047` and `049`–`051` are applied to the live DB.** `044` was found UNAPPLIED on
 2026-08-19 — the overdue card's Contact Vendor and Add Remark had shipped against RPCs that did
@@ -76,7 +76,28 @@ through request → HOD approval → deletion. That is now the next security act
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-20, twenty-eighth pass): THE FOUR APPROVAL OFFICES CAN SIGN IN AGAIN;
+**Latest change (2026-08-20, twenty-ninth pass): AN APPROVER'S CARD NAMES THE DEPARTMENT AND
+THE PURPOSE.** Frontend only — no migration, no RPC change, no new query.
+
+- Client: "we also put the department name and the reason or the purpose of that RGP or an NRGP
+  pass in the stat list across all the approvers." Both facts were already on every row —
+  `v_gate_passes.department_name` and `gate_passes.purpose` — and could only be read by opening
+  the record.
+- **`showContext` IS A PROP THE LIST SUPPLIES, and only `/approvals` supplies it**, exactly like
+  `actions` and `expandable` before it. So the admin's drills, the HOD's register and the overdue
+  board are still the six-fact plate they have been since the card landed, and
+  `passStackCard.test.tsx` pins that they name neither.
+- **ONE `PassStack` SERVES ALL THREE FIGURES on that board**, so what an approver reads before
+  signing is what they read back on Approved by You and Rejected by You — one prop, not three.
+- Department sits beside Requested By and Purpose beside Material, which puts each fact next to
+  the one it qualifies. A `.gpo-fact-value` already ellipsises, so a long purpose truncates in the
+  cell; the value now carries a `title` so it is readable on hover and in full on the record.
+- Pinned by 2 new `pendingApprovalsPage.test.tsx` cases (both watched failing first) and 1 new
+  `passStackCard.test.tsx` case. `npm run check` is **1866 tests across 147 files**, green.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite only. Eight facts in a six-track grid at 1280 is
+  exactly what only a real render proves.
+
+**Earlier (2026-08-20, twenty-eighth pass): THE FOUR APPROVAL OFFICES CAN SIGN IN AGAIN;
 A DEPARTMENT IS DELETED ONLY BY ITS OWN HOD (migration `060`, APPLIED); AN APPROVER CANNOT SEE A
 PASS UNTIL IT IS THEIR TURN (migration `061`, APPLIED AND PROBED 36/36); AND ADMIN HAS A
 Functional Roles TAB.**

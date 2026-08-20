@@ -236,6 +236,40 @@ describe('The stack and its figure', () => {
       .toEqual({ p_pass_id: 'p2', p_reason: 'Vendor is blacklisted.' });
   });
 
+  // THE DEPARTMENT AND THE PURPOSE ARE ON THE CARD (client, 2026-08-20: "we
+  // also put the department name and the reason or the purpose of that RGP or
+  // an NRGP pass in the stat list across all the approvers"). An approver signs
+  // for a department they do not sit in, and the purpose is the reason they are
+  // being asked at all — both were only readable by opening the record.
+  it('names the department and the purpose on every card in the queue', async () => {
+    await renderPage();
+    const cards = screen.getAllByTestId('pass-stack-card');
+    // p2 (oldest) then p1.
+    expect(within(cards[0]).getByText('Department')).toBeInTheDocument();
+    expect(within(cards[0]).getByText('Housekeeping')).toBeInTheDocument();
+    expect(within(cards[0]).getByText('Purpose')).toBeInTheDocument();
+    expect(within(cards[0]).getByText('Waste Disposal')).toBeInTheDocument();
+    expect(within(cards[1]).getByText('Engineering')).toBeInTheDocument();
+    expect(within(cards[1]).getByText('Formwork Support')).toBeInTheDocument();
+  });
+
+  // ACROSS ALL THREE FIGURES, not the queue alone — one `PassStack`, so what
+  // an approver reads before signing is what they read back afterwards.
+  it('names them on what this person approved and rejected too', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Approved by You/ }));
+    await waitFor(() => expect(screen.getByText('RGP-00040')).toBeInTheDocument());
+    let card = screen.getAllByTestId('pass-stack-card')[0];
+    expect(within(card).getByText('Department')).toBeInTheDocument();
+    expect(within(card).getByText('Purpose')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Rejected by You/ }));
+    await waitFor(() => expect(screen.getByText('NRGP-00041')).toBeInTheDocument());
+    card = screen.getAllByTestId('pass-stack-card')[0];
+    expect(within(card).getByText('Department')).toBeInTheDocument();
+    expect(within(card).getByText('Purpose')).toBeInTheDocument();
+  });
+
   it('opens the ONE gate pass record — the same one the guard reads', async () => {
     await renderPage();
     const card = screen.getAllByTestId('pass-stack-card')[1];

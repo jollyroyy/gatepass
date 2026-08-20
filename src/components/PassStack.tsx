@@ -16,6 +16,9 @@ type Props = {
   showRaisedBy?: boolean;
   /** Numbers the cards from 1. Off for a list that is not a register. */
   numbered?: boolean;
+  /** Names each pass's department and purpose among its facts. Only the
+   *  approver's board asks for it — see `PassStackCard`. */
+  showContext?: boolean;
   /** Controls for one card's right-hand side. Only the approver's queue passes
    *  this; every other stack stays action-free (see PassStackCard's header). */
   renderActions?: (pass: GatePassView) => React.ReactNode;
@@ -27,7 +30,8 @@ type Props = {
 };
 
 export default function PassStack({
-  passes, showRaisedBy = true, numbered = true, renderActions, expandable = false,
+  passes, showRaisedBy = true, showContext = false, numbered = true, renderActions,
+  expandable = false,
 }: Props): React.ReactElement {
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -40,6 +44,7 @@ export default function PassStack({
             pass={p}
             index={numbered ? i + 1 : undefined}
             showRaisedBy={showRaisedBy}
+            showContext={showContext}
             actions={renderActions ? renderActions(p) : undefined}
             expandable={expandable}
             open={expandable && openId === p.id}

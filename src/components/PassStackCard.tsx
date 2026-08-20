@@ -82,7 +82,10 @@ function Fact({
   return (
     <div className="gpo-fact">
       <span className="gpo-fact-label">{label}</span>
-      <span className={tone === 'late' ? 'gpo-fact-value gpo-fact-late' : 'gpo-fact-value'}>
+      <span
+        className={tone === 'late' ? 'gpo-fact-value gpo-fact-late' : 'gpo-fact-value'}
+        title={value}
+      >
         {value}
       </span>
     </div>
@@ -100,6 +103,13 @@ type Props = {
   /** Controls drawn under the stage pill, on the right. Supplied by the LIST —
    *  only the approver's queue supplies any. */
   actions?: React.ReactNode;
+  /** Names the pass's DEPARTMENT and its PURPOSE among the facts (client,
+   *  2026-08-20: "we also put the department name and the reason or the purpose
+   *  of that RGP or an NRGP pass in the stat list across all the approvers").
+   *  Off unless the list asks: an approver signs for departments they do not
+   *  sit in and needs the reason in front of them, where the HOD's own register
+   *  would only be repeating itself. */
+  showContext?: boolean;
   /** Draws the chevron that unfolds this pass's material lines. Off unless the
    *  list asks for it. */
   expandable?: boolean;
@@ -109,7 +119,8 @@ type Props = {
 };
 
 export default function PassStackCard({
-  pass, index, showRaisedBy = true, actions, expandable = false, open = false, onToggle,
+  pass, index, showRaisedBy = true, showContext = false, actions,
+  expandable = false, open = false, onToggle,
 }: Props): React.ReactElement {
   const company = parseCompanyInfo(pass.visitor_company);
   const stage = passStageStyle(pass);
@@ -137,8 +148,13 @@ export default function PassStackCard({
 
         <div className="gpo-facts">
           {showRaisedBy && <Fact label="Requested By" value={pass.raised_by_name || '—'} />}
+          {showContext && <Fact label="Department" value={pass.department_name || '—'} />}
           <Fact label="Vendor / Person" value={company.name || pass.visitor_name} />
           <Fact label="Material" value={pass.material_summary ?? '—'} />
+          {/* The reason the pass exists — what an approver is actually being
+              asked to agree to. Long ones ellipsis in the cell and are read in
+              full on the record, which the card links to. */}
+          {showContext && <Fact label="Purpose" value={pass.purpose || '—'} />}
           <Fact label="Items" value={String(pass.item_count)} />
           {/* The money the client asked to see on every card. An unpriced pass
               shows a dash, never ₹0 — the same rule the item table follows. */}

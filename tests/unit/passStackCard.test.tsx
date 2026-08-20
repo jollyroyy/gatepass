@@ -99,6 +99,21 @@ describe('every stacked list draws the guard’s card', () => {
     expect(screen.queryByText('P M Sharma')).not.toBeInTheDocument();
   });
 
+  // THE DEPARTMENT AND THE PURPOSE ARE THE APPROVER'S TWO FACTS (client,
+  // 2026-08-20: "we also put the department name and the reason or the purpose
+  // of that RGP or an NRGP pass in the stat list across all the approvers").
+  // They are OFF by default, which is what keeps every other stack — the
+  // admin's drills, the HOD's register, the overdue board — the six-fact plate
+  // it has been since the card landed.
+  it('names neither the department nor the purpose unless the list asks', () => {
+    renderDrill([pass()]);
+    const card = within(screen.getByTestId('pass-stack-card'));
+    expect(card.queryByText('Department')).not.toBeInTheDocument();
+    expect(card.queryByText('Engineering')).not.toBeInTheDocument();
+    expect(card.queryByText('Purpose')).not.toBeInTheDocument();
+    expect(card.queryByText('Servicing')).not.toBeInTheDocument();
+  });
+
   it('numbers the stack 1-based, in order', () => {
     renderDrill([pass(), pass({ id: 'p2', pass_number: 'RGP-20260818-0002' })]);
     expect(screen.getAllByTestId('pass-ordinal').map((o) => o.textContent)).toEqual(['1', '2']);
