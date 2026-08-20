@@ -97,11 +97,13 @@ ITS WRITTEN DETAIL IN FROM THE RAIL; AND THE ADMIN'S "Departments & Users" TAB I
     `ApprovalDecisionBar` as `decide`, and an unrecognised value is ignored rather than guessed at.
   - **THE PWA IS WHY THESE ARE ORDINARY IN-APP PATHS.** `public/manifest.webmanifest` already
     ships; on a phone with the app installed the scope match hands the link to the installed app.
-  - **⚠ `APP_BASE_URL` IS STILL `http://localhost:5174`** (set 2026-08-19, and the secrets list
-    shows only a digest — the value was not changed by this pass). **Every button in every letter
-    therefore points at localhost and will not open on anybody else's phone.** Setting it to the
-    Vercel URL is the ONE remaining action before this works for a real approver; nothing in the
-    code needs to change with it.
+  - **`APP_BASE_URL` IS NOW `https://gatepass-bay.vercel.app`** (the client's own URL, set
+    2026-08-20 with `supabase secrets set` and the function REDEPLOYED so it is picked up). It had
+    been `http://localhost:5174` since 2026-08-19, which pointed every button in every letter at
+    one machine. `vercel.json`'s SPA rewrite is what makes `/pass/<uuid>?decide=…` resolve on a
+    cold load rather than 404. **Not yet proved by a real send** — the secrets list returns only a
+    digest, so the value is verified by the write succeeding, not by reading it back; opening one
+    letter is what proves the link.
 - **A DEEP LINK SURVIVES THE SIGN-IN** — `src/lib/postLoginRedirect.ts`, new and pure. The
   unauthenticated branch of `App.tsx` used to answer every path with a bare
   `<Navigate to="/login">`, which threw the destination away; it now sends `/login?next=…` and the
