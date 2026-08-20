@@ -27,7 +27,7 @@ export default function WhitelistApprovals(): React.ReactElement {
   return (
     <div className="gb-board gb-main">
       <GuardPageHeader
-        title="Whitelist Requests"
+        title="Whitelist of Vendors"
         subtitle="Vendors an admin has asked to take off the blacklist. Only the CEO decides."
         glyph="alert"
         tone="purple"

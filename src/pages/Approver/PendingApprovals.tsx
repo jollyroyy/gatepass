@@ -193,7 +193,7 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
               <div className="gb-raise-grid">
                 <Link to="/whitelist" className="gb-raise-tile">
                   <GuardIcon glyph="alert" tone="red" shape="square" />
-                  <span className="gb-raise-title">Whitelist Requests</span>
+                  <span className="gb-raise-title">Whitelist of Vendors</span>
                   <span className="gb-raise-note">Take a vendor off the blacklist</span>
                 </Link>
               </div>

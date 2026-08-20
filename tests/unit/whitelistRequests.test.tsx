@@ -50,6 +50,28 @@ const APPROVED_REQUEST: WhitelistRequest = {
   decision_note: 'Verified the ownership transfer.',
 };
 
+const REJECTED_REQUEST: WhitelistRequest = {
+  id: 'req-3',
+  blacklist_id: 'bl-3',
+  list_type: 'company',
+  list_value: 'Metro Movers',
+  blocked_reason: 'Damaged mall property',
+  justification: 'They have paid for the repair in full.',
+  requested_by: 'admin-1',
+  requested_by_name: 'Priya Admin',
+  requested_at: '2026-08-03T09:00:00Z',
+  status: 'rejected',
+  decided_by_name: 'Rahul CEO',
+  decided_at: '2026-08-04T09:00:00Z',
+  decision_note: 'Payment is not the same as a changed practice.',
+};
+
+const SECOND_APPROVED: WhitelistRequest = {
+  ...APPROVED_REQUEST,
+  id: 'req-4',
+  list_value: 'Sunrise Logistics',
+};
+
 let isCeo = true;
 let requests: WhitelistRequest[] = [PENDING_REQUEST];
 
@@ -129,13 +151,60 @@ describe('WhitelistRequestsTab', () => {
     });
   });
 
-  it('a decided approved request renders in the Decided group and offers no controls, even to the CEO', async () => {
+  // REWRITTEN 2026-08-20 (thirty-first pass). It used to hold that every
+  // decided request rendered under ONE heading, "Decided". The screen now
+  // carries three figures and each one stands directly over its own list, so
+  // an approved request sits under "Whitelisting Granted" — otherwise the
+  // granted figure would count rows that were mixed in with rejections in the
+  // list underneath it, which is exactly the drift the board invariant exists
+  // to prevent.
+  it('a decided approved request renders under Whitelisting Granted and offers no controls, even to the CEO', async () => {
     requests = [APPROVED_REQUEST];
     render(<WhitelistRequestsTab />);
     await waitFor(() => expect(screen.getByText('WB09AB1234')).toBeTruthy());
-    expect(screen.getByText('Decided')).toBeTruthy();
+    expect(screen.queryByText('Decided')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Whitelisting Granted' })).toBeTruthy();
     expect(screen.getByText('Verified the ownership transfer.')).toBeTruthy();
     expect(screen.queryByText('Approve')).toBeNull();
     expect(screen.queryByText('Reject')).toBeNull();
+  });
+
+  it('the screen is headed "Whitelist of Vendors"', async () => {
+    render(<WhitelistRequestsTab />);
+    await waitFor(() => expect(screen.getByText('BSC Cargo')).toBeTruthy());
+    expect(screen.getByRole('heading', { name: 'Whitelist of Vendors' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Whitelist Requests' })).toBeNull();
+  });
+
+  // The three figures, and the one property that matters about them: each is
+  // the length of the list drawn under it.
+  it('carries a figure for what is waiting, what was granted and what was rejected', async () => {
+    requests = [PENDING_REQUEST, APPROVED_REQUEST, REJECTED_REQUEST, SECOND_APPROVED];
+    render(<WhitelistRequestsTab />);
+    await waitFor(() => expect(screen.getByText('BSC Cargo')).toBeTruthy());
+
+    const cards = screen.getByTestId('whitelist-kpis');
+    const figures = Array.from(cards.querySelectorAll('.gpo-total-figure')).map((n) => n.textContent);
+    expect(figures).toEqual(['1', '2', '1']);
+
+    const titles = Array.from(cards.querySelectorAll('.gpo-total-title')).map((n) => n.textContent);
+    expect(titles).toEqual(['Awaiting CEO Decision', 'Whitelisting Granted', 'Whitelisting Rejected']);
+  });
+
+  it('keeps a zero figure on screen, saying so, instead of hiding the card', async () => {
+    requests = [PENDING_REQUEST];
+    render(<WhitelistRequestsTab />);
+    await waitFor(() => expect(screen.getByText('BSC Cargo')).toBeTruthy());
+
+    const figures = Array.from(
+      screen.getByTestId('whitelist-kpis').querySelectorAll('.gpo-total-figure'),
+    ).map((n) => n.textContent);
+    expect(figures).toEqual(['1', '0', '0']);
+    expect(screen.getByText('The CEO has granted no whitelisting yet')).toBeTruthy();
+  });
+
+  it('draws no figures at all while the requests are still loading', () => {
+    render(<WhitelistRequestsTab />);
+    expect(screen.queryByTestId('whitelist-kpis')).toBeNull();
   });
 });

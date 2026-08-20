@@ -23,11 +23,11 @@ import AdminPanel from '../../src/pages/Admin/AdminPanel';
 
 describe('AdminPanel tabs', () => {
   // REWRITTEN 2026-08-20. It used to hold that the strip was exactly
-  // Departments · Users · Blacklist · Whitelist Requests · Settings. The client
+  // Departments · Users · Blacklist · Whitelist of Vendors · Settings. The client
   // asked for Functional Roles "just beside the users and departments", so the
   // tab is asserted BY POSITION as well as by name — third, immediately after
   // the two it was asked to sit beside.
-  it('offers exactly Departments, Users, Functional Roles, Blacklist, Whitelist Requests and Settings, in that order', () => {
+  it('offers exactly Departments, Users, Functional Roles, Blacklist, Whitelist of Vendors and Settings, in that order', () => {
     render(<AdminPanel />);
     const labels = screen
       .getAllByRole('button')
@@ -37,7 +37,7 @@ describe('AdminPanel tabs', () => {
       'Users',
       'Functional Roles',
       'Blacklist',
-      'Whitelist Requests',
+      'Whitelist of Vendors',
       'Settings',
     ]);
   });
@@ -61,9 +61,9 @@ describe('AdminPanel tabs', () => {
   // designation that no ladder CEO can ever be named in — had nothing left to
   // say except a false warning that no CEO was designated. The card is gone; a
   // whitelist request is approved by whoever holds the CEO office.
-  it('carries no CEO-designation card on the Whitelist Requests tab', () => {
+  it('carries no CEO-designation card on the Whitelist of Vendors tab', () => {
     render(<AdminPanel />);
-    fireEvent.click(screen.getByRole('button', { name: 'Whitelist Requests' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Whitelist of Vendors' }));
     expect(screen.getByText('whitelist pane')).toBeInTheDocument();
     expect(screen.queryByText(/CEO approver/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/No CEO approver is designated/i)).not.toBeInTheDocument();

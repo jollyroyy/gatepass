@@ -7,6 +7,8 @@ import { gp } from '../../supabaseClient';
 import type { WhitelistRequest } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
 import WhitelistRequestCard from './WhitelistRequestCard';
+import WhitelistKpiCards from './WhitelistKpiCards';
+import { groupWhitelistRequests, whitelistKpis } from '../../lib/whitelistCounts';
 
 export default function WhitelistRequestsTab(): React.ReactElement {
   const [requests, setRequests] = useState<WhitelistRequest[]>([]);
@@ -37,12 +39,17 @@ export default function WhitelistRequestsTab(): React.ReactElement {
 
   useEffect(() => { load(); }, [load]);
 
-  const pending = requests.filter((r) => r.status === 'pending');
-  const decided = requests.filter((r) => r.status !== 'pending');
+  // ONE SPLIT FEEDS BOTH THE FIGURES AND THE LISTS, so a card cannot stand
+  // over a list it does not describe — the board invariant this app has
+  // carried since its first KPI.
+  const groups = groupWhitelistRequests(requests);
+  const kpis = whitelistKpis(groups);
 
   return (
     <div>
-      <h2 className="section-title mb-4">Whitelist Requests</h2>
+      <h2 className="section-title mb-4">Whitelist of Vendors</h2>
+
+      {!loading && <WhitelistKpiCards cards={kpis} />}
 
       {error && <div className="alert-error mb-4">{error}</div>}
 
@@ -63,24 +70,32 @@ export default function WhitelistRequestsTab(): React.ReactElement {
       ) : (
         <>
           <div className="space-y-3 mb-6">
-            {pending.length === 0 ? (
+            {groups.pending.length === 0 ? (
               <div className="table-wrap empty-state">No pending requests.</div>
             ) : (
-              pending.map((r) => (
+              groups.pending.map((r) => (
                 <WhitelistRequestCard key={r.id} request={r} isCeo={isCeo} onDecided={load} onError={setError} />
               ))
             )}
           </div>
 
-          {decided.length > 0 && (
-            <>
-              <h3 className="section-title">Decided</h3>
-              <div className="space-y-3">
-                {decided.map((r) => (
-                  <WhitelistRequestCard key={r.id} request={r} isCeo={isCeo} onDecided={load} onError={setError} />
-                ))}
-              </div>
-            </>
+          {/* The decided requests are split under the same two names the cards
+            * carry, so each figure stands directly over the rows it counted.
+            * A group with nothing in it is not drawn — its card already says
+            * so, and an empty heading says it twice. */}
+          {(['approved', 'rejected'] as const).map((key) =>
+            groups[key].length === 0 ? null : (
+              <React.Fragment key={key}>
+                <h3 className="section-title">
+                  {kpis.find((c) => c.key === key)?.title}
+                </h3>
+                <div className="space-y-3 mb-6">
+                  {groups[key].map((r) => (
+                    <WhitelistRequestCard key={r.id} request={r} isCeo={isCeo} onDecided={load} onError={setError} />
+                  ))}
+                </div>
+              </React.Fragment>
+            ),
           )}
         </>
       )}

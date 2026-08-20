@@ -76,7 +76,41 @@ through request → HOD approval → deletion. That is now the next security act
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-20, thirtieth pass): THE ADMIN PANEL NO LONGER CARRIES A SECOND CEO
+**Latest change (2026-08-20, thirty-first pass): THE WHITELIST SCREEN IS "Whitelist of Vendors"
+AND CARRIES THREE FIGURES — what is waiting on the CEO, WHAT THEY GRANTED and WHAT THEY
+REJECTED.** Frontend only — no migration, no RPC change, no new query.
+
+- Client: "show the number of the requests that have been granted for whitelisting under the CEO.
+  Show the exact KPI number also, both for approval and rejection for whitelisting of vendors.
+  Make sure you change the heading also 'Whitelist of Vendors'."
+- **NO NEW QUERY WAS NEEDED.** `list_whitelist_requests(null)` already returns every request at
+  every status; the screen simply filtered it into pending/decided and counted nothing.
+  `src/lib/whitelistCounts.ts` SPLITS that one array — `groupWhitelistRequests` keys on `status`,
+  which is a three-value union, so the groups are **disjoint and total by construction** and sum
+  to the requests with nothing counted twice.
+- **EACH FIGURE STANDS DIRECTLY OVER ITS OWN LIST**, which is why the single "Decided" group is
+  gone: an approved request now sits under **Whitelisting Granted** and a rejected one under
+  **Whitelisting Rejected**. A granted figure over a list mixing rejections in is exactly the
+  drift the board invariant exists to prevent. One split feeds both the cards and the lists.
+- **THE CARDS ARE READINGS, NOT CONTROLS** — `<div>`s wearing `.gpo-total`, not the `<button>`
+  that class was written as. The rows each one counts are in the list immediately underneath,
+  already grouped; there is nothing for a click to open. Same call `ReportsKpiCards` made.
+  A zero card stays on screen saying zero, with its own sentence ("The CEO has granted no
+  whitelisting yet") rather than a "tap to see them" that would be a lie under a zero.
+- **NO NEW COLOUR**: `.gpo-total-row` / `.gpo-total--purple` / `--green` are the approver board's
+  own row, painting from `--gb-*`. Both callers sit inside an island that declares them (the
+  admin panel rides `.gb-main` on `<main>`; `/whitelist` is its own `.gb-board gb-main`), so
+  `themeAudit` stays absolute.
+- **THE NAME MOVED IN ALL FOUR PLACES IT APPEARS**, so the app cannot disagree with itself: the
+  `<h2>`, the admin tab label, the CEO's `/whitelist` page title and the Quick Action tile on
+  `/approvals`. The ROUTE and the tab KEY are unchanged, so every deep link still lands.
+- Pinned by a new `tests/unit/whitelistCounts.test.ts` (6) and 4 new `whitelistRequests.test.tsx`
+  cases, all watched failing first, plus a **REWRITTEN** decided-request case whose comment says
+  what it used to hold ("Decided"). `npm run check` is **1872 tests across 147 files**, green.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite only. Three cards across at 900px inside the
+  admin panel's house-themed tab is exactly what only a real render proves.
+
+**Earlier (2026-08-20, thirtieth pass): THE ADMIN PANEL NO LONGER CARRIES A SECOND CEO
 DESIGNATION.** Frontend only — no migration, no RPC change, no grant change.
 
 - **The Whitelist Requests tab warned "No CEO approver is designated — no whitelist request can be

@@ -34,7 +34,7 @@ const TABS: { key: Tab; label: string }[] = [
   // Beside Users and Departments, on the client's own instruction (2026-08-20).
   { key: 'roles', label: 'Functional Roles' },
   { key: 'blacklist', label: 'Blacklist' },
-  { key: 'whitelist', label: 'Whitelist Requests' },
+  { key: 'whitelist', label: 'Whitelist of Vendors' },
   { key: 'settings', label: 'Settings' },
 ];
 
