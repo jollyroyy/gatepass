@@ -51,7 +51,7 @@ export default {
   // what stops it applying inside that subtree at all. It is the same
   // zero-specificity shape Tailwind v4 ships by default, so a `dark:` utility
   // still wins over its base pair by source order, not by specificity.
-  darkMode: ['variant', '&:where(.dark, .dark *):not(:where(.gb-main, .gb-main *))'],
+  darkMode: ['variant', '&:where(.dark, .dark *):not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *))'],
   theme: {
     extend: {
       colors: {

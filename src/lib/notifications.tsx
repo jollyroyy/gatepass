@@ -27,6 +27,8 @@ import type { Session } from '@supabase/supabase-js';
 import { gp, supabase } from '../supabaseClient';
 import { factKey, readDismissed, writeDismissed } from './notificationDismissals';
 import type { GatePassView, UserRole } from '../types';
+import type { ApprovalRoleKey } from './approvalLadder';
+import { useApprovalNotices } from './approvalNotices';
 
 export type NotificationType =
   | 'flagged'
@@ -34,6 +36,10 @@ export type NotificationType =
   | 'matched'
   | 'new_pass'
   | 'rejected'
+  // A pass waiting on the reader's own approval office (046). The one notice
+  // here that is a LIVE QUEUE rather than an announcement, which is why its
+  // dismissal is deliberately not persisted — see `remember`.
+  | 'approval'
   // The one notice on this bell that is NOT about a gate pass (migration 060):
   // an admin wants to delete a department this HOD heads, and only they can
   // approve it. `passId` carries the REQUEST id — it is the dismissal key and
@@ -127,10 +133,14 @@ export function rejectedMessage(passNumber: string): string {
 type Props = {
   session: Session;
   role: UserRole | null;
+  /** Which of the four approval offices this reader holds (046), if any. It is
+   *  not a role, so it travels beside one — an office holder's VMS role is
+   *  `staff`, and the bell would otherwise have nothing to key on. */
+  office?: ApprovalRoleKey | null;
   children: React.ReactNode;
 };
 
-export function NotificationProvider({ session, role, children }: Props): React.ReactElement {
+export function NotificationProvider({ session, role, office = null, children }: Props): React.ReactElement {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   // Every fact the bell has already accounted for — shown, or dismissed in an
   // earlier session. Seeded from storage so a dismissed mismatch is not
@@ -145,9 +155,17 @@ export function NotificationProvider({ session, role, children }: Props): React.
     setNotifications((prev) => [n, ...prev]);
   }, []);
 
-  /** Remember a dismissal, so the mount-time derivation does not undo it. */
+  /** Remember a dismissal, so the mount-time derivation does not undo it.
+   *
+   *  AN APPROVAL NOTICE IS EXEMPT, and that is the whole reliability of the
+   *  count the client asked for: it is a live queue, and a figure somebody
+   *  could clear by mis-tapping while the pass still sits unsigned would be a
+   *  number that means nothing. It leaves the bell for this session and comes
+   *  back on the next mount if the pass is still waiting — and stops coming
+   *  back the moment it is decided, because the query no longer returns it. */
   const remember = useCallback((n: AppNotification | undefined) => {
     if (!n) return;
+    if (n.type === 'approval') return;
     dismissedRef.current.add(factKey(n.passId, n.type));
     writeDismissed(dismissedRef.current);
   }, []);
@@ -180,6 +198,23 @@ export function NotificationProvider({ session, role, children }: Props): React.
   );
 
   const userId = session.user?.id;
+
+  // ─── What is waiting on this reader's own office ──────────────────────────
+  const addApprovalNotice = useCallback(
+    (fact: { passId: string; passNumber: string; message: string; timestamp: string }) => {
+      addNotification({
+        id: genId(),
+        type: 'approval',
+        title: 'Waiting for Your Approval',
+        message: fact.message,
+        passId: fact.passId,
+        passNumber: fact.passNumber,
+        timestamp: fact.timestamp,
+      });
+    },
+    [addNotification],
+  );
+  useApprovalNotices(office, addApprovalNotice);
 
   // ─── What happened while nobody was looking ────────────────────────────────
   // HOD only, and two kinds of fact only, both of which are a DECISION waiting on

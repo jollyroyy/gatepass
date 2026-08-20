@@ -27,6 +27,7 @@ import type { GatePassView } from '../../types';
 import { approvePass, rejectPass } from '../../lib/approvalActions';
 import { safeErrorMessage } from '../../lib/errors';
 import RejectApprovalModal from './RejectApprovalModal';
+import { useNotifications } from '../../lib/notifications';
 
 type Props = {
   pass: GatePassView;
@@ -39,6 +40,11 @@ export default function ApprovalCardActions({ pass, onDecided }: Props): React.R
   const [busy, setBusy] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // THE BELL'S COUNT IS A LIVE QUEUE, so a decision has to take this pass off
+  // it here and now: the derivation that put it there runs on mount, and
+  // leaving the notice up would have the badge asking for a signature that has
+  // already been given until the next page load.
+  const { dismissPass } = useNotifications();
 
   async function approve(): Promise<void> {
     if (busy) return;
@@ -46,6 +52,7 @@ export default function ApprovalCardActions({ pass, onDecided }: Props): React.R
     setError(null);
     try {
       await approvePass(pass.id);
+      dismissPass(pass.id);
       onDecided();
     } catch (err) {
       setError(safeErrorMessage(err, 'Could not record that decision.'));
@@ -82,6 +89,7 @@ export default function ApprovalCardActions({ pass, onDecided }: Props): React.R
           onClose={() => setRejecting(false)}
           onSubmit={async (reason) => {
             await rejectPass(pass.id, reason);
+            dismissPass(pass.id);
             setRejecting(false);
             onDecided();
           }}

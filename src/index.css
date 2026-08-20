@@ -200,13 +200,13 @@
 
 }
 
-  .dark .bg-white:not(:where(.gb-main, .gb-main *)) {
+  .dark .bg-white:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)) {
     background-color: rgb(var(--glass-bg) / 0.8);
   }
-  .dark .bg-white\/70:not(:where(.gb-main, .gb-main *)) {
+  .dark .bg-white\/70:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)) {
     background-color: rgb(var(--glass-bg) / 0.6);
   }
-  .dark .bg-white\/90:not(:where(.gb-main, .gb-main *)) {
+  .dark .bg-white\/90:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)) {
     background-color: rgb(var(--glass-bg) / 0.88);
   }
 
@@ -456,12 +456,12 @@
            hover:border-surface-300
            transition-all duration-200;
   }
-  .dark .input:not(:where(.gb-main, .gb-main *)) {
+  .dark .input:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)) {
     background: rgb(255 255 255 / 0.04);
     border-color: rgb(255 255 255 / 0.1);
     color: rgb(var(--c-navy-900));
   }
-  .dark .input:not(:where(.gb-main, .gb-main *)):focus {
+  .dark .input:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)):focus {
     border-color: rgb(216 184 120 / 0.55);
     box-shadow: 0 0 0 4px rgb(198 161 91 / 0.18);
   }
@@ -474,14 +474,14 @@
      forces `class="dark"` in index.html even when the OS theme is light.
      jsdom paints no native widgets, so only tests/unit/darkModeDropdown.test.ts
      can catch a regression here. Ported from VMS, which already had it. */
-  .dark select:not(:where(.gb-main, .gb-main *)) {
+  .dark select:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)) {
     color-scheme: dark;
   }
-  .dark select.input:not(:where(.gb-main, .gb-main *)) {
+  .dark select.input:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)) {
     background-color: rgb(var(--c-surface-100));
   }
-  .dark select:not(:where(.gb-main, .gb-main *)) option,
-  .dark select:not(:where(.gb-main, .gb-main *)) optgroup {
+  .dark select:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)) option,
+  .dark select:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)) optgroup {
     background-color: rgb(var(--c-surface-100));
     color: rgb(var(--c-navy-900));
   }
@@ -508,12 +508,12 @@
            disabled:opacity-50 disabled:cursor-not-allowed
            transition-all duration-200;
   }
-  .dark .btn-secondary:not(:where(.gb-main, .gb-main *)) {
+  .dark .btn-secondary:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)) {
     background: rgb(255 255 255 / 0.05);
     border-color: rgb(255 255 255 / 0.1);
     color: rgb(var(--c-navy-700));
   }
-  .dark .btn-secondary:not(:where(.gb-main, .gb-main *)):hover {
+  .dark .btn-secondary:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)):hover {
     background: rgb(255 255 255 / 0.09);
   }
   .btn-find {
@@ -528,12 +528,12 @@
     background: rgb(var(--c-brand-600) / 0.14);
     border-color: rgb(var(--c-brand-500) / 0.5);
   }
-  .dark .btn-find:not(:where(.gb-main, .gb-main *)) {
+  .dark .btn-find:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)) {
     background: rgb(var(--c-brand-500) / 0.12);
     color: rgb(var(--c-brand-300));
     border-color: rgb(var(--c-brand-500) / 0.25);
   }
-  .dark .btn-find:not(:where(.gb-main, .gb-main *)):hover {
+  .dark .btn-find:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)):hover {
     background: rgb(var(--c-brand-500) / 0.2);
     border-color: rgb(var(--c-brand-400) / 0.4);
   }
@@ -587,7 +587,7 @@
     -webkit-backdrop-filter: blur(20px) saturate(140%);
     border: 1px solid rgb(0 0 0 / 0.06);
   }
-  .dark .card:not(:where(.gb-main, .gb-main *)) {
+  .dark .card:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)) {
     border-color: rgb(255 255 255 / 0.07);
     box-shadow: 0 4px 20px 0 rgb(0 0 0 / 0.3);
   }
@@ -597,7 +597,7 @@
   .card-hover:hover {
     border-color: rgb(198 161 91 / 0.45);
   }
-  .dark .card-hover:not(:where(.gb-main, .gb-main *)):hover {
+  .dark .card-hover:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)):hover {
     border-color: rgb(208 173 104 / 0.35);
     box-shadow: 0 12px 32px -8px rgb(0 0 0 / 0.55);
   }
@@ -608,7 +608,7 @@
     -webkit-backdrop-filter: blur(24px) saturate(160%);
     border: 1px solid rgb(var(--c-surface-200) / 0.8);
   }
-  .dark .card-glass:not(:where(.gb-main, .gb-main *)) {
+  .dark .card-glass:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)) {
     border-color: rgb(255 255 255 / 0.08);
   }
 
@@ -756,7 +756,7 @@
   .tab-active {
     @apply bg-white shadow-soft text-navy-900 font-semibold tab-item;
   }
-  .dark .tab-active:not(:where(.gb-main, .gb-main *)) {
+  .dark .tab-active:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)) {
     background: rgb(255 255 255 / 0.1);
   }
   .tab-inactive {
@@ -790,7 +790,7 @@
   .table-base tbody tr:hover {
     @apply bg-surface-50;
   }
-  .dark .table-base:not(:where(.gb-main, .gb-main *)) tbody tr:hover {
+  .dark .table-base:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)) tbody tr:hover {
     background: rgb(255 255 255 / 0.03);
   }
 
@@ -878,7 +878,7 @@
     background: rgb(var(--glass-bg) / var(--glass-bg-opacity));
     border: 1px solid rgb(0 0 0 / 0.06);
   }
-  .dark .rp-sheet:not(:where(.gb-main, .gb-main *)) {
+  .dark .rp-sheet:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)) {
     border-color: rgb(255 255 255 / 0.07);
     box-shadow: 0 4px 20px 0 rgb(0 0 0 / 0.3);
   }
@@ -1041,7 +1041,7 @@
     box-shadow: 0 25px 80px -12px rgb(0 0 0 / 0.35);
     animation: scaleIn 0.2s ease-out;
   }
-  .dark .modal-content:not(:where(.gb-main, .gb-main *)) {
+  .dark .modal-content:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)) {
     border-color: rgb(255 255 255 / 0.1);
   }
   /* Consistent top-right × across every popup — see ModalShell.tsx, the one
@@ -1053,7 +1053,7 @@
            text-navy-500 hover:text-navy-700 hover:bg-surface-100 active:scale-95
            transition-all duration-150 z-10;
   }
-  .dark .modal-close-btn:not(:where(.gb-main, .gb-main *)):hover {
+  .dark .modal-close-btn:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *)):hover {
     background: rgb(255 255 255 / 0.08);
   }
 
@@ -1103,7 +1103,7 @@
     background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.45), transparent);
     animation: shimmer 1.8s ease-in-out infinite;
   }
-  .dark .skeleton:not(:where(.gb-main, .gb-main *))::after {
+  .dark .skeleton:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *))::after {
     background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.07), transparent);
   }
 
@@ -1216,7 +1216,7 @@
 @layer components {
   .gb-board {
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-    background: #ffffff;
+    background: var(--gb-paper);
     color: var(--gb-ink);
     /* Bleed out to the edges of the shell's content padding (px-4 sm:px-6
      * lg:px-8 / pt-20 lg:pt-8 / pb-8) and re-apply it here, so the white
@@ -1268,12 +1268,12 @@
           shipped default.
        2. A utility written `dark:…` is a literal class, not a var, so the ramp
           above cannot reach it. `tailwind.config.ts` therefore builds the dark
-          variant as `&:where(.dark, .dark *):not(:where(.gb-main, .gb-main *))`
+          variant as `&:where(.dark, .dark *):not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *))`
           — inside this subtree a `dark:` utility does not apply at all.
        3. index.css's own hand-written `.dark X` rules (the input, the secondary
           button, the card, the modal, the skeleton shimmer…) are plain CSS, so
           neither of the above touches them. Each one carries the SAME
-          `:not(:where(.gb-main, .gb-main *))` tail, which is what keeps Print
+          `:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *))` tail, which is what keeps Print
           Pass from rendering as white-on-white here. `designSystem.test.ts`
           fails on a new `.dark` rule that forgets it.
      Remove any one of the three and the others stop being enough. */
@@ -1319,8 +1319,128 @@
 
     color-scheme: light;
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-    background: #ffffff;
+    background: var(--gb-paper);
     color: var(--gb-ink);
+  }
+
+  /* ---- THE DARK HALF, FOR AN APPROVAL OFFICE ONLY ----------------------
+   * Client, 2026-08-20: "it seems the dark mode is not working in all the
+   * approvers. Can you please make sure you can toggle to dark mode also under
+   * all approvers frontend?" It was not working for ANYBODY: `.gb-main` pins
+   * the whole content area light on every role (2026-08-19), so the sidebar's
+   * Dark Mode button changed its own label and nothing else.
+   *
+   * `.gb-themed` is the OPT-IN, and `AppShell` puts it on `<main>` for a person
+   * who holds one of the four approval offices — nobody else, because the guard,
+   * the HOD and the admin were given this light skin on the client's own
+   * instruction and are deliberately left exactly as they are.
+   *
+   * IT IS THE SAME THREE MECHANISMS THE LIGHT LOCK NEEDED, RUN BACKWARDS:
+   *   1. the `--gb-*` palette is re-declared dark, for the island AND for the
+   *      `.gb-board` / `.gb-stack` nested inside it (a longer selector, so it
+   *      beats their own light declaration);
+   *   2. the neutral ramp, the status tints and the glass tokens go back to
+   *      their `.dark` values, so a house component inside the island paints
+   *      dark again;
+   *   3. `dark:` utilities and the hand-written `.dark X` rules exclude only a
+   *      `.gb-main` that is NOT `.gb-themed` (see tailwind.config.ts and the
+   *      `:not(:where(.gb-main:not(.gb-themed), …))` tails above).
+   * Remove any one and the other two stop being enough — which is exactly what
+   * the comment above says about the light lock.
+   *
+   * The hues are LIFTED, not merely re-tinted: #2563eb on #131317 is a pill
+   * nobody can read. Every `-soft` / `-tint` plate becomes a dark wash, because
+   * a light plate under near-white ink is the white-on-white bug in reverse. */
+  .dark .gb-themed,
+  .dark .gb-themed .gb-board,
+  .dark .gb-themed .gb-stack {
+    --gb-paper: #1b1b21;
+    --gb-ink: #f4f4f5;
+    --gb-body: #d4d4d8;
+    --gb-muted: #a1a1aa;
+    --gb-line: #33333c;
+    --gb-line-soft: #26262e;
+    --gb-head: #202027;
+
+    --gb-orange: #fb923c;
+    --gb-orange-ink: #fdba74;
+    --gb-orange-tint: #3a2412;
+    --gb-orange-soft: #241708;
+    --gb-orange-line: #7c4a1e;
+
+    --gb-blue: #60a5fa;
+    --gb-blue-tint: #16294d;
+    --gb-blue-soft: #111c33;
+    --gb-blue-line: #2b4f86;
+
+    --gb-green: #4ade80;
+    --gb-green-tint: #123522;
+    --gb-green-soft: #0d2417;
+    --gb-green-line: #26663f;
+
+    --gb-red: #f87171;
+    --gb-red-soft: #2e1416;
+    --gb-red-line: #7f2f2f;
+
+    --gb-purple: #c084fc;
+    --gb-purple-tint: #2c1a3f;
+    --gb-purple-soft: #1f142c;
+  }
+
+  /* A PAGE MAY PUT `.gb-main` ON ITS OWN DIV as well (the boards, the report
+   * sheet, `/approvals` itself), and that nested copy re-declares the LIGHT
+   * ramp — which is how the reject modal came back white with near-white ink on
+   * the first pass at this. Inside a themed shell it takes the dark ramp too. */
+  .dark .gb-themed,
+  .dark .gb-themed .gb-main {
+    --c-navy-50: 22 22 26;
+    --c-navy-100: 31 31 36;
+    --c-navy-200: 46 46 53;
+    --c-navy-300: 74 74 84;
+    --c-navy-400: 126 122 116;
+    --c-navy-500: 156 151 143;
+    --c-navy-600: 182 177 168;
+    --c-navy-700: 207 202 193;
+    --c-navy-800: 226 222 215;
+    --c-navy-900: 240 237 231;
+    --c-navy-950: 250 249 247;
+
+    --c-surface-50: 14 14 17;
+    --c-surface-100: 23 23 27;
+    --c-surface-200: 38 38 44;
+    --c-surface-300: 58 58 66;
+    --c-surface-400: 110 106 100;
+
+    --c-brand-50: 42 34 19;
+    --c-brand-100: 61 49 25;
+
+    --c-pending-50: 48 36 14;
+    --c-pending-100: 62 46 16;
+    --c-pending-700: 251 191 36;
+    --c-matched-50: 12 42 32;
+    --c-matched-100: 16 56 42;
+    --c-matched-700: 52 211 153;
+    --c-flagged-50: 50 20 24;
+    --c-flagged-100: 66 24 30;
+    --c-flagged-700: 248 113 113;
+    --c-overdue-50: 52 26 10;
+    --c-overdue-100: 68 34 12;
+    --c-overdue-700: 251 146 60;
+
+    --glass-bg: 23 23 27;
+    --glass-bg-opacity: 0.62;
+    --glass-border-opacity: 0.1;
+    --glass-border: 255 255 255;
+
+    color-scheme: dark;
+    background: #131317;
+  }
+
+  /* The board bleeds out to the shell's padding and paints its own ground, so
+   * in the dark half it must paint the DARK one — otherwise the island's
+   * background shows through as a white sheet under every card. */
+  .dark .gb-themed .gb-board {
+    background: #131317;
   }
 
   /* The heading ladder, restated in the mock-up's type. The RUNGS are
@@ -1419,7 +1539,7 @@
 
   /* The two summary cards. */
   .gb-card {
-    background: #ffffff;
+    background: var(--gb-paper);
     border: 1px solid var(--gb-line);
     border-radius: 12px;
     box-shadow: 0 1px 2px 0 rgb(16 24 40 / 0.04);
@@ -1688,7 +1808,7 @@
   }
   .gb-action-orange:hover { background: var(--gb-orange-tint); }
   .gb-action-blue {
-    background: #ffffff;
+    background: var(--gb-paper);
     border-color: var(--gb-blue-line);
     color: var(--gb-blue);
   }
@@ -1718,7 +1838,7 @@
     padding: 14px;
     border: 1px solid var(--gb-line);
     border-radius: 10px;
-    background: #ffffff;
+    background: var(--gb-paper);
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
   .gb-tile:hover {
@@ -1872,7 +1992,7 @@
     width: 100%;
     border: 1px solid var(--gb-line);
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--gb-paper);
     padding: 8px 12px 8px 34px;
     font-size: 13.5px;
     font-weight: 400;
@@ -1891,7 +2011,7 @@
     flex-shrink: 0;
     border: 1px solid var(--gb-blue-line);
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--gb-paper);
     padding: 8px 12px;
     font-size: 13.5px;
     font-weight: 600;
@@ -1914,7 +2034,7 @@
     appearance: none;
     border: 1px solid var(--gb-line);
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--gb-paper);
     padding: 7px 28px 7px 11px;
     font-size: 13px;
     font-weight: 500;
@@ -1932,7 +2052,7 @@
     gap: 6px;
     border: 1px solid var(--gb-line);
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--gb-paper);
     padding: 7px 11px;
     font-size: 13px;
     font-weight: 500;
@@ -1965,7 +2085,7 @@
     .gb-detail { grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); }
   }
   .gb-detail-box {
-    background: #ffffff;
+    background: var(--gb-paper);
     border: 1px solid var(--gb-line);
     border-radius: 10px;
     overflow: hidden;
@@ -2016,7 +2136,7 @@
     padding: 0 8px;
     border: 1px solid var(--gb-line);
     border-radius: 7px;
-    background: #ffffff;
+    background: var(--gb-paper);
     font-size: 13px;
     font-weight: 500;
     color: var(--gb-body);
@@ -2047,7 +2167,7 @@
     padding: 0 9px;
     border-radius: 6px;
     border: 1px solid var(--gb-blue-line);
-    background: #ffffff;
+    background: var(--gb-paper);
     font-size: 12.5px;
     font-weight: 600;
     color: var(--gb-blue);
@@ -2066,7 +2186,7 @@
     width: 320px;
     max-width: calc(100vw - 32px);
     z-index: 40;
-    background: #ffffff;
+    background: var(--gb-paper);
     border: 1px solid var(--gb-line);
     border-radius: 10px;
     box-shadow: 0 10px 30px rgba(17, 24, 39, 0.14);
@@ -2146,7 +2266,7 @@
     padding: 0 14px;
     border-radius: 7px;
     border: 1px solid var(--gb-line);
-    background: #ffffff;
+    background: var(--gb-paper);
     font-size: 13.5px;
     font-weight: 500;
     color: var(--gb-body);
@@ -2243,7 +2363,7 @@
   /* Nothing overdue: it stays on screen saying zero rather than vanishing, but
    * it stops pretending to open anything. */
   .gpo-total:disabled {
-    background: #ffffff;
+    background: var(--gb-paper);
     border-color: var(--gb-line);
     cursor: default;
   }
@@ -2337,7 +2457,7 @@
     display: flex;
     align-items: flex-start;
     gap: 12px;
-    background: #ffffff;
+    background: var(--gb-paper);
     border: 1px solid var(--gb-line);
     border-left: 3px solid var(--gb-orange);
     border-radius: 10px;
@@ -2482,7 +2602,7 @@
   .gpo-act-approve { background: var(--gb-green); color: #ffffff; }
   .gpo-act-approve:hover:not(:disabled) { filter: brightness(0.94); }
   .gpo-act-reject {
-    background: #ffffff;
+    background: var(--gb-paper);
     color: var(--gb-red);
     border-color: var(--gb-red-line);
   }
@@ -2507,7 +2627,7 @@
     height: 30px;
     border-radius: 8px;
     border: 1px solid var(--gb-line);
-    background: #ffffff;
+    background: var(--gb-paper);
     color: var(--gb-muted);
   }
   .gpo-card-chev:hover { background: var(--gb-head); color: var(--gb-ink); }
@@ -2520,7 +2640,7 @@
     border-bottom-right-radius: 10px;
   }
   .gpo-items-note { font-size: 13px; color: var(--gb-muted); }
-  .gpo-items-table { background: #ffffff; }
+  .gpo-items-table { background: var(--gb-paper); }
   .gpo-items-table td { white-space: nowrap; }
 
   .gpo-stack-foot { padding: 0 14px; }
@@ -2546,7 +2666,7 @@
     right: 0;
     z-index: 30;
     width: 244px;
-    background: #ffffff;
+    background: var(--gb-paper);
     border: 1px solid var(--gb-line);
     border-radius: 10px;
     box-shadow: 0 10px 30px rgba(17, 24, 39, 0.14);
@@ -2764,7 +2884,7 @@
     padding: 20px 14px;
     border: 1px solid var(--gb-line);
     border-radius: 12px;
-    background: #ffffff;
+    background: var(--gb-paper);
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
   .gb-raise-tile:hover {
@@ -3334,7 +3454,7 @@
     z-index: 20;
     min-width: 190px;
     padding: 6px;
-    background: #ffffff;
+    background: var(--gb-paper);
     border: 1px solid var(--gb-line);
     border-radius: 10px;
     box-shadow: 0 8px 24px 0 rgb(16 24 40 / 0.12);
@@ -3389,7 +3509,7 @@
     gap: 6px;
     border: 1px solid var(--gb-line);
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--gb-paper);
     padding: 4px 8px;
   }
   .gb-rep-dates input {
@@ -3534,7 +3654,7 @@
     flex-shrink: 0;
     border: 1px solid var(--gb-line);
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--gb-paper);
     padding: 8px 12px;
     font-size: 13.5px;
     font-weight: 500;
@@ -3557,7 +3677,7 @@
     gap: 14px;
     padding: 14px 16px;
     margin-bottom: 14px;
-    background: #ffffff;
+    background: var(--gb-paper);
     border: 1px solid var(--gb-line);
     border-radius: 10px;
   }
@@ -3566,7 +3686,7 @@
   .mp-chip {
     border: 1px solid var(--gb-line);
     border-radius: 999px;
-    background: #ffffff;
+    background: var(--gb-paper);
     padding: 6px 13px;
     font-size: 13px;
     font-weight: 500;
@@ -3596,7 +3716,7 @@
     background: var(--gb-line-soft);
   }
   .mp-row {
-    background: #ffffff;
+    background: var(--gb-paper);
     border: 1px solid var(--gb-line);
     border-radius: 10px;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -3705,11 +3825,11 @@
     padding: 12px 14px;
   }
   .mp-items-note { font-size: 13px; color: var(--gb-muted); }
-  .mp-items-table { background: #ffffff; border-radius: 8px; }
+  .mp-items-table { background: var(--gb-paper); border-radius: 8px; }
   .mp-items-table td { font-variant-numeric: tabular-nums; }
 
   .mp-empty {
-    background: #ffffff;
+    background: var(--gb-paper);
     border: 1px solid var(--gb-line);
     border-radius: 10px;
     padding: 32px 16px;

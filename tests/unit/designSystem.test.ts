@@ -147,7 +147,9 @@ describe('design system — the guard shell (.gb-main)', () => {
   it('sets the mock-up type and ground on the shell itself', () => {
     const block = css.match(/\.gb-main\s*{[^}]*}/)?.[0] ?? '';
     expect(block).toMatch(/font-family:\s*'Inter'/);
-    expect(block).toMatch(/background:\s*#ffffff/);
+    // Painted through the token since 2026-08-20, so the dark half can move it
+    // without a second rule: `--gb-paper` is white on `.gb-main` itself.
+    expect(block).toMatch(/background:\s*var\(--gb-paper\)/);
     expect(block).toMatch(/color:\s*var\(--gb-ink\)/);
   });
 
@@ -156,9 +158,29 @@ describe('design system — the guard shell (.gb-main)', () => {
     expect(css).toMatch(/\.gb-main \.card-title/);
   });
 
+  // THE DARK HALF (client, 2026-08-20). An approver's island opts back into the
+  // theme, and it takes all three mechanisms — the `--gb-*` palette, the neutral
+  // ramp and the variant tails — exactly as the light lock took all three.
+  it('re-declares the --gb-* palette and the dark ramp under .dark .gb-themed', () => {
+    const palette = css.match(/\.dark \.gb-themed,[\s\S]*?\.gb-stack\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(palette).not.toBe('');
+    for (const name of ['--gb-paper', '--gb-ink', '--gb-body', '--gb-muted', '--gb-line', '--gb-head']) {
+      expect(palette).toContain(`${name}:`);
+    }
+    const ramp = css.match(/\.dark \.gb-themed,\s*\n\s*\.dark \.gb-themed \.gb-main\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(ramp).toMatch(/--c-navy-700:\s*207 202 193/);
+    expect(ramp).toMatch(/--c-surface-200:\s*38 38 44/);
+    expect(ramp).toMatch(/color-scheme:\s*dark/);
+  });
+
   it('is excluded from the dark variant in tailwind.config.ts', () => {
     expect(config).toMatch(/darkMode:\s*\['variant'/);
-    expect(config).toMatch(/:not\(:where\(\.gb-main, \.gb-main \*\)\)/);
+    // REWRITTEN 2026-08-20: the tail used to be `:not(:where(.gb-main, .gb-main
+    // *))` flat. An approver's shell now carries `.gb-themed` and IS meant to
+    // take the dark treatment (client: "make sure you can toggle to dark mode
+    // also under all approvers frontend"), so the exclusion is narrowed to a
+    // `.gb-main` that is not themed.
+    expect(config).toContain(':not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *))');
   });
 });
 
@@ -171,12 +193,15 @@ describe('design system — every .dark rule opts out of the guard shell', () =>
   it('carries the :not(:where(.gb-main, .gb-main *)) tail', () => {
     // The var block itself (`.dark {`), the selection colour, and the printed
     // slip's own opt-out are exempt: none of them is a component treatment.
-    const EXEMPT = /::selection|\.pass-sheet/;
+    // The var block itself and the approver's dark palette (`.dark .gb-themed`)
+    // are exempt: they ARE the dark treatment, not a component inside a shell
+    // that has to opt out of one.
+    const EXEMPT = /::selection|\.pass-sheet|\.gb-themed/;
     const offenders = css
       .split('\n')
       .map((line) => line.trim())
       .filter((line) => /^\.dark\s+[^{\s]/.test(line) && !EXEMPT.test(line))
-      .filter((line) => !line.includes(':not(:where(.gb-main, .gb-main *))'));
+      .filter((line) => !line.includes(':not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), .gb-main:not(:where(.gb-themed, .gb-themed *)) *))'));
     expect(offenders).toEqual([]);
   });
 });

@@ -36,6 +36,7 @@ import {
 } from '../../lib/approvalDecision';
 import { safeErrorMessage } from '../../lib/errors';
 import RejectApprovalModal from '../approver/RejectApprovalModal';
+import { useNotifications } from '../../lib/notifications';
 
 type Props = {
   pass: GatePassView;
@@ -62,6 +63,11 @@ export default function ApprovalDecisionBar({
   const [rejecting, setRejecting] = useState(intent === 'reject');
   const [error, setError] = useState<string | null>(null);
   const box = useRef<HTMLDivElement | null>(null);
+  // The bell's pending-approval count is a live queue: a pass signed here has
+  // to leave it now, not on the next mount. Read BEFORE the early returns
+  // below — a hook after a conditional return is a different hook order on the
+  // next render.
+  const { dismissPass } = useNotifications();
 
   // Somebody who came from a letter is looking for the two buttons, and on a
   // phone they are a whole material table below the fold. Scrolled once, on
@@ -98,6 +104,7 @@ export default function ApprovalDecisionBar({
     setError(null);
     try {
       await run();
+      dismissPass(pass.id);
       onDecided();
     } catch (err) {
       setError(safeErrorMessage(err, 'Could not record that decision.'));
@@ -166,6 +173,7 @@ export default function ApprovalDecisionBar({
           onClose={() => setRejecting(false)}
           onSubmit={async (reason) => {
             await rejectPass(pass.id, reason);
+            dismissPass(pass.id);
             setRejecting(false);
             onDecided();
           }}

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import type { UserRole } from '../../types';
+import type { ApprovalRoleKey } from '../../lib/approvalLadder';
 import Sidebar from './Sidebar';
 import NotificationBell from './NotificationBell';
 import SessionTimeout from '../SessionTimeout';
@@ -13,12 +14,16 @@ type Props = {
   /** Does this person hold one of the four approval offices (046)? It is not a
    *  role, so it travels beside one — see src/lib/approverAccess.ts. */
   isApprover?: boolean;
+  /** WHICH office, not merely whether one is held: the bell counts the passes
+   *  waiting on it (client, 2026-08-20). `isApprover` stays because the shell's
+   *  dark half only needs the boolean. */
+  office?: ApprovalRoleKey | null;
   children: React.ReactNode;
 };
 
 const COLLAPSE_KEY = 'gatepass-sidebar-collapsed';
 
-export default function AppShell({ session, role, isApprover = false, children }: Props): React.ReactElement {
+export default function AppShell({ session, role, isApprover = false, office = null, children }: Props): React.ReactElement {
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try { return window.localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
   });
@@ -28,7 +33,7 @@ export default function AppShell({ session, role, isApprover = false, children }
   }, [collapsed]);
 
   return (
-    <NotificationProvider session={session} role={role}>
+    <NotificationProvider session={session} role={role} office={office}>
       <SessionTimeout />
       <div className="min-h-screen bg-surface-50">
         <Sidebar session={session} role={role} isApprover={isApprover} collapsed={collapsed} onCollapsedChange={setCollapsed} />
@@ -51,7 +56,18 @@ export default function AppShell({ session, role, isApprover = false, children }
               KNOWN, FLAGGED: the notification bell and its dropdown are OUTSIDE
               `main` (they are `fixed`), so they keep the house theme — the same
               gap the guard's shell has had since the skin landed. */}
-          <main className="flex-1 w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-20 lg:pt-8 pb-8 gb-main">
+          {/* `.gb-themed` IS THE DARK HALF, AND ONLY AN APPROVAL OFFICE GETS IT
+              (client, 2026-08-20: "it seems the dark mode is not working in all
+              the approvers … make sure you can toggle to dark mode also under
+              all approvers frontend"). It was not working for anybody — the
+              light lock above is absolute — so rather than unpick it for every
+              role the client asked for it in one place, this class opts the
+              island back into the theme: index.css re-declares the `--gb-*`
+              palette, the neutral ramp and the glass tokens dark under
+              `.dark .gb-themed`, and the `dark:` variant plus the hand-written
+              `.dark` rules exclude only a `.gb-main` that is NOT `.gb-themed`.
+              A guard, an HOD and an admin are deliberately untouched. */}
+          <main className={`flex-1 w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-20 lg:pt-8 pb-8 gb-main${isApprover ? ' gb-themed' : ''}`}>
             {/* Above the content, on every screen: since public/sw.js landed, an
                 offline app OPENS instead of erroring, and what it opens is every
                 list empty. Renders nothing while online. */}

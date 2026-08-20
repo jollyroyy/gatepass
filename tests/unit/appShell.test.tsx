@@ -106,6 +106,33 @@ describe('AppShell', () => {
     },
   );
 
+  // THE DARK HALF IS AN APPROVER'S ALONE (client, 2026-08-20: "make sure you
+  // can toggle to dark mode also under all approvers frontend"). `.gb-themed`
+  // is what lets the theme reach inside the light island; every other role was
+  // given this skin on the client's own instruction and stays fixed light.
+  it('marks <main> .gb-themed for an office holder, so the theme toggle reaches it', () => {
+    const { container } = render(
+      <AppShell session={fakeSession('coo@x.com')} role={null} isApprover>
+        <div>content</div>
+      </AppShell>
+    );
+    const cls = container.querySelector('main')?.className ?? '';
+    expect(cls).toContain('gb-main');
+    expect(cls).toContain('gb-themed');
+  });
+
+  it.each(['guard', 'hod', 'admin', 'super_admin'] as const)(
+    'leaves <main> fixed light for %s — no .gb-themed',
+    (role) => {
+      const { container } = render(
+        <AppShell session={fakeSession('someone@x.com')} role={role}>
+          <div>content</div>
+        </AppShell>
+      );
+      expect(container.querySelector('main')?.className).not.toContain('gb-themed');
+    },
+  );
+
   it('renders regardless of role, including null while the role is still resolving', () => {
     render(
       <AppShell session={fakeSession('someone@x.com')} role={null}>

@@ -238,7 +238,7 @@ export default function App(): React.ReactElement {
   }
 
   return (
-    <AppShell session={session} role={role} isApprover={office !== null}>
+    <AppShell session={session} role={role} isApprover={office !== null} office={office}>
       <RouteGuard role={role} isApprover={office !== null}>
         <Routes>
           {/* Signed in and still on `/login`: this is the moment the emailed

@@ -72,9 +72,69 @@ through request → HOD approval → deletion. That is now the next security act
 | `public.departments` | **15 rows** (2026-08-20, counted as `postgres`; the old "12 rows" line was stale) — VMS-owned, shared, do not wipe. **Every one of them has at least one `public.profiles` row pointing at it**, which is why every delete raised 23503 until `060`. |
 | Demo accounts | the `@demo.vms` accounts share password `demo123` and are email-confirmed; shared with VMS. **"all email-confirmed" was WRONG** — 7 real accounts carried `email_confirmed_at is null` and none of them had ever signed in (see the 048 entry). 6 still do, and a password reset is now what confirms them. |
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
-| `gatepass.approval_roles` | **4 rows — ALL FOUR OFFICES ARE FILLED**, so since `046` was applied every NEWLY raised pass needs four approvals and **the gate cannot see it until it has them**. Re-read live as `postgres` on 2026-08-20 (thirtieth pass) and the holders have MOVED since the fourteenth pass: Security Head **securityhead** (`securityhead@demo.quest`) · COO **Questmallcoo** (`coo@demo.quest`) · CEO **Questmallceo** (`ceo@demo.quest`) · Finance HOD **financehod** (`financehod@demo.quest`). One person holds one office (`049`). Admin → Users → *Gate pass approval ladder* is the ONLY place they are set, and since 053 the CEO office is also what decides whitelist requests. |
+| `gatepass.approval_roles` | **4 rows — ALL FOUR OFFICES ARE FILLED**, so since `046` was applied every NEWLY raised pass needs four approvals and **the gate cannot see it until it has them**. Re-read live as `postgres` on 2026-08-20 (thirty-third pass) and **THE CEO SEAT HAS MOVED AGAIN**: Security Head **securityhead** (`securityhead@demo.quest`) · COO **Questmallcoo** (`coo@demo.quest`) · CEO **QuestMallCEO** (`soham.patra@ultimatesolutions.in`) · Finance HOD **financehod** (`financehod@demo.quest`). **`ceo@demo.quest` IS DEACTIVATED** (`user_status.is_active = false`, `vacated_approval_office = 'ceo'` — 059 doing exactly what it was written to do), so signing in as it reads "Account Deactivated"; the office it left is filled by the account above. One person holds one office (`049`). Admin → Users → *Gate pass approval ladder* is the ONLY place they are set, and since 053 the CEO office is also what decides whitelist requests. |
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
+
+**Latest change (2026-08-20, thirty-third pass): AN APPROVER CAN WORK IN DARK MODE, AND THE
+BELL COUNTS WHAT IS WAITING ON THEIR OWN OFFICE IN RED.** Frontend only — no migration, no RPC
+change, no new grant.
+
+- **THE DEPARTMENT AND THE PURPOSE WERE ALREADY THERE, AND ARE LIVE.** The client reported not
+  seeing them on the approvers' stacks. Checked against the DEPLOYED bundle (`showContext:!0` on
+  the one `PassStack` that serves all three figures) and then **seen signed in as the COO on
+  `https://gatepass-bay.vercel.app`**: DEPARTMENT and PURPOSE render on the queue card AND on the
+  Approved-by-You drill. Nothing was changed for it — a stale tab was the whole of it.
+- **DARK MODE NOW WORKS — FOR AN APPROVAL OFFICE ONLY** (client: "it seems the dark mode is not
+  working in all the approvers … make sure you can toggle to dark mode also under all approvers
+  frontend"). **It was working for NOBODY**: `.gb-main` has pinned the whole content area light on
+  every role since 2026-08-19, so the sidebar's Dark Mode button changed its own label and
+  nothing else. The light lock is left standing for the guard, the HOD and the admin, who were
+  given that skin on the client's own instruction.
+  - **`.gb-themed` IS THE OPT-IN**, put on `<main>` by `AppShell` when `isApprover`. It runs the
+    light lock's three mechanisms BACKWARDS: (1) `.dark .gb-themed` re-declares the `--gb-*`
+    palette dark for the island and for any `.gb-board` / `.gb-stack` inside it, (2) it puts the
+    neutral ramp, the status tints and the glass tokens back to their `.dark` values so a HOUSE
+    component inside paints dark again, and (3) the `dark:` variant and the 24 hand-written
+    `.dark X` rules now exclude only a `.gb-main` that is not themed.
+  - **EVERY `background: #ffffff` IN THE SKIN IS `var(--gb-paper)` NOW** (28 declarations). A
+    literal white cannot be re-themed, and each one was a plate that would have kept near-white
+    ink on a white ground.
+  - **THE TAIL HAD TO BE WRITTEN AGAINST THE ANCESTOR, NOT THE ELEMENT, and that came out of a
+    real render**: several pages put `gb-main` on their OWN div as well (`/approvals` is one), and
+    that nested copy re-pinned the light ramp — the reject modal came back white with white ink.
+    The exclusion is therefore
+    `:not(:where(.gb-main:not(:where(.gb-themed, .gb-themed *)), … *))` — a `.gb-main` INSIDE a
+    themed shell no longer opts out — and `.dark .gb-themed .gb-main` takes the dark ramp too.
+- **THE BELL CARRIES THE OFFICE'S PENDING COUNT, IN RED** (client: "Suppose I am the CEO … it
+  should show the number of the pending approvals for me in red colour across all the approvers").
+  `src/lib/approvalNotices.ts` (pure builder + the two reads) files one `approval` notice per pass
+  waiting on this reader's office, so `unreadCount` — the red plate that already existed — is that
+  figure. The badge shows the NUMBER up to 99 now; it used to collapse to "9+" at ten, which for a
+  queue is exactly where the figure starts to matter.
+  - **IT IS `inMyQueue`, THE QUEUE SCREEN'S OWN PREDICATE**, not "my office has a pending row":
+    since 061 a pass is only on this desk when every rung below it is approved, so the badge and
+    the list under it are one rule and cannot disagree.
+  - **DERIVED ON MOUNT, NOT PUSHED.** A pass is raised while the approver is signed out; realtime
+    announces nothing to a closed browser. Same argument as the mismatch/expiry derivation.
+  - **A DISMISSAL IS NOT PERSISTED for this type alone** (`remember` returns early), because the
+    count is a live queue: a figure somebody could clear by mis-tapping would mean nothing. It
+    comes back on the next mount while the pass is still waiting, and `dismissPass` is called by
+    BOTH decision surfaces (the card's buttons and the record's bar) so a signed pass leaves the
+    bell at once rather than on the next page load.
+- Pinned by a new `tests/unit/approverBellCount.test.tsx` (4 — the count, a pass whose earlier
+  office has not signed counted nowhere, the notice naming the pass, and silence for a reader with
+  no office), 2 new `appShell` cases and 2 new/rewritten `designSystem` ones (the variant tail's
+  own case says in its comment what it used to hold). All were watched failing first.
+  `npm run check` is **1885 tests across 148 files**, green, and `npm run build` is green.
+- **SEEN SIGNED IN, IN A REAL BROWSER** — the first time since 2026-08-20's twenty-second pass.
+  As the COO on the dev server: `/approvals` in dark (cards, stack, unfolded item lines, filters,
+  pager), the pass record in dark (fact strip, item table, ladder, decision bar), the reject modal
+  in dark, `/whitelist` in dark, and light mode unchanged after toggling back. **The admin's
+  Overview was re-checked in the same browser with the theme set to dark and is still light**,
+  which is the fixed-light rule for every other role holding.
+- **NOT CHECKED**: a phone width, and the CEO's own account — `ceo@demo.quest` is deactivated (see
+  the ladder row above), so the office was exercised as the COO.
 
 **Latest change (2026-08-20, thirty-second pass): A WHITELIST REQUEST IS A COLLAPSED CARD —
 ITS DETAIL APPEARS ONLY ON THE ONE THAT WAS OPENED.** Frontend only — no migration, no RPC
