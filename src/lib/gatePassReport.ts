@@ -5,9 +5,9 @@
 // sits over cannot drift when neither is a second query.
 //
 // THREE STATUS BUCKETS, AND THEY ARE DISJOINT. The mock's table and its three
-// right-hand cards name Completed / In Progress / Cancelled, so those are the
-// buckets, and every pass falls in exactly one — the six cards therefore add up
-// (Total = RGP + NRGP, and Completed + In Progress + Cancelled = Total).
+// right-hand cards name Completed / Partially Returned / Cancelled, so those are
+// the buckets, and every pass falls in exactly one — the six cards therefore add
+// up (Total = RGP + NRGP, and Completed + Partially Returned + Cancelled = Total).
 //
 //   * Completed   — the trip is over. An NRGP the gate cleared is finished (it
 //                   is not coming back); an RGP is finished only when every line
@@ -17,14 +17,15 @@
 //                   voided expiry). An EXPIRED pass is here too — `match_pass`
 //                   refuses it forever, so it is dead paperwork, not work in
 //                   progress.
-//   * In Progress — everything else, which is every pass somebody is still
-//                   waiting on: at the ladder, at the gate, or out on an RGP
-//                   that has not fully come back. An OVERDUE pass is in progress
-//                   — late is not finished.
+//   * Partially Returned — everything else, which is every pass somebody is still
+//                   waiting on: at the ladder, at the gate, or out on an RGP that
+//                   has not fully come back. An OVERDUE pass is in this bucket —
+//                   late is not finished. The bucket was called "In Progress"
+//                   until the client renamed it (2026-08-21).
 //
 // The row PILL says more than its bucket where more is true: an overdue pass
 // reads "Overdue" and an expired one "Expired", both counted in the bucket above.
-// Nothing about the arithmetic changes; a report printing "In Progress" against
+// Nothing about the arithmetic changes; a report printing "Partially Returned" against
 // material three weeks late would be technically true and practically useless.
 import type { GatePassView, PassType } from '../types';
 import type { HodGlyph, HodTone } from '../components/hod/hodIconTypes';
@@ -41,7 +42,13 @@ export type ReportStatus = 'completed' | 'in_progress' | 'cancelled';
 
 export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
   completed: 'Completed',
-  in_progress: 'In Progress',
+  // The KEY is unchanged — it is the bucket's identity, and it is what the
+  // report's Status filter is persisted under. Only the WORD moved (client,
+  // 2026-08-21): "replace the 'in progress' with 'partially returned' across
+  // all the reporting everywhere in all the views". It is the same word
+  // `RGP_STAGE_STYLES` now prints on a card, so the register and the badge over
+  // it cannot disagree.
+  in_progress: 'Partially Returned',
   cancelled: 'Cancelled',
 };
 
@@ -90,19 +97,21 @@ export function reportStatusPill(p: PassFacts): string {
 /** The mock's Status select. The first four are the buckets; the last two are
  *  SUBSETS of a bucket, kept because the client asked for an overdue-only and
  *  an expired-only report (2026-08-18) and this select is now the one place a
- *  report is narrowed by state. */
+ *  report is narrowed by state. The `in_progress` KEY is deliberately not
+ *  renamed with its label — it is persisted state, and the word is the only
+ *  thing the client moved. */
 export type StatusFilter =
   | 'all' | ReportStatus | 'overdue' | 'expired' | 'pending_gate' | 'pending_approval';
 
 export const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'completed', label: 'Completed' },
-  { key: 'in_progress', label: 'In Progress' },
+  { key: 'in_progress', label: 'Partially Returned' },
   { key: 'cancelled', label: 'Cancelled' },
   // The two desks a pass that has not moved can be sitting on (client,
   // 2026-08-21: "in the report also show pending gate review and pending for
   // approval as a drop-down filter for admin, for the entire department and for
-  // individual HOD also"). Both are SUBSETS of In Progress, like the two below
+  // individual HOD also"). Both are SUBSETS of Partially Returned, like the two below
   // them, and both are `pendingSplit`'s own predicates — the same split the
   // admin Overview and the HOD dashboard print under their Pending Approvals
   // card, so the report and the dashboards cannot disagree about the figure.
@@ -244,7 +253,7 @@ export function buildReportKpis(
       note: share(nrgp, rows.length), trend: 'none' },
     { key: 'completed', label: 'Completed', glyph: 'check', tone: 'purple', value: count(rows, 'completed'),
       ...delta(count(rows, 'completed'), count(previous, 'completed'), spanLabel) },
-    { key: 'in_progress', label: 'In Progress', glyph: 'clock', tone: 'orange', value: count(rows, 'in_progress'),
+    { key: 'in_progress', label: REPORT_STATUS_LABELS.in_progress, glyph: 'clock', tone: 'orange', value: count(rows, 'in_progress'),
       ...delta(count(rows, 'in_progress'), count(previous, 'in_progress'), spanLabel) },
     { key: 'cancelled', label: 'Cancelled', glyph: 'alert', tone: 'red', value: count(rows, 'cancelled'),
       ...delta(count(rows, 'cancelled'), count(previous, 'cancelled'), spanLabel) },

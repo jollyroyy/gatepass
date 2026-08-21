@@ -23,23 +23,27 @@ import type { GatePassView } from '../types';
 import { useApprovalRoles } from './useApprovalRoles';
 import {
   buildWaitingWith,
-  passesRaisedToday,
+  isWaitingSomewhere,
   type WaitingApprovalRow,
   type WaitingRow,
 } from './waitingWith';
 
 export function useWaitingWith(
   rows: GatePassView[],
-  stamp: number,
   /** Already-loaded `pass_approvals` rows. Pass them and this hook makes no
-   *  approvals query of its own; omit them and it fetches for `today`'s ids. */
+   *  approvals query of its own; omit them and it fetches for the waiting ids. */
   approvals?: WaitingApprovalRow[],
-): { today: GatePassView[]; waiting: WaitingRow[] } {
+): { waiting: WaitingRow[] } {
   const { roles } = useApprovalRoles();
   const [fetched, setFetched] = useState<WaitingApprovalRow[]>([]);
 
-  const today = useMemo(() => passesRaisedToday(rows, stamp), [rows, stamp]);
-  const ids = useMemo(() => today.map((p) => p.id).join(','), [today]);
+  // NARROWED TO THE PASSES THAT ARE ACTUALLY WAITING, not to a day (client,
+  // 2026-08-21 — see waitingWith.ts). That is what keeps the `.in(…)` list the
+  // size of the QUEUE rather than the size of the register: a matched or
+  // cancelled pass is skipped by `buildWaitingWith` anyway, so fetching its
+  // ladder rows would be a longer query for figures nobody counts.
+  const pending = useMemo(() => rows.filter(isWaitingSomewhere), [rows]);
+  const ids = useMemo(() => pending.map((p) => p.id).join(','), [pending]);
   const provided = approvals !== undefined;
 
   useEffect(() => {
@@ -68,9 +72,9 @@ export function useWaitingWith(
 
   const source = approvals ?? fetched;
   const waiting = useMemo(
-    () => buildWaitingWith(today, source, roles),
-    [today, source, roles],
+    () => buildWaitingWith(pending, source, roles),
+    [pending, source, roles],
   );
 
-  return { today, waiting };
+  return { waiting };
 }

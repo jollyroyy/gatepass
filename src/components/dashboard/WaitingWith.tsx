@@ -1,16 +1,19 @@
 // WAITING WITH — the strip at the foot of the admin and HOD dashboards
 // (client, 2026-08-20: "in the dashboard you need to mention at the bottom how
-// many are waiting for which person … it's only for today").
+// many are waiting for which person").
 //
 // ONE COMPONENT FOR BOTH BOARDS, because the question is the same one and a
 // second copy is a second thing to change. Both are the `.gb-*` island, so it
 // draws in the mock-ups' palette with the same `HodIcon` chips the Approval
 // Pending strip beside it uses.
 //
-// IT SAYS ITS OWN SCOPE OUT LOUD. Every other figure on these boards is either
-// today or a running queue, and this one is today — a strip that silently
-// counted a different set from the cards above it would be read as if it
-// counted the same one.
+// IT SAYS ITS OWN SCOPE OUT LOUD, AND THAT SCOPE IS NO LONGER A DAY (client,
+// 2026-08-21: "it should not be only the passes which were raised today, but
+// all the passes which are pending for all those approvals accordingly … remove
+// the today word from the bottom from the admin view"). The word "today" is
+// therefore gone from every sentence here — including the empty one, which said
+// it too. What is left is WHOSE passes are counted, which still differs between
+// the two boards and is the caller's to state.
 //
 // NO CONTROL OF ANY KIND. It is a reading, not a drill: the passes it counts
 // are the ones the cards above already open, and a second route to the same
@@ -49,8 +52,8 @@ export default function WaitingWith({ rows, scopeNote }: Props): React.ReactElem
           <h2 className="gb-quick-title">Waiting With</h2>
           <span className="gb-approvals-sub">
             {total === 0
-              ? `Nothing raised today is waiting — ${scopeNote}.`
-              : `${total} ${total === 1 ? 'pass' : 'passes'} raised today, waiting on these desks — ${scopeNote}.`}
+              ? `Nothing is waiting — ${scopeNote}.`
+              : `${total} ${total === 1 ? 'pass' : 'passes'} waiting on these desks — ${scopeNote}.`}
           </span>
         </span>
       </div>

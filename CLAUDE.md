@@ -76,7 +76,90 @@ through request → HOD approval → deletion. That is now the next security act
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-21, thirty-sixth pass): THE GUARD'S SCREENS CARRY THE MONEY —
+**Latest change (2026-08-21, thirty-seventh pass): NOTHING PRINTS BUT THE DOCUMENT — NO
+HAMBURGER OVER THE LOGO, NO ICONS, NO DUPLICATED HEADING, ON EVERY PAGE; THE RETURN LEG IS
+CALLED "Partially Returned" AND NOTHING ANYWHERE SAYS "In Progress"; AND THE ADMIN'S "Waiting
+With" STRIP COUNTS EVERY PENDING PASS, NOT ONLY TODAY'S.** Frontend only — no migration, no RPC
+change, no new query.
+
+- **THE QUEST LOGO WAS UNDER THE SANDWICH BAR, AND IT WAS ONE MISSING CLASS** (client: "on the
+  print page the Quest Malls logo is getting hidden under that sandwich bar icon … make sure the
+  sandwich bar is completely gone"). The mobile hamburger in `Sidebar.tsx` is
+  `fixed top-3.5 left-4 z-50` and had **no `no-print`** — the desktop sidebar and the
+  notification bell have carried it since they landed, that one control never did — so it printed
+  at the top-left corner of the sheet, which is exactly where both the A5 slip and the report
+  letterhead put the lockup. The drawer it opens was in the same position.
+- **THE FIX IS A CONTRACT IN `@media print`, NOT A CLASS PER COMPONENT** (client: "do this across
+  all kinds of printing, not only for the admin report but for any kind of printing"), because
+  the failure mode is somebody drawing a new control and forgetting, and paper is where nobody
+  notices. Two rules, both in `src/index.css`:
+  - **NOTHING ANCHORED TO THE VIEWPORT PRINTS** — `.fixed`, a hand-written
+    `style="position:fixed"`, and `.modal-overlay`. `position: fixed` is a screen idea; paper
+    does not scroll, so such an element lands wherever the first sheet puts it. That catches the
+    hamburger a SECOND way, plus the drawer, the bell, the sidebar and every modal, whether or
+    not anyone remembered `.no-print`. `main`'s `pt-20` goes with them — it exists solely to
+    clear the hamburger, and on an A5 slip it was most of the first sheet.
+  - **NO ICON PRINTS, AND AN ICON IS ANY `svg` THAT HAS NOT OPTED IN** through the new
+    **`.print-keep`**. Exactly two kinds of thing wear it: **the Quest mark** — declared inside
+    `QuestMark.tsx` itself, so no page can lose its logo by forgetting a class (client: "never
+    ever hide the logo") — and **a chart**, which is data rather than decoration
+    (`OverviewTrend`, `OverviewStatus`). **The QR code is an `<img>`** and is untouched by any of
+    it, so the slip still carries one.
+  - **THE OPT-IN DIRECTION IS THE WHOLE DESIGN.** Only 35 of the ~140 `svg` tags in `src/` carry
+    `aria-hidden`, so a rule keyed on that would have left a third of the glyphs printing; and a
+    rule NAMING the icons to hide needs extending every time somebody draws one, silently.
+  - **NONE OF IT REACHES THE SCREEN**: every declaration is inside `@media print`, and
+    `.print-keep` has no screen-side rule at all — a test asserts exactly that.
+- **NO HEADING IS PRINTED TWICE**, and both surfaces that could were already right: the report
+  draws its title ONLY in the `.print-only` letterhead (the on-screen one was removed earlier the
+  same day), and the slip's `QuestLockup` passes `subtitle={null}` because the `<h1>` under it
+  already says "…Gate Pass". Now pinned, so neither can come back.
+- **"In Progress" IS GONE FROM EVERY VIEW AND EVERY REPORT** (client, twice: "make the filter
+  also in the status … replace the 'in progress' with 'partially returned' across all the
+  reporting everywhere in all the views"). It was introduced only hours earlier, on the same
+  client's instruction, by the thirty-fifth pass.
+  - `RGP_STAGE_STYLES.out_open` and `.partly_returned` now carry the **SAME label and the SAME
+    style** — once the words are identical, a different hue for each would be a distinction
+    carried by colour alone, which is nothing at all on the mono laser the register prints on.
+    Indigo, matching `RETURN_STYLES.partially_returned`. `STAGE_TONES` lost its now-dead
+    `'In Progress'` key (it is keyed on the LABEL, which is the drift a `Record<Enum, T>` would
+    catch and this one cannot).
+  - The report's third bucket, its Status filter option and its KPI card all read **"Partially
+    Returned"** (the card now renders `REPORT_STATUS_LABELS.in_progress` rather than a second
+    copy of the string). **The `in_progress` KEY is deliberately unchanged** — it is the bucket's
+    identity and the value the filter is held as; only the word moved. Overdue and Expired still
+    outrank it on a row pill.
+  - **⚠ THE COST, FLAGGED**: a pass with NOTHING back now reads "Partially Returned" too. The two
+    states are still distinct in the data (`return_status`), and the record's item table still
+    states each line's own outstanding quantity — only the badge no longer separates them.
+- **"Waiting With" IS A RUNNING QUEUE NOW, ON BOTH BOARDS** (client: "it should not be only the
+  passes which were raised today, but all the passes which are pending for all those approvals
+  accordingly. And remove the today word from the bottom from the admin view"). `passesRaisedToday`
+  is **DELETED** with its last caller, so a stale reference is a build error, and the word "today"
+  is out of every sentence the strip prints, the empty one included.
+  - This pays the "KNOWN COST, FLAGGED" line the twenty-third pass wrote against `waitingWith.ts`:
+    the desk holding up the oldest document in the building was the one desk the board never
+    named. The strip and the running Pending Approvals card above it now agree.
+  - **THE HOD's BOARD MOVED WITH IT, DELIBERATELY** — one component answers one question, and a
+    queue that emptied at midnight was the same defect on each board. Only the admin's wording was
+    named by the client; the HOD's strip says "your own passes" as before.
+  - `useWaitingWith` narrows its `pass_approvals` read to the passes that are ACTUALLY WAITING
+    (`isWaitingSomewhere`, exported from `waitingWith.ts` and used by `buildWaitingWith` itself),
+    so the `.in(…)` list is the size of the QUEUE rather than of the register, and the hook still
+    makes exactly one query. It no longer takes a `stamp` at all.
+- Pinned by a new `tests/unit/printChrome.test.ts` (13 — **watched failing 8/13** against the
+  pre-change source), plus **REWRITTEN** blocks in `inProgressReturnLabel`, `waitingWith`,
+  `adminDashboardOverview` and `hodDashboardBoard`, each saying in its own comment what it used
+  to hold, and the label rename swept through 11 more spec files.
+- **⚠ ONE PRE-EXISTING FAILURE ON `main` WAS FIXED HERE, AND IT IS NOT THIS PASS'S WORK.**
+  `pendingOutPage.test.tsx`'s column-list case had been red since the thirty-sixth pass added a
+  Value column to the guard's unfolded item table (confirmed by running it at HEAD with this
+  pass's changes stashed). Its expectation now names the sixth cell.
+- **NOT SEEN SIGNED-IN IN A BROWSER, AND NOTHING HAS BEEN PUT THROUGH A REAL PRINT DIALOG**: the
+  suite and a typecheck only. `@media print` is exactly the kind of thing only a real print
+  preview proves — Ctrl+P on the slip, on the report and on the pass record are the three to try.
+
+**Earlier (2026-08-21, thirty-sixth pass): THE GUARD'S SCREENS CARRY THE MONEY —
 EVERY UNFOLDED MATERIAL LINE IS PRICED, AND THE BLOCK BESIDE IT NAMES THE PASS'S TOTAL.**
 Frontend only — no migration, no RPC change, no new query.
 
@@ -788,9 +871,10 @@ NOTHING ANYWHERE SAYS "MISMATCHED".** Frontend only — no migration, no RPC cha
     and every pre-workflow pass. The gate row NAMES NO INDIVIDUAL ("Guard on duty") — which guard
     is on the barrier is not recorded anywhere in this database. The five rows therefore SUM to
     the waiting passes, with nothing falling between the ladder and the gate.
-  - **TODAY MEANS RAISED TODAY**, local midnight, and the strip says its own scope on screen —
-    the admin's window chip cannot move it. **KNOWN COST, FLAGGED**: a pass raised last week and
-    still climbing is not on this strip; the Pending Approvals card above is the running figure.
+  - **TODAY MEANT RAISED TODAY**, local midnight — **SUPERSEDED on 2026-08-21 (thirty-seventh
+    pass): there is no day cut any more**, on either board, and the flagged cost below (a pass
+    raised last week and still climbing being on nobody's strip) has been paid. The admin's
+    window chip still cannot move it.
   - The admin board now makes TWO reads (`v_gate_passes` + `pass_approvals`, narrowed to today's
     ids); the HOD board still makes exactly two, because it hands the hook the approvals it had
     already read. `pass_approvals` selects `level_no` now, for both strips.

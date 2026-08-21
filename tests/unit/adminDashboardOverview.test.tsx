@@ -170,18 +170,23 @@ describe('the admin dashboard is the Overview mock-up', () => {
     }
   });
 
-  // The client's foot-of-the-page strip (2026-08-20): "how many are waiting for
-  // which person … it's only for today". The board's ONE waiting pass was raised
-  // 40 days ago, so the strip reads nothing — which is what proves the day cut,
-  // since the Pending Approvals card above it counts that same pass as 1.
-  it('carries a Waiting With strip at the foot, scoped to TODAY whatever the window says', async () => {
+  // REWRITTEN 2026-08-21. It used to hold the opposite: that the strip was cut
+  // to TODAY, and that this board's one waiting pass — raised 40 days ago — was
+  // therefore absent from it. The client removed that cut ("it should not be
+  // only the passes which were raised today, but all the passes which are
+  // pending for all those approvals accordingly … remove the today word from
+  // the bottom from the admin view"), so the strip now agrees with the Pending
+  // Approvals card above it, which has always counted that same pass as 1.
+  it('carries a Waiting With strip at the foot, counting every pending pass whatever the window says', async () => {
     await renderBoard();
     const strip = screen.getByRole('heading', { name: 'Waiting With' }).closest('.gb-approvals');
     expect(strip).not.toBeNull();
     for (const desk of ['Security Head', 'COO', 'Finance HOD', 'CEO', 'Security gate']) {
       expect(strip).toHaveTextContent(desk);
     }
-    expect(strip).toHaveTextContent('Nothing raised today is waiting — all departments.');
+    // The 40-day-old pass IS counted now, and nothing on the strip says "today".
+    expect(strip).toHaveTextContent('1 pass waiting on these desks — all departments.');
+    expect(strip?.textContent).not.toMatch(/today/i);
     // A reading, not a drill — no control of any kind lives on it.
     expect(within(strip as HTMLElement).queryByRole('button')).toBeNull();
     expect(within(strip as HTMLElement).queryByRole('link')).toBeNull();

@@ -241,6 +241,54 @@
   body {
     background: #fff !important;
   }
+
+  /* ── THE APP-WIDE PRINT CONTRACT ──────────────────────────────────────────
+     Client, 2026-08-21: "the Quest Malls logo is getting hidden under that
+     sandwich bar icon … make sure the sandwich bar is completely gone … all the
+     icons on the page should not appear on the print page … across all kinds of
+     printing, not only for the admin report … and never ever hide the logo."
+
+     It is stated ONCE, here, rather than as a class on each component, because
+     the failure mode is somebody drawing a new control and forgetting — and the
+     place nobody notices a mistake is on paper.
+
+     (1) NOTHING ANCHORED TO THE VIEWPORT PRINTS. `position: fixed` is a screen
+         idea; paper does not scroll, so a fixed element lands wherever the
+         first sheet happens to put it — which for the hamburger, the drawer and
+         the bell is the top corners, on top of the letterhead. This catches all
+         of them, plus every modal overlay, whether or not anyone remembered
+         `.no-print`. The inline-style arm is there because `.fixed` is a
+         Tailwind class and a hand-written `style="position:fixed"` is not.
+
+     (2) NO ICON PRINTS, and an icon is any `svg` that has not opted IN through
+         `.print-keep`. Two kinds of thing wear that class: the Quest mark (so
+         the logo can never be lost — the rule the client stated in the same
+         breath) and a chart, which is data rather than decoration. Everything
+         else is a pointer at a control, and paper has no controls.
+
+         AN OPT-IN IS THE ONLY SAFE DIRECTION. Most of the ~140 `svg` tags in
+         `src/` carry no `aria-hidden`, so keying on that would leave a third of
+         the glyphs printing; and naming the icons to hide would need extending
+         every time somebody drew one. The QR code is an `<img>`, so it is
+         untouched by any of this and still prints on the slip.
+
+     NONE OF IT REACHES THE SCREEN: every declaration is inside `@media print`,
+     and `.print-keep` has no screen-side rule at all. */
+  .fixed,
+  [style*='position: fixed'],
+  [style*='position:fixed'],
+  .modal-overlay {
+    display: none !important;
+  }
+  svg:not(.print-keep):not(.print-keep *) {
+    display: none !important;
+  }
+  /* `main` carries `pt-20` at small widths purely to clear the hamburger. That
+     control does not print, so neither should the gap it was reserving — on an
+     A5 slip it is most of the first sheet. */
+  main {
+    padding-top: 0 !important;
+  }
   /* margin: 0 is what suppresses the browser's own header/footer — the
      deployment URL, the page title, the date and "1/1" that were printing at
      the edges of every slip. Chrome/Edge draw those INSIDE the @page margin

@@ -89,12 +89,13 @@ export default function AdminDashboard(): React.ReactElement {
   const trend = useMemo(() => trendDays(rows, days, stamp), [rows, days, stamp]);
   const slices = useMemo(() => statusSlices(rows, days, stamp), [rows, days, stamp]);
   const span = useMemo(() => rangeLabel(windowBounds(days, stamp)), [days, stamp]);
-  // THE FOOT OF THE PAGE, AND IT IS TODAY WHATEVER THE WINDOW SAYS (client,
-  // 2026-08-20: "in the dashboard of admin and in the dashboard of HOD, it's
-  // only for today"). It reads the SAME `rows` every figure above it does, cut
-  // to the local day inside the hook — so the window chip cannot move it, and
-  // the strip says its own scope on screen.
-  const { waiting } = useWaitingWith(rows, stamp);
+  // THE FOOT OF THE PAGE, AND IT IS EVERY PENDING PASS WHATEVER THE WINDOW SAYS
+  // (client, 2026-08-21: "it should not be only the passes which were raised
+  // today, but all the passes which are pending for all those approvals
+  // accordingly"). It reads the SAME `rows` every figure above it does and
+  // narrows them to the ones still waiting — so the window chip cannot move it,
+  // and it agrees with the running Pending Approvals card above.
+  const { waiting } = useWaitingWith(rows);
 
   // Toggling: pressing the thing already open closes it. Compared by `key`, not
   // by object identity — every render builds fresh drill objects.

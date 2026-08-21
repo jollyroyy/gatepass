@@ -107,7 +107,7 @@ export default function MyPassCard({ pass, showDepartment, open, onToggle }: Pro
             {/* The one fact that is a badge rather than a line of text. The
                 bucket and its colour are `gatePassReport`'s — the SAME three
                 words the admin's report prints — so a pass cannot read
-                "Completed" on one screen and "In Progress" on another. */}
+                "Completed" on one screen and "Partially Returned" on another. */}
             <div className="mp-fact">
               <span className="mp-fact-label">Status</span>
               <span className="mp-fact-value">

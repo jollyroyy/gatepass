@@ -218,9 +218,18 @@ export default function Sidebar({ session, role, isApprover = false, collapsed: 
 
   return (
     <>
-      {/* Mobile hamburger */}
+      {/* Mobile hamburger.
+          `no-print` IS LOAD-BEARING, and its absence was a real bug (client,
+          2026-08-21: "on the print page the Quest Malls logo is getting hidden
+          under that sandwich bar icon"). This control is `fixed top-3.5 left-4`,
+          which on paper is the top-left corner of the sheet — exactly where both
+          the gate-pass slip and the report letterhead put the Quest lockup. The
+          desktop sidebar below and the notification bell have carried the class
+          since they landed; this one never did. The blanket `@media print` rule
+          on `.fixed` in index.css now catches it a second way, so forgetting the
+          class on a future control cannot reproduce this. */}
       <button type="button" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Open menu"
-        className="lg:hidden fixed top-3.5 left-4 z-50 h-9 w-9 rounded-xl flex items-center justify-center text-slate-200 shell-sidebar active:scale-95 transition-all">
+        className="no-print lg:hidden fixed top-3.5 left-4 z-50 h-9 w-9 rounded-xl flex items-center justify-center text-slate-200 shell-sidebar active:scale-95 transition-all">
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           {mobileOpen
             ? <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -230,7 +239,7 @@ export default function Sidebar({ session, role, isApprover = false, collapsed: 
 
       {/* Mobile drawer */}
       {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-40">
+        <div className="no-print lg:hidden fixed inset-0 z-40">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in" onClick={() => setMobileOpen(false)} />
           <aside className="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] shell-sidebar animate-slide-down overflow-hidden">
             <button

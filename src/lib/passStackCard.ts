@@ -34,7 +34,6 @@ export const STAGE_TONES: Record<string, GbTone> = {
   'Voided': 'grey',
   // Moving, and nothing is wrong.
   'HOD Approved': 'blue',
-  'In Progress': 'blue',
   'Partially Returned': 'blue',
   // Finished.
   'Closed': 'green',

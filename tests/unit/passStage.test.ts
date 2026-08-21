@@ -1,9 +1,10 @@
-// RENAMED 2026-08-21: every assertion in this file that read "Out — Not Returned"
-// now reads "In Progress", and "Partly Returned" reads "Partially Returned"
-// (client: "for the status of those passes which have not been returned yet,
-// just make them from 'not in progress' to 'in progress'. Within 'in progress'
-// you can mention it as 'partially returned'"). The labels are the only thing
-// that moved — no stage, tone or precedence rule changed with them.
+// RENAMED TWICE ON 2026-08-21, and this is the second pass. Every assertion
+// here that read "Out — Not Returned" briefly read "In Progress" and now
+// reads "Partially Returned" — the one word the client settled on for the
+// whole return leg ("replace the 'in progress' with 'partially returned'
+// across all the reporting everywhere in all the views"). Both open stages
+// therefore carry the SAME label and the same style; only the labels moved,
+// and no stage, tone or precedence rule changed with them.
 // ONE badge per pass, and it says where the pass is NOW.
 //
 // Client complaint, 2026-08-11 (second round): "In the card section if the
@@ -13,7 +14,7 @@
 //
 // The first round (rgpLifecycle) added a SECOND pill beside the status badge,
 // so a closed RGP read "Matched  Closed" and one still outside read
-// "Matched  In Progress". That is two facts where the reader wanted the
+// "Matched  Partially Returned". That is two facts where the reader wanted the
 // latest one. `passStageStyle` collapses them: the outward match is history
 // the moment the return loop starts, and history belongs in the timeline.
 import { describe, it, expect } from 'vitest';
@@ -37,8 +38,8 @@ describe('passStageStyle — the single latest-state badge', () => {
     expect(passStageStyle(pass({ return_status: 'returned' })).label).toBe('Closed');
   });
 
-  it('reads "In Progress" for an RGP the gate cleared outward', () => {
-    expect(passStageStyle(pass({ return_status: 'awaiting_return' })).label).toBe('In Progress');
+  it('reads "Partially Returned" for an RGP the gate cleared outward', () => {
+    expect(passStageStyle(pass({ return_status: 'awaiting_return' })).label).toBe('Partially Returned');
   });
 
   it('reads "Partially Returned" in between', () => {

@@ -65,7 +65,9 @@ export default function OverviewTrend({ days, activeKey, onSelect }: Props): Rea
 
           <svg
             viewBox={`0 ${-HEAD_ROOM} ${W} ${H + HEAD_ROOM + 6}`}
-            className="w-full h-[230px]"
+            /* `print-keep`: a chart is DATA, not an icon, so it opts back into
+               the printed sheet (see @media print in index.css). */
+            className="print-keep w-full h-[230px]"
             role="img"
             aria-label={`Gate passes raised per day: ${SERIES.map((s) => s.label).join(', ')}`}
           >

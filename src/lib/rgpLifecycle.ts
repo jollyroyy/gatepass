@@ -45,23 +45,29 @@ export function rgpStage(p: Pick<GatePassView, 'return_status'>): RgpStage | nul
 }
 
 export const RGP_STAGE_STYLES: Record<RgpStage, StatusStyle> = {
-  // Gold, matching the "Awaiting Return" KPI card and the Return Schedule
-  // report — the same obligation, so the same hue. Deliberately not green:
-  // green is `matched`, and the whole complaint was that this stage reads as
-  // finished when it is not.
+  // BOTH OPEN STAGES READ "Partially Returned", AND THEY SHARE ONE STYLE
+  // (client, 2026-08-21: "replace the 'in progress' with 'partially returned'
+  // across all the reporting everywhere in all the views"). The label was
+  // "In Progress" for a few hours earlier the same day, and "Out — Not
+  // Returned" before that.
   //
-  // "In Progress" rather than the old "Out — Not Returned" (client, 2026-08-21).
-  // The pass IS in progress — the material is out and the return is owed — and
-  // naming the absence of an event told a reader what had not happened instead
-  // of where the pass stands. It is also the word the report's own bucket uses
-  // (`REPORT_STATUS_LABELS.in_progress`), so a card and the register agree.
+  // The two objects are identical ON PURPOSE. Once the words are the same, a
+  // different hue for each would be a distinction carried by colour alone —
+  // nothing at all on the mono laser the register is printed on, or in the CSV.
+  // Indigo, matching RETURN_STYLES.partially_returned, so the badge and the
+  // return legend agree.
+  //
+  // ⚠ THE COST, FLAGGED: a pass with NOTHING back reads "Partially Returned"
+  // too. The states are still distinct in the data (`return_status`), and the
+  // record's item table still states each line's own outstanding quantity —
+  // only the badge no longer separates them.
+  //
+  // The STAGES themselves are kept apart rather than collapsed into one: they
+  // are what `apply_item_returns` actually advances through, and every
+  // predicate in the app that asks "is any material back yet" reads them.
   out_open: {
-    bg: 'bg-brand-50', text: 'text-brand-700', dot: 'bg-brand-500', label: 'In Progress',
+    bg: 'bg-accent-50', text: 'text-accent-700', dot: 'bg-accent-500', label: 'Partially Returned',
   },
-  // Indigo, matching RETURN_STYLES.partially_returned: a genuinely different
-  // situation to reconcile, not "still out, but a bit less". It is the SUBSET
-  // of In Progress the client asked to keep visible by name, spelled the way
-  // every other surface already spells it ("Partially Returned", not "Partly").
   partly_returned: {
     bg: 'bg-accent-50', text: 'text-accent-700', dot: 'bg-accent-500', label: 'Partially Returned',
   },
@@ -72,7 +78,7 @@ export const RGP_STAGE_STYLES: Record<RgpStage, StatusStyle> = {
 };
 
 /** Overdue RENAMES the open stages as well as re-toning them (client,
- *  2026-08-18: a report must say "overdue", not "In Progress" in
+ *  2026-08-18: a report must say "overdue", not "Partially Returned" in
  *  orange). It used to re-tone only, which meant the fact was carried by colour
  *  alone — invisible on the mono laser the register is printed on, and invisible
  *  to anyone reading the CSV. */

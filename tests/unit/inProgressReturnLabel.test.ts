@@ -1,24 +1,26 @@
-// A PASS STILL OUT READS "In Progress", AND A PARTLY RETURNED ONE READS
-// "Partially Returned" — and the percentage over the item table is computed on
-// QUANTITIES, not on lines fully back.
+// NOTHING IN ANY REPORT OR ANY VIEW SAYS "In Progress" — THE RETURN LEG IS
+// NAMED "Partially Returned", AND THE REPORT'S STATUS FILTER OFFERS IT UNDER
+// THAT NAME.
 //
-// Client, 2026-08-21: "for the status of those passes which have not been
-// returned yet, just make them from 'not in progress' to 'in progress'. Within
-// 'in progress' you can mention it as 'partially returned'." … "even if they
-// partially return, like three headsets out of eight, on the top it is still
-// showing 0% — calculate the percentage accordingly. Even if it is a small
-// percentage, don't show it as 0%."
+// Client, 2026-08-21 (twice, the second time as a plain instruction): "make the
+// filter also in the status … replace the 'in progress' with 'partially
+// returned' across all the reporting everywhere in all the views."
 //
-// The old label was "Out — Not Returned", which named the ABSENCE of an event
-// rather than the state the pass is in, and "Partly Returned", which is a
-// second spelling of a phrase the rest of the app already writes out in full
-// (`ITEM_RETURN_STYLES.partial`, `PASS_RETURN_LABELS`, the return legend).
+// WHAT THIS FILE USED TO HOLD, one pass earlier the same day: that a pass still
+// out read "In Progress" and a part-returned one "Partially Returned" — two
+// labels, the second a named subset of the first. The client has now collapsed
+// them into one word. So `RGP_STAGE_STYLES.out_open` and `.partly_returned`
+// carry the SAME label, and therefore the same style: the same words in two
+// hues would be a distinction carried by colour alone, which is nothing at all
+// on the mono laser the register prints on.
 //
-// The percentage was 0% for a genuinely part-returned pass because
-// `returnProgress` counted LINES FULLY BACK: three of eight headsets on one
-// line closes no line at all, so the bar read 0% over a table plainly showing
-// material back. The sentence beside it still counts lines — it says "items" —
-// but the FIGURE and the bar are the share of the material.
+// ⚠ THE COST, FLAGGED: a pass with NOTHING back now reads "Partially Returned"
+// too. The two states are still distinct in the data (`return_status`), and the
+// item table on the record still states each line's own outstanding quantity —
+// only the badge no longer separates them.
+//
+// The percentage half of this file is unchanged: `returnProgress` counts
+// QUANTITIES, not lines fully back.
 import { describe, it, expect } from 'vitest';
 import type { GatePassItemView } from '../../src/types';
 import { RGP_STAGE_STYLES } from '../../src/lib/rgpLifecycle';
@@ -26,7 +28,8 @@ import { RETURN_STYLES } from '../../src/lib/statusStyles';
 import { STAGE_TONES } from '../../src/lib/passStackCard';
 import { returnProgress } from '../../src/lib/passRecordView';
 import {
-  applyReportFilters, STATUS_FILTERS, type StatusFilter,
+  applyReportFilters, buildReportKpis, reportStatusLabel, REPORT_STATUS_LABELS,
+  STATUS_FILTERS, type StatusFilter,
 } from '../../src/lib/gatePassReport';
 import type { GatePassView } from '../../src/types';
 
@@ -52,9 +55,9 @@ function line(quantity: number, returned_qty: number): GatePassItemView {
   return { id: `i${quantity}-${returned_qty}`, quantity, returned_qty, unit: 'nos' } as any;
 }
 
-describe('the return leg is named "In Progress" / "Partially Returned"', () => {
-  it('names a pass still out "In Progress"', () => {
-    expect(RGP_STAGE_STYLES.out_open.label).toBe('In Progress');
+describe('the return leg is named "Partially Returned", and nothing is "In Progress"', () => {
+  it('names a pass still out "Partially Returned"', () => {
+    expect(RGP_STAGE_STYLES.out_open.label).toBe('Partially Returned');
   });
 
   it('names a part-returned pass "Partially Returned", on both maps', () => {
@@ -62,20 +65,50 @@ describe('the return leg is named "In Progress" / "Partially Returned"', () => {
     expect(RETURN_STYLES.partially_returned.label).toBe('Partially Returned');
   });
 
+  it('gives the one label ONE style — the same words are never two colours', () => {
+    expect(RGP_STAGE_STYLES.out_open).toEqual(RGP_STAGE_STYLES.partly_returned);
+  });
+
   it('no map still carries the old wording', () => {
     const labels = [
       ...Object.values(RGP_STAGE_STYLES).map((s) => s.label),
       ...Object.values(RETURN_STYLES).map((s) => s.label),
+      ...Object.values(REPORT_STATUS_LABELS),
+      ...STATUS_FILTERS.map((s) => s.label),
     ];
+    expect(labels).not.toContain('In Progress');
     expect(labels).not.toContain('Out — Not Returned');
     expect(labels).not.toContain('Partly Returned');
   });
 
-  it('tones both new labels, so no stacked card falls back to grey', () => {
-    expect(STAGE_TONES['In Progress']).toBe('blue');
+  it('tones the label, so no stacked card falls back to grey', () => {
     expect(STAGE_TONES['Partially Returned']).toBe('blue');
-    expect(STAGE_TONES['Out — Not Returned']).toBeUndefined();
-    expect(STAGE_TONES['Partly Returned']).toBeUndefined();
+    expect(STAGE_TONES['In Progress']).toBeUndefined();
+  });
+});
+
+// ─── The register says the same word as the badge ────────────────────────────
+describe('the report bucket and its filter option are "Partially Returned"', () => {
+  it('labels the bucket that way', () => {
+    expect(REPORT_STATUS_LABELS.in_progress).toBe('Partially Returned');
+  });
+
+  it('offers it in the Status select, under the same key', () => {
+    const opt = STATUS_FILTERS.find((s) => s.key === 'in_progress');
+    expect(opt?.label).toBe('Partially Returned');
+  });
+
+  it('names the KPI card over that list the same', () => {
+    const cards = buildReportKpis([], [], 'the previous 30 days');
+    expect(cards.find((c) => c.key === 'in_progress')?.label).toBe('Partially Returned');
+  });
+
+  it('still reads Overdue / Expired where something sharper is true', () => {
+    expect(reportStatusLabel(view({ status: 'matched', return_status: 'awaiting_return', is_overdue: true })))
+      .toBe('Overdue');
+    expect(reportStatusLabel(view({ status: 'pending', is_expired: true }))).toBe('Expired');
+    expect(reportStatusLabel(view({ status: 'matched', return_status: 'awaiting_return' })))
+      .toBe('Partially Returned');
   });
 });
 

@@ -44,7 +44,12 @@ export function QuestMark({ size = 32, className = '', style }: MarkProps): Reac
       fill="none"
       role="img"
       aria-label="Quest Mall"
-      className={className}
+      /* `print-keep` is the opt-in for the app-wide print rule that hides every
+         other `svg` on paper (see @media print in index.css, client 2026-08-21:
+         "never ever hide the logo"). It is declared on the MARK rather than on
+         each caller so no page can print without its logo by forgetting a
+         class, and it does nothing at all on screen. */
+      className={`print-keep ${className}`.trim()}
       style={style}
     >
       <defs>

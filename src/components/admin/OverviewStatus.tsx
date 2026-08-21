@@ -62,7 +62,9 @@ export default function OverviewStatus({ slices, activeKey, onSelect }: Props): 
           aria-label={`Passes by status: ${total} in total`}
           // -90° so the ring starts at twelve o'clock. SVG dashes begin at three
           // o'clock, which reads as an arbitrary starting point.
-          className="-rotate-90"
+          // `print-keep`: a chart is DATA, not an icon, so it opts back into the
+          // printed sheet (see @media print in index.css).
+          className="print-keep -rotate-90"
         >
           <circle
             cx={SIZE / 2}

@@ -22,21 +22,29 @@
 // "Security gate". The rows therefore SUM to the passes still waiting, with
 // nothing falling between the ladder and the gate.
 //
-// TODAY IS THE CALLER'S CUT, and `passesRaisedToday` is how both boards make
-// it — passes RAISED today, the same local-midnight day every other figure on
-// those two boards uses. A pass raised last week and still climbing is not
-// counted here; the client asked for today and the Pending Approvals card above
-// (`pendingSplit.ts`) is the running figure that is not date-scoped.
+// THERE IS NO DAY CUT — IT IS A RUNNING QUEUE (client, 2026-08-21: "it should
+// not be only the passes which were raised today, but all the passes which are
+// pending for all those approvals accordingly. And remove the today word from
+// the bottom from the admin view").
 //
-// SCOPE BEYOND THE DAY IS NOT THIS MODULE'S DOING: the admin board reads every
-// pass, the HOD board reads only their own (RLS narrows to the department and
+// It was cut to the day when it landed on 2026-08-20, on the client's own
+// instruction, and `passesRaisedToday` was how both boards made that cut. The
+// cost was flagged at the time and is what has now been paid: a pass raised last
+// week and still unsigned was on nobody's strip, so the desk holding up the
+// oldest document in the building was the one desk the board never named. An
+// obligation does not discharge because the date rolled over — the same argument
+// the admin Overview's own Pending Approvals card has always been built on
+// (`pendingSplit.ts`), and the strip and that card now agree.
+//
+// SCOPE IS NOT THIS MODULE'S DOING: the admin board reads every pass, the HOD
+// board reads only their own (RLS narrows to the department and
 // `.eq('raised_by', …)` narrows again, both server-side). The same function is
 // correct on both because it counts exactly what it is handed.
 import type { GatePassView } from '../types';
 import { APPROVAL_LADDER, APPROVAL_ROLE_TITLES, type ApprovalRoleKey, type ApprovalRoleRow } from './approvalLadder';
 import { lowestPendingLevel, type ApprovalStepRow } from './approvalDecision';
 import { isExpiredPending } from './statusStyles';
-import { dayStart, DAY_MS } from './localDay';
+
 
 /** A `pass_approvals` row, narrowed to what the slip-order rule needs plus the
  *  pass it belongs to. Wider rows satisfy it. */
@@ -62,23 +70,23 @@ export interface WaitingRow {
   count: number;
 }
 
-/** The passes raised in the local day containing `stamp`. Local midnight, the
- *  same cut `todayBounds` makes for every KPI on both boards. */
-export function passesRaisedToday(rows: GatePassView[], stamp: number): GatePassView[] {
-  const start = dayStart(stamp);
-  const end = start + DAY_MS;
-  return rows.filter((p) => {
-    const t = new Date(p.created_at).getTime();
-    return t >= start && t < end;
-  });
+/** Is this pass waiting on anybody at all? A matched, flagged, cancelled or
+ *  expired pass is not, and an expired one cannot be cleared by the gate no
+ *  matter who signs it. Exported because `useWaitingWith` narrows its
+ *  `pass_approvals` read to exactly these passes — the strip must not fetch
+ *  ladder rows for passes it is about to skip. */
+export function isWaitingSomewhere(
+  p: Pick<GatePassView, 'status' | 'is_expired'>,
+): boolean {
+  return p.status === 'pending' && !isExpiredPending(p);
 }
 
 /**
  * How many of `passes` each desk is holding.
  *
- * `passes` is already scoped by the caller (today, and whatever the board's own
- * scope is); `approvals` is the `pass_approvals` rows for those passes; `roles`
- * is `get_approval_ladder()`.
+ * `passes` is whatever the board was handed (see the header — the admin's is
+ * every pass, an HOD's is their own); `approvals` is the `pass_approvals` rows
+ * for those passes; `roles` is `get_approval_ladder()`.
  *
  * A pass counts only while it is still `pending` and not expired: a matched,
  * flagged, cancelled or expired pass is not waiting for anybody, and an expired
@@ -100,7 +108,7 @@ export function buildWaitingWith(
   const bump = (key: string) => counts.set(key, (counts.get(key) ?? 0) + 1);
 
   for (const p of passes) {
-    if (p.status !== 'pending' || isExpiredPending(p)) continue;
+    if (!isWaitingSomewhere(p)) continue;
     const rows = byPass.get(p.id) ?? [];
     const lowest = lowestPendingLevel(rows);
     if (lowest === null) {

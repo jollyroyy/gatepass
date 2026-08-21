@@ -66,14 +66,17 @@ export default function Dashboard(): React.ReactElement {
   // tells a rejection made on the ladder apart from a pass that merely expired
   // and was voided (see `rejectionSplit.ts`). One read, three figures.
   const cards = useMemo(() => buildHodKpis(rows, stamp, approvals), [rows, stamp, approvals]);
-  // THE FOOT OF THE PAGE — who today's still-waiting passes are sitting with
-  // (client, 2026-08-20). It hands the hook the approvals this page has ALREADY
-  // read, so the board still makes exactly the two queries it made before, and
+  // THE FOOT OF THE PAGE — who every still-waiting pass is sitting with
+  // (client, 2026-08-20; the day cut removed 2026-08-21, on both boards: one
+  // component answers one question, and a queue that emptied at midnight was
+  // the same defect here as on the admin's). It hands the hook the approvals
+  // this page has ALREADY read, so the board still makes exactly the two
+  // queries it made before, and
   // the strip and the Approval Pending strip beside it are readings of the one
   // array. They count different things on purpose: this one counts PASSES, once
   // each, against the desk that can act now; that one counts SIGNATURES still
   // owed at every office. See `waitingWith.ts`.
-  const { waiting } = useWaitingWith(rows, stamp, approvals);
+  const { waiting } = useWaitingWith(rows, approvals);
   // AN ADMIN WANTING TO DELETE THIS PERSON'S DEPARTMENT (060). One more read,
   // and it draws nothing at all in the ordinary case where nothing is waiting —
   // which is why it sits above the figures rather than beside them: when it IS

@@ -42,7 +42,7 @@ describe('itemLineView — the line says what the pass says', () => {
   it('repeats the pass badge on a line nothing has come back on', () => {
     const p = pass();
     expect(itemLineView(line(8, 0), p).label).toBe(passStageStyle(p).label);
-    expect(itemLineView(line(8, 0), p).label).toBe('In Progress');
+    expect(itemLineView(line(8, 0), p).label).toBe('Partially Returned');
   });
 
   it('says "Overdue" on the lines of an overdue pass, exactly as the badge does', () => {

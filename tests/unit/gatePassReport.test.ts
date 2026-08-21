@@ -115,7 +115,7 @@ describe('the row pill says more than its bucket where more is true', () => {
 
   it('otherwise reads the mock\'s own three words', () => {
     expect(reportStatusLabel(row({ status: 'matched' }))).toBe('Completed');
-    expect(reportStatusLabel(row({ status: 'pending' }))).toBe('In Progress');
+    expect(reportStatusLabel(row({ status: 'pending' }))).toBe('Partially Returned');
     expect(reportStatusLabel(row({ status: 'flagged' }))).toBe('Cancelled');
     expect(reportStatusPill(row({ status: 'matched' }))).toBe('gb-pill-green');
   });

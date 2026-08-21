@@ -1,9 +1,10 @@
-// RENAMED 2026-08-21: every assertion in this file that read "Out — Not Returned"
-// now reads "In Progress", and "Partly Returned" reads "Partially Returned"
-// (client: "for the status of those passes which have not been returned yet,
-// just make them from 'not in progress' to 'in progress'. Within 'in progress'
-// you can mention it as 'partially returned'"). The labels are the only thing
-// that moved — no stage, tone or precedence rule changed with them.
+// RENAMED TWICE ON 2026-08-21, and this is the second pass. Every assertion
+// here that read "Out — Not Returned" briefly read "In Progress" and now
+// reads "Partially Returned" — the one word the client settled on for the
+// whole return leg ("replace the 'in progress' with 'partially returned'
+// across all the reporting everywhere in all the views"). Both open stages
+// therefore carry the SAME label and the same style; only the labels moved,
+// and no stage, tone or precedence rule changed with them.
 // The CSV a human opens in Excel must contain what the screen shows — no raw
 // enum keys, no ISO timestamps, no escape characters, no columns that the
 // database stopped having years ago.

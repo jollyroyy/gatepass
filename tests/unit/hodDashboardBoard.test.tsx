@@ -400,10 +400,16 @@ describe('Quick Actions and the Approval Pending strip', () => {
     expect(screen.queryByRole('link', { name: /View all/i })).not.toBeInTheDocument();
   });
 
-  // The client's second strip (2026-08-20): "how many are waiting for which
-  // person … it's only for today". It answers a DIFFERENT question from the
-  // Approval Pending strip above it, and this case is what keeps the two apart.
-  it('names who the passes raised today are sitting with, counting each pass ONCE', async () => {
+  // The client's second strip (2026-08-20). It answers a DIFFERENT question
+  // from the Approval Pending strip above it, and this case is what keeps the
+  // two apart: this one counts PASSES once each, that one counts SIGNATURES.
+  //
+  // REWRITTEN 2026-08-21: the day cut is gone (client — the strip must show
+  // "all the passes which are pending", not only today's), so the two
+  // five-day-old passes climbing the ladder are counted here now. Both boards
+  // render one component, and a queue that empties at midnight was the same
+  // defect on each.
+  it('names who every pending pass is sitting with, counting each pass ONCE', async () => {
     renderBoard();
     await loaded();
 
@@ -416,12 +422,13 @@ describe('Quick Actions and the Approval Pending strip', () => {
     // t1 and t4 are pending, raised TODAY, and carry no ladder rows — nothing
     // is owed, so the gate is who they are waiting with.
     expect(desk('Security gate')).toBe('2');
-    // p1 and p2 ARE climbing the ladder — and were raised five days ago, so
-    // this strip must not count them even though the Approval Pending strip
-    // above it does. That is the day cut, and it is the whole point.
-    expect(desk('Security Head')).toBe('0');
-    expect(desk('COO')).toBe('0');
-    expect(strip).toHaveTextContent('2 passes raised today, waiting on these desks — your own passes.');
+    // p1 and p2 ARE climbing the ladder, raised five days ago. Each counts
+    // ONCE, against the LOWEST rung still pending on it — never against every
+    // office it still owes, which is what the strip above it does.
+    expect(desk('Security Head')).toBe('1');
+    expect(desk('COO')).toBe('1');
+    expect(strip).toHaveTextContent('4 passes waiting on these desks — your own passes.');
+    expect(strip?.textContent).not.toMatch(/today/i);
     // Nobody holds an office in this fixture, and the strip says so rather than
     // printing a blank line.
     expect(strip).toHaveTextContent('Not designated yet');

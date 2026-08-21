@@ -3,13 +3,20 @@
 // ONCE: the office that can actually act on it, never every office it still
 // owes. See `src/lib/waitingWith.ts` for why that differs from the Approval
 // Pending strip beside it.
+//
+// THE DAY CUT IS GONE (client, 2026-08-21: "it should not be only the passes
+// which were raised today, but all the passes which are pending for all those
+// approvals accordingly"). `passesRaisedToday` is DELETED with its last caller,
+// and its case below is replaced by the one that proves the opposite: a pass
+// raised weeks ago and still climbing IS on the strip. A queue does not empty
+// because the day rolled over — that was the "KNOWN COST, FLAGGED" line the
+// 2026-08-20 pass wrote against this module, and this is it being paid.
 import { describe, expect, it } from 'vitest';
 import type { GatePassView } from '../../src/types';
 import type { ApprovalRoleRow } from '../../src/lib/approvalLadder';
 import {
   buildWaitingWith,
   GATE_KEY,
-  passesRaisedToday,
   waitingPersonLabel,
   waitingWithTotal,
   type WaitingApprovalRow,
@@ -136,15 +143,28 @@ describe('buildWaitingWith', () => {
   });
 });
 
-describe('passesRaisedToday', () => {
-  it('takes the local day containing the stamp, and nothing either side of it', () => {
+describe('the strip counts every pending pass, whatever day it was raised', () => {
+  it('counts a pass raised weeks ago that is still climbing', () => {
     const rows = [
-      pass({ id: 'now', created_at: new Date(NOW).toISOString() }),
-      pass({ id: 'early', created_at: new Date(2026, 7, 20, 0, 0, 1).toISOString() }),
-      pass({ id: 'late', created_at: new Date(2026, 7, 20, 23, 59, 59).toISOString() }),
-      pass({ id: 'yesterday', created_at: new Date(2026, 7, 19, 23, 59, 59).toISOString() }),
-      pass({ id: 'tomorrow', created_at: new Date(2026, 7, 21, 0, 0, 1).toISOString() }),
+      pass({ id: 'today', created_at: new Date(NOW).toISOString() }),
+      pass({ id: 'old', created_at: new Date(2026, 6, 3, 9, 0).toISOString() }),
     ];
-    expect(passesRaisedToday(rows, NOW).map((p) => p.id)).toEqual(['now', 'early', 'late']);
+    const approvals = [
+      step({ gate_pass_id: 'old', role_key: 'security_head', level_no: 1, status: 'approved' }),
+      step({ gate_pass_id: 'old', role_key: 'coo', level_no: 2, status: 'pending' }),
+    ];
+    const built = buildWaitingWith(rows, approvals, []);
+    const at = (key: string) => built.find((r) => r.key === key)?.count;
+    expect(at('coo')).toBe(1);
+    expect(at(GATE_KEY)).toBe(1);
+    expect(waitingWithTotal(built)).toBe(2);
+  });
+
+  it('still counts nothing for a pass that is no longer pending, of any age', () => {
+    const rows = [
+      pass({ id: 'done', status: 'matched', created_at: new Date(2026, 6, 3).toISOString() }),
+      pass({ id: 'dead', status: 'pending', is_expired: true, created_at: new Date(2026, 6, 3).toISOString() }),
+    ];
+    expect(waitingWithTotal(buildWaitingWith(rows, [], []))).toBe(0);
   });
 });

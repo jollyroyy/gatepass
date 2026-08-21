@@ -154,7 +154,7 @@ describe('Gate Pass Report — the mock-up itself', () => {
     await waitFor(() => expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument());
 
     const figures = screen.getByRole('group', { name: 'Report figures' });
-    for (const label of ['Total Passes', 'RGP Passes', 'NRGP Passes', 'Completed', 'In Progress', 'Cancelled']) {
+    for (const label of ['Total Passes', 'RGP Passes', 'NRGP Passes', 'Completed', 'Partially Returned', 'Cancelled']) {
       expect(figures).toHaveTextContent(label);
     }
     // 5 rows: 3 RGP + 2 NRGP.

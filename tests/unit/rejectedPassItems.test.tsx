@@ -88,7 +88,7 @@ describe('itemLineView on a refused pass', () => {
   it('leaves a live pass reading its own state, line by line', () => {
     // Nothing back yet: the line repeats the pass. Some back: the line's own
     // return outranks it. All back: "Returned".
-    expect(itemLineView(line(), pass({ status: 'matched' })).label).toBe('In Progress');
+    expect(itemLineView(line(), pass({ status: 'matched' })).label).toBe('Partially Returned');
     expect(itemLineView(line({ returned_qty: 1 }), pass({ status: 'matched' })).label)
       .toBe('Partially Returned');
     expect(itemLineView(line({ returned_qty: 3 }), pass({ status: 'matched' })).label)
