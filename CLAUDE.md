@@ -76,7 +76,39 @@ through request → HOD approval → deletion. That is now the next security act
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-21, thirty-fifth pass): A PASS STILL OUT READS "In Progress",
+**Latest change (2026-08-21, thirty-sixth pass): THE GUARD'S SCREENS CARRY THE MONEY —
+EVERY UNFOLDED MATERIAL LINE IS PRICED, AND THE BLOCK BESIDE IT NAMES THE PASS'S TOTAL.**
+Frontend only — no migration, no RPC change, no new query.
+
+- Client: "in the card view in the dashboard, when he's just expanding the stacked card there,
+  you put a column for value and put all the individual values. On top in the description, where
+  you are showing all the description and vendor details, there you mention their total value for
+  all the items. Even for the overdue items or so, whatever is showing in the stacked card, they
+  should have a value column" — narrowed a moment later to **"guard view"**.
+- **FOUR SURFACES, AND ONLY THE GUARD'S.** `PendingOutRow`'s unfolded item table and
+  `PendingReturnItems` each gained a **Value** column; the meta block beside each of them
+  (`PendingOutRow`'s own, and `ReturnRowMeta`) gained **Total Value**; and `OverduePassCard` —
+  the one guard surface that is a stacked CARD rather than a row — gained a Total Value fact
+  among the six it already prints.
+- **THE TOTAL IS `v_gate_passes.total_value`, NEVER RE-SUMMED FROM THE LINES ON SCREEN.** The
+  rule the overdue KPI and `PassStackCard` already live by: a panel that priced a pass
+  differently from its own record would be two answers to one question, and the view's column
+  is what the register and the CSV read too.
+- **AN UNPRICED LINE IS A DASH, NEVER ₹0.** `approx_value` is optional (it was not even
+  collected between the eleventh and seventeenth passes), and "nothing declared" is not
+  "declared zero". The meta rows say **"Not priced"**, which is the sentence-shaped form of the
+  same fact.
+- `PendingReturnItems`' Total row moved its label from `colSpan={3}` to `colSpan={4}` — the
+  Value column sits between Description and Expected Qty, and the footer sums QUANTITIES only.
+  `PENDING_OUT_COLUMNS` is unchanged: nothing was added to the row itself.
+- **`PassStackItems` and `MyPassItems` ALREADY had a Value column, and `PassStackCard` already
+  had Total Value** — that half of the instruction was live before this pass and is untouched.
+- Pinned by a new `tests/unit/guardValueColumns.test.tsx` (5), all watched failing first.
+  `npm run check` is green.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite and a typecheck only. A sixth column in a panel
+  that already scrolls sideways at a narrow width is exactly what only a real render proves.
+
+**Earlier (2026-08-21, thirty-fifth pass): A PASS STILL OUT READS "In Progress",
 A LINE READS WHATEVER ITS PASS READS, THE RETURN PERCENTAGE IS COUNTED IN MATERIAL RATHER THAN
 IN LINES, "Return Before" IS "Expected Return Date", AND THE REPORT'S FILTERS APPLY THEMSELVES
 AND CAN NARROW TO EITHER PENDING DESK.** Frontend only — no migration, no RPC change, no new

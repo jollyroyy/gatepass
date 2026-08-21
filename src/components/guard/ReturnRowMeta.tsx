@@ -11,6 +11,7 @@
 // — a row this app cannot fill is given the fact it does have, never an em dash.
 import React from 'react';
 import type { GatePassView } from '../../types';
+import { formatCurrency } from '../../lib/formatCurrency';
 import { formatDateTime } from '../../lib/formatDate';
 
 const Glyphs = {
@@ -37,6 +38,11 @@ const Glyphs = {
     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
       <circle cx="12" cy="8" r="3.5" />
       <path strokeLinecap="round" d="M4.75 19.5a7.25 7.25 0 0114.5 0" />
+    </svg>
+  ),
+  rupee: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 4.75h9M7.5 8.75h9M7.5 12.75h4a4 4 0 000-8M7.5 12.75l7 6.5" />
     </svg>
   ),
   clock: (
@@ -74,6 +80,15 @@ export default function ReturnRowMeta({ pass }: { pass: GatePassView }): React.R
         <Meta glyph="building" label="Department" value={pass.department_name} />
         <Meta glyph="truck" label="Vehicle No." value={pass.vehicle_number || 'Not stated'} />
         <Meta glyph="purpose" label="Purpose" value={pass.purpose || 'Not stated'} />
+        {/* THE PASS'S TOTAL, over the lines listed beside it (client,
+          * 2026-08-21). `v_gate_passes.total_value`, never re-summed from the
+          * rows on screen — a return panel that priced a pass differently from
+          * its own record would be two answers to one question. */}
+        <Meta
+          glyph="rupee"
+          label="Total Value"
+          value={pass.total_value > 0 ? formatCurrency(pass.total_value) : 'Not priced'}
+        />
         <Meta glyph="person" label="Authorised By" value={pass.raised_by_name} />
         <Meta glyph="person" label="Carried By" value={pass.visitor_name} />
         <Meta glyph="clock" label="Created On" value={formatDateTime(pass.created_at)} />

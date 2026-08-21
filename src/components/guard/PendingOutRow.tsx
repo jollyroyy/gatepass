@@ -21,6 +21,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView } from '../../types';
 import { formatDateTime, formatTime } from '../../lib/formatDate';
+import { formatCurrency } from '../../lib/formatCurrency';
 import { partyOf, TYPE_PILL } from '../../lib/guardBoard';
 import { itemsLabel } from '../../lib/pendingOutFilters';
 import { canVerifyAtGate } from '../../lib/phoneSearch';
@@ -64,6 +65,11 @@ const MetaGlyphs = {
     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
       <circle cx="12" cy="8" r="3.5" />
       <path strokeLinecap="round" d="M4.75 19.5a7.25 7.25 0 0114.5 0" />
+    </svg>
+  ),
+  rupee: (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 4.75h9M7.5 8.75h9M7.5 12.75h4a4 4 0 000-8M7.5 12.75l7 6.5" />
     </svg>
   ),
 } as const;
@@ -167,6 +173,11 @@ export default function PendingOutRow({ pass, open, onToggle }: Props): React.Re
                           <th>Description</th>
                           <th>Quantity</th>
                           <th>Unit</th>
+                          {/* WHAT THE LINE IS WORTH (client, 2026-08-21). The
+                              guard is signing a load out of the building; the
+                              value of each piece of it is a fact about what is
+                              leaving, and it was readable only on the record. */}
+                          <th>Value</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -179,6 +190,12 @@ export default function PendingOutRow({ pass, open, onToggle }: Props): React.Re
                             </td>
                             <td>{item.quantity}</td>
                             <td className="gb-unit">{unitLabel(item.unit)}</td>
+                            {/* An unpriced line is a dash, never ₹0 —
+                                `approx_value` is optional, and "nothing
+                                declared" is not "declared zero". */}
+                            <td>
+                              {item.approx_value == null ? '—' : formatCurrency(item.approx_value)}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -195,6 +212,16 @@ export default function PendingOutRow({ pass, open, onToggle }: Props): React.Re
                     value={`${formatDateTime(pass.created_at)} — ${formatDateTime(pass.expires_at)}`}
                   />
                   <Meta glyph="purpose" label="Purpose" value={pass.purpose || 'Not stated'} />
+                  {/* THE PASS'S TOTAL, over the lines listed beside it (client,
+                      2026-08-21). Read off `v_gate_passes.total_value` and
+                      never re-summed here — the rule every other figure in this
+                      app follows, so the panel cannot disagree with the card,
+                      the record or the register about what a pass is worth. */}
+                  <Meta
+                    glyph="rupee"
+                    label="Total Value"
+                    value={pass.total_value > 0 ? formatCurrency(pass.total_value) : 'Not priced'}
+                  />
                   <Meta glyph="person" label="Authorised By" value={pass.raised_by_name} />
                   <Meta glyph="person" label="Carried By" value={pass.visitor_name} />
                 </div>

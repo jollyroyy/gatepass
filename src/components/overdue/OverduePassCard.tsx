@@ -12,6 +12,7 @@
 // label, not a target.
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { formatCurrency } from '../../lib/formatCurrency';
 import { formatDateOnly, formatDateTime } from '../../lib/formatDate';
 import { partyOf } from '../../lib/guardBoard';
 import { formatOverdueBy, pendingItemsLabel, type OverduePassRow } from '../../lib/overduePasses';
@@ -54,6 +55,15 @@ export default function OverduePassCard({ row, canProcessReturn }: Props): React
           />
           <Fact label="Expected Return Date" value={formatDateOnly(pass.expected_return_date)} tone="late" />
           <Fact label="Overdue By" value={formatOverdueBy(row.daysLate)} tone="late" />
+          {/* WHAT IS STILL OUTSIDE, IN MONEY (client, 2026-08-21: "whatever is
+              showing in the stacked card, they should have a value column").
+              `v_gate_passes.total_value`, never re-summed from the lines — the
+              rule this board's own count already lives by. An unpriced pass is
+              a dash, never ₹0. */}
+          <Fact
+            label="Total Value"
+            value={pass.total_value > 0 ? formatCurrency(pass.total_value) : '—'}
+          />
           <Fact label="Pending Items" value={pendingItemsLabel(row.pendingItems)} />
         </div>
       </Link>

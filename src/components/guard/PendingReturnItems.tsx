@@ -26,6 +26,7 @@
 // there the guard is counting a load out through the barrier line by line.
 import React from 'react';
 import type { GatePassItemView } from '../../types';
+import { formatCurrency } from '../../lib/formatCurrency';
 import { formatDateOnly } from '../../lib/formatDate';
 import {
   effectiveReturned,
@@ -71,6 +72,9 @@ export default function PendingReturnItems({ items, draft, onAdd }: Props): Reac
           <th>#</th>
           <th>Item Name</th>
           <th>Description</th>
+          {/* WHAT THE LINE IS WORTH (client, 2026-08-21) — the material coming
+              back through the barrier, priced line by line. */}
+          <th>Value</th>
           <th>{quantityHeading('Expected Qty', units)}</th>
           <th>{quantityHeading('Returned Qty', units)}</th>
           <th>Return Now</th>
@@ -88,6 +92,9 @@ export default function PendingReturnItems({ items, draft, onAdd }: Props): Reac
               <td className="gb-truncate" title={item.description || undefined}>
                 {item.description || '—'}
               </td>
+              {/* An unpriced line is a dash, never ₹0 — `approx_value` is
+                * optional, and "nothing declared" is not "declared zero". */}
+              <td>{item.approx_value == null ? '—' : formatCurrency(item.approx_value)}</td>
               <td>{quantityCell(item.quantity, item.unit, units)}</td>
               <td>{quantityCell(effectiveReturned(item, draft), item.unit, units)}</td>
               <td>
@@ -133,7 +140,7 @@ export default function PendingReturnItems({ items, draft, onAdd }: Props): Reac
       {shared !== null && (
         <tfoot>
           <tr>
-            <td colSpan={3}>Total</td>
+            <td colSpan={4}>Total</td>
             <td>{formatQty(totalExpected)}</td>
             <td>{formatQty(totalBack)}</td>
             <td colSpan={2}>
