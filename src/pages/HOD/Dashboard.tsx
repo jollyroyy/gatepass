@@ -17,8 +17,11 @@
 //   * THE "WAITING WITH" STRIP, which named the desk every still-waiting pass
 //     was sitting with, is off this board (client, 2026-08-21: "remove Waiting
 //     With ... from hod dashboard bottom"). The ADMIN's board still carries it.
-//     The Approval Pending strip stays — it answers a different question, and
-//     only the other one was named.
+//     The Approval Pending strip stays — only the other one was named — and
+//     since 2026-08-21 it counts the same way, one pass against one desk, so
+//     that it agrees with the Pending Approvals card above it. What it does NOT
+//     have is a gate row: it names approvers, and the passes waiting at the
+//     barrier are the card's other sub-line.
 //   * THE FLAGGED-REVIEW QUEUE ("Mismatches needing review") is off the page
 //     with its panel. KNOWN COST, flagged to the client: the bell's mismatch
 //     notice is now the only route to `/mismatch/:id`. Nothing became
@@ -61,10 +64,11 @@ export default function Dashboard(): React.ReactElement {
   // second for a greeting that changes twice a day and a date that changes once.
   const [stamp] = useState(() => Date.now());
 
-  // The four offices on the Approval Pending strip at the foot of the page. It
-  // counts SIGNATURES still owed; the Pending Approvals CARD counts passes,
-  // which is why the two are derived separately and neither is a roll-up of the
-  // other.
+  // The four offices on the Approval Pending strip at the foot of the page.
+  // ONE PASS, ONE DESK — the same unit the Pending Approvals card above counts
+  // in, so the strip sums to that card's own "N pending approval" line. It used
+  // to count owed SIGNATURES, which made a single freshly raised pass read as
+  // four things waiting (client, 2026-08-21: "it should match, right?").
   const officeWaiting = useMemo(() => approvalWaiting(rows, approvals), [rows, approvals]);
   // `approvals` is the SAME array the strip at the foot reads — it is what
   // tells a rejection made on the ladder apart from a pass that merely expired

@@ -18,12 +18,14 @@
 //   4. WHAT THE CLIENT ASKED TO GO: the Alerts card, and with the old board the
 //      trend, the status ring, the return watch, the top-items ring and the
 //      flagged-review queue.
-//   5. THE APPROVAL PENDING STRIP IS REAL (migration 046): a pending
-//      `pass_approvals` row on a pass still `pending` counts under its office;
-//      a rejected pass's leftover pending rows count nowhere; HOD Approval
-//      stays structurally zero because nothing is ever routed to it. See
-//      src/lib/hodApprovals.ts for the office mapping and the double-count
-//      rule for "Other Approvers".
+//   5. THE APPROVAL PENDING STRIP IS REAL (migration 046) AND AGREES WITH THE
+//      CARD ABOVE IT: a pass still `pending` counts ONCE, under the office
+//      whose rung is the lowest one still pending on it, so the four figures
+//      sum to the Pending Approvals card's own "N pending approval" line. A
+//      rejected pass's leftover pending rows count nowhere; HOD Approval stays
+//      structurally zero because nothing is ever routed to it. See
+//      src/lib/hodApprovals.ts for the office mapping and for the rule this
+//      replaced on 2026-08-21.
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
@@ -95,17 +97,18 @@ const MINE: GatePassView[] = [
 ];
 
 // `gatepass.pass_approvals` rows for the four passes above.
-//   p1 — one pending Security Head row, pass still climbing: counts.
-//   p2 — pending COO and pending CEO rows, pass still climbing: TWO counts
-//        under "Other Approvers" (see hodApprovals.ts for why one row = one
-//        count rather than one pass = one count).
+//   p1 — one pending Security Head row, pass still climbing: counts once, under
+//        Security Approval.
+//   p2 — pending COO and pending CEO rows, pass still climbing: counts ONCE,
+//        under "Other Approvers", against the COO — the lower of the two rungs
+//        and the only office that can act (see hodApprovals.ts, rewritten
+//        2026-08-21, for why one PASS is one count rather than one ROW).
 //   p3 — Security Head rejected it: the pass moved to `cancelled`, and its
 //        leftover pending Finance HOD row must count NOWHERE.
 //   p4 — Finance HOD already approved: an `approved` row never counts.
 // `level_no` is the rung's place in the slip order (057: Security Head 1 · COO
-// 2 · Finance HOD 3 · CEO 4). This strip does not read it — it counts every
-// owed signature — but the "Waiting With" strip at the foot of the same board
-// does, and both are fed by this ONE read.
+// 2 · Finance HOD 3 · CEO 4), and it is what decides WHICH desk a pass is
+// counted against.
 const PENDING_APPROVAL_ROWS = [
   { gate_pass_id: 'p1', role_key: 'security_head', level_no: 1, status: 'pending' },
   { gate_pass_id: 'p2', role_key: 'coo', level_no: 2, status: 'pending' },
@@ -364,7 +367,14 @@ describe('Quick Actions and the Approval Pending strip', () => {
     expect(screen.getByRole('link', { name: /Raise Gate Pass/ })).toHaveAttribute('href', '/raise');
   });
 
-  it('counts real pending signatures per office, off the pass_approvals fixture', async () => {
+  // REWRITTEN 2026-08-21 (client: "there is only one pending approval … at the
+  // bottom I do see that one is pending approval with security and two is
+  // pending approval with some other approver … it should match, right?"). This
+  // case used to hold that each OWED SIGNATURE was its own count, so p2's
+  // pending COO row and pending CEO row made "Other Approvers" read 2 while the
+  // Pending Approvals card above counted p2 once. One pass is one count now,
+  // against the one desk that can act on it.
+  it('counts each waiting pass ONCE, under the desk that can act on it now', async () => {
     renderBoard();
     await loaded();
 
@@ -376,15 +386,20 @@ describe('Quick Actions and the Approval Pending strip', () => {
 
     // p1's pending security_head row, on a pass still `pending`.
     expect(value('Security Approval')).toBe('1');
-    // p2's pending coo AND pending ceo rows both land on "Other Approvers" —
-    // one pass, two outstanding signatures, two counts.
-    expect(value('Other Approvers')).toBe('2');
+    // p2 owes BOTH a COO signature and a CEO one, and counts once: the COO is
+    // the lower rung, and 061 means the CEO cannot even read the pass yet.
+    expect(value('Other Approvers')).toBe('1');
     // p3's pending finance_head row is leftover on a `cancelled` pass (its
     // security_head row was rejected first) and must count nowhere.
     expect(value('Finance Approval')).toBe('0');
     // Nothing is ever routed to the issuing HOD's own office — raising the
     // pass IS that approval (see approvalLadder.ts's "Raised By" rung).
     expect(value('HOD Approval')).toBe('0');
+
+    // AND THE CARD ABOVE AGREES. The four figures sum to 2, which is exactly
+    // what the Pending Approvals card's own sub-line says is still climbing the
+    // ladder (p1 and p2). This is the mismatch the client reported.
+    expect(card('Pending Approvals').textContent).toContain('2 passes pending approval');
 
     // REWRITTEN 2026-08-20: the NRGP Issued and RGP Issued cards used to repeat
     // this strip's roll-up ("3 pending approval") as a note each. They carry no

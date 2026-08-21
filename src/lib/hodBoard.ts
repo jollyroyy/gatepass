@@ -88,12 +88,12 @@ export function overdueReturns(rows: GatePassView[]): GatePassView[] {
  * `now` is a parameter rather than a `Date.now()` inside, so a test can pin a
  * day boundary without freezing the clock globally.
  *
- * IT NO LONGER TAKES `pendingApprovalTotal`. That was a count of SIGNATURES
- * still owed (`approvalWaitingTotal`), printed as a note on two cards; the fifth
- * card counts PASSES, which is what every other figure on this board counts and
- * what its own drill list renders. The signature counts have not gone anywhere —
- * they are the four offices on the Approval Pending strip at the foot of the
- * page, which is the one place that question belongs.
+ * IT NO LONGER TAKES `pendingApprovalTotal`, a roll-up that used to be printed
+ * as a note on two other cards. The fifth card counts PASSES, which is what
+ * every other figure on this board counts and what its own drill list renders;
+ * the per-office breakdown is the Approval Pending strip at the foot of the
+ * page, which since 2026-08-21 counts in the same unit and sums to this card's
+ * own "N pending approval" sub-line (`hodApprovals.ts`).
  */
 export function buildHodKpis(
   rows: GatePassView[],

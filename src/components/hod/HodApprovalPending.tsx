@@ -1,12 +1,19 @@
 // APPROVAL PENDING — the mock-up's foot strip. Its four figures are real
-// (migration 046): each is how many signatures are still owed at that office,
-// across THIS HOD's passes — see `src/lib/hodApprovals.ts` for the office
-// mapping and why "HOD Approval" alone stays structurally zero.
+// (migration 046): each is how many of THIS HOD's passes that office is
+// currently holding up — one pass counted once, against the one desk that can
+// act on it. See `src/lib/hodApprovals.ts` for the office mapping, for why
+// "HOD Approval" alone stays structurally zero, and for why counting every
+// owed SIGNATURE (which is what this strip did until 2026-08-21) both
+// disagreed with the Pending Approvals card above and named offices that
+// cannot yet see the document.
+//
+// THE FOUR FIGURES SUM TO THAT CARD'S "N pending approval" LINE, by
+// construction — the client asked for the two to match, and they are the same
+// set of passes counted two ways. The rest of the card's figure is at the
+// GATE, which is not an approver and has no slot here.
 //
 // `waiting` is a prop, not an import: the page reads `pass_approvals` once
-// and derives the map with `approvalWaiting`, then hands the same map to this
-// strip and to the KPI cards' "N pending approval" notes, so the two cannot
-// disagree.
+// and derives the map with `approvalWaiting`.
 //
 // There is deliberately NO "View all" link. The mock draws one; this page's
 // own drillable KPI cards already open the very passes an office is waiting

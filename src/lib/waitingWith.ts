@@ -4,14 +4,19 @@
 // many are waiting for which person … in the dashboard of admin and in the
 // dashboard of HOD, it's only for today."
 //
-// ONE PASS COUNTS ONCE, AGAINST ONE PERSON. This is deliberately NOT what
-// `hodApprovals.ts` counts: that strip counts SIGNATURES STILL OWED at each
-// office, so a pass owing four of them appears four times. Asked who a pass is
-// waiting WITH, only one answer is true — the office that can act on it right
-// now, which `approve_pass_level` (046) defines as the LOWEST still-pending
-// rung. The CEO is not waiting on a pass the Security Head has not signed; the
-// pass has not reached them, and telling a board otherwise names four people as
-// holding up one document.
+// ONE PASS COUNTS ONCE, AGAINST ONE PERSON. Asked who a pass is waiting WITH,
+// only one answer is true — the office that can act on it right now, which
+// `approve_pass_level` (046) defines as the LOWEST still-pending rung and 061
+// turned into RLS. The CEO is not waiting on a pass the Security Head has not
+// signed; the pass has not reached them, and telling a board otherwise names
+// four people as holding up one document.
+//
+// The HOD board's Approval Pending strip (`hodApprovals.ts`) now files passes
+// by exactly the same rule, on the client's instruction of 2026-08-21. The two
+// still differ in what they are a strip OF: this one names the four offices AND
+// the gate, so its rows sum to every waiting pass; that one names approvers
+// only, folds COO and CEO into "Other Approvers", and sums to the passes still
+// climbing.
 //
 // A PASS WITH NOTHING PENDING ON ITS LADDER IS WAITING WITH THE GATE. That is
 // every pass raised before an office was designated, every level closed by

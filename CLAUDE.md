@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-21
 
-Full gate: **1947 tests across 153 files** (`npm run check`), green — and **`npm run build` is
+Full gate: **1950 tests across 153 files** (`npm run check`), green — and **`npm run build` is
 green again**, which it had not been since the raise-form CSS landed (see the twelfth pass).
 Migrations **`001`–`047` and `049`–`051` are applied to the live DB.** `044` was found UNAPPLIED on
 2026-08-19 — the overdue card's Contact Vendor and Add Remark had shipped against RPCs that did
@@ -76,7 +76,50 @@ through request → HOD approval → deletion. That is now the next security act
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-21, thirty-eighth pass): THE "Waiting With" STRIP IS OFF THE HOD's
+**Latest change (2026-08-21, thirty-ninth pass): THE APPROVAL PENDING STRIP AND THE
+Pending Approvals CARD ABOVE IT NOW AGREE — ONE PASS COUNTS ONCE, AGAINST THE ONE DESK THAT CAN
+ACT ON IT.** Frontend only — no migration, no RPC change, and the same two queries the board
+already made.
+
+- Client: "there is only one pending approval. At the bottom I do see that one is pending
+  approval with security and two is pending approval with some other approver … it should match,
+  right?" Reproduced against the live DB as `postgres`: this HOD has exactly ONE pass still
+  climbing (`RGP-20260820-0003`) and it owes all four signatures, so the card read **1** over a
+  strip printing Security 1 · Finance 1 · Other 2 = **4**.
+- **`approvalWaiting` COUNTED SIGNATURES; IT COUNTS PASSES NOW**, filed by `lowestPendingLevel`
+  — the same rule `approve_pass_level` (046) enforces and **061** turned into RLS. So the four
+  figures are the passes each office is actually holding up, and the offices above the current
+  rung read 0.
+  - **THAT SECOND POINT IS WHY THE OLD RULE WAS WRONG QUITE APART FROM THE MISMATCH**: since 061
+    an office cannot even READ a pass until every rung below it is approved, so printing a count
+    against the CEO on a pass the Security Head has not signed named a person as holding up a
+    document that is invisible to them.
+  - **IT REUSES `isWaitingAtGate`**, the card's OWN predicate, rather than restating
+    `status === 'pending'` — so an EXPIRED pass, which the card excludes and `match_pass` refuses
+    forever, can no longer appear on the strip and nowhere else. A rejected pass's leftover
+    `pending` rungs still count nowhere.
+- **THE FOUR FIGURES SUM TO THE CARD'S "N pending approval" LINE, BY CONSTRUCTION** — both are
+  the passes `isWaitingAtGate` admits that still owe a signature, one filed by desk and one
+  counted flat. Pinned as an equality against `pendingSplit` itself, so the two cannot drift.
+  **The card's OTHER sub-line is the gate**, which is not an approver and deliberately has no
+  slot on this strip; that is the whole of the difference between the strip's total and the
+  card's figure.
+- **KNOWN COST, FLAGGED**: the board no longer states how many signatures a pass still owes.
+  Nobody was acting on that number — three of the four offices it counted could not open the
+  pass — and the pass record's own approval ladder still names every rung and its state.
+- **THIS IS NOT THE "Waiting With" STRIP COMING BACK.** That one names the four offices AND the
+  gate, so its rows sum to every waiting pass; this one names approvers only and folds COO and
+  CEO into "Other Approvers". They now share the filing rule, and `waitingWith.ts`'s header says
+  so where it used to argue the opposite.
+- Pinned by a **REWRITTEN** `tests/unit/hodApprovals.test.ts` (13 — its header says what it used
+  to hold: the pass owing four signatures counting once, the pass moving up a desk as each rung
+  is signed, the expired and the finished-ladder passes counting nowhere, and the sum invariant)
+  and a **REWRITTEN** `hodDashboardBoard` strip case. Both were watched failing first — 4 of 13
+  and 1 of 16 against the pre-change source.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: `npm run check` (1950 tests across 153 files, green) and
+  the live `postgres` read only.
+
+**Earlier (2026-08-21, thirty-eighth pass): THE "Waiting With" STRIP IS OFF THE HOD's
 DASHBOARD.** Frontend only — no migration, no RPC change, and the HOD board is back to the two
 queries it made before the strip landed.
 
