@@ -39,7 +39,7 @@ database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
 ## Current state — 2026-08-21
 
-Full gate: **1923 tests across 151 files** (`npm run check`), green — and **`npm run build` is
+Full gate: **1947 tests across 153 files** (`npm run check`), green — and **`npm run build` is
 green again**, which it had not been since the raise-form CSS landed (see the twelfth pass).
 Migrations **`001`–`047` and `049`–`051` are applied to the live DB.** `044` was found UNAPPLIED on
 2026-08-19 — the overdue card's Contact Vendor and Add Remark had shipped against RPCs that did
@@ -76,7 +76,29 @@ through request → HOD approval → deletion. That is now the next security act
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-21, thirty-seventh pass): NOTHING PRINTS BUT THE DOCUMENT — NO
+**Latest change (2026-08-21, thirty-eighth pass): THE "Waiting With" STRIP IS OFF THE HOD's
+DASHBOARD.** Frontend only — no migration, no RPC change, and the HOD board is back to the two
+queries it made before the strip landed.
+
+- Client: "remove Waiting With / 1 pass waiting on these desks — your own passes. … from hod
+  dashboard bottom." **The ADMIN's board still carries it**, unchanged and still counting every
+  pending pass whatever the window chip says; only the HOD's copy is gone. This supersedes the
+  HOD half of the thirty-seventh pass's "on BOTH boards" line, hours after it landed.
+- **THE Approval Pending STRIP BESIDE IT STAYS.** The two answer different questions — that one
+  counts SIGNATURES still owed at every office, this one counted PASSES once each against the
+  desk that can act now — and only the second was named.
+- **`useWaitingWith` LOST ITS `approvals` PARAMETER**, because the HOD board was its only caller:
+  that board handed over the `pass_approvals` rows it had already read so the page made no second
+  query. With the strip gone the parameter had nobody to pass it, so it is deleted rather than
+  left as an affordance nothing uses (the hook's header says what it used to hold). The admin's
+  call site is unchanged.
+- Pinned by a **REWRITTEN** `hodDashboardBoard` case, watched failing first — it now holds that
+  the board draws no Waiting With heading, no "Security gate" desk and no "waiting on these
+  desks" sentence, while the Approval Pending strip is still there.
+  `adminDashboardOverview`'s own strip case is untouched and still green.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: `npm run check` only (1947 tests across 153 files, green).
+
+**Earlier (2026-08-21, thirty-seventh pass): NOTHING PRINTS BUT THE DOCUMENT — NO
 HAMBURGER OVER THE LOGO, NO ICONS, NO DUPLICATED HEADING, ON EVERY PAGE; THE RETURN LEG IS
 CALLED "Partially Returned" AND NOTHING ANYWHERE SAYS "In Progress"; AND THE ADMIN'S "Waiting
 With" STRIP COUNTS EVERY PENDING PASS, NOT ONLY TODAY'S.** Frontend only — no migration, no RPC

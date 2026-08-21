@@ -9,9 +9,12 @@
 // THE APPROVALS READ IS NARROWED TO THE PASS IDS THE BOARD ALREADY HAS.
 // `pass_approvals` carries no `raised_by` and no department of its own, so
 // `.in('gate_pass_id', …)` is the only way to scope it; it is the same shape
-// `useHodBoardData` and `useOpenReturns` use. An HOD board passes its own
-// already-loaded rows in through `approvals` instead, so that page still makes
-// exactly the two reads it made before.
+// `useHodBoardData` and `useOpenReturns` use.
+//
+// IT TOOK AN `approvals` ARGUMENT UNTIL 2026-08-21, so the HOD board could hand
+// over the rows it had already read and make no second query. The client took
+// the strip off that board, leaving the admin's as the only caller and the
+// parameter with nobody to pass it.
 //
 // A FAILED READ IS AN EMPTY STRIP, NEVER AN ERROR SCREEN. The five figures on
 // the board above are the page; a broken org-chart or approvals read leaves the
@@ -28,12 +31,7 @@ import {
   type WaitingRow,
 } from './waitingWith';
 
-export function useWaitingWith(
-  rows: GatePassView[],
-  /** Already-loaded `pass_approvals` rows. Pass them and this hook makes no
-   *  approvals query of its own; omit them and it fetches for the waiting ids. */
-  approvals?: WaitingApprovalRow[],
-): { waiting: WaitingRow[] } {
+export function useWaitingWith(rows: GatePassView[]): { waiting: WaitingRow[] } {
   const { roles } = useApprovalRoles();
   const [fetched, setFetched] = useState<WaitingApprovalRow[]>([]);
 
@@ -44,10 +42,8 @@ export function useWaitingWith(
   // ladder rows would be a longer query for figures nobody counts.
   const pending = useMemo(() => rows.filter(isWaitingSomewhere), [rows]);
   const ids = useMemo(() => pending.map((p) => p.id).join(','), [pending]);
-  const provided = approvals !== undefined;
 
   useEffect(() => {
-    if (provided) return;
     if (!ids) {
       setFetched([]);
       return;
@@ -68,12 +64,11 @@ export function useWaitingWith(
     return () => {
       cancelled = true;
     };
-  }, [ids, provided]);
+  }, [ids]);
 
-  const source = approvals ?? fetched;
   const waiting = useMemo(
-    () => buildWaitingWith(pending, source, roles),
-    [pending, source, roles],
+    () => buildWaitingWith(pending, fetched, roles),
+    [pending, fetched, roles],
   );
 
   return { waiting };

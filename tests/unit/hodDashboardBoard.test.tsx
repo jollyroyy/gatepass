@@ -400,38 +400,22 @@ describe('Quick Actions and the Approval Pending strip', () => {
     expect(screen.queryByRole('link', { name: /View all/i })).not.toBeInTheDocument();
   });
 
-  // The client's second strip (2026-08-20). It answers a DIFFERENT question
-  // from the Approval Pending strip above it, and this case is what keeps the
-  // two apart: this one counts PASSES once each, that one counts SIGNATURES.
-  //
-  // REWRITTEN 2026-08-21: the day cut is gone (client — the strip must show
-  // "all the passes which are pending", not only today's), so the two
-  // five-day-old passes climbing the ladder are counted here now. Both boards
-  // render one component, and a queue that empties at midnight was the same
-  // defect on each.
-  it('names who every pending pass is sitting with, counting each pass ONCE', async () => {
+  // REWRITTEN 2026-08-21 (client: "remove Waiting With ... from hod dashboard
+  // bottom"). This case used to hold the opposite — that the strip named who
+  // every pending pass was sitting with, counting each pass ONCE against the
+  // lowest rung still pending on it. It is off the HOD's board entirely now;
+  // the ADMIN's board still carries it, and `adminDashboardOverview.test.tsx`
+  // is what pins it there.
+  it('draws no Waiting With strip', async () => {
     renderBoard();
     await loaded();
 
-    const strip = screen.getByRole('heading', { name: 'Waiting With' }).closest('.gb-approvals');
-    function desk(name: string): string | undefined {
-      const slot = within(strip as HTMLElement).getByText(name).closest('.gb-approval');
-      return slot?.querySelector('.gb-approval-value')?.textContent;
-    }
-
-    // t1 and t4 are pending, raised TODAY, and carry no ladder rows — nothing
-    // is owed, so the gate is who they are waiting with.
-    expect(desk('Security gate')).toBe('2');
-    // p1 and p2 ARE climbing the ladder, raised five days ago. Each counts
-    // ONCE, against the LOWEST rung still pending on it — never against every
-    // office it still owes, which is what the strip above it does.
-    expect(desk('Security Head')).toBe('1');
-    expect(desk('COO')).toBe('1');
-    expect(strip).toHaveTextContent('4 passes waiting on these desks — your own passes.');
-    expect(strip?.textContent).not.toMatch(/today/i);
-    // Nobody holds an office in this fixture, and the strip says so rather than
-    // printing a blank line.
-    expect(strip).toHaveTextContent('Not designated yet');
+    expect(screen.queryByRole('heading', { name: 'Waiting With' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Security gate')).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/waiting on these desks/i);
+    // The Approval Pending strip beside it STAYS — it answers a different
+    // question (signatures still owed) and the client named only the other one.
+    expect(screen.getByRole('heading', { name: 'Approval Pending' })).toBeInTheDocument();
   });
 
   it('an approved row never counts, on either the strip or the note', async () => {

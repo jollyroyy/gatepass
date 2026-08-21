@@ -1,11 +1,12 @@
-// WAITING WITH — the strip at the foot of the admin and HOD dashboards
-// (client, 2026-08-20: "in the dashboard you need to mention at the bottom how
-// many are waiting for which person").
+// WAITING WITH — the strip at the foot of the ADMIN dashboard (client,
+// 2026-08-20: "in the dashboard you need to mention at the bottom how many are
+// waiting for which person").
 //
-// ONE COMPONENT FOR BOTH BOARDS, because the question is the same one and a
-// second copy is a second thing to change. Both are the `.gb-*` island, so it
-// draws in the mock-ups' palette with the same `HodIcon` chips the Approval
-// Pending strip beside it uses.
+// IT WAS ON THE HOD'S BOARD TOO UNTIL 2026-08-21, when the client asked for it
+// off that page ("remove Waiting With ... from hod dashboard bottom"). Nothing
+// about the strip itself changed with it — it still takes the rows and the
+// scope sentence from its caller, so a second board can render it again by
+// handing it both.
 //
 // IT SAYS ITS OWN SCOPE OUT LOUD, AND THAT SCOPE IS NO LONGER A DAY (client,
 // 2026-08-21: "it should not be only the passes which were raised today, but

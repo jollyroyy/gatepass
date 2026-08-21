@@ -14,6 +14,11 @@
 //   * THE ALERTS CARD is not drawn at all (client: "remove the alert part"). Its
 //     three lines restated the three cards beside it, each with a "View" link
 //     to the list the card's own drill now opens in place.
+//   * THE "WAITING WITH" STRIP, which named the desk every still-waiting pass
+//     was sitting with, is off this board (client, 2026-08-21: "remove Waiting
+//     With ... from hod dashboard bottom"). The ADMIN's board still carries it.
+//     The Approval Pending strip stays — it answers a different question, and
+//     only the other one was named.
 //   * THE FLAGGED-REVIEW QUEUE ("Mismatches needing review") is off the page
 //     with its panel. KNOWN COST, flagged to the client: the bell's mismatch
 //     notice is now the only route to `/mismatch/:id`. Nothing became
@@ -41,12 +46,10 @@ import HodApprovalPending from '../../components/hod/HodApprovalPending';
 import HodKpiCards from '../../components/hod/HodKpiCards';
 import HodQuickActions from '../../components/hod/HodQuickActions';
 import DepartmentDeleteRequests from '../../components/hod/DepartmentDeleteRequests';
-import WaitingWith from '../../components/dashboard/WaitingWith';
 import { drillDefOf, type BoardDrill } from '../../lib/boardDrills';
 import { formatDateOnly } from '../../lib/formatDate';
 import { buildHodKpis, greetingFor, hodGreetingName, type HodKpiCard } from '../../lib/hodBoard';
 import { approvalWaiting } from '../../lib/hodApprovals';
-import { useWaitingWith } from '../../lib/useWaitingWith';
 import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 import { useDepartmentDeleteRequests } from '../../lib/useDepartmentDeleteRequests';
 import { useHodBoardData } from './useHodBoardData';
@@ -58,25 +61,15 @@ export default function Dashboard(): React.ReactElement {
   // second for a greeting that changes twice a day and a date that changes once.
   const [stamp] = useState(() => Date.now());
 
-  // The four offices on the strip at the foot of the page. It counts SIGNATURES
-  // still owed; the Pending Approvals CARD counts passes, which is why the two
-  // are derived separately and neither is a roll-up of the other.
+  // The four offices on the Approval Pending strip at the foot of the page. It
+  // counts SIGNATURES still owed; the Pending Approvals CARD counts passes,
+  // which is why the two are derived separately and neither is a roll-up of the
+  // other.
   const officeWaiting = useMemo(() => approvalWaiting(rows, approvals), [rows, approvals]);
-  // `approvals` is the SAME array the two strips at the foot read — it is what
+  // `approvals` is the SAME array the strip at the foot reads — it is what
   // tells a rejection made on the ladder apart from a pass that merely expired
-  // and was voided (see `rejectionSplit.ts`). One read, three figures.
+  // and was voided (see `rejectionSplit.ts`). One read, two figures.
   const cards = useMemo(() => buildHodKpis(rows, stamp, approvals), [rows, stamp, approvals]);
-  // THE FOOT OF THE PAGE — who every still-waiting pass is sitting with
-  // (client, 2026-08-20; the day cut removed 2026-08-21, on both boards: one
-  // component answers one question, and a queue that emptied at midnight was
-  // the same defect here as on the admin's). It hands the hook the approvals
-  // this page has ALREADY read, so the board still makes exactly the two
-  // queries it made before, and
-  // the strip and the Approval Pending strip beside it are readings of the one
-  // array. They count different things on purpose: this one counts PASSES, once
-  // each, against the desk that can act now; that one counts SIGNATURES still
-  // owed at every office. See `waitingWith.ts`.
-  const { waiting } = useWaitingWith(rows, approvals);
   // AN ADMIN WANTING TO DELETE THIS PERSON'S DEPARTMENT (060). One more read,
   // and it draws nothing at all in the ordinary case where nothing is waiting —
   // which is why it sits above the figures rather than beside them: when it IS
@@ -137,7 +130,6 @@ export default function Dashboard(): React.ReactElement {
       <div className="gb-stack">
         <HodQuickActions />
         <HodApprovalPending waiting={officeWaiting} />
-        <WaitingWith rows={waiting} scopeNote="your own passes" />
       </div>
     </div>
   );
