@@ -1,3 +1,9 @@
+// RENAMED 2026-08-21: every assertion in this file that read "Out — Not Returned"
+// now reads "In Progress", and "Partly Returned" reads "Partially Returned"
+// (client: "for the status of those passes which have not been returned yet,
+// just make them from 'not in progress' to 'in progress'. Within 'in progress'
+// you can mention it as 'partially returned'"). The labels are the only thing
+// that moved — no stage, tone or precedence rule changed with them.
 // ONE STACKED CARD, EVERY ROLE (client, 2026-08-19: "all the cards across all
 // the admin, whether admin or HOD level, should mimic the exact same stacked
 // card style of the guard's view. Also upon clicking on those cards it should
@@ -122,7 +128,7 @@ describe('every stacked list draws the guard’s card', () => {
   it('states the return status as a pill, and nothing to press', () => {
     renderDrill([pass({ return_status: 'partially_returned' })]);
     const card = within(screen.getByTestId('pass-stack-card'));
-    expect(card.getByText('Partly Returned')).toBeInTheDocument();
+    expect(card.getByText('Partially Returned')).toBeInTheDocument();
   });
 
   it('prints an overdue return date in the late ink', () => {

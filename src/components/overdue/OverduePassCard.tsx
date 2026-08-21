@@ -52,7 +52,7 @@ export default function OverduePassCard({ row, canProcessReturn }: Props): React
             label="Gate Exit"
             value={pass.verified_at ? formatDateTime(pass.verified_at) : 'Not recorded'}
           />
-          <Fact label="Return Before" value={formatDateOnly(pass.expected_return_date)} tone="late" />
+          <Fact label="Expected Return Date" value={formatDateOnly(pass.expected_return_date)} tone="late" />
           <Fact label="Overdue By" value={formatOverdueBy(row.daysLate)} tone="late" />
           <Fact label="Pending Items" value={pendingItemsLabel(row.pendingItems)} />
         </div>

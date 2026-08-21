@@ -1,11 +1,13 @@
 // The report's scope card, drawn to the client's mock-up (2026-08-20): Date
-// Range, Pass Type, Status, Created By, then Reset and Apply Filters.
+// Range, Pass Type, Status, Created By — and Reset.
 //
-// A DRAFT AND AN APPLIED SET, because the mock draws an Apply Filters button and
-// a button that applies what is already applied is a lie. The page holds two
-// copies of `ReportFilters`; every control here writes the DRAFT, and only Apply
-// (or Reset) moves it onto the report. That also stops a 250-row table
-// re-rendering under the reader's hand while they set four controls.
+// EVERY CONTROL APPLIES ITSELF (client, 2026-08-21: "remove the apply filters
+// from everywhere. As soon as anything is changed in those filters it should
+// automatically get reflected"). It used to hold a DRAFT copy that only an
+// Apply Filters button moved onto the report — the mock drew that button — and
+// the cost was a card that could sit there describing a scope the table below it
+// was not using. There is one `ReportFilters` now, and changing a control IS the
+// change. Reset returns to the opening 30-day range.
 //
 // THE READY-MADE RANGES sit under the two date inputs, inside the same Date
 // Range field (client, 2026-08-20: "in all the reports across admin and HOD,
@@ -43,15 +45,13 @@ const FUNNEL = (
 );
 
 type Props = {
-  draft: ReportFilters;
-  onDraftChange: (next: ReportFilters) => void;
+  /** The live filters. There is no draft copy — see the header. */
+  filters: ReportFilters;
+  onChange: (next: ReportFilters) => void;
   createdByOptions?: ReportOption[];
   deptOptions?: ReportOption[];
   today: string;
-  onApply: () => void;
   onReset: () => void;
-  /** True while the draft differs from what the report is actually showing. */
-  dirty: boolean;
   /** False on the HOD's own Reports tab (2026-08-20, client: "remove the
    *  Department and Raised By columns for an individual HOD, both from the
    *  column header and from the filter section"). Both selects answer a
@@ -63,17 +63,15 @@ type Props = {
 };
 
 export default function ReportsFilterBar({
-  draft,
-  onDraftChange,
+  filters,
+  onChange,
   createdByOptions = [],
   deptOptions = [],
   today,
-  onApply,
   onReset,
-  dirty,
   showPeople = true,
 }: Props): React.ReactElement {
-  const set = (patch: Partial<ReportFilters>) => onDraftChange({ ...draft, ...patch });
+  const set = (patch: Partial<ReportFilters>) => onChange({ ...filters, ...patch });
 
   return (
     <section className="gb-card gb-rep-filters no-print">
@@ -83,16 +81,16 @@ export default function ReportsFilterBar({
           <input
             type="date"
             aria-label="From date"
-            value={draft.from}
-            max={draft.to || today}
+            value={filters.from}
+            max={filters.to || today}
             onChange={(e) => set({ from: e.target.value })}
           />
           <span className="gb-rep-dash" aria-hidden="true">–</span>
           <input
             type="date"
             aria-label="To date"
-            value={draft.to}
-            min={draft.from}
+            value={filters.to}
+            min={filters.from}
             max={today}
             onChange={(e) => set({ to: e.target.value })}
           />
@@ -108,7 +106,7 @@ export default function ReportsFilterBar({
         <select
           className="gb-select gb-rep-preset"
           aria-label="Quick range"
-          value={presetOf(draft.from, draft.to, today)}
+          value={presetOf(filters.from, filters.to, today)}
           onChange={(e) => {
             const key = e.target.value as RangePreset;
             if (key === 'custom') return;
@@ -127,7 +125,7 @@ export default function ReportsFilterBar({
         <select
           className="gb-select"
           aria-label="Pass Type"
-          value={draft.type}
+          value={filters.type}
           onChange={(e) => set({ type: e.target.value as TypeFilter })}
         >
           {TYPE_FILTERS.map((t) => (
@@ -141,7 +139,7 @@ export default function ReportsFilterBar({
         <select
           className="gb-select"
           aria-label="Status"
-          value={draft.status}
+          value={filters.status}
           onChange={(e) => set({ status: e.target.value as StatusFilter })}
         >
           {STATUS_FILTERS.map((s) => (
@@ -156,7 +154,7 @@ export default function ReportsFilterBar({
           <select
             className="gb-select"
             aria-label="Created By"
-            value={draft.createdBy}
+            value={filters.createdBy}
             onChange={(e) => set({ createdBy: e.target.value })}
           >
             <option value="">All Users</option>
@@ -173,7 +171,7 @@ export default function ReportsFilterBar({
           <select
             className="gb-select"
             aria-label="Department"
-            value={draft.department}
+            value={filters.department}
             onChange={(e) => set({ department: e.target.value })}
           >
             <option value="">All departments</option>
@@ -184,18 +182,19 @@ export default function ReportsFilterBar({
         </label>
       )}
 
+      {/* RESET IS THE ONLY BUTTON LEFT. It is disabled while nothing is
+          narrowed, so it never offers to undo something that has not been done;
+          the date range is deliberately not counted as "narrowed" (a report
+          always covers some range), which is `isNarrowed`'s own rule. */}
       <div className="gb-rep-filter-actions">
         <button
           type="button"
           className="gb-btn-ghost"
           onClick={onReset}
-          disabled={!isNarrowed(draft) && !dirty}
+          disabled={!isNarrowed(filters)}
         >
-          Reset
-        </button>
-        <button type="button" className="gb-btn-primary" onClick={onApply} disabled={!dirty}>
           {FUNNEL}
-          Apply Filters
+          Reset
         </button>
       </div>
     </section>

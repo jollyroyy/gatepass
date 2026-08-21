@@ -97,7 +97,13 @@ describe('itemReturnStage', () => {
 });
 
 describe('returnProgress', () => {
-  it('counts lines fully back, out of all lines', () => {
+  // REWRITTEN 2026-08-21. It used to hold that the PERCENTAGE counted lines
+  // fully back too (`{ returned: 3, total: 5, percent: 60 }` on this fixture).
+  // The client reported a pass with three of eight headsets back reading 0%,
+  // which is what counting lines does to a part-returned single line, so the
+  // figure is now the share of the MATERIAL. The line counts are unchanged —
+  // the sentence beside the figure still says "items".
+  it('counts lines fully back for the sentence, and quantity for the figure', () => {
     const items = [
       line({ id: 'a', quantity: 1, returned_qty: 1 }),
       line({ id: 'b', quantity: 1, returned_qty: 1 }),
@@ -105,7 +111,8 @@ describe('returnProgress', () => {
       line({ id: 'd', quantity: 1, returned_qty: 0 }),
       line({ id: 'e', quantity: 2, returned_qty: 1 }),
     ];
-    expect(returnProgress(items, 'RGP')).toEqual({ returned: 3, total: 5, percent: 60 });
+    // 5 of 7 units are back, on 3 of 5 lines.
+    expect(returnProgress(items, 'RGP')).toEqual({ returned: 3, total: 5, percent: 71 });
   });
 
   it('is 0 of 0 at 0% for an empty pass — never NaN', () => {

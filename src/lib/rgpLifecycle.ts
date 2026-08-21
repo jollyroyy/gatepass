@@ -49,13 +49,21 @@ export const RGP_STAGE_STYLES: Record<RgpStage, StatusStyle> = {
   // report — the same obligation, so the same hue. Deliberately not green:
   // green is `matched`, and the whole complaint was that this stage reads as
   // finished when it is not.
+  //
+  // "In Progress" rather than the old "Out — Not Returned" (client, 2026-08-21).
+  // The pass IS in progress — the material is out and the return is owed — and
+  // naming the absence of an event told a reader what had not happened instead
+  // of where the pass stands. It is also the word the report's own bucket uses
+  // (`REPORT_STATUS_LABELS.in_progress`), so a card and the register agree.
   out_open: {
-    bg: 'bg-brand-50', text: 'text-brand-700', dot: 'bg-brand-500', label: 'Out — Not Returned',
+    bg: 'bg-brand-50', text: 'text-brand-700', dot: 'bg-brand-500', label: 'In Progress',
   },
   // Indigo, matching RETURN_STYLES.partially_returned: a genuinely different
-  // situation to reconcile, not "still out, but a bit less".
+  // situation to reconcile, not "still out, but a bit less". It is the SUBSET
+  // of In Progress the client asked to keep visible by name, spelled the way
+  // every other surface already spells it ("Partially Returned", not "Partly").
   partly_returned: {
-    bg: 'bg-accent-50', text: 'text-accent-700', dot: 'bg-accent-500', label: 'Partly Returned',
+    bg: 'bg-accent-50', text: 'text-accent-700', dot: 'bg-accent-500', label: 'Partially Returned',
   },
   // Green — this is the ONLY thing in the app that means an RGP is finished.
   closed: {
@@ -64,7 +72,7 @@ export const RGP_STAGE_STYLES: Record<RgpStage, StatusStyle> = {
 };
 
 /** Overdue RENAMES the open stages as well as re-toning them (client,
- *  2026-08-18: a report must say "overdue", not "Out — Not Returned" in
+ *  2026-08-18: a report must say "overdue", not "In Progress" in
  *  orange). It used to re-tone only, which meant the fact was carried by colour
  *  alone — invisible on the mono laser the register is printed on, and invisible
  *  to anyone reading the CSV. */

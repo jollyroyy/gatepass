@@ -37,9 +37,9 @@ followed without `--build`, so it type-checks **zero files** and always exits 0.
 is the artifact a human pastes; a migration edited but not re-concatenated never reaches the
 database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
-## Current state — 2026-08-20
+## Current state — 2026-08-21
 
-Full gate: **1897 tests across 149 files** (`npm run check`), green — and **`npm run build` is
+Full gate: **1923 tests across 151 files** (`npm run check`), green — and **`npm run build` is
 green again**, which it had not been since the raise-form CSS landed (see the twelfth pass).
 Migrations **`001`–`047` and `049`–`051` are applied to the live DB.** `044` was found UNAPPLIED on
 2026-08-19 — the overdue card's Contact Vendor and Add Remark had shipped against RPCs that did
@@ -76,7 +76,83 @@ through request → HOD approval → deletion. That is now the next security act
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-20, thirty-fourth pass): A REJECTED PASS'S MATERIAL LINES READ
+**Latest change (2026-08-21, thirty-fifth pass): A PASS STILL OUT READS "In Progress",
+A LINE READS WHATEVER ITS PASS READS, THE RETURN PERCENTAGE IS COUNTED IN MATERIAL RATHER THAN
+IN LINES, "Return Before" IS "Expected Return Date", AND THE REPORT'S FILTERS APPLY THEMSELVES
+AND CAN NARROW TO EITHER PENDING DESK.** Frontend only — no migration, no RPC change, no new
+query.
+
+- **THE RETURN LEG IS NAMED "In Progress" / "Partially Returned"** (client: "for the status of
+  those passes which have not been returned yet, just make them from 'not in progress' to 'in
+  progress'. Within 'in progress' you can mention it as 'partially returned'").
+  `RGP_STAGE_STYLES.out_open` was "Out — Not Returned", which named the ABSENCE of an event, and
+  `partly_returned` / `RETURN_STYLES.partially_returned` were a second spelling of a phrase the
+  rest of the app writes out in full. **Labels only** — no stage, tone or precedence rule moved,
+  and `STAGE_TONES`' two keys moved with them (it is keyed on the label, which is the drift a
+  `Record<Enum, T>` would catch and this one cannot). It is also the word the register's own
+  bucket uses (`REPORT_STATUS_LABELS.in_progress`), so a card and the report now agree.
+- **A MATERIAL LINE REPEATS ITS PASS'S BADGE, WORD FOR WORD** (client: "whatever status you are
+  showing on the top for the gate pass, show the exact same status for the individual items,
+  except when the individual return item status has to be mentioned … if an individual item has
+  been completely returned, mark it returned … across all the views").
+  - **`itemLineView` in `passRecordView.ts` is the one function**, and it has exactly TWO
+    overrides, because there are exactly two facts a line knows that its pass does not: this
+    line is fully back ("Returned"), and this line is half back ("Partially Returned").
+    Everything else — Pending Approval, Pending Gate Review, In Progress, Overdue, Expired,
+    Rejected at Security Gate, Voided, Closed — is a fact about the PASS, so the line renders
+    `passStageStyle(pass)` itself. That is what stops a line reading "Pending" under a badge
+    saying "Overdue".
+  - **THE 2026-08-20 REJECTION WORK IS SUBSUMED, NOT REVERSED**: `ItemLineStage`,
+    `ITEM_LINE_STYLES` and `ITEM_STAGE_PILL` are **DELETED** (a stale reference is a build
+    error) because a refused pass's own badge already says "Rejected at Security Gate" /
+    "Voided" / "Cancelled" — the general rule fixes the same defect with no special case, and in
+    the words printed on the pass a few pixels above. `passWasRejected` survives: it still
+    withholds every return-leg figure on such a pass, and it OUTRANKS both overrides so that a
+    pass flagged on the way back in (a feature the client has asked for) cannot show a line
+    reading "Returned".
+  - `itemPillClass` in `passStackCard.ts` is the guard-skin half, following the same rule
+    through `stageTone`, so the two unfolded panels colour a line exactly as the card above it.
+    **No new colour**; `themeAudit` stays absolute.
+- **THE PERCENTAGE OVER THE ITEM TABLE COUNTS QUANTITY** (client: "three out of eight headsets
+  returned and on the top it is still showing 0% … calculate accordingly. Even if it is a small
+  percentage, don't show it as 0%"). `returnProgress` counted LINES FULLY BACK, so three of
+  eight on one line closed no line at all and the bar read 0% over a table plainly showing
+  material in. The sentence beside it still counts lines — it says "items" — but the FIGURE and
+  the bar are `sum(returned_qty) / sum(quantity)`, **clamped to 1–99% while a return is in
+  progress**: 0% and 100% are reserved for exactly nothing back and exactly everything back, so
+  no rounding can claim a return has not started or has finished when it has not.
+- **"Return Before" IS "Expected Return Date"** on all four surfaces that print it (client) —
+  the record's fact strip, the stacked card, the overdue card and the approval letter — so the
+  app cannot disagree with itself about what the date is called.
+- **THE REPORT'S FILTERS APPLY THEMSELVES** (client: "remove the apply filters from everywhere.
+  As soon as anything is changed in those filters it should automatically get reflected across
+  all the views"). `ReportsPage` held a DRAFT and an APPLIED copy of `ReportFilters` and only
+  the mock-up's Apply Filters button moved one onto the other; there is ONE now, changing a
+  control IS the change, and the page returns to 1 with it. **Reset is the only button left** on
+  the card, and `/all-passes` and the HOD's `/reports` are one component, so both are live. That
+  button was the only "Apply" in `src/`.
+- **THE STATUS SELECT NARROWS TO EITHER PENDING DESK** (client: "in the report also show pending
+  gate review and pending for approval as a drop-down filter for admin, for the entire
+  department and for individual HOD also"). Two new `StatusFilter` keys, **`pending_gate`** and
+  **`pending_approval`**, SUBSETS of In Progress exactly as Overdue and Expired are — the three
+  buckets still sum to the total. Both are `pendingSplit`'s own predicates (`isWaitingAtGate`
+  cut by `v_gate_passes.awaits_approval`, never recomputed), so the report and the two
+  dashboards cannot disagree about the figure; an expired pass is on neither desk, and a pass
+  with no ladder is at the GATE. The HOD gets both for free — one `ReportsFilterBar`, and RLS is
+  what scopes the rows to their department.
+- Pinned by a new `tests/unit/inProgressReturnLabel.test.ts` (15) and
+  `tests/unit/itemStatusMirrorsPass.test.ts` (10), all watched failing first, plus **REWRITTEN**
+  cases in `rejectedPassItems` (the whole file — its header says what it used to hold),
+  `passRecordView`, `reportsFilters`, `hodReports`, and label renames across `rgpLifecycle` /
+  `passStage` / `rgpStageBadge` / `reportStatusStage` / `csvExport` / `passStackCard` /
+  `passDetailHeader` / `passRecordEverywhere`.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite and a typecheck only.
+- **⚠ THIS COMMIT ALSO CARRIES A PARALLEL SESSION'S IN-FLIGHT WORK** — the report's on-screen
+  title and blurb removed (`ReportsHeader.tsx`, `index.css`, and cases in `reportsFilters` /
+  `hodReports` this pass also edited). The two could not be separated; its state is not
+  described here.
+
+**Earlier (2026-08-20, thirty-fourth pass): A REJECTED PASS'S MATERIAL LINES READ
 "Rejected", NOT "Pending" — ON THE RECORD AND INSIDE EVERY UNFOLDED CARD.** Frontend only —
 no migration, no RPC change, no new query.
 

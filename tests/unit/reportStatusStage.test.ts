@@ -1,3 +1,9 @@
+// RENAMED 2026-08-21: every assertion in this file that read "Out — Not Returned"
+// now reads "In Progress", and "Partly Returned" reads "Partially Returned"
+// (client: "for the status of those passes which have not been returned yet,
+// just make them from 'not in progress' to 'in progress'. Within 'in progress'
+// you can mention it as 'partially returned'"). The labels are the only thing
+// that moved — no stage, tone or precedence rule changed with them.
 // The register's Status column names WHERE THE PASS IS, not which enum row it
 // sits on. Client, 2026-08-18: "in the reports you are mentioning the status as
 // matched — it should be closed, partially returned, overdue, or expired."
@@ -33,24 +39,24 @@ describe('a pass never reads "Matched"', () => {
     expect(csvStatus(p)).toBe('Closed');
   });
 
-  it('calls a half-returned RGP Partly Returned', () => {
+  it('calls a half-returned RGP Partially Returned', () => {
     const p = pass({ status: 'matched', return_status: 'partially_returned' });
-    expect(passStageStyle(p).label).toBe('Partly Returned');
-    expect(csvStatus(p)).toBe('Partly Returned');
+    expect(passStageStyle(p).label).toBe('Partially Returned');
+    expect(csvStatus(p)).toBe('Partially Returned');
   });
 
   // `is_overdue` comes off v_gate_passes and is never recomputed here. It used
-  // to re-TONE the badge orange while keeping the "Out — Not Returned" wording;
+  // to re-TONE the badge orange while keeping the "In Progress" wording;
   // the colour is not information on a mono laser print, so it names itself now.
-  it('calls a late RGP Overdue, not "Out — Not Returned"', () => {
+  it('calls a late RGP Overdue, not "In Progress"', () => {
     const p = pass({ status: 'matched', return_status: 'awaiting_return', is_overdue: true });
     expect(passStageStyle(p).label).toBe('Overdue');
     expect(csvStatus(p)).toBe('Overdue');
   });
 
-  it('still calls an RGP that is out and on time "Out — Not Returned"', () => {
+  it('still calls an RGP that is out and on time "In Progress"', () => {
     const p = pass({ status: 'matched', return_status: 'awaiting_return' });
-    expect(passStageStyle(p).label).toBe('Out — Not Returned');
+    expect(passStageStyle(p).label).toBe('In Progress');
   });
 
   it('calls a pending pass past its expiry Expired', () => {

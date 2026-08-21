@@ -1,3 +1,9 @@
+// RENAMED 2026-08-21: every assertion in this file that read "Out — Not Returned"
+// now reads "In Progress", and "Partly Returned" reads "Partially Returned"
+// (client: "for the status of those passes which have not been returned yet,
+// just make them from 'not in progress' to 'in progress'. Within 'in progress'
+// you can mention it as 'partially returned'"). The labels are the only thing
+// that moved — no stage, tone or precedence rule changed with them.
 // The RGP return loop, as a derived display stage.
 //
 // The business problem this exists for: an RGP has to make TWO trips — out
@@ -75,7 +81,7 @@ describe('rgpStage', () => {
 
 describe('rgpStageStyle', () => {
   it('labels the open stage with the wording the client chose', () => {
-    expect(rgpStageStyle(pass({ return_status: 'awaiting_return' }))?.label).toBe('Out — Not Returned');
+    expect(rgpStageStyle(pass({ return_status: 'awaiting_return' }))?.label).toBe('In Progress');
   });
 
   it('labels a closed loop "Closed"', () => {
@@ -94,7 +100,7 @@ describe('rgpStageStyle', () => {
     const overdue = rgpStageStyle(pass({ return_status: 'awaiting_return', is_overdue: true }));
     const onTime = rgpStageStyle(pass({ return_status: 'awaiting_return', is_overdue: false }));
     expect(overdue?.label).toBe('Overdue');
-    expect(onTime?.label).toBe('Out — Not Returned');
+    expect(onTime?.label).toBe('In Progress');
     expect(overdue?.bg).not.toBe(onTime?.bg);
   });
 

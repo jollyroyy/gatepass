@@ -1,3 +1,9 @@
+// RENAMED 2026-08-21: every assertion in this file that read "Out — Not Returned"
+// now reads "In Progress", and "Partly Returned" reads "Partially Returned"
+// (client: "for the status of those passes which have not been returned yet,
+// just make them from 'not in progress' to 'in progress'. Within 'in progress'
+// you can mention it as 'partially returned'"). The labels are the only thing
+// that moved — no stage, tone or precedence rule changed with them.
 // The CSV a human opens in Excel must contain what the screen shows — no raw
 // enum keys, no ISO timestamps, no escape characters, no columns that the
 // database stopped having years ago.
@@ -64,7 +70,7 @@ describe('cell formatters — the label, not the stored key', () => {
 
   it('leaves the return column blank when there is no return loop', () => {
     expect(csvReturnStatus({ return_status: 'not_applicable' })).toBe('');
-    expect(csvReturnStatus({ return_status: 'partially_returned' })).toBe('Partly Returned');
+    expect(csvReturnStatus({ return_status: 'partially_returned' })).toBe('Partially Returned');
   });
 
   it('names the category, so RGP In is not filed as RGP Out', () => {

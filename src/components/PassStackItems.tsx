@@ -29,8 +29,8 @@ import type { GatePassView } from '../types';
 import { formatCurrency } from '../lib/formatCurrency';
 import { quantityCell, quantityHeading } from '../lib/units';
 import { usePassItems } from '../lib/usePassItems';
-import { ITEM_LINE_STYLES, itemLineStage } from '../lib/passRecordView';
-import { ITEM_STAGE_PILL } from '../lib/passStackCard';
+import { itemLineView } from '../lib/passRecordView';
+import { itemPillClass } from '../lib/passStackCard';
 
 export default function PassStackItems({ pass }: { pass: GatePassView }): React.ReactElement {
   const { items, error } = usePassItems(pass.id);
@@ -57,18 +57,18 @@ export default function PassStackItems({ pass }: { pass: GatePassView }): React.
               <th scope="col">Purpose</th>
               <th scope="col">{quantityHeading('Quantity', units)}</th>
               <th scope="col">Value</th>
-              {/* THE LINE'S OWN STATUS. A refused pass reads "Rejected" on every
-                  line of it (client, 2026-08-20: "show the status also as
-                  rejected against each individual item … everywhere, not only
-                  the pass"), and a live one reads where its return leg stands —
-                  one function, `itemLineStage`, shared with the record. */}
+              {/* THE LINE'S OWN STATUS — the PASS's badge repeated word for
+                  word (client, 2026-08-21: "show the exact same status for the
+                  individual items … across all the views"), unless this line
+                  has a return of its own to report: Returned, or Partially
+                  Returned. That covers the refusal case as well, since a refused
+                  pass's badge already says so and nothing on it ever moved —
+                  one function, `itemLineView`, shared with the record. */}
               <th scope="col">Status</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((line, i) => {
-              const stage = itemLineStage(line, pass);
-              return (
+            {items.map((line, i) => (
               <tr key={line.id}>
                 <td>{i + 1}</td>
                 <td>{line.name}</td>
@@ -82,11 +82,10 @@ export default function PassStackItems({ pass }: { pass: GatePassView }): React.
                     optional, and "nothing declared" is not "declared zero". */}
                 <td>{line.approx_value === null ? '—' : formatCurrency(line.approx_value)}</td>
                 <td>
-                  <span className={ITEM_STAGE_PILL[stage]}>{ITEM_LINE_STYLES[stage].label}</span>
+                  <span className={itemPillClass(line, pass)}>{itemLineView(line, pass).label}</span>
                 </td>
               </tr>
-              );
-            })}
+            ))}
           </tbody>
         </table>
       </div>

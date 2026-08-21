@@ -1,8 +1,14 @@
+// RENAMED 2026-08-21: every assertion in this file that read "Out — Not Returned"
+// now reads "In Progress", and "Partly Returned" reads "Partially Returned"
+// (client: "for the status of those passes which have not been returned yet,
+// just make them from 'not in progress' to 'in progress'. Within 'in progress'
+// you can mention it as 'partially returned'"). The labels are the only thing
+// that moved — no stage, tone or precedence rule changed with them.
 // The ONE pill on a pass card, and the timeline behind it.
 //
 // Round one (2026-08-11): "once the RGP is cleared for going out it shows as
 // matched and not cleared." Fixed by adding a second pill from
-// `return_status`, so a card read "Matched  Out — Not Returned".
+// `return_status`, so a card read "Matched  In Progress".
 //
 // Round two, same day: "Only show what is the latest status… if the passes are
 // closed, completely returned, just put it Closed. Don't show matched
@@ -45,9 +51,9 @@ function renderRow(p: GatePassView, variant: 'row' | 'drill' = 'row') {
 }
 
 describe.each(['row', 'drill'] as const)('pass stage pill — %s variant', (variant) => {
-  it('reads "Out — Not Returned" ALONE for a pass still outside', () => {
+  it('reads "In Progress" ALONE for a pass still outside', () => {
     renderRow(pass({ status: 'matched', return_status: 'awaiting_return' }), variant);
-    expect(screen.getByText('Out — Not Returned')).toBeInTheDocument();
+    expect(screen.getByText('In Progress')).toBeInTheDocument();
     expect(screen.queryByText('Matched')).toBeNull();
   });
 
@@ -56,12 +62,12 @@ describe.each(['row', 'drill'] as const)('pass stage pill — %s variant', (vari
     expect(screen.getByText('Closed')).toBeInTheDocument();
     expect(screen.queryByText('Matched')).toBeNull();
     expect(screen.queryByText('Returned')).toBeNull();
-    expect(screen.queryByText('Out — Not Returned')).toBeNull();
+    expect(screen.queryByText('In Progress')).toBeNull();
   });
 
-  it('reads "Partly Returned" in between', () => {
+  it('reads "Partially Returned" in between', () => {
     renderRow(pass({ return_status: 'partially_returned' }), variant);
-    expect(screen.getByText('Partly Returned')).toBeInTheDocument();
+    expect(screen.getByText('Partially Returned')).toBeInTheDocument();
     expect(screen.queryByText('Matched')).toBeNull();
   });
 
@@ -70,13 +76,13 @@ describe.each(['row', 'drill'] as const)('pass stage pill — %s variant', (vari
     renderRow(pass({ type: 'NRGP', return_status: 'not_applicable' }), variant);
     expect(screen.getByText('Closed')).toBeInTheDocument();
     expect(screen.queryByText('Matched')).toBeNull();
-    expect(screen.queryByText('Out — Not Returned')).toBeNull();
+    expect(screen.queryByText('In Progress')).toBeNull();
   });
 
   it('reads the status badge before the pass reaches the gate', () => {
     renderRow(pass({ status: 'pending', return_status: 'not_applicable' }), variant);
     expect(screen.getByText('Pending Gate Review')).toBeInTheDocument();
-    expect(screen.queryByText('Out — Not Returned')).toBeNull();
+    expect(screen.queryByText('In Progress')).toBeNull();
   });
 
   // An overdue pass gets the orange TONE, never an 'Overdue' label — several
@@ -85,7 +91,7 @@ describe.each(['row', 'drill'] as const)('pass stage pill — %s variant', (vari
   it('names a late pill "Overdue"', () => {
     renderRow(pass({ return_status: 'awaiting_return', is_overdue: true }), variant);
     expect(screen.getByText('Overdue')).toBeInTheDocument();
-    expect(screen.queryByText('Out — Not Returned')).toBeNull();
+    expect(screen.queryByText('In Progress')).toBeNull();
   });
 });
 

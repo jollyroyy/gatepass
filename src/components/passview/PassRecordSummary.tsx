@@ -134,7 +134,7 @@ export default function PassRecordSummary({ pass, gateName }: Props): React.Reac
           {pass.type === 'RGP' && pass.expected_return_date && (
             <Fact
               icon={CLOCK}
-              label="Return Before"
+              label="Expected Return Date"
               value={formatDateOnly(pass.expected_return_date)}
               tone={pass.is_overdue ? 'alert' : 'plain'}
             />

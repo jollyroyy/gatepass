@@ -102,7 +102,7 @@ describe('/pass/:id renders the Search Pass record, not a second format', () => 
   it('keeps every fact the old detail page carried', async () => {
     renderDetail();
     await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
-    for (const label of ["Authorized Person's Name", 'Contact No.', 'Vendor / Person', 'Vendor Address', 'Vehicle No.', 'Requested By', 'Request Date & Time', 'Return Before']) {
+    for (const label of ["Authorized Person's Name", 'Contact No.', 'Vendor / Person', 'Vendor Address', 'Vehicle No.', 'Requested By', 'Request Date & Time', 'Expected Return Date']) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
     expect(screen.getByText('Sharma Traders')).toBeInTheDocument();

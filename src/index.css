@@ -3419,20 +3419,14 @@
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
-    justify-content: space-between;
+    /* The title and its blurb were removed on 2026-08-21 (client), so the
+     * stamp-and-buttons cluster is the row's only child and sits right. */
+    justify-content: flex-end;
     gap: 14px;
     margin-bottom: 18px;
     /* The notification bell is `fixed top-4 right-4`; without this reservation
      * the mock's date stamp renders underneath it. Same rule as `.gb-page-head`. */
     padding-right: 76px;
-  }
-  .gb-rep-title {
-    font-family: inherit;
-    font-size: 26px;
-    line-height: 30px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--gb-ink);
   }
   .gb-rep-actions {
     display: flex;

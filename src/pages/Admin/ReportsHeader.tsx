@@ -1,6 +1,11 @@
-// The report's head, drawn to the client's mock-up (2026-08-20): the title and
-// what the page is for on the left, the date stamp and the three-button cluster
-// on the right.
+// The report's head: the date stamp and the three-button cluster, right-aligned.
+//
+// THE TITLE AND ITS BLURB ARE DELIBERATELY NOT DRAWN (client, 2026-08-21:
+// remove "Gate Pass Report (RGP & NRGP)" and "View and download RGP and NRGP
+// gate pass transactions with detailed information" from every page a printout
+// is taken from). The mock-up drew both on the left of this row; the sidebar
+// tab already names the screen, and the PRINTED sheet still identifies itself
+// through `ReportsPrintHeader`.
 //
 // TWO ACTIONS EXIST, AND THE MOCK DRAWS THREE BUTTONS. This app can put the
 // register in a spreadsheet (`downloadCsv`) and it can print it (`window.print`,
@@ -66,13 +71,6 @@ export default function ReportsHeader({ stamp, onExportCsv, onPrint }: Props): R
 
   return (
     <div className="gb-rep-head">
-      <div className="min-w-0">
-        <h1 className="gb-rep-title">Gate Pass Report (RGP &amp; NRGP)</h1>
-        <p className="gb-sub">
-          View and download RGP and NRGP gate pass transactions with detailed information.
-        </p>
-      </div>
-
       <div className="gb-rep-side no-print">
         <span className="gb-stamp">
           {CALENDAR}

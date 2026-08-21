@@ -14,9 +14,9 @@
 // the exported maps and fails when a label appears with no tone, which is the
 // drift a Record keyed on an enum would catch at compile time and this one
 // cannot — the label is the only thing all four maps have in common.
-import type { GatePassView } from '../types';
+import type { GatePassItemView, GatePassView } from '../types';
 import { passStageStyle } from './passStage';
-import type { ItemLineStage } from './passRecordView';
+import { itemReturnStage, passWasRejected, type ItemLinePass } from './passRecordView';
 
 /** The guard skin's pill vocabulary. `.gb-pill-<tone>` in index.css. */
 export type GbTone = 'blue' | 'green' | 'orange' | 'red' | 'grey';
@@ -34,8 +34,8 @@ export const STAGE_TONES: Record<string, GbTone> = {
   'Voided': 'grey',
   // Moving, and nothing is wrong.
   'HOD Approved': 'blue',
-  'Out — Not Returned': 'blue',
-  'Partly Returned': 'blue',
+  'In Progress': 'blue',
+  'Partially Returned': 'blue',
   // Finished.
   'Closed': 'green',
   'Matched': 'green',
@@ -53,18 +53,22 @@ export function stageTone(p: StageInput): GbTone {
 }
 
 /** ONE MATERIAL LINE'S own pill, for the panels that unfold inside a stacked
- *  card (the approver's queue, My Passes). Keyed on `ItemLineStage`, so a stage
- *  added there is a compile error here rather than a colourless cell — the
- *  `Record<Enum, T>` this file's own header says the label map cannot be.
+ *  card (the approver's queue, My Passes) — the guard-skin half of
+ *  `itemLineView`, and it follows exactly the same rule: the line's own return
+ *  outcome where it has one, and the PASS's tone for everything else. A line
+ *  therefore cannot be a different colour from the badge whose words it is
+ *  repeating.
  *
- *  Every value is one of the guard skin's pills, so no colour is introduced and
- *  `themeAudit` stays absolute. The tones agree with `STAGE_TONES` above: red
- *  for a refusal, orange for something still owed, blue for half-done, green for
- *  finished. */
-export const ITEM_STAGE_PILL: Record<ItemLineStage, string> = {
-  rejected: 'gb-pill gb-pill-red',
-  pending: 'gb-pill gb-pill-orange',
-  partial: 'gb-pill gb-pill-blue',
-  returned: 'gb-pill gb-pill-green',
-  closed: 'gb-pill gb-pill-green',
-};
+ *  Green for a line fully back and blue for one half back are the same two hues
+ *  `ITEM_RETURN_STYLES` gives them in the house theme, so the two skins agree. */
+export function itemPillClass(
+  item: Pick<GatePassItemView, 'quantity' | 'returned_qty'>,
+  pass: ItemLinePass,
+): string {
+  const stage = itemReturnStage(item, pass.type);
+  if (!passWasRejected(pass)) {
+    if (stage === 'returned') return 'gb-pill gb-pill-green';
+    if (stage === 'partial') return 'gb-pill gb-pill-blue';
+  }
+  return `gb-pill gb-pill-${stageTone(pass)}`;
+}

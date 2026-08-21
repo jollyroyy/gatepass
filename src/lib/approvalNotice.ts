@@ -164,7 +164,7 @@ export function passFacts(pass: NoticePass): { label: string; value: string }[] 
   }
   if (pass.purpose) facts.push({ label: 'Purpose', value: pass.purpose });
   if (pass.expected_return_date) {
-    facts.push({ label: 'Return Before', value: noticeDate(pass.expected_return_date) });
+    facts.push({ label: 'Expected Return Date', value: noticeDate(pass.expected_return_date) });
   }
   const raised = noticeDate(pass.created_at);
   if (raised) facts.push({ label: 'Raised On', value: raised });

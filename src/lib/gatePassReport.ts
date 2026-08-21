@@ -29,6 +29,7 @@
 import type { GatePassView, PassType } from '../types';
 import type { HodGlyph, HodTone } from '../components/hod/hodIconTypes';
 import { IS_OPEN_RETURN } from './boardDrills';
+import { isWaitingAtGate } from './gateQueue';
 import { isExpiredPending } from './statusStyles';
 import { csvCategory, csvDateTime, csvText } from './csvCells';
 import type { CsvColumn } from './exportUtils';
@@ -90,13 +91,23 @@ export function reportStatusPill(p: PassFacts): string {
  *  SUBSETS of a bucket, kept because the client asked for an overdue-only and
  *  an expired-only report (2026-08-18) and this select is now the one place a
  *  report is narrowed by state. */
-export type StatusFilter = 'all' | ReportStatus | 'overdue' | 'expired';
+export type StatusFilter =
+  | 'all' | ReportStatus | 'overdue' | 'expired' | 'pending_gate' | 'pending_approval';
 
 export const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'completed', label: 'Completed' },
   { key: 'in_progress', label: 'In Progress' },
   { key: 'cancelled', label: 'Cancelled' },
+  // The two desks a pass that has not moved can be sitting on (client,
+  // 2026-08-21: "in the report also show pending gate review and pending for
+  // approval as a drop-down filter for admin, for the entire department and for
+  // individual HOD also"). Both are SUBSETS of In Progress, like the two below
+  // them, and both are `pendingSplit`'s own predicates — the same split the
+  // admin Overview and the HOD dashboard print under their Pending Approvals
+  // card, so the report and the dashboards cannot disagree about the figure.
+  { key: 'pending_gate', label: 'Pending Gate Review' },
+  { key: 'pending_approval', label: 'Pending Approval' },
   { key: 'overdue', label: 'Overdue' },
   { key: 'expired', label: 'Expired' },
 ];
@@ -138,6 +149,11 @@ export function applyReportFilters(rows: GatePassView[], f: ReportFilters): Gate
       case 'all': return true;
       case 'overdue': return isOverduePass(p);
       case 'expired': return isExpiredPending(p);
+      // `awaits_approval` comes off `v_gate_passes` (057) and is never
+      // recomputed; falsy means the pass owes no signature, which is every
+      // pre-workflow pass and every level closed by 058's rollout.
+      case 'pending_gate': return isWaitingAtGate(p) && p.awaits_approval !== true;
+      case 'pending_approval': return isWaitingAtGate(p) && p.awaits_approval === true;
       default: return reportStatusOf(p) === f.status;
     }
   });

@@ -19,7 +19,11 @@ import { EMPTY_DRAFT } from '../../src/lib/returnDraft';
 
 function pass(over: Partial<GatePassView> = {}): GatePassView {
   return {
-    id: 'p1', pass_number: 'RGP-20260818-0003', type: 'RGP', return_status: 'awaiting_return',
+    // `status` is part of the fixture since 2026-08-21: a line's badge repeats
+    // the PASS's own badge unless the line has a return of its own, so the pass
+    // must actually have a status for the table to render.
+    id: 'p1', pass_number: 'RGP-20260818-0003', type: 'RGP', status: 'matched',
+    return_status: 'awaiting_return', is_expired: false, is_overdue: false,
     ...over,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;

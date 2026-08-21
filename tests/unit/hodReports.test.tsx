@@ -12,7 +12,7 @@
 // through the exact same `gp().from('v_gate_passes').select('*')` call.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { GatePassView } from '../../src/types';
 
@@ -104,24 +104,49 @@ describe('HOD Reports — the same register, minus the two people columns', () =
     expect(screen.queryByLabelText('Created By')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Department')).not.toBeInTheDocument();
 
-    // Everything else survives: title, the other columns, the other filters.
-    // Two: the screen's own h1 and the `print-only` sheet header (see the
-    // admin's own "titled and described exactly as the attachment" case).
-    expect(screen.getAllByRole('heading', { name: 'Gate Pass Report (RGP & NRGP)' }).length).toBe(2);
+    // Everything else survives: the other columns, the other filters.
+    // ONE heading, not two (2026-08-21): the screen's own title and blurb are
+    // gone on the client's instruction, leaving only the `print-only` sheet
+    // header, which never renders on screen.
+    expect(screen.getAllByRole('heading', { name: 'Gate Pass Report (RGP & NRGP)' }).length).toBe(1);
     expect(screen.getByRole('columnheader', { name: 'Value of Items' })).toBeInTheDocument();
     expect(screen.getByLabelText('Pass Type')).toBeInTheDocument();
     expect(screen.getByLabelText('Status')).toBeInTheDocument();
   });
 
-  it('still applies filters and Reset the normal way, with no people controls in play', async () => {
+  // REWRITTEN 2026-08-21. It used to assert an Apply Filters button on this
+  // screen; the client had it removed everywhere, so what is pinned now is that
+  // the HOD's copy narrows live like the admin's — one component, one rule.
+  it('narrows live, with no Apply button and no people controls in play', async () => {
     render(
       <MemoryRouter>
         <HodReports />
       </MemoryRouter>,
     );
     await waitFor(() => expect(screen.getByText('NRGP-20260804-0002')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: /Apply Filters/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Reset' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Apply Filters/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Reset/ })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Pass Type'), { target: { value: 'RGP' } });
+    await waitFor(() => expect(screen.queryByText('NRGP-20260804-0002')).not.toBeInTheDocument());
+  });
+
+  // The two desks a waiting pass can be on are offered to an HOD as well as to
+  // the admin (client, 2026-08-21) — the same one `ReportsFilterBar`, so there
+  // is nothing role-specific to keep in step. RLS is what scopes the rows.
+  it('offers Pending Gate Review and Pending Approval on the Status select', async () => {
+    render(
+      <MemoryRouter>
+        <HodReports />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText('NRGP-20260804-0002')).toBeInTheDocument());
+
+    const options = Array.from(
+      (screen.getByLabelText('Status') as HTMLSelectElement).options,
+    ).map((o) => o.textContent);
+    expect(options).toContain('Pending Gate Review');
+    expect(options).toContain('Pending Approval');
   });
 });
 

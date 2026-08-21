@@ -1,3 +1,9 @@
+// RENAMED 2026-08-21: every assertion in this file that read "Out — Not Returned"
+// now reads "In Progress", and "Partly Returned" reads "Partially Returned"
+// (client: "for the status of those passes which have not been returned yet,
+// just make them from 'not in progress' to 'in progress'. Within 'in progress'
+// you can mention it as 'partially returned'"). The labels are the only thing
+// that moved — no stage, tone or precedence rule changed with them.
 // ONE badge per pass, and it says where the pass is NOW.
 //
 // Client complaint, 2026-08-11 (second round): "In the card section if the
@@ -7,7 +13,7 @@
 //
 // The first round (rgpLifecycle) added a SECOND pill beside the status badge,
 // so a closed RGP read "Matched  Closed" and one still outside read
-// "Matched  Out — Not Returned". That is two facts where the reader wanted the
+// "Matched  In Progress". That is two facts where the reader wanted the
 // latest one. `passStageStyle` collapses them: the outward match is history
 // the moment the return loop starts, and history belongs in the timeline.
 import { describe, it, expect } from 'vitest';
@@ -31,12 +37,12 @@ describe('passStageStyle — the single latest-state badge', () => {
     expect(passStageStyle(pass({ return_status: 'returned' })).label).toBe('Closed');
   });
 
-  it('reads "Out — Not Returned" for an RGP the gate cleared outward', () => {
-    expect(passStageStyle(pass({ return_status: 'awaiting_return' })).label).toBe('Out — Not Returned');
+  it('reads "In Progress" for an RGP the gate cleared outward', () => {
+    expect(passStageStyle(pass({ return_status: 'awaiting_return' })).label).toBe('In Progress');
   });
 
-  it('reads "Partly Returned" in between', () => {
-    expect(passStageStyle(pass({ return_status: 'partially_returned' })).label).toBe('Partly Returned');
+  it('reads "Partially Returned" in between', () => {
+    expect(passStageStyle(pass({ return_status: 'partially_returned' })).label).toBe('Partially Returned');
   });
 
   // An NRGP never comes back, so the outward match IS its final state — and the

@@ -166,7 +166,7 @@ export default function PassStackCard({
               instead of a deadline it can never miss. */}
           {isRgp ? (
             <Fact
-              label="Return Before"
+              label="Expected Return Date"
               value={pass.expected_return_date ? formatDateOnly(pass.expected_return_date) : '—'}
               tone={pass.is_overdue ? 'late' : undefined}
             />

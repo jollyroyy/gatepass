@@ -26,7 +26,7 @@
 //                     too — "while going out it might get matched but while
 //                     coming back it is not matched, then that also should get
 //                     flagged" — and when that lands, a pass stopped on the way
-//                     back in must read "Rejected at Security Gate", not "Out — Not Returned".
+//                     back in must read "Rejected at Security Gate", not "In Progress".
 //                     Getting the order right now means that feature changes
 //                     the database and the gate screen, not every card.
 //   3. RGP stage    — the return loop, once the gate has cleared the pass

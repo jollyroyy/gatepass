@@ -1,4 +1,14 @@
-// A REJECTED PASS'S MATERIAL LINES READ "Rejected", NEVER "Pending".
+// A REJECTED PASS'S MATERIAL LINES SAY THE PASS WAS REJECTED, NEVER "Pending".
+//
+// REWRITTEN 2026-08-21. Until then this file held that such a line read the bare
+// word "Rejected", from a fifth `ItemLineStage` of its own. The client then
+// generalised the rule — "whatever status you are showing on the top for the
+// gate pass, show the exact same status for the individual items … across all
+// the views" — so `itemLineStage` / `ITEM_LINE_STYLES` / `ITEM_STAGE_PILL` are
+// GONE and a line simply repeats `passStageStyle`, which for these three
+// statuses says "Rejected at Security Gate", "Voided" or "Cancelled". The
+// defect this file was written for is fixed by the general rule rather than by
+// a special case, and the cases below assert the pass's own words.
 //
 // Client, 2026-08-20: "once any approver is rejecting the pass, all the
 // individual items are still showing pending … all the individual items should
@@ -13,13 +23,12 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type { GatePassItemView, GatePassView } from '../../src/types';
-import {
-  ITEM_LINE_STYLES, itemLineStage, passWasRejected,
-} from '../../src/lib/passRecordView';
+import { itemLineView, passWasRejected } from '../../src/lib/passRecordView';
+import { passStageStyle } from '../../src/lib/passStage';
 import PassRecordItems from '../../src/components/passview/PassRecordItems';
 import PassStackItems from '../../src/components/PassStackItems';
 import MyPassItems from '../../src/components/mypasses/MyPassItems';
-import { ITEM_STAGE_PILL } from '../../src/lib/passStackCard';
+import { itemPillClass } from '../../src/lib/passStackCard';
 import { EMPTY_DRAFT } from '../../src/lib/returnDraft';
 
 // The two unfolded panels read their lines through this hook; the query behind
@@ -33,6 +42,7 @@ function pass(over: Partial<GatePassView> = {}): GatePassView {
   return {
     id: 'p1', pass_number: 'RGP-20260820-0001', type: 'RGP', status: 'pending',
     return_status: 'awaiting_return', flag_reason: null,
+    is_expired: false, is_overdue: false, awaits_approval: false,
     ...over,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
@@ -66,24 +76,29 @@ describe('passWasRejected', () => {
   });
 });
 
-describe('itemLineStage', () => {
-  it('reads rejected on every line of a rejected pass, whatever the return leg says', () => {
-    const p = pass({ status: 'cancelled' });
-    expect(itemLineStage(line(), p)).toBe('rejected');
-    expect(itemLineStage(line({ returned_qty: 3 }), p)).toBe('rejected');
-    expect(itemLineStage(line(), pass({ status: 'cancelled', type: 'NRGP' }))).toBe('rejected');
+describe('itemLineView on a refused pass', () => {
+  it('gives every line the pass\'s own refusal, whatever the return leg says', () => {
+    const p = pass({ status: 'flagged', flag_reason: 'Count short' });
+    expect(itemLineView(line(), p).label).toBe('Rejected at Security Gate');
+    expect(itemLineView(line({ returned_qty: 3 }), p).label).toBe('Rejected at Security Gate');
+    const voided = pass({ status: 'cancelled', type: 'NRGP', return_status: 'not_applicable' });
+    expect(itemLineView(line(), voided).label).toBe(passStageStyle(voided).label);
   });
 
-  it('leaves a live pass exactly as the return leg grades it', () => {
-    expect(itemLineStage(line(), pass())).toBe('pending');
-    expect(itemLineStage(line({ returned_qty: 1 }), pass({ status: 'matched' }))).toBe('partial');
-    expect(itemLineStage(line({ returned_qty: 3 }), pass({ status: 'matched' }))).toBe('returned');
-    expect(itemLineStage(line(), pass({ type: 'NRGP', status: 'matched' }))).toBe('closed');
+  it('leaves a live pass reading its own state, line by line', () => {
+    // Nothing back yet: the line repeats the pass. Some back: the line's own
+    // return outranks it. All back: "Returned".
+    expect(itemLineView(line(), pass({ status: 'matched' })).label).toBe('In Progress');
+    expect(itemLineView(line({ returned_qty: 1 }), pass({ status: 'matched' })).label)
+      .toBe('Partially Returned');
+    expect(itemLineView(line({ returned_qty: 3 }), pass({ status: 'matched' })).label)
+      .toBe('Returned');
+    const nrgp = pass({ type: 'NRGP', status: 'matched', return_status: 'not_applicable' });
+    expect(itemLineView(line(), nrgp).label).toBe('Closed');
   });
 
-  it('is styled in the flagged red the pass badge uses, and says "Rejected"', () => {
-    expect(ITEM_LINE_STYLES.rejected.label).toBe('Rejected');
-    expect(ITEM_LINE_STYLES.rejected.text).toContain('flagged');
+  it('is styled in the flagged red the pass badge uses', () => {
+    expect(itemLineView(line(), pass({ status: 'flagged' })).text).toContain('flagged');
   });
 });
 
@@ -94,10 +109,11 @@ describe('the record\'s item table on a rejected pass', () => {
     );
   }
 
-  it('badges every line Rejected and never Pending', () => {
-    draw(pass({ status: 'cancelled' }), [line(), line({ id: 'i2', name: 'Bolts', unit: 'nos' })]);
+  it('badges every line with the pass\'s refusal, and never "Pending"', () => {
+    const refused = pass({ status: 'cancelled' });
+    draw(refused, [line(), line({ id: 'i2', name: 'Bolts', unit: 'nos' })]);
 
-    expect(screen.getAllByText('Rejected')).toHaveLength(2);
+    expect(screen.getAllByText(passStageStyle(refused).label)).toHaveLength(2);
     expect(screen.queryByText('Pending')).not.toBeInTheDocument();
   });
 
@@ -115,18 +131,19 @@ describe('the record\'s item table on a rejected pass', () => {
 });
 
 describe('the unfolded panels — a stacked card and My Passes', () => {
-  it('badge each line with its own status, Rejected on a refused pass', () => {
+  it('badge each line with the pass\'s own status on a refused pass', () => {
     items.length = 0;
     items.push(line(), line({ id: 'i2', name: 'Bolts', unit: 'nos' }));
 
     const refused = pass({ status: 'cancelled' });
+    const word = passStageStyle(refused).label;
     const stack = render(<PassStackItems pass={refused} />);
-    expect(stack.getAllByText('Rejected')).toHaveLength(2);
+    expect(stack.getAllByText(word)).toHaveLength(2);
     expect(stack.queryByText('Pending')).not.toBeInTheDocument();
     stack.unmount();
 
     const mine = render(<MyPassItems pass={refused} />);
-    expect(mine.getAllByText('Rejected')).toHaveLength(2);
+    expect(mine.getAllByText(word)).toHaveLength(2);
     mine.unmount();
   });
 
@@ -136,16 +153,25 @@ describe('the unfolded panels — a stacked card and My Passes', () => {
 
     const live = pass({ status: 'matched' });
     const stack = render(<PassStackItems pass={live} />);
-    expect(stack.getByText('Pending')).toBeInTheDocument();
+    // The untouched line repeats the pass's badge; the finished one does not.
+    expect(stack.getByText(passStageStyle(live).label)).toBeInTheDocument();
     expect(stack.getByText('Returned')).toBeInTheDocument();
     stack.unmount();
   });
 
   it('paint the pill from the guard skin alone — no new colour', () => {
     // Every value is one of `.gb-board`'s own pills, so themeAudit stays absolute.
-    for (const cls of Object.values(ITEM_STAGE_PILL)) {
+    const cases = [
+      itemPillClass(line(), pass({ status: 'flagged' })),
+      itemPillClass(line(), pass({ status: 'matched' })),
+      itemPillClass(line({ returned_qty: 1 }), pass({ status: 'matched' })),
+      itemPillClass(line({ returned_qty: 3 }), pass({ status: 'matched' })),
+      itemPillClass(line(), pass({ status: 'matched', is_overdue: true })),
+    ];
+    for (const cls of cases) {
       expect(cls).toMatch(/^gb-pill gb-pill-(blue|green|orange|grey|red|purple)$/);
     }
-    expect(ITEM_STAGE_PILL.rejected).toContain('gb-pill-red');
+    // A line on a pass the gate rejected is red, exactly as its badge is.
+    expect(cases[0]).toContain('gb-pill-red');
   });
 });

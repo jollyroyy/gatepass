@@ -14,8 +14,10 @@
 // the six figures, the two option lists, the table and the pager. No aggregate,
 // no `count: 'exact'`, so a figure and the list under it cannot disagree.
 //
-// FILTERS ARE A DRAFT UNTIL APPLIED, because the mock draws an Apply Filters
-// button (see ReportsFilterBar). The date range is applied first and in LOCAL
+// EVERY FILTER APPLIES ITSELF THE MOMENT IT IS CHANGED (client, 2026-08-21:
+// "remove the apply filters from everywhere"). There is ONE `ReportFilters`
+// here, not a draft and an applied copy, so the card can never describe a scope
+// the table below it is not using. The date range is applied first and in LOCAL
 // day bounds — `localDayBounds`, the same cut every dashboard makes, or a
 // "today" report and a "today" KPI disagree for five and a half hours a day.
 //
@@ -91,7 +93,6 @@ export default function ReportsPage({ showPeople = true }: Props): React.ReactEl
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [applied, setApplied] = useState<ReportFilters>(OPENING);
-  const [draft, setDraft] = useState<ReportFilters>(OPENING);
   const [page, setPage] = useState(1);
   const [size, setSize] = useState<number>(DEFAULT_ROWS_PER_PAGE);
   // Stamped once at mount — see ReportsHeader for why it does not tick.
@@ -144,7 +145,6 @@ export default function ReportsPage({ showPeople = true }: Props): React.ReactEl
   );
 
   const current = pageOf(scoped, printAll ? 1 : page, printAll ? Math.max(scoped.length, 1) : size);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(applied);
 
   useEffect(() => {
     if (!printAll) return;
@@ -152,9 +152,11 @@ export default function ReportsPage({ showPeople = true }: Props): React.ReactEl
     setPrintAll(false);
   }, [printAll]);
 
+  // CHANGING A CONTROL IS THE CHANGE. The page goes back to 1 with it: page 7
+  // of a narrower report is usually past the end, and an empty table under a
+  // filter that just matched 40 rows reads as a broken screen.
   function apply(next: ReportFilters) {
     setApplied(next);
-    setDraft(next);
     setPage(1);
   }
 
@@ -182,13 +184,11 @@ export default function ReportsPage({ showPeople = true }: Props): React.ReactEl
       {error && <div className="gb-alert">{error}</div>}
 
       <ReportsFilterBar
-        draft={draft}
-        onDraftChange={setDraft}
+        filters={applied}
+        onChange={apply}
         createdByOptions={options.createdBy}
         deptOptions={options.departments}
         today={TODAY}
-        dirty={dirty}
-        onApply={() => apply(draft)}
         onReset={() => apply(OPENING)}
         showPeople={showPeople}
       />

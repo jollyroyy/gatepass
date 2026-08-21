@@ -38,7 +38,7 @@ import type { GatePassItemView, GatePassView } from '../../types';
 import { formatCurrency } from '../../lib/formatCurrency';
 import { formatDateTime } from '../../lib/formatDate';
 import { unitLabel } from '../../lib/units';
-import { ITEM_LINE_STYLES, itemLineStage, passWasRejected, returnProgress } from '../../lib/passRecordView';
+import { itemLineView, itemReturnStage, passWasRejected, returnProgress } from '../../lib/passRecordView';
 import { effectiveReturned, effectiveOutstanding, formatQty, type ReturnDraft } from '../../lib/returnDraft';
 import Badge from '../Badge';
 
@@ -124,10 +124,13 @@ export default function PassRecordItems({
                 const draftLine = draft[item.id];
                 const returned = effectiveReturned(item, draft);
                 const pending = effectiveOutstanding(item, draft);
-                const stage = itemLineStage(
-                  { quantity: item.quantity, returned_qty: returned }, pass,
-                );
-                const owes = stage === 'pending' || stage === 'partial';
+                // The line's own return stage decides whether it still OWES
+                // material (which is what the Action column is for); the words
+                // on the badge come from `itemLineView`, which repeats the
+                // pass's own status unless this line has a return of its own.
+                const staging = { quantity: item.quantity, returned_qty: returned };
+                const stage = itemReturnStage(staging, pass.type);
+                const owes = !rejected && (stage === 'pending' || stage === 'partial');
 
                 return (
                   <tr key={item.id} className={draftLine ? 'bg-accent-50/60' : undefined}>
@@ -174,7 +177,7 @@ export default function PassRecordItems({
                     </td>
                     <td>{item.approx_value != null ? formatCurrency(item.approx_value) : ''}</td>
                     <td>
-                      <Badge style={ITEM_LINE_STYLES[stage]} />
+                      <Badge style={itemLineView(staging, pass)} />
                         {/* WHEN it came back, written by the database, not by a
                           * guard: `returned_at` is stamped only once a line is
                           * FULLY back (029), so a partly-returned line carries

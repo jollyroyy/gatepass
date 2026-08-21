@@ -76,7 +76,7 @@ export const RETURN_STYLES: Record<ReturnStatus, StatusStyle> = {
   // is a genuinely different situation to reconcile, not "awaiting return, but
   // a bit less", and a guard scanning a list must be able to spot it.
   partially_returned: {
-    bg: 'bg-accent-50', text: 'text-accent-700', dot: 'bg-accent-500', label: 'Partly Returned',
+    bg: 'bg-accent-50', text: 'text-accent-700', dot: 'bg-accent-500', label: 'Partially Returned',
   },
   returned: { bg: 'bg-matched-50', text: 'text-matched-700', dot: 'bg-matched-500', label: 'Returned' },
 };

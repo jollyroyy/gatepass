@@ -106,10 +106,11 @@ function renderReports() {
   );
 }
 
-/** Every control writes a DRAFT; only Apply Filters moves it onto the report. */
+/** Changing a control IS the change — there is no Apply Filters button and no
+ *  draft copy any more (client, 2026-08-21). Kept as a helper so the cases below
+ *  read the same as they did before the button went. */
 async function applyFilter(label: string, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
-  fireEvent.click(screen.getByRole('button', { name: /Apply Filters/ }));
 }
 
 beforeEach(() => {
@@ -117,23 +118,30 @@ beforeEach(() => {
 });
 
 describe('Gate Pass Report — the mock-up itself', () => {
-  it('is titled and described exactly as the attachment', async () => {
+  // REWRITTEN 2026-08-21. It used to hold that the screen drew the mock-up's
+  // title AND its blurb ("is titled and described exactly as the attachment",
+  // asserting two headings — the h1 and the print sheet — plus the sentence).
+  // The client asked for both off every page a printout is taken from, so the
+  // ONLY heading left is the `print-only` letterhead, which never shows on
+  // screen and is what identifies the paper.
+  it('draws no title and no blurb on screen — the print sheet keeps the one heading', async () => {
     renderReports();
     await waitFor(() => expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument());
 
-    // Two: the screen's own h1 and the `print-only` sheet header, which carries
-    // the same title onto the paper.
-    expect(screen.getAllByRole('heading', { name: 'Gate Pass Report (RGP & NRGP)' }).length).toBe(2);
+    expect(screen.getAllByRole('heading', { name: 'Gate Pass Report (RGP & NRGP)' }).length).toBe(1);
     expect(
-      screen.getByText('View and download RGP and NRGP gate pass transactions with detailed information.'),
-    ).toBeInTheDocument();
+      screen.queryByText('View and download RGP and NRGP gate pass transactions with detailed information.'),
+    ).not.toBeInTheDocument();
   });
 
   it('carries the mock\'s three header buttons and its four filter controls', async () => {
     renderReports();
     await waitFor(() => expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument());
 
-    for (const name of [/Export/, /^Print$/, /Download/, /Reset/, /Apply Filters/]) {
+    // REWRITTEN 2026-08-21: /Apply Filters/ used to be in this list. The
+    // client had it removed — every control applies itself now — so its absence
+    // is asserted below rather than its presence here.
+    for (const name of [/Export/, /^Print$/, /Download/, /Reset/]) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument();
     }
     for (const label of ['From date', 'To date', 'Pass Type', 'Status', 'Created By']) {
@@ -230,16 +238,20 @@ describe('Gate Pass Report — the ready-made ranges', () => {
 });
 
 describe('Gate Pass Report — the filter card', () => {
-  it('narrows nothing until Apply Filters is pressed', async () => {
+  // REWRITTEN 2026-08-21. It used to hold the opposite — "narrows nothing until
+  // Apply Filters is pressed", the draft-and-applied rule the mock-up's button
+  // implied. Client: "remove the apply filters from everywhere. As soon as
+  // anything is changed in those filters it should automatically get reflected
+  // across all the views."
+  it('narrows the report the moment a control is changed, with no button to press', async () => {
     renderReports();
     await waitFor(() => expect(screen.getByText('NRGP-20260804-0002')).toBeInTheDocument());
 
     fireEvent.change(screen.getByLabelText('Pass Type'), { target: { value: 'RGP' } });
-    // Still there: the draft moved, the report did not.
-    expect(screen.getByText('NRGP-20260804-0002')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /Apply Filters/ }));
     await waitFor(() => expect(screen.queryByText('NRGP-20260804-0002')).not.toBeInTheDocument());
+    expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument();
+
+    expect(screen.queryByRole('button', { name: /Apply Filters/ })).not.toBeInTheDocument();
   });
 
   it('filters to RGP only, then back with Reset', async () => {
