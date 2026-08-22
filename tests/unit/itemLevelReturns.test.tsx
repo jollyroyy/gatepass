@@ -108,7 +108,11 @@ vi.mock('../../src/supabaseClient', () => ({
   gp: () => ({
     from: (t: string) => builder(t),
     rpc: (name: string, args: unknown) => {
-      RPC_CALLS.push({ name, args });
+      // The dashboard this list now opens on greets the guard by name, so
+      // `my_profile` is on every render. It is not what this spec counts:
+      // every assertion below is about the ONE `apply_item_returns` call a
+      // staged set of returns makes, and a greeting must not read as one.
+      if (name !== 'my_profile') RPC_CALLS.push({ name, args });
       return Promise.resolve({ data: [{ outcome: 'ok', pass_id: 'far1', blacklist_match: null }], error: null });
     },
   }),
@@ -120,17 +124,23 @@ vi.mock('../../src/supabaseClient', () => ({
   },
 }));
 
-import PendingReturnsPage from '../../src/pages/Security/PendingReturnsPage';
+import GuardDashboard from '../../src/pages/Security/GuardDashboard';
 
+/** The return queue is not a page any more (client, 2026-08-22): it opens on
+ *  the guard's dashboard when the figure that counts it is pressed. */
 async function renderPage() {
   render(
-    <MemoryRouter initialEntries={['/pending-returns']}>
+    <MemoryRouter initialEntries={['/guard-dashboard']}>
       <Routes>
-        <Route path="/pending-returns" element={<PendingReturnsPage />} />
+        <Route path="/guard-dashboard" element={<GuardDashboard />} />
         <Route path="/pass/:id" element={<div>RECORD PAGE</div>} />
       </Routes>
     </MemoryRouter>,
   );
+  const figure = () =>
+    screen.getByTestId('guard-figure-Due back').querySelector('.gb-figure-value') as HTMLElement;
+  await waitFor(() => expect(figure().textContent).not.toBe('-'));
+  fireEvent.click(figure());
   await waitFor(() => expect(screen.getByText('RGP-20260810-0007')).toBeInTheDocument());
 }
 

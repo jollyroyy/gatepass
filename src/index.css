@@ -1601,6 +1601,18 @@
     .gb-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 
+  /* THE LIST A PRESSED FIGURE OPENS, on the dashboard itself (client,
+   * 2026-08-22). Pending OUT and Pending RGP Return stopped being pages with
+   * tabs of their own; each is now drawn here, between the two summary cards
+   * and the Quick Actions row. It needs a rule of its own only for that gap —
+   * everything inside it is the list chrome those pages already used
+   * (`.gb-toolbar`, `.gb-filters`, `.gb-card gb-panel`, `.gb-pager`). No new
+   * colour. */
+  .gb-drill {
+    display: block;
+    margin-bottom: 20px;
+  }
+
   .gb-sum {
     display: flex;
     align-items: flex-start;

@@ -85,7 +85,59 @@ seats per person returned **no rows**, i.e. nobody occupies two).
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **63 rows over 16 passes** (2026-08-22, forty-fourth pass, read as `postgres` after 063). Levels are renumbered by **`063`**: Security Head 1 · Finance HOD 2 · **COO and CEO jointly 3**. 13 passes have cleared the ladder (10 of them closed by `058`'s rollout — `approved`, `grandfathered = true`, `decided_by` NULL, so the ladder names nobody); 2 are still at level 1, 3 at level 2 and 3 on the shared level 3. One `coo` row is `rejected`. `gate_passes` is **76 rows**. The oldest 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-22, forty-fourth pass): THE PRINTED SLIP HAS ITS SIGNATURE BOXES
+**Latest change (2026-08-22, forty-fifth pass): THE GUARD HAS NO LIST TABS LEFT — PENDING OUT
+AND PENDING RGP RETURN OPEN ON THE DASHBOARD ITSELF, UNDER THE FIGURE THAT COUNTS THEM.**
+Frontend only — no migration, no RPC change, and the SAME two queries the board already made.
+
+- Client: "make sure you don't keep any separate pending out or [RGP] tab — all those things are
+  already there in the dashboard. All you have to do is just keep the entire page so that whenever
+  somebody is clicking on the drill down on the KPI number, it would open up on the same page.
+  There is no need to keep a separate tab on the right-hand side page. That would only show when
+  the KPI cards have been drilled down from the guard's dashboard."
+- **THIS REVERSES THE 2026-08-19 RULE THAT EACH FIGURE OPENS A PAGE.** `PendingOutPage.tsx` and
+  `PendingReturnsPage.tsx` are **DELETED**, with their two `<Route>`s, their two sidebar entries
+  and `/pending-out` + `/pending-returns` in `ROLE_ROUTES.guard` — so a stale reference is a build
+  error and a bookmarked deep link no longer resolves. Their bodies live on as
+  `src/components/guard/PendingOutPanel.tsx` and `PendingReturnsPanel.tsx`, which take the rows
+  and render the same toolbar, filter bar, table and pager.
+- **THE GUARD'S SIDEBAR IS TWO TABS: Dashboard · Overdue Items.** Search Pass left it on
+  2026-08-19; these two left it now. `/console`, `/returns` and `/overdue` are still routed and
+  are still reached from the Quick Action tiles.
+- **THE FIGURE AND ITS LIST ARE ONE ARRAY NOW, and that is the real gain.** The board's oldest
+  invariant — a figure is `rows.length` of what its click opens — used to be a promise TWO files
+  kept separately, each deriving its own rows from its own `useGuardQueues` call. The dashboard
+  reads once, derives `pendingOutOf` / `pendingReturnsOf` once, and hands the panel the very array
+  it counted. It is structural rather than agreed.
+- **THE FIGURES BECAME BUTTONS**, `aria-pressed`, wearing `.gb-figure-button` — the class the
+  super admin's board already had for exactly this ("the guard's figures are links; these are
+  buttons, because the admin's lists open in place"). Pressing the open figure closes the list;
+  pressing the other figure of the same card swaps it rather than opening a second one; the RGP
+  and NRGP figures each open the list on their OWN tab, so the drill lands on the rows behind the
+  number. The list is brought into view with `useScrollIntoViewOnChange`, as on every other board.
+- **THE GLOBAL SEARCH MOVED UP TO THE BOARD, and is drawn exactly once.** It lived on the two list
+  pages and would have died with them. It never narrowed either list — `useGateSearch` looks a
+  pass number up over the WHOLE register through `lookup_pass` and a mobile number through an
+  unfiltered query — so one bar above the figures is what it always wanted to be. `GuardToolbar`'s
+  `search` prop is optional now; the drilled Pending OUT panel carries the tab strip alone.
+- **OPENING THE SCANNER STILL CLEARS THE SCREEN** (client, 2026-08-19), and now that means the
+  figures, the drilled list and the Quick Actions — a guard holding a slip up to a camera is not
+  reading a queue, and the answer appears under the viewfinder. A multi-pass mobile result stands
+  down the same things.
+- **`.gb-drill` IS THE ONE NEW CSS RULE**, and it is a margin: everything inside the panel is the
+  list chrome those pages already used. No new colour, so `themeAudit` stays absolute.
+- Pinned by a **REWRITTEN** `guardDashboard.test.tsx` (15 — the two link cases say in their own
+  comments what they used to hold), a **RENAMED AND REWRITTEN** `pendingOutDrill.test.tsx`
+  (16, was `pendingOutPage.test.tsx`) and `pendingReturnsDrill.test.tsx` (11, was
+  `pendingReturnsPage.test.tsx`), plus rewrites in `hodReviewGateFlow`, `itemLevelReturns`,
+  `sidebarOrder`, `approverTabsOnly` and `roleRoutes`. The reversal was watched failing first —
+  5 cases against the pre-change source — and two deliberate breaks of the new behaviour were
+  watched failing after (the toggle that never closes, 3 cases; the list drawn unconditionally).
+  `npm run check` is **2096 tests across 162 files**, green, and `npm run build` is green.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite, a typecheck and a production build only. The
+  drilled table sitting between the two summary cards and the Quick Actions row, at a gate
+  terminal's width, is exactly what only a real render proves.
+
+**Earlier (2026-08-22, forty-fourth pass): THE PRINTED SLIP HAS ITS SIGNATURE BOXES
 BACK — TICKED, NAMED AND DATED FROM THE DIGITAL APPROVAL; THE LADDER IS SECURITY HEAD → FINANCE
 HOD → **COO *or* CEO**, WITH THE CEO INHERITING THE LAST RUNG ON A CLOCK (migration `063`,
 APPLIED via psql); THE HOD CAN FORWARD A PASS TO THE VENDOR ON WHATSAPP THE MOMENT THEY RAISE IT;
@@ -3736,14 +3788,16 @@ Office**: material moves through the mall's service gate, HODs are department he
 
 `src/pages/` is grouped by who uses it: `HOD/` (Dashboard, RaisePass, MyPasses,
 MismatchReview, ExpiredReview), `Security/` (GateConsole — the **Search Pass** screen, no longer
-a sidebar tab — GateLookup, Verify, GuardDashboard — the figures-and-quick-actions board — and
-the two pages its figures drill into, PendingOutPage and PendingReturnsPage), `Shared/` also holding the two role-scoped return pages
+a sidebar tab — GateLookup, Verify, and GuardDashboard, which is the guard's ONE list screen: the
+greeting, the global search, the two drillable figures, the list a pressed figure opens in place
+and the quick actions. `PendingOutPage` and `PendingReturnsPage` are DELETED — their lists are
+`components/guard/PendingOutPanel` and `PendingReturnsPanel`), `Shared/` also holding the two role-scoped return pages
 (OverdueItemsPage, ReturnsDueTodayPage), `Admin/` (AdminPanel and its tabs, AdminDashboard, and the Reports tab — ReportsPage over ReportsHeader / ReportsFilterBar / ReportsKpiCards / ReportsTable, drawn to the client's report mock-up), `Shared/`
 (PassDetail, PassPrint, Profile). `src/components/passview/` is the Gate Pass Details record — the ONE record format, drawn to the client's mock-up and carrying the approval ladder and the line-by-line return entry,
 rendered both by Search Pass and by `/pass/:id`; `src/components/overdue/` is Overdue Items and `src/components/returns/` is the
 line-level returns table, each one component serving all three roles;
-`src/components/guard/` is the guard's three screens — the two summary cards, the quick actions,
-the two list tables and the chrome the list pages share (header, toolbar, filter bar, pager,
-`useGuardSearch`, `ApproveOutAction`); `src/components/PassStackCard.tsx` + `PassStack.tsx` are THE stacked pass card, drawn the guard's way for every role and linking to `/pass/:id` (the HOD/admin drills and My Passes render it; `DrillPassCard`, `MyPassCard`, `PassRowBody` and `PassItemLines` are deleted); `src/components/hod/` is the HOD's dashboard — the four drillable figures, the two Raise tiles and the Approval Pending strip, drawn to the client's mock-up in the `.gb-*` skin; `src/components/admin/` is the ADMIN's dashboard — the Overview mock-up's five figures, the Gate Pass Trend and the Passes by Status ring, over `src/lib/adminOverview.ts` (`src/components/board/`, `src/components/charts/` and `GateBoard` are DELETED). `src/lib/` holds the
+`src/components/guard/` is the guard's one screen — the two summary cards, the quick actions, the
+two drilled list panels (`PendingOutPanel` / `PendingReturnsPanel`) and the chrome they share
+(toolbar, filter bars, pager, `useGuardSearch`, `ApproveOutAction`); `src/components/PassStackCard.tsx` + `PassStack.tsx` are THE stacked pass card, drawn the guard's way for every role and linking to `/pass/:id` (the HOD/admin drills and My Passes render it; `DrillPassCard`, `MyPassCard`, `PassRowBody` and `PassItemLines` are deleted); `src/components/hod/` is the HOD's dashboard — the four drillable figures, the two Raise tiles and the Approval Pending strip, drawn to the client's mock-up in the `.gb-*` skin; `src/components/admin/` is the ADMIN's dashboard — the Overview mock-up's five figures, the Gate Pass Trend and the Passes by Status ring, over `src/lib/adminOverview.ts` (`src/components/board/`, `src/components/charts/` and `GateBoard` are DELETED). `src/lib/` holds the
 lookup maps, derivations and formatters; `supabase/migrations/` runs `001` → `043`, with
 `005` an **optional demo seed** to skip in a real deployment.

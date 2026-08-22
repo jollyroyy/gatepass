@@ -6,17 +6,19 @@
 //     return figure counts due-today and overdue material only — NOT everything
 //     still outside, because /returns and /overdue are the only two pages that
 //     can record a return and neither would take an October date today.
-//   * EVERY FIGURE IS A LINK to the page that lists exactly the passes it
-//     counted. The client asked for the number to be the way in; a figure that
-//     cannot be opened is a figure that cannot be acted on.
-//   * The two preview tables are GONE from this screen — they are pages now.
-//     A five-row preview above a page holding the same rows is a second,
+//   * EVERY FIGURE DRILLS, AND IT DRILLS IN PLACE. Until 2026-08-22 each was a
+//     `<Link>` to a page of its own; the client removed both pages and both
+//     sidebar tabs, so a figure now opens the very rows it counted directly
+//     underneath and closes them when it is pressed again.
+//   * NOTHING IS LISTED UNTIL A FIGURE IS PRESSED. The two five-row previews
+//     that used to sit under the cards were deleted on 2026-08-19 and have not
+//     come back: a preview above a list holding the same rows is a second,
 //     shorter answer to the same question.
 //   * Nothing from the old seven-drill board survives — no KPI drill, no pass
 //     cards, no "Today's Summary".
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ALL_LINKS } from '../../src/components/layout/Sidebar';
 import { ROLE_ROUTES } from '../../src/lib/roleRoutes';
@@ -156,7 +158,7 @@ vi.mock('../../src/supabaseClient', () => ({
 
 import GuardDashboard from '../../src/pages/Security/GuardDashboard';
 
-/** The figure inside a summary card — the link the client asked to be
+/** The figure inside a summary card — the control the client asked to be
  *  clickable. `label` is 'RGP' / 'NRGP' / 'Due back'. */
 function figure(label: string): HTMLElement {
   return screen.getByTestId(`guard-figure-${label}`).querySelector('.gb-figure-value') as HTMLElement;
@@ -192,10 +194,34 @@ describe('Pending OUT (Needs Approval)', () => {
     expect(figure('NRGP').textContent).toBe('2');
   });
 
-  it('opens the Pending OUT page on the type the figure counted', async () => {
+  // REWRITTEN 2026-08-22. It used to hold that the two figures were links to
+  // `/pending-out?type=RGP` and `?type=NRGP`. That page and its sidebar tab are
+  // gone — the list opens here, on the type the pressed figure counted.
+  it('opens the list it counted, on that type, right here', async () => {
     await renderBoard();
-    expect(figure('RGP')).toHaveAttribute('href', '/pending-out?type=RGP');
-    expect(figure('NRGP')).toHaveAttribute('href', '/pending-out?type=NRGP');
+    fireEvent.click(figure('RGP'));
+
+    expect(figure('RGP')).toHaveAttribute('aria-pressed', 'true');
+    const list = screen.getByRole('region', { name: 'Pending OUT (Needs Approval)' });
+    expect(within(list).getByRole('tab', { name: 'RGP (1)' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(list).getByText('RGP-20260819-0057')).toBeInTheDocument();
+    expect(within(list).queryByText('NRGP-20260819-0081')).not.toBeInTheDocument();
+
+    // The other figure of the same card swaps the list over rather than
+    // opening a second one.
+    fireEvent.click(figure('NRGP'));
+    expect(screen.getAllByRole('region', { name: 'Pending OUT (Needs Approval)' })).toHaveLength(1);
+    expect(screen.getByRole('tab', { name: 'NRGP (2)' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('closes the list when the open figure is pressed again', async () => {
+    await renderBoard();
+    fireEvent.click(figure('RGP'));
+    expect(screen.getByRole('region', { name: 'Pending OUT (Needs Approval)' })).toBeInTheDocument();
+
+    fireEvent.click(figure('RGP'));
+    expect(screen.queryByRole('region', { name: 'Pending OUT (Needs Approval)' })).not.toBeInTheDocument();
+    expect(figure('RGP')).toHaveAttribute('aria-pressed', 'false');
   });
 });
 
@@ -206,18 +232,27 @@ describe('Pending RGP Return (Needs Verification)', () => {
     expect(figure('Due back').textContent).toBe('2');
   });
 
-  it('opens the Pending RGP Return page', async () => {
+  // REWRITTEN 2026-08-22: this used to be a link to `/pending-returns`.
+  it('opens the return queue here, and only what it counted is in it', async () => {
     await renderBoard();
-    expect(figure('Due back')).toHaveAttribute('href', '/pending-returns');
+    fireEvent.click(figure('Due back'));
+
+    const list = screen.getByRole('region', { name: 'Pending RGP Return (Needs Verification)' });
+    expect(within(list).getByText('RGP-20260518-0056')).toBeInTheDocument();
+    expect(within(list).getByText('RGP-20260517-0055')).toBeInTheDocument();
+    // Due in October: counted by no figure, so listed under none either.
+    expect(within(list).queryByText('RGP-20261001-0099')).not.toBeInTheDocument();
+    // And the Pending OUT card's own list is not opened alongside it.
+    expect(screen.queryByRole('region', { name: 'Pending OUT (Needs Approval)' })).not.toBeInTheDocument();
   });
 });
 
-describe('The two lists are pages now, not previews', () => {
+describe('Nothing is listed until a figure is pressed', () => {
   // Client, 2026-08-19: "remove those pending out and all those return
   // verifications from the guard's view... put the card numbers drillable".
-  // A preview above a page holding the same rows is a second, shorter answer
+  // A preview above the list holding the same rows is a second, shorter answer
   // to the same question — which is how the two start disagreeing.
-  it('renders no pass rows, no table and no View All control', async () => {
+  it('renders no pass rows, no table and no View All control until then', async () => {
     await renderBoard();
     expect(document.querySelector('table')).toBeNull();
     expect(screen.queryByText('RGP-20260819-0057')).not.toBeInTheDocument();
@@ -225,10 +260,20 @@ describe('The two lists are pages now, not previews', () => {
     expect(screen.queryByText(/View All/i)).not.toBeInTheDocument();
   });
 
-  it('offers neither Approve OUT nor Record Return here — those live on the pages', async () => {
+  it('offers neither Approve OUT nor Record Return until then', async () => {
     await renderBoard();
     expect(screen.queryByRole('link', { name: /Approve OUT/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Record Return/i })).not.toBeInTheDocument();
+  });
+
+  // The one search a guard has, since neither list is a page with a bar of its
+  // own any more. It is not a filter over either list — `useGateSearch` looks a
+  // pass number up over the whole register — so it is drawn ONCE, for the whole
+  // board, above the figures.
+  it('carries the global search and Scan QR, exactly once', async () => {
+    await renderBoard();
+    expect(screen.getAllByLabelText(/Search any pass/i)).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /Scan QR/i })).toHaveLength(1);
   });
 });
 
@@ -285,13 +330,19 @@ describe('The old drill board is gone, not hidden', () => {
     expect(document.querySelector('[data-testid="pass-card-header"]')).toBeNull();
   });
 
-  it('gives the guard the two drill pages as tabs, and no Search Pass tab', () => {
+  // REWRITTEN 2026-08-22. It used to hold that the guard's tabs were
+  // Dashboard · Pending OUT · Pending RGP Return · Overdue Items. The client
+  // took both list tabs away, and the routes with them: the two lists open on
+  // this board when their figure is pressed, and nowhere else.
+  it('gives the guard a Dashboard and Overdue Items, and no list tab or route', () => {
     const guardTabs = ALL_LINKS.filter((l) => l.roles.includes('guard'));
-    expect(guardTabs.map((l) => l.to)).toEqual(
-      ['/guard-dashboard', '/pending-out', '/pending-returns', '/overdue'],
-    );
-    // The route survives — Verify redirects onto it and the Scan QR tile opens
-    // it — but it is not a tab any more.
+    expect(guardTabs.map((l) => l.to)).toEqual(['/guard-dashboard', '/overdue']);
+    for (const gone of ['/pending-out', '/pending-returns']) {
+      expect(guardTabs.map((l) => l.to)).not.toContain(gone);
+      expect(ROLE_ROUTES.guard).not.toContain(gone);
+    }
+    // The Search Pass route survives — Verify redirects onto it and the Scan QR
+    // tile opens it — but it is not a tab.
     expect(guardTabs.map((l) => l.to)).not.toContain('/console');
     expect(ROLE_ROUTES.guard).toContain('/console');
   });

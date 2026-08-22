@@ -1,5 +1,10 @@
-// Pending RGP Return (Needs Verification) — the return queue as a page of its
-// own (client mock-up, 2026-08-19), opened by the dashboard's figure.
+// Pending RGP Return (Needs Verification) - the return queue, drilled open ON
+// THE GUARD'S DASHBOARD by the figure that counts it (client, 2026-08-22).
+//
+// REWRITTEN 2026-08-22. It used to render this list as a PAGE of its own at
+// `/pending-returns`, reached from a sidebar tab and from a `<Link>` figure;
+// the client removed the route and the tab, so the list opens in place on the
+// board and closes when its figure is pressed again.
 //
 // What these cases exist to hold:
 //   * It lists what is DUE TODAY or ALREADY LATE, and deliberately not every
@@ -11,11 +16,12 @@
 //     colour alone.
 //   * Each row opens its own material lines IN PLACE on the chevron, which is
 //     where a return is recorded line by line and quantity by quantity, while
-//     the Action button beside it opens the pass's full record — the client's
+//     the Action button beside it opens the pass's full record - the client's
 //     two doors onto the same pass (2026-08-19).
-//   * The page carries NO status tab strip and NO search bar (client,
-//     2026-08-19). Both were removed the same day; these cases are what stops
-//     either coming back by accident.
+//   * The list carries NO status tab strip and NO search bar of its own
+//     (client, 2026-08-19). Both were removed the same day; these cases are
+//     what stops either coming back by accident. The board's ONE global search
+//     sits above the figures and belongs to the whole screen.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -92,17 +98,30 @@ vi.mock('../../src/supabaseClient', () => ({
   },
 }));
 
-import PendingReturnsPage from '../../src/pages/Security/PendingReturnsPage';
+import GuardDashboard from '../../src/pages/Security/GuardDashboard';
 
-async function renderPage() {
+/** The drillable figure inside a summary card. The return card's is unlabelled
+ *  on the mock-up, so its test id is 'Due back'. */
+function figure(label = 'Due back'): HTMLElement {
+  return screen.getByTestId('guard-figure-' + label).querySelector('.gb-figure-value') as HTMLElement;
+}
+
+async function renderBoard() {
   render(
-    <MemoryRouter initialEntries={['/pending-returns']}>
+    <MemoryRouter initialEntries={['/guard-dashboard']}>
       <Routes>
-        <Route path="/pending-returns" element={<PendingReturnsPage />} />
+        <Route path="/guard-dashboard" element={<GuardDashboard />} />
         <Route path="/pass/:id" element={<div>RECORD PAGE</div>} />
       </Routes>
     </MemoryRouter>,
   );
+  await waitFor(() => expect(figure().textContent).not.toBe('-'));
+}
+
+/** Press the return figure and land on the list it opens. */
+async function renderPage() {
+  await renderBoard();
+  fireEvent.click(figure());
   await waitFor(() => expect(screen.getByText('RGP-00056')).toBeInTheDocument());
 }
 
@@ -171,17 +190,14 @@ describe('What is on the page', () => {
 
   it('says so plainly when nothing is due', async () => {
     OPEN_RETURNS = [];
-    render(
-      <MemoryRouter>
-        <PendingReturnsPage />
-      </MemoryRouter>,
-    );
+    await renderBoard();
+    fireEvent.click(figure());
     await waitFor(() =>
       expect(screen.getByText(/Nothing is due back today, and nothing is late/)).toBeInTheDocument());
   });
 });
 
-describe('The page carries neither tabs nor a search bar', () => {
+describe('The list carries neither tabs nor a search bar of its own', () => {
   // Client, 2026-08-19. The four status counts said in a strip what the Status
   // column and the filter bar already say per row, and the global search
   // belongs where a guard goes looking for a pass they cannot see — Pending OUT
@@ -194,10 +210,29 @@ describe('The page carries neither tabs nor a search bar', () => {
     }
   });
 
-  it('has no search bar and no Scan QR button', async () => {
+  // REWRITTEN 2026-08-22. It used to hold that this screen had no search bar
+  // at all, because Pending OUT was a different page and carried the only one.
+  // The two lists share one board now, so the search is drawn ONCE for the
+  // whole screen, above the figures - and never inside the list a figure opens.
+  it('draws the global search once, on the board, and none of its own', async () => {
     await renderPage();
-    expect(screen.queryByLabelText(/Search any pass/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Scan QR/ })).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText(/Search any pass/i)).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /Scan QR/ })).toHaveLength(1);
+    const list = screen.getByRole('region', { name: /Pending RGP Return/ });
+    expect(within(list).queryByLabelText(/Search any pass/i)).not.toBeInTheDocument();
+  });
+
+  it('draws no list at all until the figure is pressed, and closes it on a second press', async () => {
+    await renderBoard();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.queryByText('RGP-00056')).not.toBeInTheDocument();
+
+    fireEvent.click(figure());
+    await waitFor(() => expect(screen.getByText('RGP-00056')).toBeInTheDocument());
+    expect(figure()).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(figure());
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
   it('still narrows through the filter bar, which is what replaced them', async () => {

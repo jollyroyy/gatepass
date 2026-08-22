@@ -24,8 +24,6 @@ import HodReports from './pages/HOD/HodReports';
 import GateConsole from './pages/Security/GateConsole';
 import Verify from './pages/Security/Verify';
 import GuardDashboard from './pages/Security/GuardDashboard';
-import PendingOutPage from './pages/Security/PendingOutPage';
-import PendingReturnsPage from './pages/Security/PendingReturnsPage';
 import AdminPanel from './pages/Admin/AdminPanel';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import SuperAdminDashboard from './pages/Admin/SuperAdminDashboard';
@@ -266,8 +264,6 @@ export default function App(): React.ReactElement {
 
           {/* Security */}
           <Route path="/guard-dashboard" element={<GuardDashboard />} />
-          <Route path="/pending-out" element={<PendingOutPage />} />
-          <Route path="/pending-returns" element={<PendingReturnsPage />} />
           <Route path="/console" element={<GateConsole role={role} />} />
           <Route path="/verify/:id" element={<Verify />} />
 

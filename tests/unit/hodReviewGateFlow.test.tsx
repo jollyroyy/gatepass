@@ -11,13 +11,16 @@
 // Verify offers a working Approve for it, and the board lists it with the action
 // that clears it.
 //
-// THE QUEUE MOVED TWICE. Search Pass became search-only on 2026-08-18 and the
-// list became the guard dashboard's "Pending for Gate Approval" figure; on
-// 2026-08-19 (second pass) the dashboard's two preview tables were deleted in
-// favour of two drillable summary cards, and the list itself became its own
-// page, `/pending-out` (`PendingOutPage`). Its query is unchanged — still its
-// own read, deliberately not day-scoped — so that is where this test looks for
-// the approved pass, because it is the only list a guard picks one from.
+// THE QUEUE HAS MOVED THREE TIMES. Search Pass became search-only on
+// 2026-08-18 and the list became the guard dashboard's "Pending for Gate
+// Approval" figure; on 2026-08-19 the dashboard's two preview tables were
+// deleted in favour of two drillable summary cards and the list became its own
+// page, `/pending-out`; and on 2026-08-22 the client took that page and its
+// sidebar tab away again, so the list opens IN PLACE on the dashboard when the
+// figure that counts it is pressed. Its query is unchanged through all three -
+// still its own read, deliberately not day-scoped - so this is still where the
+// test looks for the approved pass, because it is the only list a guard picks
+// one from.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -89,6 +92,22 @@ vi.mock('../../src/supabaseClient', () => {
   };
 });
 
+/** The guard's board with the Pending OUT list drilled open, which is the only
+ *  way that list exists since 2026-08-22. The RGP figure opens it on the RGP
+ *  tab, which is what every pass in this spec is. */
+async function renderQueue() {
+  const GuardDashboard = (await import('../../src/pages/Security/GuardDashboard')).default;
+  render(
+    <MemoryRouter>
+      <GuardDashboard />
+    </MemoryRouter>
+  );
+  const figure = () =>
+    screen.getByTestId('guard-figure-RGP').querySelector('.gb-figure-value') as HTMLElement;
+  await waitFor(() => expect(figure().textContent).not.toBe('-'));
+  fireEvent.click(figure());
+}
+
 describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', () => {
   beforeEach(() => {
     verifyRow = null;
@@ -97,15 +116,10 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
     vi.clearAllMocks();
   });
 
-  describe('the gate queue, on Pending OUT', () => {
+  describe('the gate queue, drilled open on the dashboard', () => {
     it('includes hod_reviewed passes in the queue, not just pending', async () => {
       queueRows = [APPROVED];
-      const PendingOutPage = (await import('../../src/pages/Security/PendingOutPage')).default;
-      render(
-        <MemoryRouter>
-          <PendingOutPage />
-        </MemoryRouter>
-      );
+      await renderQueue();
 
       await waitFor(() => expect(screen.getByText('APPROVED-0001')).toBeInTheDocument());
       const statusIn = queueInCalls.find((c) => c.col === 'status');
@@ -158,22 +172,16 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
     });
   });
 
-  // The dashboard's two preview tables were REPLACED by two drillable summary
-  // cards on 2026-08-19 (second pass) — the RGP figure's number is now the
-  // only way into this list, and it opens `/pending-out`. The chain this whole
+  // The RGP figure's number is the only way into this list, and since
+  // 2026-08-22 it opens the list on the dashboard itself. The chain this whole
   // spec exists to protect is NOT broken by that move, and this case is what
-  // proves it: an HOD-approved pass sits in the page the dashboard's figure
-  // opens, carrying the action that clears it (renamed "Approve OUT"; the
-  // Verify screen still accepts it, asserted above).
-  describe('Pending OUT page', () => {
+  // proves it: an HOD-approved pass sits in the list the figure opens, carrying
+  // the action that clears it (renamed "Approve OUT"; the Verify screen still
+  // accepts it, asserted above).
+  describe('the Pending OUT list', () => {
     it('lists an HOD-approved pass with a working Approve OUT action', async () => {
       queueRows = [APPROVED, pass({ id: 'p2', pass_number: 'PEND-0001', status: 'pending' })];
-      const PendingOutPage = (await import('../../src/pages/Security/PendingOutPage')).default;
-      render(
-        <MemoryRouter>
-          <PendingOutPage />
-        </MemoryRouter>
-      );
+      await renderQueue();
 
       await waitFor(() => expect(screen.getByText('APPROVED-0001')).toBeInTheDocument());
 

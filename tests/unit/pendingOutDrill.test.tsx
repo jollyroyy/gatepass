@@ -1,20 +1,35 @@
-// Pending OUT (Needs Approval) — the gate queue as a page of its own, drawn to
-// the client's mock-up (2026-08-19).
+// Pending OUT (Needs Approval) - the gate queue, drilled open ON THE GUARD'S
+// DASHBOARD by the figure that counts it (client, 2026-08-22).
+//
+// REWRITTEN 2026-08-22, and the list itself is all that is left of what this
+// file used to hold. It used to render the same rows as a PAGE of its own at
+// `/pending-out`, reached from a sidebar tab and from a `<Link>` figure. The
+// client removed the route and the tab - "there is no need to keep a separate
+// tab ... that would only show when the KPI cards have been drilled down from
+// the guard's dashboard" - so every case below presses the figure first, and
+// the list it opens is `PendingOutPanel`, on the board.
 //
 // What these cases exist to hold:
-//   * The ACTION IS "APPROVE OUT" — the client's own word, replacing "Verify at
-//     Gate" — and it is drawn only while `match_pass` would still accept the
-//     pass (`canVerifyAtGate`). A pass that expired while the page sat open
+//   * THE FIGURE IS THE WAY IN, and the list it opens is the array it counted:
+//     one `useGuardQueues` read, `pendingOutOf` once, handed straight to the
+//     panel. Pressing the open figure again closes the list.
+//   * THE RGP AND NRGP FIGURES EACH OPEN THEIR OWN TAB, so the drill lands on
+//     the rows behind the number rather than on a list to be narrowed again.
+//   * The ACTION IS "APPROVE OUT" - the client's own word, replacing "Verify at
+//     Gate" - and it is drawn only while `match_pass` would still accept the
+//     pass (`canVerifyAtGate`). A pass that expired while the board sat open
 //     degrades to a link that works instead of a button that always fails.
 //   * The tab counts, the filter options and the rows are three readings of ONE
 //     loaded array, so a count can never disagree with the list under it.
 //   * A row opens its own material lines in place, loaded on demand.
-//   * THE SEARCH IS GLOBAL. It is not a filter over these rows: a pass number
-//     goes through `lookup_pass` over the whole register, and a mobile number
-//     through an unfiltered query. Both reach passes that are not in the queue.
-//   * OPENING THE SCANNER CLEARS THE PAGE (client, 2026-08-19): the tab strip,
-//     the filter bar and the table all go, because whatever the scan resolves
-//     to appears under the viewfinder and the list would only push it away.
+//   * THE SEARCH IS GLOBAL, and it now sits on the dashboard rather than on a
+//     page: a pass number goes through `lookup_pass` over the whole register,
+//     and a mobile number through an unfiltered query. Both reach passes that
+//     are not in the queue.
+//   * OPENING THE SCANNER CLEARS THE BOARD (client, 2026-08-19): the figures,
+//     the drilled list and the quick actions all go, because whatever the scan
+//     resolves to appears under the viewfinder and the rest would only push it
+//     away.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -115,20 +130,41 @@ vi.mock('../../src/supabaseClient', () => ({
   },
 }));
 
-import PendingOutPage from '../../src/pages/Security/PendingOutPage';
+import GuardDashboard from '../../src/pages/Security/GuardDashboard';
+
+/** The drillable figure inside a summary card. */
+function figure(label: string): HTMLElement {
+  return screen.getByTestId('guard-figure-' + label).querySelector('.gb-figure-value') as HTMLElement;
+}
 
 /** Rendered inside a router that also serves `/pass/:id`, because a resolved
  *  search NAVIGATES to the record rather than drawing it in this screen's
  *  fixed-light skin. */
-async function renderPage(entry = '/pending-out') {
+async function renderBoard() {
   render(
-    <MemoryRouter initialEntries={[entry]}>
+    <MemoryRouter initialEntries={['/guard-dashboard']}>
       <Routes>
-        <Route path="/pending-out" element={<PendingOutPage />} />
+        <Route path="/guard-dashboard" element={<GuardDashboard />} />
         <Route path="/pass/:id" element={<div>RECORD PAGE</div>} />
       </Routes>
     </MemoryRouter>,
   );
+  await waitFor(() => expect(figure('RGP').textContent).not.toBe('-'));
+}
+
+/** Press a Pending OUT figure and land on the list it opens. `tab` is which
+ *  type tab to read the list under - the RGP figure opens on RGP, and most of
+ *  these cases are about the whole queue. */
+async function renderDrill(press: 'RGP' | 'NRGP' = 'RGP', tab: string | null = 'All') {
+  await renderBoard();
+  fireEvent.click(figure(press));
+  if (tab && tab !== press) {
+    fireEvent.click(screen.getByRole('tab', { name: new RegExp('^' + tab + ' ') }));
+  }
+}
+
+async function renderPage() {
+  await renderDrill();
   await waitFor(() => expect(screen.getByText('RGP-00057')).toBeInTheDocument());
 }
 
@@ -187,17 +223,33 @@ describe('The type tabs and the filters', () => {
     expect(screen.getByRole('tab', { name: 'NRGP (2)' })).toBeInTheDocument();
   });
 
-  it('opens already narrowed when the dashboard figure said which type it counted', async () => {
-    render(
-      <MemoryRouter initialEntries={['/pending-out?type=NRGP']}>
-        <Routes>
-          <Route path="/pending-out" element={<PendingOutPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+  // REWRITTEN 2026-08-22: this used to open `/pending-out?type=NRGP` as a URL,
+  // because the figure was a link to a page. The figure opens the list in place
+  // now, and the type it counted is what the list opens on.
+  it('opens already narrowed to the type the pressed figure counted', async () => {
+    await renderDrill('NRGP', null);
     await waitFor(() => expect(screen.getByText('NRGP-00081')).toBeInTheDocument());
     expect(screen.queryByText('RGP-00057')).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'NRGP (2)' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('opens the RGP figure on the RGP tab, and closes the list when it is pressed again', async () => {
+    await renderDrill('RGP', null);
+    await waitFor(() => expect(screen.getByText('RGP-00057')).toBeInTheDocument());
+    expect(screen.queryByText('NRGP-00081')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'RGP (1)' })).toHaveAttribute('aria-selected', 'true');
+    expect(figure('RGP')).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(figure('RGP'));
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(figure('RGP')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('draws no list at all until a figure is pressed', async () => {
+    await renderBoard();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tablist', { name: 'Pass type' })).not.toBeInTheDocument();
+    expect(screen.queryByText('RGP-00057')).not.toBeInTheDocument();
   });
 
   it('narrows by department and puts it all back on Reset', async () => {
@@ -291,19 +343,15 @@ describe('The pager', () => {
     QUEUE = Array.from({ length: 12 }, (_, i) =>
       pass({ id: `q${i}`, pass_number: `RGP-000${String(i).padStart(2, '0')}`,
              created_at: `2026-08-19T0${i % 10}:00:00Z` }));
-    render(
-      <MemoryRouter>
-        <PendingOutPage />
-      </MemoryRouter>,
-    );
+    await renderDrill();
     await waitFor(() => expect(screen.getByText(/Showing 1 to 10 of 12 entries/)).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: '2' }));
     expect(screen.getByText(/Showing 11 to 12 of 12 entries/)).toBeInTheDocument();
   });
 });
 
-describe('Opening the scanner clears the page', () => {
-  it('drops the tab strip, the filter bar and the table while the viewfinder is up', async () => {
+describe('Opening the scanner clears the board', () => {
+  it('drops the figures, the drilled list and the filter bar while the viewfinder is up', async () => {
     await renderPage();
     // Present before the press.
     expect(screen.getByRole('tablist', { name: 'Pass type' })).toBeInTheDocument();

@@ -46,11 +46,13 @@ describe('sidebar order', () => {
     ]);
   });
 
-  it('gives the guard Pending OUT and Pending RGP Return in place of Search Pass', () => {
-    // Client, 2026-08-19: the dashboard's two figures now drill into their own
-    // pages, so Search Pass left the sidebar — the search itself moved to the
-    // top right of those two pages, not away from the guard.
-    expect(labels('guard')).toEqual(['Dashboard', 'Pending OUT', 'Pending RGP Return', 'Overdue Items']);
+  // REWRITTEN 2026-08-22. It used to hold that the guard's tabs were
+  // Dashboard · Pending OUT · Pending RGP Return · Overdue Items. The client
+  // took both list tabs away — the two lists open on the dashboard itself when
+  // their KPI figure is pressed — so a guard has two tabs and the search sits
+  // on the board beside Scan QR.
+  it('gives the guard a Dashboard and Overdue Items, and no list tab of any kind', () => {
+    expect(labels('guard')).toEqual(['Dashboard', 'Overdue Items']);
   });
 
   it('gives the HOD Dashboard, My Passes, Overdue Items and Reports — no Raise tab', () => {

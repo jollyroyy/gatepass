@@ -69,7 +69,7 @@ describe('an office holder`s sidebar is two tabs and nothing else', () => {
 
   it('a guard who holds an office keeps NO gate tab — not the returns, not the queue', () => {
     const shown = tabs('guard', true);
-    for (const gone of ['Dashboard', 'Pending OUT', 'Pending RGP Return', 'Overdue Items']) {
+    for (const gone of ['Dashboard', 'Overdue Items']) {
       expect(shown, gone).not.toContain(gone);
     }
   });
@@ -83,8 +83,11 @@ describe('an office holder`s sidebar is two tabs and nothing else', () => {
 
   it('a guard who holds NO office is untouched', () => {
     const shown = tabs('guard', false);
-    expect(shown).toContain('Pending OUT');
-    expect(shown).toContain('Pending RGP Return');
+    // The two queues are not tabs any more (client, 2026-08-22) — they open on
+    // the dashboard when their figure is pressed — so the gate tab a guard
+    // still has is the one that survived.
+    expect(shown).toContain('Dashboard');
+    expect(shown).toContain('Overdue Items');
     expect(shown).not.toContain('Pending for My Approval');
   });
 

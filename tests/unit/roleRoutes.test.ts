@@ -210,7 +210,7 @@ describe('an approval office REPLACES the role`s access', () => {
     // The client's own flag: migration 043 lets the Security Head be a guard
     // account, and until 2026-08-22 that person could clear material at the
     // barrier on the very passes they sign.
-    for (const path of ['/guard-dashboard', '/pending-out', '/pending-returns', '/overdue', '/console', '/returns', '/verify']) {
+    for (const path of ['/guard-dashboard', '/overdue', '/console', '/returns', '/verify']) {
       expect(isForbidden(path, 'guard', true), path).toBe(true);
     }
     expect(isForbidden('/approvals', 'guard', true)).toBe(false);

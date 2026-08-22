@@ -25,8 +25,10 @@ type Props = {
     active: string;
     onSelect: (key: string) => void;
   };
-  /** The search bar element from `useGuardSearch`. */
-  search: React.ReactElement;
+  /** The search bar element from `useGuardSearch`. OPTIONAL since 2026-08-22:
+   *  the guard's search is drawn ONCE, by the dashboard, above everything —
+   *  the drilled Pending OUT panel below it carries the tab strip alone. */
+  search?: React.ReactElement;
 };
 
 export default function GuardToolbar({ tabs, search }: Props): React.ReactElement {
@@ -50,7 +52,7 @@ export default function GuardToolbar({ tabs, search }: Props): React.ReactElemen
       ) : (
         <span />
       )}
-      {search}
+      {search ?? null}
     </div>
   );
 }
