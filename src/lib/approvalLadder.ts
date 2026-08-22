@@ -52,7 +52,7 @@
 // a vacant office still reads `unset` / "Not designated yet", because for them
 // the fix is a designation, not a truck waiting at the gate.
 import type { GatePassView, UserRole } from '../types';
-import { formatDateOnly } from './formatDate';
+import { gateStep, returnStep, type ApprovalStep } from './passLadderLegs';
 import {
   APPROVAL_NOTE,
   APPROVAL_STATE,
@@ -144,103 +144,13 @@ export function delegatedLine(
   return `${title} (${who} — delegated by ${from})`;
 }
 
-/**
- * `done`    — it happened, or the office is held and signs on the slip.
- * `pending` — it has not happened yet and nothing is wrong.
- * `blocked` — it went wrong, or a deadline has passed. Printed in the flagged
- *             hue, the way the mock-up prints its missed return date in red.
- * `unset`   — nobody holds this office. Distinct from `pending` on purpose: the
- *             fix is an admin designating somebody, not waiting.
- */
-export type ApprovalStepState = 'done' | 'pending' | 'blocked' | 'unset';
-
-// Re-exported so a reader of the ladder does not have to know it lives next
-// door: `passApprovalState.ts` exists for the file-size cap, not as a boundary.
+// Re-exported so a reader of the ladder does not have to know either lives next
+// door: both files exist for the file-size cap, not as boundaries.
 export type { PassApprovalRow } from './passApprovalState';
-
-export interface ApprovalStep {
-  /** Stable identity for tests and React keys — never the label, which is
-   *  wording and changes. */
-  key: string;
-  label: string;
-  /** The office and its holder, or the person who acted. */
-  who: string | null;
-  /** The line under the name — a department, usually. */
-  detail: string | null;
-  /** ISO timestamp, or null when this system records no moment for the step. */
-  at: string | null;
-  state: ApprovalStepState;
-  /** A sentence the step needs and the label cannot carry. */
-  note?: string;
-}
+export type { ApprovalStep, ApprovalStepState } from './passLadderLegs';
 
 function byKey(roles: ApprovalRoleRow[]): Map<ApprovalRoleKey, ApprovalRoleRow> {
   return new Map(roles.map((r) => [r.role_key, r]));
-}
-
-/** The gate step: what happened when the material reached the barrier. Three
- *  outcomes, all of them normal — `match_pass`, `flag_pass` and neither yet. */
-function gateStep(pass: GatePassView): ApprovalStep {
-  if (pass.status === 'matched' && pass.verified_at) {
-    return {
-      key: 'gate',
-      label: 'Cleared by Security',
-      who: pass.verified_by_name ?? 'Security',
-      detail: 'Security Verification',
-      at: pass.verified_at,
-      state: 'done',
-    };
-  }
-  if (pass.status === 'flagged') {
-    return {
-      key: 'gate',
-      label: 'Rejected at the security gate',
-      who: pass.verified_by_name ?? 'Security',
-      detail: 'Security Verification',
-      at: pass.verified_at,
-      state: 'blocked',
-      note: pass.flag_reason ?? undefined,
-    };
-  }
-  return {
-    key: 'gate',
-    label: 'Security Verification',
-    who: null,
-    detail: 'Pending at the gate',
-    at: null,
-    state: 'pending',
-  };
-}
-
-/** The return leg — RGP only. An NRGP is finished the moment the gate cleared
- *  it, and a "To Be Returned" row on a pass that is never coming back would be
- *  a deadline nobody can meet. */
-function returnStep(pass: GatePassView): ApprovalStep | null {
-  if (pass.type !== 'RGP') return null;
-
-  if (pass.return_status === 'returned') {
-    return {
-      key: 'return',
-      label: 'Returned',
-      who: null,
-      detail: 'Material back in full',
-      at: pass.actual_return_date,
-      state: 'done',
-    };
-  }
-  return {
-    key: 'return',
-    label: 'To Be Returned',
-    who: null,
-    detail: pass.return_status === 'partially_returned' ? 'Partially returned' : null,
-    at: null,
-    // The mock-up prints the missed deadline in red; `is_overdue` is the view's
-    // own grading and is never recomputed here.
-    state: pass.is_overdue ? 'blocked' : 'pending',
-    note: pass.expected_return_date
-      ? `Before ${formatDateOnly(pass.expected_return_date)}`
-      : 'No return date recorded',
-  };
 }
 
 /**

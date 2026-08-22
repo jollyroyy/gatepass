@@ -166,6 +166,12 @@ IN THE BRACKET, ON EVERY RUNG.** The Edge Function is REDEPLOYED (four assets up
   must not re-credit the holder the day after the window closed) while **`delegation_id` is how
   the delegator's NAME is resolved at read time** — a name is a lookup, not history, the same
   split 051 and 046 make. A grandfathered rung still outranks it and names nobody.
+- **`approvalLadder.ts` WAS ALREADY OVER THE 300-LINE CAP (340) BEFORE THIS PASS, and this
+  pass paid it down rather than growing it further**: the gate step, the return step and the
+  `ApprovalStep` shape moved to `src/lib/passLadderLegs.ts` (288 lines left behind). The seam is a
+  real one — what is left is about WHO SIGNS, while those two steps are about what happened to the
+  MATERIAL and read no `approval_roles` or `pass_approvals` at all. Both types are re-exported, so
+  no caller moved.
 - Pinned by `tests/unit/approvalDelegation.test.ts` (21), `tests/unit/delegationPage.test.tsx`
   (12), 8 new `approvalNotice` cases, 6 new `approvalLadder` cases and **18 new `sqlInvariants`
   cases**. Four deliberate breaks of the migration were **watched failing** first — the missing
