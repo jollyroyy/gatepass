@@ -19,7 +19,13 @@ import type { UserRole } from '../types/index';
 // defence in depth: `list_whitelist_requests` shows a COO nothing, and
 // `approve_whitelist_request` refuses anyone but the CEO. The link into it is
 // drawn for the CEO alone.
-export const APPROVER_ROUTES: string[] = ['/approvals', '/whitelist', '/pass', '/profile'];
+// `/delegation` is the office holder's OWN screen (062; client, 2026-08-22):
+// they hand their office to a stand-in for a stated period and revoke it
+// themselves. It is listed for every office because every office may delegate,
+// and — as with `/whitelist` — the route is UX defence in depth: the page shows
+// a deputy or a delegate no form at all, because `create_approval_delegation`
+// admits only somebody who HOLDS an office.
+export const APPROVER_ROUTES: string[] = ['/approvals', '/delegation', '/whitelist', '/pass', '/profile'];
 
 /** Where an office holder with no other role in this app lands. */
 export const APPROVER_HOME = '/approvals';

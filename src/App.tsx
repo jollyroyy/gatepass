@@ -38,6 +38,7 @@ import ProfilePage from './pages/Shared/Profile';
 import OverdueItemsPage from './pages/Shared/OverdueItemsPage';
 import WhitelistApprovals from './pages/Approver/WhitelistApprovals';
 import PendingApprovals from './pages/Approver/PendingApprovals';
+import ApprovalDelegation from './pages/Approver/ApprovalDelegation';
 import ReturnsDueTodayPage from './pages/Shared/ReturnsDueTodayPage';
 
 /**
@@ -296,6 +297,9 @@ export default function App(): React.ReactElement {
           {/* The four approval offices (046). One screen, and it is the whole
               of what an office holder does here. */}
           <Route path="/approvals" element={<PendingApprovals office={office} />} />
+          {/* Delegating that office to a stand-in for a stated period (062).
+              The approver's own act — no admin is involved at any point. */}
+          <Route path="/delegation" element={<ApprovalDelegation office={office} />} />
           {/* The CEO office also decides whitelist requests (053). Any office
               holder may open it; only the CEO sees anything in it. */}
           <Route path="/whitelist" element={<WhitelistApprovals />} />

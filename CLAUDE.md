@@ -37,10 +37,10 @@ followed without `--build`, so it type-checks **zero files** and always exits 0.
 is the artifact a human pastes; a migration edited but not re-concatenated never reaches the
 database. `tests/security/applyAllIntegrity.test.ts` is the backstop.
 
-## Current state — 2026-08-21
+## Current state — 2026-08-22
 
-Full gate: **1950 tests across 153 files** (`npm run check`), green — and **`npm run build` is
-green again**, which it had not been since the raise-form CSS landed (see the twelfth pass).
+Full gate: **2051 tests across 159 files** (`npm run check`), green, and **`npm run build` is
+green**.
 Migrations **`001`–`047` and `049`–`051` are applied to the live DB.** `044` was found UNAPPLIED on
 2026-08-19 — the overdue card's Contact Vendor and Add Remark had shipped against RPCs that did
 not exist — and was applied then, immediately before `046`. `039`, `040`, `041` and `043` were
@@ -65,6 +65,15 @@ their turn) ARE BOTH APPLIED**, and **`061` IS PROBED 36/36 with real anon-key J
 passes were deleted, leaving 67 rows exactly as before). **`060`'s RLS half is NOT probed**: it
 was applied with psql as `postgres`, and no `scripts/verify-060.mjs` has driven a real admin JWT
 through request → HOD approval → deletion. That is now the next security action.
+**`062` (an approver delegates their own office for a stated period) IS APPLIED** (psql, every
+statement returned; `approval_delegations` is 0 rows, `pass_approvals` gained
+`decided_as_delegate` + `delegation_id`, RLS on with 0 policies). **ITS RLS AND SEAT HALVES ARE
+NOT PROBED** — psql connects as `postgres` and bypasses every policy, so no
+`scripts/verify-062.mjs` has driven real anon-key JWTs through create → the delegate seeing the
+queue → approving under the ceiling → revoke. That probe now sits beside `verify-060.mjs` at the
+front of the security queue. What WAS checked live as `postgres`: the objects exist, and the
+one-seat invariant holds on the real ladder (a query counting holder + deputy + live-delegate
+seats per person returned **no rows**, i.e. nobody occupies two).
 
 | Thing | State |
 |---|---|
@@ -76,7 +85,100 @@ through request → HOD approval → deletion. That is now the next security act
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-22, forty-first pass): NO NRGP IS EVER FILED UNDER "Partially
+**Latest change (2026-08-22, forty-second pass): AN APPROVER DELEGATES THEIR OWN OFFICE FOR A
+STATED PERIOD, FROM THEIR OWN TAB — migration `062`, APPLIED via psql; THE RAISING HOD IS TOLD
+BY EMAIL WHEN THE LAST OFFICE SIGNS; AND A DELEGATED SIGNATURE NAMES THE PERSON WHO DELEGATED IT,
+IN THE BRACKET, ON EVERY RUNG.** The Edge Function is REDEPLOYED (four assets uploaded).
+
+- **`/delegation` — "Approval Delegation", the client's mock-up** (2026-08-22), second tab for
+  every office holder: a status card over the one live-or-scheduled delegation, the create form,
+  and the history behind a button. `src/pages/Approver/ApprovalDelegation.tsx` over
+  `src/components/approver/Delegation{StatusCard,Form,HistoryTable}.tsx`, with
+  `src/lib/approvalDelegation.ts` (pure) and `useApprovalDelegations.ts` (the two reads).
+- **⚠ IT IS THE APPROVER'S OWN ACT, NOT THE ADMIN'S** (client: "instead of that put it in the
+  approvers section so whatever the approvers choose it should be automatically delegated").
+  Nobody approves a delegation — writing it IS the act — and `create_approval_delegation` is gated
+  on **HOLDING the office yourself**, deliberately not on `is_admin()` and deliberately not on
+  `my_approval_role()`, which is true for a deputy and for a delegate as well. **A stand-in may
+  not hand on what they are only covering**: a chain of stand-ins is a chain nobody can audit, and
+  every link would be another seat for one person to occupy. The admin's ladder card (holder +
+  standing deputy, 043/054) is untouched and is a different, longer-lived arrangement.
+- **THE HISTORY IS HIDDEN UNTIL IT IS ASKED FOR** (client: "don't show the history on the first
+  page but only when the user clicks on the top right corner, Delegation History"). A real toggle
+  with `aria-expanded`; the table renders under the form, not in a modal and not on a second route.
+- **THE GATE, THE SITE AND THE PASS-TYPE SCOPE ARE NOT ASKED FOR** (client: "just remove the gate
+  … no need to mention the type of delegation gate pass and all"). The mock's Approval Type,
+  Location / Site and Scope / Limit are gone from the form, from the status card and from the
+  history's columns. **They could not have been filled honestly in any case**: this app approves
+  one kind of document, and it has no gate entity and no site. Five fields survive — who, from
+  when, to when, up to what value, and why — and `delegationPage.test.tsx` bans all three by name
+  over the whole rendered page, because this is exactly what comes back next time somebody works
+  from the mock-up image rather than from what the client said about it.
+- **⚠ ONE PERSON, ONE SEAT — 049 AND 054's INVARIANT, EXTENDED A THIRD TIME, AND IT IS THE WHOLE
+  SECURITY OF THE MIGRATION.** `my_approval_role()` is a scalar over a query that now spans TWO
+  tables, and Postgres returns an ARBITRARY row rather than erroring. Four refusals keep it
+  single, and **all four are load-bearing together**: a delegate may not hold an office, may not
+  be a deputy, may not already be a delegate over an OVERLAPPING window — and `set_approval_role`
+  / `set_approval_deputy` are **restated a third time** to refuse anybody with a live-or-future
+  delegation. There is deliberately **no `limit 1`**: that would paper over a broken invariant by
+  picking a seat, which is precisely the failure 049 was written to stop.
+  - **⚠ TWO REAL REGRESSIONS WERE CAUGHT BY THE SUITE WHILE WRITING IT, both from restating
+    those two functions off 054 instead of off the latest version**: 059's "refuses a deactivated
+    account" guard and 058's `grandfathered` column on `get_pass_approvals` were both dropped and
+    both restored. **Restating a function means diffing against the LATEST definition, not the one
+    that introduced the line you are changing.**
+- **THE APPROVAL LIMIT IS REAL AND IS ENFORCED IN THE DATABASE.** `approve_pass_level` reads the
+  pass's own `sum(approx_value)` — never a figure sent by the caller — and refuses a delegate
+  whose ceiling it exceeds, naming both amounts. **NO CEILING ON A REJECTION**, deliberately: a
+  limit caps what somebody may COMMIT the business to, and refusing to let a stand-in STOP a pass
+  because it is worth too much points the rule exactly the wrong way (the same call 043 makes
+  about an expired pass at the gate). **AN UNPRICED PASS PASSES ANY CEILING** — `approx_value` is
+  optional, so "nothing declared" sums to 0, and refusing those would strand every legacy pass in
+  a delegate's queue with no sentence that explains why.
+- **THE HOLDER DOES NOT LOSE AUTHORITY while a delegation runs.** Both may sign and the first
+  press closes the rung: a holder who checks in from leave, or whose delegate is unreachable, must
+  not be locked out of their own office by a form they filled in last week. Revoking is instant,
+  is the only thing that ends it early, and is **the delegator's or an admin's — never the
+  delegate's**, who could otherwise hand an office back while its holder is away.
+- **FOUR STATUSES, WHERE THE MOCK DREW THREE.** `scheduled` is added because a delegation written
+  BEFORE the absence — the entire point of declaring one — is neither active nor expired until its
+  window opens, and calling it ACTIVE a week early is a screen lying about who can sign today. All
+  four are **derived server-side** (`gatepass.delegation_status`): three of them turn on `now()`,
+  and the clock that matters is the one the RPCs authorise against.
+- **THE HOD GETS ONE EMAIL, AND ONLY ONE** (client: "whenever any pass gets fully approved by all
+  the approvers, the hod should receive an email that your pass has been approved fully. Now it is
+  waiting … at the gate"). `fully_approved` in `approvalNotice.ts` — the exception to the
+  2026-08-19 rule that the raising HOD is never written to, and the one moment the ladder has news
+  they do not already have. It says **what happens next**, not just "approved": the pass is now
+  VISIBLE to the gate and the guard has still to verify and clear it. It carries **no Approve /
+  Reject link** — the HOD has nothing to decide, and a button the RPC would refuse teaches them to
+  distrust the ones that work. **`approvals.length > 0` is load-bearing**: a pass with no ladder
+  (pre-046, or closed by 058) also has nothing pending, and telling that HOD their pass "has been
+  approved by every office" would describe approvals nobody gave. `raised_by_email` was already in
+  `approval_notice_payload` since 047 — it had simply never been read.
+- **A DELEGATED SIGNATURE NAMES BOTH PEOPLE, IN THE BRACKET** (client: "if he is a delegated
+  person, in the bracket it should be mentioned that the person has this approver who was
+  delegated by the original approver and the approver's name") — `Security Head (Priya Mehta —
+  delegated by Sanjay Rao)`, with `Delegated Security Head — signed for Sanjay Rao` on the line
+  beneath. The bracket and not only the detail line, because `who` is what the merged timeline and
+  the record show at a glance, and that is exactly the question a stand-in's signature makes
+  ambiguous. **`decided_as_delegate` is STORED on the decision** (a delegation expires, and a rung
+  must not re-credit the holder the day after the window closed) while **`delegation_id` is how
+  the delegator's NAME is resolved at read time** — a name is a lookup, not history, the same
+  split 051 and 046 make. A grandfathered rung still outranks it and names nobody.
+- Pinned by `tests/unit/approvalDelegation.test.ts` (21), `tests/unit/delegationPage.test.tsx`
+  (12), 8 new `approvalNotice` cases, 6 new `approvalLadder` cases and **18 new `sqlInvariants`
+  cases**. Four deliberate breaks of the migration were **watched failing** first — the missing
+  deputy refusal, an `is_admin()` gate on creation, the ceiling leaking into the rejection path,
+  and the dropped `grandfathered` column. `npm run check` is 2051 tests across 159 files, green;
+  `npm run build` is green.
+- **NOT SEEN SIGNED-IN IN A BROWSER, AND NO REAL LETTER HAS BEEN OPENED SINCE THE REDEPLOY.** The
+  suite, a production build, the psql apply and two live `postgres` reads only. The three things
+  only a real run proves: the delegation screen rendering as an office holder, a delegate actually
+  seeing the queue (that is RLS, which psql cannot test — see `verify-062.mjs` in Current state),
+  and the fully-approved letter arriving in the override inbox.
+
+**Earlier (2026-08-22, forty-first pass): NO NRGP IS EVER FILED UNDER "Partially
 Returned" — A PASS THAT NEVER LEFT THE GATE IS PENDING, AND THE ROW NAMES THE DESK IT IS ON;
 AND THE PRINTED SLIP CARRIES THE DIGITAL APPROVAL TRAIL INSTEAD OF SEVEN EMPTY SIGNATURE
 BOXES.** Frontend only — no migration, no RPC change, no new query.

@@ -377,3 +377,89 @@ describe('buildApprovalNotices — the standing deputy (054)', () => {
     expect(out[0].to).toBe('ravi.menon@example.com');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE ONE RECEIPT THE RAISING HOD GETS (client, 2026-08-22: "whenever any pass
+// gets fully approved by all the approvers, the hod should receive an email
+// that your pass has been approved fully. Now it is waiting … at the gate").
+//
+// It is the exception to the 2026-08-19 rule that the HOD is never written to,
+// and the cases below hold BOTH halves: this letter goes out when the last rung
+// is signed, and nothing else about the HOD's silence changed.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('buildApprovalNotices — the fully approved receipt (2026-08-22)', () => {
+  const SIGNED = LADDER.map((a) => ({ ...a, status: 'approved' as const, decided_at: '2026-08-20T10:00:00.000Z' }));
+  const HOD = { ...PASS, raised_by_email: 'anita@example.com' };
+
+  it('writes to the raising HOD, and to NOBODY else, once every rung is approved', () => {
+    const msgs = buildApprovalNotices(HOD, SIGNED, BASE);
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].to).toBe('anita@example.com');
+    expect(msgs[0].kind).toBe('fully_approved');
+    // No office is asked for anything — there is nothing left to ask.
+    for (const a of SIGNED) {
+      expect(msgs[0].to).not.toBe(a.approver_email);
+    }
+  });
+
+  // "Approved" alone is how an HOD comes to believe their lorry has left. The
+  // pass is VISIBLE to the gate now; the guard has still to verify and clear it.
+  it('says what actually happens next, not just that it is approved', () => {
+    const [m] = buildApprovalNotices(HOD, SIGNED, BASE);
+    expect(m.subject).toMatch(/fully approved/i);
+    expect(m.subject).toMatch(/gate review/i);
+    expect(m.text).toMatch(/security gate/i);
+  });
+
+  // The HOD has nothing to decide, and a letter offering Approve to somebody
+  // the RPC would refuse teaches them to distrust the buttons that do work.
+  it('carries no Approve or Reject link', () => {
+    const [m] = buildApprovalNotices(HOD, SIGNED, BASE);
+    expect(m.text).not.toContain('?decide=approve');
+    expect(m.text).not.toContain('?decide=reject');
+    expect(m.html).not.toContain('?decide=');
+    expect(m.text).toContain(`${BASE}/pass/${PASS.id}`);
+  });
+
+  it('names the offices that signed it', () => {
+    const [m] = buildApprovalNotices(HOD, SIGNED, BASE);
+    expect(m.text).toMatch(/Security Head \(Demi\)|Security Head/);
+    expect(m.text).toMatch(/COO \(Vikram Singh\)/);
+  });
+
+  // ⚠ THE CASE THAT KEEPS THIS HONEST. A pass with NO ladder also has nothing
+  // pending — every pass raised before an office was designated, and every
+  // level 058 closed on rollout. Telling that HOD their pass "has now been
+  // approved by every office" would be describing approvals nobody gave.
+  it('stays silent on a pass that never had a ladder at all', () => {
+    expect(buildApprovalNotices(HOD, [], BASE)).toEqual([]);
+  });
+
+  it('stays silent while any rung is still pending', () => {
+    const half = SIGNED.map((a) => (a.level_no === 3 ? { ...a, status: 'pending' as const } : a));
+    const msgs = buildApprovalNotices(HOD, half, BASE);
+    expect(msgs.every((m) => m.kind !== 'fully_approved')).toBe(true);
+  });
+
+  // A rejection is terminal and closes the pass; the HOD learns of that in the
+  // app, which is the client's own 2026-08-19 instruction and is unchanged.
+  it('stays silent on a rejected ladder', () => {
+    const refused = SIGNED.map((a) => (a.level_no === 2 ? { ...a, status: 'rejected' as const } : a));
+    expect(buildApprovalNotices(HOD, refused, BASE)).toEqual([]);
+  });
+
+  it('drops the message rather than sending when VMS holds no address for the HOD', () => {
+    expect(buildApprovalNotices({ ...PASS, raised_by_email: null }, SIGNED, BASE)).toEqual([]);
+    expect(buildApprovalNotices(PASS, SIGNED, BASE)).toEqual([]);
+  });
+
+  // The HOD's silence at EVERY OTHER step is unchanged (client, 2026-08-19).
+  it('still writes nothing to the HOD while the ladder is climbing', () => {
+    const msgs = buildApprovalNotices(HOD, LADDER, BASE);
+    expect(msgs.length).toBeGreaterThan(0);
+    for (const m of msgs) {
+      expect(m.to).not.toBe('anita@example.com');
+      expect(m.kind).toBe('awaiting_you');
+    }
+  });
+});

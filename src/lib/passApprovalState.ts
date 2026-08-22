@@ -25,6 +25,20 @@ export interface PassApprovalRow {
    *  from today's ladder: both seats move, and re-pointing an office next month
    *  must not rewrite who signed this pass last month. */
   decided_as_deputy: boolean;
+  /** True when `decided_name` signed under a TIME-BOXED DELEGATION of that
+   *  office (migration 062) rather than as its holder or standing deputy.
+   *  Stored on the decision for the reason `decided_as_deputy` is: a delegation
+   *  expires, and a rung must not quietly re-credit the holder the day after
+   *  the window closed. OPTIONAL, and falsy is the safe reading — a fixture or
+   *  a row decided before 062 describes an ordinary decision. */
+  decided_as_delegate?: boolean;
+  /** Who delegated the office, resolved through `delegation_id` at read time
+   *  (client, 2026-08-22: the record must name "the approver who was delegated
+   *  by the original approver and the approver's name"). Null when this was not
+   *  a delegated decision — or when the name failed to resolve out of VMS, in
+   *  which case the rung still says it was signed under a delegation and simply
+   *  cannot say by whose. */
+  delegated_by_name?: string | null;
   /** True when this level was closed by the 058 ROLLOUT rather than by a person
    *  — the pass was raised before the approval workflow began, so no office was
    *  ever asked to sign it. `decided_name` is null on such a row BY DESIGN, and

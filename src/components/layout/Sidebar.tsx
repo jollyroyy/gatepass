@@ -32,6 +32,17 @@ export const APPROVER_LINK: NavLink = {
   icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75l2.25 2.25 4.5-4.5" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 3.75l7.5 3v5.25c0 4.06-3.1 7.44-7.5 8.25-4.4-.81-7.5-4.19-7.5-8.25V6.75l7.5-3z" /></svg>,
 };
 
+/** The second tab an approval office grants (062; client, 2026-08-22: "create a
+ *  Delegation Tab for all the approvers"). It sits under Pending Approvals for
+ *  the reason that one sits last: the queue is why an office holder opens the
+ *  app, and delegating is an errand they run before leave. Kept out of
+ *  ALL_LINKS for the same reason APPROVER_LINK is — `NavLink.roles` cannot
+ *  express a grant that does not come from `profiles.role`. */
+export const DELEGATION_LINK: NavLink = {
+  to: '/delegation', label: 'Delegation', roles: [],
+  icon: <svg {...ICON_PROPS}><circle cx="8" cy="8" r="3" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.75 19.5a5.25 5.25 0 0110.5 0" /><path strokeLinecap="round" strokeLinejoin="round" d="M14.5 9.75h6.75m0 0l-2.5-2.5m2.5 2.5l-2.5 2.5" /><circle cx="18" cy="17.5" r="2.5" /></svg>,
+};
+
 export const ALL_LINKS: NavLink[] = [
   {
     to: '/dashboard', label: 'Dashboard', roles: ['hod'],
@@ -129,7 +140,7 @@ export default function Sidebar({ session, role, isApprover = false, collapsed: 
   // by `approval_roles` and not by `profiles.role` — `NavLink.roles` cannot
   // express it. It sorts LAST for a guard or an HOD who also holds an office:
   // their day job is the reason they open the app.
-  if (isApprover) links.push(APPROVER_LINK);
+  if (isApprover) links.push(APPROVER_LINK, DELEGATION_LINK);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileName, setProfileName] = useState<string>('');
   const [collapsedInternal, setCollapsedInternal] = useState<boolean>(() => {

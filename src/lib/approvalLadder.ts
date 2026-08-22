@@ -118,6 +118,33 @@ export function approverLine(title: string, name: string | null | undefined): st
 }
 
 /**
+ * "COO (Priya Mehta — delegated by Sudeshna Pal)" — the same bracket, saying in
+ * it that the person who signed was standing in (client, 2026-08-22: "if he is
+ * a delegated person, in the bracket it should be mentioned that the person has
+ * this approver who was delegated by the original approver and the approver's
+ * name").
+ *
+ * IT IS THE BRACKET AND NOT ONLY THE LINE BENEATH, deliberately: the merged
+ * timeline, the pass record and the printed reading all show `who` at a glance
+ * and the detail line only underneath it, and "who signed this" is exactly the
+ * question a delegated signature makes ambiguous.
+ *
+ * Falls back to the plain `approverLine` in both directions — a delegated
+ * decision whose delegator name failed to resolve out of VMS still prints the
+ * signer, and an unnamed signer still prints the office. Never "(null)".
+ */
+export function delegatedLine(
+  title: string,
+  name: string | null | undefined,
+  delegatedBy: string | null | undefined,
+): string {
+  const who = (name ?? '').trim();
+  const from = (delegatedBy ?? '').trim();
+  if (!who || !from) return approverLine(title, name);
+  return `${title} (${who} — delegated by ${from})`;
+}
+
+/**
  * `done`    — it happened, or the office is held and signs on the slip.
  * `pending` — it has not happened yet and nothing is wrong.
  * `blocked` — it went wrong, or a deadline has passed. Printed in the flagged
@@ -267,19 +294,30 @@ export function buildApprovalSteps(
         // such a row by design, and the usual fall-back to `routed_name` would
         // print whoever held the office the day the pass was raised — saying
         // they approved a pass they were never shown.
-        who: approverLine(
-          title,
-          own.grandfathered ? null : own.decided_name ?? own.routed_name ?? row?.full_name,
-        ),
+        // A DELEGATE IS NAMED WITH THE PERSON WHO DELEGATED TO THEM, in the
+        // bracket (062; client, 2026-08-22). `delegatedLine` degrades to the
+        // plain bracket when either name is missing.
+        who: own.grandfathered
+          ? approverLine(title, null)
+          : own.decided_as_delegate
+            ? delegatedLine(title, own.decided_name ?? own.routed_name ?? row?.full_name, own.delegated_by_name)
+            : approverLine(title, own.decided_name ?? own.routed_name ?? row?.full_name),
         // WHICH SEAT SIGNED IT, where the department would otherwise sit. A
-        // deputy's own department is not the fact a reader of this rung wants,
-        // and an unlabelled deputy reads as the office holder — the thing
-        // Workday's "On Behalf Of" line exists to prevent.
+        // deputy's or a delegate's own department is not the fact a reader of
+        // this rung wants, and an unlabelled stand-in reads as the office
+        // holder — the thing Workday's "On Behalf Of" line exists to prevent.
+        //
+        // A DELEGATION OUTRANKS A DEPUTY LABEL. The two seats are mutually
+        // exclusive by the one-seat rule (049/054/062), so both flags cannot be
+        // true of one decision — but if a row ever carried both, the delegation
+        // is the more specific fact and the one with a window on it.
         detail: own.grandfathered
           ? null
-          : own.decided_as_deputy
-            ? `Standing deputy for the ${title}`
-            : row?.department_name ?? null,
+          : own.decided_as_delegate
+            ? `Delegated ${title} — signed for ${own.delegated_by_name ?? 'the office holder'}`
+            : own.decided_as_deputy
+              ? `Standing deputy for the ${title}`
+              : row?.department_name ?? null,
         at: own.decided_at,
         state: APPROVAL_STATE[own.status],
         // A rejection's reason IS the note — it is the sentence somebody typed

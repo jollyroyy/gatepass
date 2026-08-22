@@ -417,3 +417,89 @@ describe('buildApprovalSteps — a level closed by the 058 rollout', () => {
     expect(steps.find((s) => s.key === 'level-2')!.who).toBe('COO');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A DELEGATED SIGNATURE NAMES THE PERSON WHO DELEGATED IT (migration 062;
+// client, 2026-08-22: "whenever we are seeing in the timeline for any details,
+// it should completely reflect that the person who has approved, if he is a
+// delegated person, in the bracket. It should be mentioned that the person has
+// this approver who was delegated by the original approver and the approver's
+// name").
+//
+// IT IS THE BRACKET AND NOT ONLY THE LINE BENEATH IT, because `who` is what the
+// merged timeline and the pass record show at a glance — and "who actually
+// signed this" is exactly the question a stand-in's signature makes ambiguous.
+// Read off the DECISION (`decided_as_delegate`), never off today's delegation
+// table: a delegation expires, and a rung must not re-credit the holder the day
+// after the window closed.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('buildApprovalSteps — a delegated decision (062)', () => {
+  const DELEGATED = approval({
+    status: 'approved',
+    decided_name: 'Priya Mehta',
+    decided_as_delegate: true,
+    delegated_by_name: 'Sanjay Rao',
+    decided_at: '2026-08-26T05:30:00Z',
+  });
+
+  it('puts both names in the bracket — who signed, and who delegated it', () => {
+    const steps = buildApprovalSteps(pass(), HELD, 'hod', [DELEGATED]);
+    const level = steps.find((s) => s.key === 'level-1')!;
+    expect(level.who).toBe('Security Head (Priya Mehta — delegated by Sanjay Rao)');
+    expect(level.state).toBe('done');
+  });
+
+  it('says so on the line beneath as well, where the department would sit', () => {
+    const steps = buildApprovalSteps(pass(), HELD, 'hod', [DELEGATED]);
+    expect(steps.find((s) => s.key === 'level-1')!.detail)
+      .toBe('Delegated Security Head — signed for Sanjay Rao');
+  });
+
+  it('says so on a REJECTION too, without displacing the reason', () => {
+    const steps = buildApprovalSteps(pass(), HELD, 'hod', [
+      { ...DELEGATED, status: 'rejected', reason: 'Vendor not cleared for this material.' },
+    ]);
+    const level = steps.find((s) => s.key === 'level-1')!;
+    expect(level.who).toContain('delegated by Sanjay Rao');
+    expect(level.note).toBe('Vendor not cleared for this material.');
+    expect(level.state).toBe('blocked');
+  });
+
+  // A delegator name VMS could not resolve must not print as "(null)" or strip
+  // the signer: the rung still says who signed, and simply cannot say for whom.
+  it('degrades to the plain bracket when the delegator name is missing', () => {
+    const steps = buildApprovalSteps(pass(), HELD, 'hod', [
+      { ...DELEGATED, delegated_by_name: null },
+    ]);
+    const level = steps.find((s) => s.key === 'level-1')!;
+    expect(level.who).toBe('Security Head (Priya Mehta)');
+    expect(level.who).not.toContain('null');
+    expect(level.detail).toBe('Delegated Security Head — signed for the office holder');
+  });
+
+  // A decision taken by the holder themselves is untouched by any of this, and
+  // a deputy's rung still reads as a deputy's (054).
+  it('leaves an ordinary decision and a deputy decision exactly as they were', () => {
+    const own = buildApprovalSteps(pass(), HELD, 'hod', [
+      approval({ status: 'approved', decided_name: 'Sanjay Rao' }),
+    ]).find((s) => s.key === 'level-1')!;
+    expect(own.who).toBe('Security Head (Sanjay Rao)');
+    expect(own.detail).toBe('Security');
+
+    const deputy = buildApprovalSteps(pass(), HELD, 'hod', [
+      approval({ status: 'approved', decided_name: 'Priya Nair', decided_as_deputy: true }),
+    ]).find((s) => s.key === 'level-1')!;
+    expect(deputy.detail).toBe('Standing deputy for the Security Head');
+  });
+
+  // A ROLLOUT-CLOSED RUNG STILL NAMES NOBODY (058). That precedence is what
+  // stops a grandfathered row acquiring a bracket it has no author for.
+  it('a grandfathered rung outranks the delegation label and stays anonymous', () => {
+    const steps = buildApprovalSteps(pass(), HELD, 'hod', [
+      { ...DELEGATED, grandfathered: true, decided_name: null },
+    ]);
+    const level = steps.find((s) => s.key === 'level-1')!;
+    expect(level.who).toBe('Security Head');
+    expect(level.detail).toBeNull();
+  });
+});

@@ -1,9 +1,11 @@
 // notify-approval — tell the office whose turn it is, and NOBODY ELSE, that a
 // gate pass is waiting for their decision.
 //
-// ONE EVENT SENDS AT MOST ONE LETTER, to the lowest still-pending office. The
-// raising HOD is deliberately never written to (client, 2026-08-19: they raised
-// it, so their approval is already given); see `src/lib/approvalNotice.ts`.
+// ONE EVENT SENDS AT MOST ONE LETTER, to the lowest still-pending office —
+// EXCEPT THE LAST ONE, which goes to the raising HOD instead to say their pass
+// is fully approved and now waiting for gate review (client, 2026-08-22). The
+// HOD is written to at no other point (client, 2026-08-19: they raised it, so
+// their approval is already given); see `src/lib/approvalNotice.ts`.
 // The ladder is therefore driven one rung at a time: raising the pass mails
 // level 1, that office approving mails level 2, and so on — each mail is sent
 // by the app calling this function AFTER the RPC for the previous step has
@@ -131,6 +133,10 @@ Deno.serve(async (req: Request) => {
     purpose: (p.purpose as string | null) ?? null,
     department_name: (p.department_name as string | null) ?? null,
     raised_by_name: (p.raised_by_name as string | null) ?? null,
+    // For the `fully_approved` receipt alone (client, 2026-08-22). Already in
+    // `approval_notice_payload` since 047 — it was simply never read, because
+    // nothing was addressed to the raising HOD.
+    raised_by_email: (p.raised_by_email as string | null) ?? null,
     item_count: Number(p.item_count ?? 0),
     total_value: p.total_value == null ? null : Number(p.total_value),
     expected_return_date: (p.expected_return_date as string | null) ?? null,

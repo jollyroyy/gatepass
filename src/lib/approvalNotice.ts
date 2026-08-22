@@ -27,11 +27,18 @@
 //   * every office but the one whose TURN it is. 046 makes the ladder
 //     sequential, so mailing all four would send three people a pass they
 //     cannot act on and train them to ignore the fourth mail that matters.
-//   * THE RAISING HOD, at every step — raised, level cleared, fully approved,
+//   * THE RAISING HOD, at every step BUT THE LAST — raised, level cleared,
 //     rejected. Client, 2026-08-19: "the hod who raises the pass should not get
 //     any email because he or she already raised it. That means approval is
-//     already taken." So this module now produces EXACTLY ONE KIND OF MESSAGE:
-//     a request to the office that must act next, and nothing else.
+//     already taken."
+//     ⚠ ONE RECEIPT CAME BACK ON 2026-08-22, ON THE CLIENT'S OWN INSTRUCTION:
+//     "whenever any pass gets fully approved by all the approvers, the hod
+//     should receive an email that your pass has been approved fully. Now it is
+//     waiting … at the gate." That is `fully_approved`, and it is the ONE
+//     moment the ladder has news the HOD does not already have — every other
+//     receipt restated something they had just done themselves. It is sent
+//     when the LAST rung is signed and never before, so it cannot be confused
+//     with the per-level chatter that was removed.
 //     SINCE 054 THAT ONE REQUEST MAY GO TO TWO PEOPLE — the office's holder and
 //     its standing deputy — because either of them may sign it. That is still
 //     one office being asked one question; it is not a second kind of letter,
@@ -67,6 +74,11 @@ export interface NoticePass {
   purpose: string | null;
   department_name: string | null;
   raised_by_name: string | null;
+  /** The raising HOD's address, for the `fully_approved` receipt alone
+   *  (client, 2026-08-22). Nullable and optional: `approval_notice_payload`
+   *  LEFT JOINs it out of VMS's `public.profiles`, and a missing address must
+   *  drop that one message rather than the send. */
+  raised_by_email?: string | null;
   item_count: number;
   total_value: number | null;
   expected_return_date: string | null;
@@ -94,13 +106,13 @@ export interface NoticeApproval {
 
 /**
  * `awaiting_you` — it is this office's turn, and the mail asks for a decision.
+ * `fully_approved` — the LAST rung has been signed, and the raising HOD is
+ * told once that their pass is now waiting at the gate (client, 2026-08-22).
  *
- * THERE IS DELIBERATELY ONLY ONE KIND. Receipts to the raising HOD were removed
- * on the client's instruction (see the header). The union is kept as a union
- * rather than collapsed to a string so that adding a second kind stays a typed
- * change and `email_log.kind` keeps meaning something.
+ * A union rather than a bare string so that adding a kind stays a typed change
+ * and `email_log.kind` keeps meaning something.
  */
-export type NoticeKind = 'awaiting_you' | 'emergency_release';
+export type NoticeKind = 'awaiting_you' | 'fully_approved' | 'emergency_release';
 
 export interface NoticeMessage {
   to: string;
@@ -337,6 +349,66 @@ export function rejectedApproval(approvals: NoticeApproval[]): NoticeApproval | 
 
 
 /**
+ * The receipt the RAISING HOD gets when the last office signs (client,
+ * 2026-08-22: "whenever any pass gets fully approved by all the approvers, the
+ * hod should receive an email that your pass has been approved fully. Now it is
+ * waiting … at the gate").
+ *
+ * Silent unless every rung of a REAL ladder is approved. Three ways it stays
+ * silent, each a case where the letter would say something untrue:
+ *   * no ladder at all — a pre-046 pass, or one 058 closed on rollout. Nobody
+ *     approved anything, and the pass never left the gate queue.
+ *   * a rung still pending or rejected — the caller has already returned above,
+ *     but the check is restated here so this function is safe on its own.
+ *   * no address on file for the HOD. One dropped message, never a failed send.
+ *
+ * WHAT IT SAYS NEXT is the honest state of the pass, not "done": since 046 a
+ * fully approved pass becomes VISIBLE to the gate, and the guard has still to
+ * verify the material and clear it out. Saying "approved" alone is how an HOD
+ * comes to believe their lorry has left.
+ */
+export function fullyApprovedNotices(
+  pass: NoticePass,
+  approvals: NoticeApproval[],
+  baseUrl: string
+): NoticeMessage[] {
+  if (approvals.length === 0) return [];
+  if (!approvals.every((a) => a.status === 'approved')) return [];
+
+  const to = pass.raised_by_email?.trim();
+  if (!to) return [];
+
+  const heading = `Gate pass ${pass.pass_number} is fully approved`;
+  const greeting = pass.raised_by_name ? `Hello ${pass.raised_by_name},` : 'Hello,';
+  const lead =
+    `${greeting} every approval office has signed gate pass ${pass.pass_number}. ` +
+    'It is now with the security gate, which will verify the material and clear it out.';
+  const cleared = signedSoFar(approvals);
+  const tail =
+    (cleared ? `Approved by ${cleared}. ` : '') +
+    'Nothing further is needed from you — the pass is waiting for gate review, and its ' +
+    'record shows every signature and, once the material moves, the gate’s own entry.';
+
+  // NO DECISION LINKS. The HOD has nothing to decide; the record is the one
+  // place there is anything to read, and a letter offering Approve to somebody
+  // the RPC would refuse teaches them to distrust the buttons that do work.
+  const link: Cta[] = [
+    { href: joinUrl(baseUrl, `/pass/${pass.id}`), label: 'Open the gate pass', kind: 'plain' },
+  ];
+
+  return [
+    {
+      to,
+      toName: pass.raised_by_name,
+      kind: 'fully_approved',
+      subject: `Fully approved — ${pass.pass_number} (${pass.type}) is now waiting for gate review`,
+      text: wrapText(heading, lead, pass, link, tail),
+      html: wrapHtml(heading, lead, pass, link, tail),
+    },
+  ];
+}
+
+/**
  * The email this pass's current state calls for — AT MOST ONE, addressed to the
  * office whose turn it is.
  *
@@ -345,9 +417,13 @@ export function rejectedApproval(approvals: NoticeApproval[]): NoticeApproval | 
  * only the LOWEST pending level, so any other letter would ask for a decision
  * the database refuses to record.
  *
- * Returns an empty array — never a fabricated message — when there is nobody to
- * ask: no office was designated, every office has signed, an office has already
- * rejected it, or the office holder has no address on file.
+ * When every office HAS signed there is nobody left to ask, and the one letter
+ * that goes out instead is the raising HOD's receipt — see
+ * `fullyApprovedNotices` directly above.
+ *
+ * Returns an empty array — never a fabricated message — in every other case
+ * where there is nobody to write to: no office was designated, an office has
+ * already rejected it, or the office holder has no address on file.
  */
 export function buildApprovalNotices(
   pass: NoticePass,
@@ -360,7 +436,16 @@ export function buildApprovalNotices(
   if (rejectedApproval(approvals)) return [];
 
   const current = currentApproval(approvals);
-  if (!current) return [];
+  // NOTHING PENDING AND NOTHING REJECTED = THE LADDER IS FINISHED, so the one
+  // receipt the raising HOD gets goes out here (client, 2026-08-22).
+  //
+  // `approvals.length > 0` is load-bearing: a pass with NO ladder at all — every
+  // pass raised before an office was designated (046 snapshots on insert and
+  // backfills nothing), and every level closed by 058's rollout — also has
+  // nothing pending, and telling that HOD their pass "has now been approved by
+  // every office" would be describing approvals nobody gave. Such a pass went
+  // straight to the gate and its HOD learns nothing new from a letter.
+  if (!current) return fullyApprovedNotices(pass, approvals, baseUrl);
   if (!current.approver_email) return [];
 
   const queueLink = joinUrl(baseUrl, '/approvals');
