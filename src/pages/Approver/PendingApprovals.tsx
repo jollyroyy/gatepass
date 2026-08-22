@@ -150,7 +150,7 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
     return (
       <div className="gb-board gb-main">
         <GuardPageHeader
-          title="Pending Approvals"
+          title="Pending for My Approval"
           subtitle="Passes waiting on your signature."
           glyph="exchange"
           tone="purple"
@@ -164,7 +164,7 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
   return (
     <div className="gb-board gb-main">
       <GuardPageHeader
-        title="Pending Approvals"
+        title="Pending for My Approval"
         subtitle={`Signing as ${APPROVAL_ROLE_TITLES[office]}. Approve or reject below, or open a pass to read it in full.`}
         glyph="exchange"
         tone="purple"

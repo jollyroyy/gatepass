@@ -7,8 +7,10 @@
 import type { UserRole } from '../types/index';
 
 /**
- * What an APPROVAL OFFICE grants, on top of whatever the reader's role already
- * allows. Declared here rather than in `approverAccess.ts` so this module stays
+ * THE WHOLE OF WHAT AN APPROVAL OFFICE HOLDER MAY REACH. Since 2026-08-22 this
+ * REPLACES the reader's role routes rather than adding to them — see
+ * `isForbidden` below for the client instruction and the argument.
+ * Declared here rather than in `approverAccess.ts` so this module stays
  * import-free: it is the one thing route protection is verified against, and it
  * must not drag a live Supabase client into a test that only asks which paths a
  * role may reach. See `approverAccess.ts` for why an office is not a role.
@@ -86,33 +88,56 @@ export const ROLE_HOME: Record<UserRole, string> = {
 };
 
 /**
- * True if this pathname is forbidden for this reader.
+ * AN APPROVAL OFFICE REPLACES THE ROLE'S ACCESS — it does not add to it.
  *
- * `isApprover` is a SECOND, INDEPENDENT grant, not a role (see
- * `approverAccess.ts`): migration 043 lets the Security Head be a `guard`
- * account, so an office is added to whatever the role already allows rather
- * than replacing it. A `staff` account with an office therefore reaches
- * `/approvals` and nothing else, and a guard who holds one keeps every gate
- * screen and gains the queue.
+ * THIS REVERSES THE 2026-08-19 RULE, on the client's instruction (2026-08-22):
+ * "all those approvers (COO, CEO, security, and the other financial one) should
+ * not have any option to raise a gate pass or to see the status … I do see that
+ * the security head is able to do all the returns. This is a flag flag
+ * completely so please remove all the tabs. Only keep my approvals and the
+ * delegation."
+ *
+ * Migration 043 lets the Security Head be a `guard` account and 046 lets an HOD
+ * hold an office, and until now such a person KEPT every screen their role
+ * gave them — so the Security Head could clear material at the barrier and an
+ * approver who was an HOD could raise the very passes they sign. Those are two
+ * halves of one decision sitting in one pair of hands, which is exactly what an
+ * approval ladder exists to prevent, and it is what the client stopped.
+ *
+ * ADMIN AND SUPER ADMIN ARE DELIBERATELY EXEMPT. Nothing in the schema forbids
+ * designating an admin to an office (049 only forbids holding two), and an
+ * admin who lost `/admin` to a designation would be locked out of the only
+ * screen that could undo it — a one-way door with no key. The four offices are
+ * created as VMS `staff` by `admin_create_user`, so this exemption should never
+ * fire in practice; it exists so that a mistake stays recoverable.
  */
+function officeReplacesRole(role: UserRole | null, isApprover: boolean): boolean {
+  if (!isApprover) return false;
+  return role !== 'admin' && role !== 'super_admin';
+}
+
 export function isForbidden(
   pathname: string,
   role: UserRole | null,
   isApprover = false,
 ): boolean {
   if (role === null && !isApprover) return false; // still resolving; App renders a loader
-  const allowed = [
-    ...(role ? ROLE_ROUTES[role] : []),
-    ...(isApprover ? APPROVER_ROUTES : []),
-  ];
+  const allowed = officeReplacesRole(role, isApprover)
+    ? APPROVER_ROUTES
+    : [
+      ...(role ? ROLE_ROUTES[role] : []),
+      ...(isApprover ? APPROVER_ROUTES : []),
+    ];
   if (allowed.length === 0) return true;
   return !allowed.some((r) => pathname === r || pathname.startsWith(`${r}/`));
 }
 
-/** Where this reader lands. Their ROLE's home wins when they have one — an
- *  office is an extra errand, not a new job — and the approvals queue is home
- *  only for someone whose role gives them nowhere else to be. */
+/** Where this reader lands. AN OFFICE HOLDER LANDS ON THEIR QUEUE, whatever
+ *  their VMS role says (client, 2026-08-22) — it is now the whole of what they
+ *  do here, so it is also the only home they can have. An admin keeps their
+ *  own board, for the reason `officeReplacesRole` gives. */
 export function homeFor(role: UserRole | null, isApprover = false): string {
+  if (officeReplacesRole(role, isApprover)) return APPROVER_HOME;
   if (role && ROLE_ROUTES[role].length > 0) return ROLE_HOME[role];
   if (isApprover) return APPROVER_HOME;
   return role ? ROLE_HOME[role] : '/login';

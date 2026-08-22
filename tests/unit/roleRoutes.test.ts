@@ -178,12 +178,22 @@ describe('guard lands on the KPI dashboard', () => {
 // 046, and src/lib/approverAccess.ts for the argument). `public.profiles.role`
 // is VMS's enum and this app never adds to it, so an office holder's role
 // really is `staff`; the row in `gatepass.approval_roles` is what lets them in.
+//
+// THIS BLOCK IS REWRITTEN (2026-08-22). It used to hold that an office is added
+// to whatever the role already allows — "a guard who holds an office KEEPS
+// every gate screen and gains the queue", and "the office does not move a
+// working role's home — it is an extra errand". The client reversed both by
+// name: "all those approvers … should not have any option to raise a gate pass
+// or to see the status … I do see that the security head is able to do all the
+// returns. This is a flag flag completely so please remove all the tabs. Only
+// keep my approvals and the delegation."
 // ─────────────────────────────────────────────────────────────────────────────
-describe('an approval office grants /approvals on top of whatever the role allows', () => {
+describe('an approval office REPLACES the role`s access', () => {
   it('a `staff` account with an office reaches the queue, and NOTHING else', () => {
     // Without this the one screen such an account exists to use is unreachable:
     // ROLE_ROUTES.staff is deliberately empty.
     expect(isForbidden('/approvals', 'staff', true)).toBe(false);
+    expect(isForbidden('/delegation', 'staff', true)).toBe(false);
     expect(isForbidden('/pass/abc', 'staff', true)).toBe(false);
     expect(isForbidden('/dashboard', 'staff', true)).toBe(true);
     expect(isForbidden('/guard-dashboard', 'staff', true)).toBe(true);
@@ -196,23 +206,47 @@ describe('an approval office grants /approvals on top of whatever the role allow
     }
   });
 
-  it('a guard who holds an office KEEPS every gate screen and gains the queue', () => {
-    // Migration 043 explicitly allows the Security Head to be a guard account.
-    // Collapsing role and office into one union would make such a person choose.
-    for (const path of ROLE_ROUTES.guard) {
-      expect(isForbidden(path, 'guard', true), path).toBe(false);
+  it('a guard who holds an office LOSES every gate screen — including the returns', () => {
+    // The client's own flag: migration 043 lets the Security Head be a guard
+    // account, and until 2026-08-22 that person could clear material at the
+    // barrier on the very passes they sign.
+    for (const path of ['/guard-dashboard', '/pending-out', '/pending-returns', '/overdue', '/console', '/returns', '/verify']) {
+      expect(isForbidden(path, 'guard', true), path).toBe(true);
     }
     expect(isForbidden('/approvals', 'guard', true)).toBe(false);
-    // …and a guard who holds none does not get it.
+    expect(isForbidden('/delegation', 'guard', true)).toBe(false);
+    // …and a guard who holds none does not get it, nor lose anything.
     expect(isForbidden('/approvals', 'guard', false)).toBe(true);
+    for (const path of ROLE_ROUTES.guard) {
+      expect(isForbidden(path, 'guard', false), path).toBe(false);
+    }
   });
 
-  it('the office does not move a working role`s home — it is an extra errand', () => {
-    expect(homeFor('guard', true)).toBe(ROLE_HOME.guard);
-    expect(homeFor('hod', true)).toBe(ROLE_HOME.hod);
-    // Only somebody whose role gives them nowhere to be lands on the queue.
+  it('an HOD who holds an office can no longer raise a pass or read the register', () => {
+    for (const path of ['/dashboard', '/raise', '/my-passes', '/reports', '/overdue']) {
+      expect(isForbidden(path, 'hod', true), path).toBe(true);
+    }
+    expect(isForbidden('/approvals', 'hod', true)).toBe(false);
+  });
+
+  it('an office holder`s home is their queue, whatever their VMS role says', () => {
+    expect(homeFor('guard', true)).toBe(APPROVER_HOME);
+    expect(homeFor('hod', true)).toBe(APPROVER_HOME);
     expect(homeFor('staff', true)).toBe(APPROVER_HOME);
     expect(homeFor(null, true)).toBe(APPROVER_HOME);
+  });
+
+  it('an ADMIN is exempt — a designation must never lock them out of /admin', () => {
+    // Nothing in the schema forbids designating an admin to an office (049 only
+    // forbids holding two), and the Users tab is the ONLY screen that can undo
+    // one. Stripping it would be a one-way door with no key.
+    for (const role of ['admin', 'super_admin'] as const) {
+      for (const path of ROLE_ROUTES[role]) {
+        expect(isForbidden(path, role, true), `${role} ${path}`).toBe(false);
+      }
+      expect(isForbidden('/approvals', role, true)).toBe(false);
+      expect(homeFor(role, true)).toBe(ROLE_HOME[role]);
+    }
   });
 
   it('every existing role is unchanged when no office is held', () => {

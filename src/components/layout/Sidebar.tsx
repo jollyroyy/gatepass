@@ -28,7 +28,7 @@ const ICON_PROPS = { className: 'w-5 h-5', fill: 'none', viewBox: '0 0 24 24', s
  *  its `roles` array would have to be every role at once and then be filtered
  *  by something else entirely. */
 export const APPROVER_LINK: NavLink = {
-  to: '/approvals', label: 'Pending Approvals', roles: [],
+  to: '/approvals', label: 'Pending for My Approval', roles: [],
   icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75l2.25 2.25 4.5-4.5" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 3.75l7.5 3v5.25c0 4.06-3.1 7.44-7.5 8.25-4.4-.81-7.5-4.19-7.5-8.25V6.75l7.5-3z" /></svg>,
 };
 
@@ -133,13 +133,24 @@ export default function Sidebar({ session, role, isApprover = false, collapsed: 
     const i = order.indexOf(to);
     return i === -1 ? order.length : i;
   };
-  const links = ALL_LINKS
+  const roleLinks = ALL_LINKS
     .filter((l) => role && l.roles.includes(role))
     .sort((a, b) => rank(a.to) - rank(b.to));
-  // The office tab is appended rather than filtered in, because it is granted
-  // by `approval_roles` and not by `profiles.role` — `NavLink.roles` cannot
-  // express it. It sorts LAST for a guard or an HOD who also holds an office:
-  // their day job is the reason they open the app.
+  // AN OFFICE HOLDER GETS EXACTLY TWO TABS AND NOTHING ELSE (client,
+  // 2026-08-22: "remove all the tabs. Only keep my approvals and the
+  // delegation"). This REVERSES the rule this block used to carry — that the
+  // office tab sorts LAST behind a guard's or an HOD's own tabs, because "their
+  // day job is the reason they open the app". Approving IS the job now: an
+  // approver may not raise a pass, may not read the register, and may not clear
+  // material at the barrier, which is the `officeReplacesRole` rule in
+  // roleRoutes.ts made visible. The role's own links are DROPPED rather than
+  // hidden, so the sidebar cannot offer a tab the route guard would bounce.
+  //
+  // An admin who holds an office keeps their own tabs and gains these two, for
+  // the reason `officeReplacesRole` gives: their board is the only screen that
+  // can undo a mistaken designation.
+  const officeOnly = isApprover && role !== 'admin' && role !== 'super_admin';
+  const links = officeOnly ? [] : roleLinks;
   if (isApprover) links.push(APPROVER_LINK, DELEGATION_LINK);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileName, setProfileName] = useState<string>('');

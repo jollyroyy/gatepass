@@ -32,8 +32,17 @@ export default function AppShell({ session, role, isApprover = false, office = n
     try { window.localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0'); } catch { /* ignore */ }
   }, [collapsed]);
 
+  // AN OFFICE HOLDER'S BELL COUNTS THEIR QUEUE AND NOTHING ELSE (client,
+  // 2026-08-22). Their role's own screens are gone — an approver may not raise,
+  // review or clear a pass any more (see `officeReplacesRole` in
+  // roleRoutes.ts) — so a mismatch or expiry notice would open a route the
+  // guard bounces. `role={null}` skips both of those derivations; the office's
+  // own approval notices are driven by `office` and are untouched. An admin is
+  // exempt here for the same reason they are there.
+  const noticeRole = isApprover && role !== 'admin' && role !== 'super_admin' ? null : role;
+
   return (
-    <NotificationProvider session={session} role={role} office={office}>
+    <NotificationProvider session={session} role={noticeRole} office={office}>
       <SessionTimeout />
       <div className="min-h-screen bg-surface-50">
         <Sidebar session={session} role={role} isApprover={isApprover} collapsed={collapsed} onCollapsedChange={setCollapsed} />

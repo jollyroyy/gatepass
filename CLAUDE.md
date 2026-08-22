@@ -85,7 +85,63 @@ seats per person returned **no rows**, i.e. nobody occupies two).
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-22, forty-second pass): AN APPROVER DELEGATES THEIR OWN OFFICE FOR A
+**Latest change (2026-08-22, forty-third pass): AN APPROVAL OFFICE IS NOW THE *WHOLE* OF WHAT
+ITS HOLDER DOES HERE — TWO TABS, "Pending for My Approval" AND "Delegation", AND NOTHING ELSE.
+NO RAISE FORM, NO REGISTER, NO GATE, NO RETURNS.** Frontend only — no migration, no RPC change,
+no grant change.
+
+- Client: "all those approvers (COO, CEO, security, and the other financial one) should not have
+  any option to raise a gate pass or to see the status. They can only see their own approval,
+  pending approval, and all those, and delegation, but remove their dashboard … I do see that the
+  security head is able to do all the returns. This is a flag flag completely so please remove all
+  the tabs. Only keep my approvals and the delegation. Pending for my approval. Put it like that."
+- **THIS REVERSES THE 2026-08-19 RULE THAT AN OFFICE *ADDS* TO A ROLE.** `officeReplacesRole` in
+  `roleRoutes.ts` is the whole change: `isForbidden` now hands an office holder `APPROVER_ROUTES`
+  INSTEAD OF their role's list, and `homeFor` lands them on `/approvals` whatever their VMS role
+  says. **The client's flag was real and was live on this deployment**: 043 lets the Security Head
+  be a `guard` account (`sec@demo.vms` is one), so that person held every gate screen — Pending
+  OUT, Pending RGP Return, `/verify`, `/overdue` — and could clear material at the barrier on the
+  very passes they sign. Two halves of one decision in one pair of hands is what an approval
+  ladder exists to prevent.
+- **ADMIN AND SUPER ADMIN ARE DELIBERATELY EXEMPT.** Nothing in the schema forbids designating an
+  admin to an office (049 forbids holding TWO, not holding one), and an admin who lost `/admin` to
+  a designation would be locked out of the only screen that can undo it — a one-way door with no
+  key. `admin_create_user` makes office holders VMS `staff`, so this should never fire; it exists
+  so a mistake stays recoverable.
+- **THE SIDEBAR DROPS THE ROLE'S LINKS RATHER THAN HIDING THEM**, so it can never offer a tab the
+  route guard would bounce. `APPROVER_LINK.label` is **"Pending for My Approval"** (the client's
+  own words) and the page's own title moved with it, so the tab and the heading cannot disagree.
+- **THE PASS RECORD RESTATES THE RULE ITSELF, and that is not belt-and-braces.** `/pass/:id` stays
+  reachable — reading the pass in full is what an approver came for — so `PassRecordView` computes
+  `readerRole = office ? null : role` and grades **every** action through it: `canRecordReturns`,
+  `canVerifyAtGate` (Approve OUT) and the HOD's WhatsApp forward. The ladder is built from it too,
+  so an office holder no longer gets the guard's "signed on the printed pass" fiction on a pass
+  they are being asked to sign.
+- **THE BELL COUNTS THEIR QUEUE AND NOTHING ELSE.** `AppShell` passes `role={null}` to
+  `NotificationProvider` for an office holder, which skips both role derivations; the office's own
+  approval notices are driven by `office` and are untouched. A mismatch or expiry notice would
+  otherwise open a route that now bounces.
+- **⚠ ONE REAL ROBUSTNESS BUG WAS FOUND BY THE SUITE, NOT BY REVIEW.** `fetchMyApprovalRole`
+  returned `data ?? null`, and PostgREST's `[]` is TRUTHY — harmless while an office only ADDED
+  access, and a lockout the moment it replaced it. It now accepts **only a non-empty string**.
+  Three App-level gate tests were failing on exactly that and are green without being touched.
+- **⚠ THE CEO's `/whitelist` IS KEPT**, though the client said "only two tabs". It is not a tab —
+  it is a Quick Action tile on `/approvals`, drawn for the CEO alone — and it IS one of their
+  approval queues (053). Removing it would strand a live feature nothing else reaches.
+- **⚠ THE THREE KPI FIGURES ON `/approvals` ARE KEPT.** "Remove their dashboard showcasing how
+  many are pending" is read as the guard/HOD DASHBOARD TAB, which is gone; the three figures are
+  "their own approval, pending approval, and all those" — the client's own list — and they are the
+  drill controls for the queue and the two history stacks (asked for by name on 2026-08-20).
+- Pinned by a new `tests/unit/approverTabsOnly.test.tsx` (11 — the two tabs for staff/guard/HOD,
+  every gate tab and every HOD tab absent by name, an office-less guard untouched, the admin
+  exemption, and the record's action rules) and a **REWRITTEN** approver block in
+  `roleRoutes.test.ts`, whose header says what it used to hold. Both reversals were watched
+  failing first. `npm run check` is green.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite and a typecheck only. Signing in as the Security
+  Head (`securityhead@demo.quest`) and confirming the gate tabs are gone is what only a real run
+  proves.
+
+**Earlier (2026-08-22, forty-second pass): AN APPROVER DELEGATES THEIR OWN OFFICE FOR A
 STATED PERIOD, FROM THEIR OWN TAB — migration `062`, APPLIED via psql; THE RAISING HOD IS TOLD
 BY EMAIL WHEN THE LAST OFFICE SIGNS; AND A DELEGATED SIGNATURE NAMES THE PERSON WHO DELEGATED IT,
 IN THE BRACKET, ON EVERY RUNG.** The Edge Function is REDEPLOYED (four assets uploaded).

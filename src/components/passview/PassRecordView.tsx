@@ -104,9 +104,21 @@ export default function PassRecordView({
   // The reader's role decides how a vacant office reads on a pass with no
   // ladder of its own: for a guard the signed slip is in hand, so all four
   // levels are approved (client). A real pending row outranks that.
-  const steps = buildApprovalSteps(pass, roles, role, approvals);
-  const canRecord = canRecordReturns(pass, role);
-  const canApprove = role === 'guard' && canVerifyAtGate(pass);
+  //
+  // AN OFFICE HOLDER IS NEVER THE GATE AND NEVER THE RAISING DESK, whatever
+  // their VMS role says (client, 2026-08-22: "I do see that the security head
+  // is able to do all the returns. This is a flag flag completely"). Migration
+  // 043 lets the Security Head be a `guard` account, so this record was handing
+  // them Approve OUT and the line-by-line return entry on the very passes they
+  // sign — one pair of hands on both halves of the decision. Their tabs are
+  // gone (see roleRoutes.ts), but this record stays reachable from their queue,
+  // so the rule has to be restated HERE too rather than relied on from the
+  // sidebar. Reading the pass in full is exactly what an approver came for;
+  // acting on it at the barrier is not.
+  const readerRole = office ? null : role;
+  const steps = buildApprovalSteps(pass, roles, readerRole, approvals);
+  const canRecord = canRecordReturns(pass, readerRole);
+  const canApprove = readerRole === 'guard' && canVerifyAtGate(pass);
   const stage = passStageStyle(pass);
   // The rail's own line list — empty on an NRGP and on a refused pass, which
   // `buildReturnTimeline` decides. It reads the DRAFT, so it is the same
@@ -116,7 +128,7 @@ export default function PassRecordView({
   // 2026-08-22), and only when the pass actually carries a usable number.
   // Null draws nothing: "if it is available" is the client's own condition, and
   // a button that opens an empty chat is worse than no button.
-  const whatsapp = role === 'hod' ? vendorWhatsappLink(pass, items) : null;
+  const whatsapp = readerRole === 'hod' ? vendorWhatsappLink(pass, items) : null;
 
   // The entrance the guard named when they cleared it. Nothing invents one:
   // there is no gate entity in this schema, so an unnamed exit shows no fact.
