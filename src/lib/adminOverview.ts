@@ -33,7 +33,7 @@
 import type { GatePassView } from '../types';
 import type { BoardDrill } from './boardDrills';
 import { IS_OPEN_RETURN } from './boardDrills';
-import { pendingSplit, pendingSplitNotes } from './pendingSplit';
+import { pendingSplit } from './pendingSplit';
 import { DAY_MS, dayStart } from './localDay';
 import type { HodGlyph, HodTone } from '../components/hod/hodIconTypes';
 
@@ -84,7 +84,12 @@ function raisedBetween(rows: GatePassView[], from: number, to: number): GatePass
 
 // ─── The five figures ────────────────────────────────────────────────────────
 
-export type OverviewKey = 'total' | 'rgp' | 'nrgp' | 'pending' | 'overdue';
+// THE TWO PENDING DESKS ARE TWO KEYS (client, 2026-08-22: "separate the
+// pending at gate review and pending for approvals"). `pending` — the single
+// card that carried both as sub-lines — is GONE, so a stale reference is a type
+// error rather than a card that silently never renders.
+export type OverviewKey =
+  | 'total' | 'rgp' | 'nrgp' | 'pendingGate' | 'pendingApproval' | 'overdue';
 
 /** One line under a figure — the mock has no such thing, and exactly one card
  *  carries them: Pending Approvals, which the client asked to be broken into
@@ -135,7 +140,6 @@ export function buildOverviewCards(
   // sub-figures under the card are that same array cut in half by
   // `awaits_approval`, so they sum to the figure by construction.
   const split = pendingSplit(rows);
-  const pending = split.waiting;
   const overdue = rows.filter((p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue);
   const since = `Raised in the last ${days} days`;
 
@@ -186,21 +190,37 @@ export function buildOverviewCards(
       },
     },
     {
-      key: 'pending',
-      label: 'Pending Approvals',
+      // TWO DESKS, TWO CARDS. They used to be one figure with the split printed
+      // under it; a card whose drill opens two different queues is a card that
+      // cannot say what it counts. `pendingSplit` is unchanged, so the two
+      // still sum to what the one showed.
+      key: 'pendingGate',
+      label: 'Pending Gate Review',
       glyph: 'clock',
       tone: 'orange',
-      value: pending.length,
-      note: 'Not through the gate yet',
-      notes: pendingSplitNotes(split).map((n) => ({
-        ...n,
-        tone: n.key === 'gate' ? ('orange' as HodTone) : ('purple' as HodTone),
-      })),
+      value: split.atGate.length,
+      note: 'Cleared the ladder, waiting at the gate',
+      notes: [],
       drill: {
-        key: 'pending',
-        heading: 'Passes not through the gate yet',
-        empty: 'Nothing is waiting.',
-        rows: pending,
+        key: 'pendingGate',
+        heading: 'Passes waiting at the gate',
+        empty: 'Nothing is waiting at the gate.',
+        rows: split.atGate,
+      },
+    },
+    {
+      key: 'pendingApproval',
+      label: 'Pending Approval',
+      glyph: 'hourglass',
+      tone: 'purple',
+      value: split.awaitingApproval.length,
+      note: 'Still climbing the approval ladder',
+      notes: [],
+      drill: {
+        key: 'pendingApproval',
+        heading: 'Passes still owing an approval',
+        empty: 'Nothing is waiting on an approver.',
+        rows: split.awaitingApproval,
       },
     },
     {

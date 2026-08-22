@@ -40,14 +40,20 @@ type Props = {
   items: GatePassItemView[];
   /** True only for a guard, on a pass that still owes material. */
   canRecord: boolean;
+  /** THE DRAFT IS OWNED BY THE RECORD, NOT BY THIS TABLE (client, 2026-08-22:
+   *  the timeline must move as the guard types). The rail on the other side of
+   *  the screen reads the same object, so the two cannot disagree about what
+   *  has been staged — a second copy here is how they would. */
+  draft: ReturnDraft;
+  onDraftChange: (next: (d: ReturnDraft) => ReturnDraft) => void;
   /** Re-read the whole record — the pass may have just closed itself. */
   onRecorded: () => void;
 };
 
 export default function PassRecordReturns({
-  pass, items, canRecord, onRecorded,
+  pass, items, canRecord, draft, onDraftChange, onRecorded,
 }: Props): React.ReactElement {
-  const [draft, setDraft] = useState<ReturnDraft>(EMPTY_DRAFT);
+  const setDraft = onDraftChange;
   const [open, setOpen] = useState<GatePassItemView | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +72,7 @@ export default function PassRecordReturns({
     setError(null);
     try {
       await recordDraftedReturns(pass.id, draftPayload(items, draft), draftRemarks(items, draft));
-      setDraft(EMPTY_DRAFT);
+      setDraft(() => EMPTY_DRAFT);
       setOpen(null);
       onRecorded();
     } catch (err) {
@@ -134,7 +140,7 @@ export default function PassRecordReturns({
             <button
               type="button"
               className="btn-secondary"
-              onClick={() => setDraft(EMPTY_DRAFT)}
+              onClick={() => setDraft(() => EMPTY_DRAFT)}
               disabled={busy}
             >
               Discard

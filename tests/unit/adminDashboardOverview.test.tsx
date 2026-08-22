@@ -141,23 +141,32 @@ describe('the admin dashboard is the Overview mock-up', () => {
     expect(screen.getByRole('heading', { name: 'Passes by Status' })).toBeInTheDocument();
   });
 
-  it('renders the five figures, in the mock\'s order', async () => {
+  // REWRITTEN 2026-08-22: the one Pending Approvals card became one card per
+  // desk (client), so the row is six figures.
+  it('renders the six figures, in the mock order', async () => {
     await renderBoard();
-    const labels = ['Total Gate Passes', 'RGP', 'NRGP', 'Pending Approvals', 'Overdue Returns'];
+    const labels = [
+      'Total Gate Passes', 'RGP', 'NRGP', 'Pending Gate Review', 'Pending Approval',
+      'Overdue Returns',
+    ];
     for (const l of labels) expect(card(l)).toBeInTheDocument();
     // NRGP, never the mock's "Energy Pay Pass" — the client corrected that
     // phrase on sight the first time it appeared, on the raise form.
     expect(screen.queryByText(/Energy Pay/i)).toBeNull();
   });
 
-  it('counts the window for three figures and ignores it for the two running queues', async () => {
+  it('counts the window for three figures and ignores it for the running queues', async () => {
     await renderBoard();
     expect(figure('Total Gate Passes')).toBe('4');
     expect(figure('RGP')).toBe('3');
     expect(figure('NRGP')).toBe('1');
     // Both raised 40 days ago — outside every window, and still counted.
-    expect(figure('Pending Approvals')).toBe('1');
+    // The waiting pass owes no signature, so it is on the GATE desk. Neither
+    // card prints a sub-line any more (client, 2026-08-22).
+    expect(figure('Pending Gate Review')).toBe('1');
+    expect(figure('Pending Approval')).toBe('0');
     expect(figure('Overdue Returns')).toBe('1');
+    expect(card('Pending Gate Review').textContent).not.toMatch(/pending gate review$/);
   });
 
   it('renders NONE of the old GateBoard — it was replaced, not hidden', async () => {
@@ -222,7 +231,7 @@ describe('every figure drills into the very rows it counted', () => {
 
   it('lists exactly what each figure printed', async () => {
     await renderBoard();
-    for (const label of ['Total Gate Passes', 'RGP', 'Pending Approvals', 'Overdue Returns']) {
+    for (const label of ['Total Gate Passes', 'RGP', 'Pending Gate Review', 'Overdue Returns']) {
       fireEvent.click(card(label));
       const expected = Number(figure(label));
       await waitFor(() => expect(stack()).toHaveLength(expected));

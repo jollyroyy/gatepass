@@ -62,7 +62,7 @@ export interface SuperGroup {
   figures: SuperFigure[];
 }
 
-/** Which card each of the admin's five keys belongs on, and what it is called
+/** Which card each of the admin's six keys belongs on, and what it is called
  *  once its card has stated the subject. A `Record` over the whole union, so a
  *  sixth Overview figure is a TYPE ERROR here rather than a figure that
  *  silently never renders. */
@@ -70,7 +70,8 @@ const PLACEMENT: Record<OverviewKey, { group: SuperGroupKey; label: string }> = 
   total: { group: 'raised', label: 'Total' },
   rgp: { group: 'raised', label: 'RGP' },
   nrgp: { group: 'raised', label: 'NRGP' },
-  pending: { group: 'attention', label: 'Pending Approvals' },
+  pendingGate: { group: 'attention', label: 'Pending Gate Review' },
+  pendingApproval: { group: 'attention', label: 'Pending Approval' },
   overdue: { group: 'attention', label: 'Overdue Returns' },
 };
 

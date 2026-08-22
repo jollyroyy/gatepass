@@ -9,7 +9,7 @@
 //      deriving it — a pass with no ladder rows is not owed anything, which is
 //      exactly what a falsy field means.
 import { describe, it, expect } from 'vitest';
-import { pendingSplit, pendingSplitNotes } from '../../src/lib/pendingSplit';
+import { pendingSplit } from '../../src/lib/pendingSplit';
 import { buildOverviewCards } from '../../src/lib/adminOverview';
 import { buildHodKpis } from '../../src/lib/hodBoard';
 import type { GatePassView } from '../../src/types';
@@ -75,52 +75,47 @@ describe('the two desks a waiting pass can be sitting on', () => {
     expect(s.atGate.length + s.awaitingApproval.length).toBe(s.waiting.length);
   });
 
-  it('names the two lines the way the client did, and pluralises', () => {
-    const one = pendingSplitNotes(pendingSplit([CLIMBING, AT_GATE]));
-    expect(one.map((n) => n.text)).toEqual([
-      '1 pass pending gate review',
-      '1 pass pending approval',
-    ]);
-    const many = pendingSplitNotes(pendingSplit([CLIMBING, AT_GATE, NO_LADDER]));
-    expect(many[0].text).toBe('2 passes pending gate review');
-  });
 });
 
 describe('both boards read the same split', () => {
   const ROWS = [CLIMBING, AT_GATE, NO_LADDER, EXPIRED, CLEARED];
 
-  it("the admin's Pending Approvals card carries the two lines and they sum to it", () => {
-    const card = buildOverviewCards(ROWS, 30).find((c) => c.key === 'pending');
-    expect(card?.value).toBe(3);
-    expect(card?.drill.rows.length).toBe(3);
-    expect(card?.notes.map((n) => n.text)).toEqual([
-      '2 passes pending gate review',
-      '1 pass pending approval',
-    ]);
+  // REWRITTEN 2026-08-22. These three cases used to hold that ONE card,
+  // "Pending Approvals", stood over both desks and printed the split under it
+  // as two sub-lines ("2 passes pending gate review"). The client separated the
+  // desks into a card each and asked for the sub-lines to go, so what is pinned
+  // now is that the two cards carry the split's own two arrays and still sum to
+  // what the single figure showed.
+  it("the admin's two cards are the split, and they sum to what was waiting", () => {
+    const cards = buildOverviewCards(ROWS, 30);
+    const gate = cards.find((c) => c.key === 'pendingGate');
+    const approval = cards.find((c) => c.key === 'pendingApproval');
+    expect(gate?.value).toBe(2);
+    expect(approval?.value).toBe(1);
+    expect((gate?.value ?? 0) + (approval?.value ?? 0)).toBe(pendingSplit(ROWS).waiting.length);
+    expect(cards.every((c) => c.notes.length === 0)).toBe(true);
   });
 
-  it("the HOD's fifth card is the same figure, over whatever rows the HOD was served", () => {
+  it("the HOD's two cards are the same figures, over whatever rows the HOD was served", () => {
     // SCOPE IS NOT THIS MODULE'S. The HOD board is narrowed by RLS to their
     // department and by `.eq('raised_by', …)` to their own passes, both
     // server-side, and this function simply counts what it is handed — which is
     // what makes the same code correct on both boards.
-    const card = buildHodKpis(ROWS, Date.now()).find((c) => c.key === 'pendingApproval');
-    expect(card?.label).toBe('Pending Approvals');
-    expect(card?.value).toBe(3);
-    expect(card?.drill.rows.length).toBe(3);
-    expect(card?.notes.map((n) => n.text)).toEqual([
-      '2 passes pending gate review',
-      '1 pass pending approval',
-    ]);
+    const cards = buildHodKpis(ROWS, Date.now());
+    expect(cards.find((c) => c.key === 'pendingGate')?.value).toBe(2);
+    expect(cards.find((c) => c.key === 'pendingApproval')?.value).toBe(1);
+    expect(cards.find((c) => c.key === 'pendingApproval')?.label).toBe('Pending Approval');
   });
 
   it('a card and its own drill list can never disagree', () => {
     for (const rows of [[], [CLIMBING], ROWS]) {
-      const admin = buildOverviewCards(rows, 30).find((c) => c.key === 'pending');
-      const hod = buildHodKpis(rows, Date.now()).find((c) => c.key === 'pendingApproval');
-      expect(admin?.value).toBe(admin?.drill.rows.length);
-      expect(hod?.value).toBe(hod?.drill.rows.length);
-      expect(admin?.value).toBe(hod?.value);
+      for (const key of ['pendingGate', 'pendingApproval'] as const) {
+        const admin = buildOverviewCards(rows, 30).find((c) => c.key === key);
+        const hod = buildHodKpis(rows, Date.now()).find((c) => c.key === key);
+        expect(admin?.value).toBe(admin?.drill.rows.length);
+        expect(hod?.value).toBe(hod?.drill.rows.length);
+        expect(admin?.value).toBe(hod?.value);
+      }
     }
   });
 });

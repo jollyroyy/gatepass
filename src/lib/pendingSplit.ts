@@ -54,16 +54,9 @@ export function pendingSplit(rows: GatePassView[]): PendingSplit {
   return { waiting, atGate, awaitingApproval };
 }
 
-/** The two lines a card prints under its figure, in the order the client named
- *  them. Singular/plural is done here rather than in two components, because
- *  the admin and the HOD must read identically. */
-export function pendingSplitNotes(split: PendingSplit): { text: string; key: 'gate' | 'approval' }[] {
-  // Spelled out rather than suffixed: "pass" pluralises to "passes", and a
-  // naive `+ 's'` prints "2 passs" — which is exactly what the first run of
-  // this function did.
-  const n = (count: number) => `${count} ${count === 1 ? 'pass' : 'passes'}`;
-  return [
-    { key: 'gate', text: `${n(split.atGate.length)} pending gate review` },
-    { key: 'approval', text: `${n(split.awaitingApproval.length)} pending approval` },
-  ];
-}
+// `pendingSplitNotes` — the two sentences a single Pending Approvals card
+// printed under its figure ("3 passes pending gate review") — is DELETED with
+// its last caller (client, 2026-08-22: "separate the pending at gate review and
+// pending for approvals, and remove those subtext"). Each desk is its own card
+// on both boards now, so the words are the card's own label and there is
+// nothing left for a sub-line to say.

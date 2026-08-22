@@ -149,7 +149,9 @@ describe('The super admin dashboard is the guard\'s board with the admin\'s figu
     expect(document.querySelectorAll('.gb-sum').length).toBe(2);
   });
 
-  it('shows the ADMIN’s five figures, grouped windowed against running', async () => {
+  // REWRITTEN 2026-08-22: the admin's Pending Approvals figure became two, one
+  // per desk (client), so Needs Attention carries three.
+  it('shows the ADMIN’s six figures, grouped windowed against running', async () => {
     await renderBoard();
     // Windowed: 4 raised in the last 7 days (3 RGP + 1 NRGP). The 20-day-old
     // one is outside it.
@@ -157,7 +159,8 @@ describe('The super admin dashboard is the guard\'s board with the admin\'s figu
     expect(figure('RGP')).toBe('3');
     expect(figure('NRGP')).toBe('1');
     // Running, and NOT scoped to the window — both rows are 40 days old.
-    expect(figure('Pending Approvals')).toBe('1');
+    expect(figure('Pending Gate Review')).toBe('1');
+    expect(figure('Pending Approval')).toBe('0');
     expect(figure('Overdue Returns')).toBe('1');
     // The two cards say which is which, so no reader has to guess.
     expect(screen.getByText('Gate Passes Raised')).toBeInTheDocument();
@@ -171,9 +174,10 @@ describe('The super admin dashboard is the guard\'s board with the admin\'s figu
     const raised = within(screen.getByTestId('super-card-raised'));
     const attention = within(screen.getByTestId('super-card-attention'));
     expect(raised.getAllByRole('button').map((b) => b.textContent)).toEqual(['4', '3', '1']);
-    expect(attention.getAllByRole('button').map((b) => b.textContent)).toEqual(['1', '1']);
-    expect(raised.queryByText('Pending Approvals')).toBeNull();
-    expect(attention.getByText('Pending Approvals')).toBeInTheDocument();
+    expect(attention.getAllByRole('button').map((b) => b.textContent)).toEqual(['1', '0', '1']);
+    expect(raised.queryByText('Pending Gate Review')).toBeNull();
+    expect(attention.getByText('Pending Gate Review')).toBeInTheDocument();
+    expect(attention.getByText('Pending Approval')).toBeInTheDocument();
     expect(attention.getByText('Overdue Returns')).toBeInTheDocument();
   });
 
@@ -200,7 +204,7 @@ describe('The super admin dashboard is the guard\'s board with the admin\'s figu
     fireEvent.change(screen.getByLabelText('Window'), { target: { value: '30' } });
     await waitFor(() => expect(figure('Total')).toBe('5'));
     expect(figure('RGP')).toBe('4');
-    expect(figure('Pending Approvals')).toBe('1');
+    expect(figure('Pending Gate Review')).toBe('1');
     expect(figure('Overdue Returns')).toBe('1');
   });
 

@@ -29,7 +29,7 @@
 import type { GatePassView } from '../types';
 import type { BoardDrill } from './boardDrills';
 import { IS_OPEN_RETURN } from './boardDrills';
-import { pendingSplit, pendingSplitNotes } from './pendingSplit';
+import { pendingSplit } from './pendingSplit';
 import { rejectionNotes, rejectionSplit, type RejectionApprovalRow } from './rejectionSplit';
 import { DAY_MS, dayStart } from './localDay';
 import type { HodGlyph, HodTone } from '../components/hod/hodIconTypes';
@@ -39,6 +39,9 @@ export type HodKpiKey =
   | 'nrgpIssued'
   | 'rgpIssued'
   | 'pendingReturn'
+  // TWO DESKS, TWO CARDS (client, 2026-08-22). `pendingApproval` used to be
+  // both, with the split printed under it as two sub-lines.
+  | 'pendingGate'
   | 'pendingApproval'
   | 'rejected';
 
@@ -195,31 +198,44 @@ export function buildHodKpis(
       },
     },
     {
-      // THE FIFTH CARD — the client's own instruction, 2026-08-20: the admin's
-      // Pending Approvals figure "not only for the admin but for the HOD
-      // dashboard also", subdivided the same way. The mock draws four cards and
-      // none of them is this one; it is here because the two sub-figures the
-      // client asked for had nowhere to hang, and hanging them off "RGP Issued
-      // today" would have scoped a running queue to a day and to one pass type.
+      // THE TWO PENDING DESKS, ONE CARD EACH (client, 2026-08-22: "separate the
+      // pending at gate review and pending for approvals, and remove those
+      // subtext"). They were the FIFTH card — one figure with the split printed
+      // under it in two small notes — and they are separate work for separate
+      // people, so each now stands over the rows it actually counts. What they
+      // count has not moved: `pendingSplit` is the same function the admin's
+      // board and the report's two filters read.
       //
       // SCOPE IS ALREADY THE HOD's, and is not this module's doing: RLS narrows
       // to their department (`gate_passes_select`, 002) and `useHodBoardData`
       // narrows again to what they raised, server-side.
+      key: 'pendingGate',
+      label: 'Pending Gate Review',
+      sub: 'Running',
+      glyph: 'clock',
+      tone: 'orange',
+      value: split.atGate.length,
+      notes: [],
+      drill: {
+        key: 'pendingGate',
+        heading: 'Passes waiting at the gate',
+        empty: 'Nothing of yours is waiting at the gate.',
+        rows: split.atGate,
+      },
+    },
+    {
       key: 'pendingApproval',
-      label: 'Pending Approvals',
+      label: 'Pending Approval',
       sub: 'Running',
       glyph: 'hourglass',
       tone: 'purple',
-      value: split.waiting.length,
-      notes: pendingSplitNotes(split).map((n) => ({
-        text: n.text,
-        dot: n.key === 'gate' ? ('orange' as HodTone) : ('purple' as HodTone),
-      })),
+      value: split.awaitingApproval.length,
+      notes: [],
       drill: {
         key: 'pendingApproval',
-        heading: 'Passes not through the gate yet',
-        empty: 'Nothing of yours is waiting.',
-        rows: split.waiting,
+        heading: 'Passes still owing an approval',
+        empty: 'Nothing of yours is waiting on an approver.',
+        rows: split.awaitingApproval,
       },
     },
     {

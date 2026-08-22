@@ -240,10 +240,12 @@ describe('the HOD dashboard is scoped to this HOD', () => {
     // Issued to 4 and Pending Approvals to 5.
     //
     // REWRITTEN 2026-08-20: the "N pending at the gate" note used to sit on the
-    // RGP Issued card. It is the Pending Approvals card now, is not narrowed to
-    // RGP, and is split in two — see the case below.
+    // RGP Issued card. It moved to a Pending Approvals card, and on 2026-08-22
+    // that card became TWO — one per desk — so the figure that used to read 4
+    // is now those two, summing to 4.
     expectFigure('RGP Issued', 3);
-    expectFigure('Pending Approvals', 4);
+    expectFigure('Pending Gate Review', 2);
+    expectFigure('Pending Approval', 2);
     expect(screen.queryByText('RGP-20260819-0099')).not.toBeInTheDocument();
   });
 
@@ -399,7 +401,12 @@ describe('Quick Actions and the Approval Pending strip', () => {
     // AND THE CARD ABOVE AGREES. The four figures sum to 2, which is exactly
     // what the Pending Approvals card's own sub-line says is still climbing the
     // ladder (p1 and p2). This is the mismatch the client reported.
-    expect(card('Pending Approvals').textContent).toContain('2 passes pending approval');
+    // REWRITTEN 2026-08-22: that figure used to be a sub-line under a single
+    // Pending Approvals card ("2 passes pending approval"). The desks are a
+    // card each now and the sub-lines are gone, so the card's own FIGURE is
+    // what has to agree with the strip.
+    expect(card('Pending Approval').textContent).toContain('2');
+    expect(card('Pending Approval').textContent).not.toContain('passes pending');
 
     // REWRITTEN 2026-08-20: the NRGP Issued and RGP Issued cards used to repeat
     // this strip's roll-up ("3 pending approval") as a note each. They carry no

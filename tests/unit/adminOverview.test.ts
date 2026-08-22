@@ -96,7 +96,7 @@ describe('the window', () => {
   });
 });
 
-describe('the five figures', () => {
+describe('the six figures', () => {
   // Inside the 7-day window: three RGP and one NRGP. Outside it: one RGP raised
   // 10 days ago, which must move no windowed figure.
   const ROWS = [
@@ -107,14 +107,20 @@ describe('the five figures', () => {
     pass({ id: 'old', created_at: daysAgo(10, NOW) }),
   ];
 
-  it('is the mock\'s five cards, in its own order', () => {
+  // REWRITTEN 2026-08-22. It used to hold five cards with `pending` fourth —
+  // one Pending Approvals figure standing over BOTH desks, with the split
+  // printed under it as two sub-lines. The client separated the desks.
+  it('is the mock cards, in its own order, with a card per pending desk', () => {
     expect(buildOverviewCards(ROWS, 7, NOW).map((c) => c.key))
-      .toEqual(['total', 'rgp', 'nrgp', 'pending', 'overdue']);
+      .toEqual(['total', 'rgp', 'nrgp', 'pendingGate', 'pendingApproval', 'overdue']);
   });
 
   it('labels the third card NRGP — the mock says "Energy Pay Pass", which this app has no such thing as', () => {
     const labels = buildOverviewCards(ROWS, 7, NOW).map((c) => c.label);
-    expect(labels).toEqual(['Total Gate Passes', 'RGP', 'NRGP', 'Pending Approvals', 'Overdue Returns']);
+    expect(labels).toEqual([
+      'Total Gate Passes', 'RGP', 'NRGP', 'Pending Gate Review', 'Pending Approval',
+      'Overdue Returns',
+    ]);
     expect(labels.join(' ')).not.toMatch(/Energy/i);
   });
 
@@ -167,7 +173,9 @@ describe('the five figures', () => {
     });
 
     it('counts a pass older than the window — an obligation does not close because the window rolled', () => {
-      expect(cardOf([WAITING, LATE], 'pending').value).toBe(1);
+      // The waiting pass owes no signature, so it is at the GATE desk.
+      expect(cardOf([WAITING, LATE], 'pendingGate').value).toBe(1);
+      expect(cardOf([WAITING, LATE], 'pendingApproval').value).toBe(0);
       expect(cardOf([WAITING, LATE], 'overdue').value).toBe(1);
       // …and neither is in a windowed figure.
       expect(cardOf([WAITING, LATE], 'total').value).toBe(0);
@@ -175,7 +183,8 @@ describe('the five figures', () => {
 
     it('excludes an EXPIRED pass from Pending Approvals — nothing can clear it', () => {
       const dead = pass({ id: 'e', created_at: daysAgo(40, NOW), status: 'pending', is_expired: true });
-      expect(cardOf([dead], 'pending').value).toBe(0);
+      expect(cardOf([dead], 'pendingGate').value).toBe(0);
+      expect(cardOf([dead], 'pendingApproval').value).toBe(0);
     });
 
     it('says what it is, and never how it compares', () => {
@@ -183,7 +192,12 @@ describe('the five figures', () => {
       // became false the day 046 stopped the gate seeing a pass still climbing
       // the ladder: most of this figure is not at the gate at all. The card now
       // says what it actually counts and breaks it in two underneath.
-      expect(cardOf([WAITING, LATE], 'pending').note).toBe('Not through the gate yet');
+      // REWRITTEN AGAIN 2026-08-22: one card per desk, each saying which desk
+      // it is rather than one card saying "not through the gate yet" over both.
+      expect(cardOf([WAITING, LATE], 'pendingGate').note)
+        .toBe('Cleared the ladder, waiting at the gate');
+      expect(cardOf([WAITING, LATE], 'pendingApproval').note)
+        .toBe('Still climbing the approval ladder');
       expect(cardOf([WAITING, LATE], 'overdue').note).toBe('Still out, past its date');
     });
   });

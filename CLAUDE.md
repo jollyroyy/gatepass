@@ -76,7 +76,135 @@ through request → HOD approval → deletion. That is now the next security act
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
 | `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-21, thirty-ninth pass): THE APPROVAL PENDING STRIP AND THE
+**Latest change (2026-08-22, forty-first pass): NO NRGP IS EVER FILED UNDER "Partially
+Returned" — A PASS THAT NEVER LEFT THE GATE IS PENDING, AND THE ROW NAMES THE DESK IT IS ON;
+AND THE PRINTED SLIP CARRIES THE DIGITAL APPROVAL TRAIL INSTEAD OF SEVEN EMPTY SIGNATURE
+BOXES.** Frontend only — no migration, no RPC change, no new query.
+
+- **THE REPORT'S "Partially Returned" BUCKET WAS THE REMAINDER, AND THAT IS THE WHOLE BUG**
+  (client: "when I am searching with the partial return, both NRGPs are also coming. Partial
+  return can only be true for the RGP … if they are waiting for the gate for approval then put
+  them under pending gate approval … make this work across all the views, not only in the report
+  but also in the HOD report and everywhere. We get from the past raised passes also
+  accordingly"). `reportStatusOf` filed everything that was neither completed nor cancelled under
+  it, so every pass still climbing the ladder or waiting at the barrier landed there — **an NRGP
+  included, describing a return obligation an NRGP cannot have** (`return_status` is pinned to
+  `not_applicable` for every NRGP by `gate_passes_return_status_rgp_only`, migration 001).
+  - **THE BUCKET NOW TESTS THE RETURN LEG POSITIVELY** — `IS_OPEN_RETURN[return_status]`, the
+    same lookup the boards use — so it is RGP-only by construction rather than by remainder.
+  - **A FOURTH BUCKET, `pending`**, takes what fell out: `pending` / `held` / `hod_reviewed`, both
+    pass types. The four are still **disjoint and total**, so the report's cards still add up, and
+    a new `sums to the total` case walks all 48 status × return-status × expiry combinations.
+  - **THE ROW NAMES THE DESK, IN `passStageStyle`'s OWN WORDS** — Pending Gate Review / Pending
+    Approval / Held at Gate / HOD Approved — so the register prints exactly what the card above it
+    prints and there is no second vocabulary. The CARD is the flat "Pending"; `pending_gate` and
+    `pending_approval` are still offered on the Status select and are now subsets of THIS bucket.
+  - **"EVERYWHERE" IS SATISFIED BY ONE FUNCTION.** `reportStatusLabel` / `reportStatusPill` are
+    rendered by the admin's `/all-passes`, the HOD's `/reports` (one component), the CSV export
+    (`REPORT_CSV_COLUMNS` formats Status through the same function) and **My Passes' cards**.
+    Nothing else in the app ever said "Partially Returned" about an NRGP: `passStageStyle`, which
+    every badge on every card renders, has always read `not_applicable` as "no return loop".
+  - **NOTHING WAS BACKFILLED AND NOTHING NEEDED TO BE** — this is a derivation over
+    `v_gate_passes`, so every pass ever raised is re-filed the moment it deploys, which is the
+    "past raised passes also" half of the instruction.
+  - `.gb-rep-grid` is 4 tracks at 1280 and 7 at 1536: six columns over seven cards strands one.
+- **THE PRINTED SLIP HAS NO SIGNATURE BOXES** (client: "when I'm printing the pass from any page
+  it should not show the previous boxes for the signature. Show it as per the digital approval. It
+  should show all the digital signature timeline and everything in a proper format" · "across all
+  the views, for any tabs. Trying to take a printout from any of the details page").
+  - **`src/pages/Shared/signatureBlocks.ts` IS DELETED**, with `SignatureBox` and its seven boxes
+    over three rows, so a stale reference is a build error. Since 046 the four offices sign IN THE
+    PORTAL and `pass_approvals` records who pressed each rung and when; a blank box beside that is
+    not a second safeguard, it is an invitation to sign paper and believe it counted.
+  - **`PrintApprovalRecord.tsx` RENDERS THE RECORD'S OWN `buildApprovalSteps`** — the very steps
+    the pass record's timeline draws — as a mono-safe table (# · Step · Approver / Office · Status
+    · Date & Time · Remarks), so **the sheet in a guard's hand and the screen on the desk cannot
+    name a different office, person or moment**. Change the ladder and the paper follows for free.
+    It carries the raise, every level the pass owes, the gate's own decision and the return leg.
+  - **`viewerRole` IS DELIBERATELY NULL THERE.** The "Signed on the printed pass" fiction exists
+    for a guard reading a screen with the paper in hand — and this IS the paper.
+  - **IT INVENTS NO MOMENT AND NO COLOUR**: a rung this database records no time for prints a
+    dash, and every state is a WORD in its own column. A sentence under the heading says approvals
+    are recorded digitally and no manual signature is required, because a reader who used to sign
+    this sheet otherwise reads the missing boxes as a printing fault.
+  - **⚠ FLAGGED, NOT FIXED**: on one of the 60 legacy passes that carry no ladder, a held office
+    still prints "Signed on the printed pass" — the screen says the same thing for an HOD and an
+    admin today, so the paper and the record still agree, but on paper it reads circularly.
+  - `approvalOrderLinear`'s "three surfaces state the order" case is **REWRITTEN**: the slip no
+    longer states an order of its own, so that agreement is now structural.
+- Pinned by a new `tests/unit/noNrgpPartialReturn.test.ts` (9 — **watched failing 7/9** first) and
+  a **REWRITTEN** `passPrintSignatures.test.tsx` (9 — its header says what it used to hold), plus
+  rewritten cases in `gatePassReport`, `inProgressReturnLabel` and `approvalOrderLinear`.
+- **NOT SEEN SIGNED-IN IN A BROWSER, AND NOTHING HAS BEEN PUT THROUGH A REAL PRINT DIALOG**: the
+  suite and a typecheck only. The seven-card figure row and the new approval table on an A5 sheet
+  are exactly what only a real render and a real Ctrl+P prove.
+- **⚠ ONE FAILING TEST IN THE TREE IS NOT THIS PASS'S AND IS NOT IN THIS COMMIT.**
+  `passRecordReturns.test.tsx`'s partial-quantity case fails against a PARALLEL SESSION's
+  in-flight `PassRecordReturns.tsx` (confirmed by stashing that file, at which point it passes).
+  Everything else is green: **1984 passing across 157 files**. **The fortieth-pass entry below
+  describes that session's work, which is NOT in this commit either.**
+
+**Earlier (2026-08-22, fortieth pass): THE TIMELINE NAMES EVERY MATERIAL LINE AND HOW FAR
+IT HAS COME BACK, AND IT MOVES AS THE GUARD TYPES; AN HOD CAN FORWARD A PASS TO THE VENDOR ON
+WHATSAPP; AND THE TWO PENDING DESKS ARE TWO CARDS ON BOTH DASHBOARDS.** Frontend only — no
+migration, no RPC change, no new query.
+
+- **THE RETURN RUNG CARRIES A LINE PER ITEM** (client: "when the RGP pass has returned only a few
+  of the things … in the timeline on the right-hand side … if it is not returned fully, within the
+  bracket you can mention 'returned partially' and how many items of how many total items were
+  returned, in a very small, very short format"). `src/lib/returnTimeline.ts` is the derivation:
+  a state and two numbers per line — **"Partially Returned (3/8)"** — under a "1 of 2 lines still
+  out" heading, hanging off the To Be Returned / Returned rung in `PassTimeline`.
+  - **IT COUNTS QUANTITY, NOT LINES.** Three of eight headsets back on ONE line is exactly the
+    case named, and a line count would call it zero — the same bug `returnProgress`'s percentage
+    was fixed for on 2026-08-21.
+  - **REAL-TIME MEANT LIFTING THE DRAFT.** `PassRecordReturns` owned the staged return and the
+    rail on the other side of the screen could not see it; the draft is `PassRecordView`'s state
+    now and both halves read the same object, so nothing has to be kept in step. A staged figure
+    is MARKED "Not recorded yet" — `apply_item_returns` has no undo, so "looks done" must never
+    read as "is done".
+  - **EMPTY ON AN NRGP AND ON A REFUSED PASS**, which `buildReturnTimeline` decides and the
+    component does not: a return leg that never began is not a list of unreturned lines.
+  - It is the ONE record every role opens, so the HOD's and the admin's rails carry it too; only
+    a guard can move the numbers.
+- **"Send to Vendor" ON THE PASS DETAILS PAGE, FOR AN HOD** (client: "give an option to the HODs
+  to forward the pass details to the vendor WhatsApp if it is available … from the pass details
+  page"). `src/lib/whatsappShare.ts` + a button beside Print Pass.
+  - **NOTHING IS SENT BY THIS APP.** There is no WhatsApp Business account, no API key and no
+    template approval here; the button opens `wa.me` with the text prepared and the HOD presses
+    send in their own WhatsApp, from their own number. Hence no migration, no secret and no log —
+    the send is not this system's action.
+  - The number is the vendor's own, dug out of `visitor_company`'s packed `{"n","a","v"}` blob.
+    A bare 10-digit mobile is given `91` (`wa.me` refuses a number with no country code);
+    11–15 digits pass through; **anything shorter is refused rather than guessed at** — a wrong
+    number is a stranger's chat. No number, no button ("if it is available").
+  - The message carries the pass, the vendor, the vehicle, the purpose, the material lines and —
+    on an RGP only — the return date. **No portal link**: a vendor has no account here.
+- **PENDING GATE REVIEW AND PENDING APPROVAL ARE SEPARATE CARDS** (client: "in the dashboard make
+  sure you separate the pending at gate review and pending for approvals, and remove those
+  subtext"), on the admin's Overview (6 cards), the HOD's board (7) and the super admin's Needs
+  Attention card (3 figures).
+  - `pendingSplit` is UNCHANGED, so the two cards still sum to what the single figure showed and
+    every surface reads the same split. **`pendingSplitNotes` is DELETED with its last caller**,
+    and the admin's `pending` key with it — a stale reference is a type error, which is what
+    caught `superAdminBoard`'s `PLACEMENT` map at compile time.
+  - Each card now drills into the rows it actually counts; the old one opened a list that was two
+    different queues.
+  - `.gb-ov-grid` is six tracks at 1280; `.gb-kpi-grid` breaks 4 + 3 at 1280 and goes flat at
+    1536 — seven tracks crush a 32px figure.
+- Pinned by a new `tests/unit/returnTimelineItems.test.tsx` (11 — the two render cases watched
+  failing first), `tests/unit/whatsappShare.test.tsx` (10) and `tests/unit/pendingDeskCards.test.ts`
+  (6, watched failing first), plus **REWRITTEN** cases in `pendingSplit`, `adminOverview`,
+  `adminDashboardOverview`, `superAdminDashboard` and `hodDashboardBoard`, each saying in its own
+  comment what it used to hold.
+- **NOT SEEN SIGNED-IN IN A BROWSER**: the suite and a typecheck only. The rail's line list at a
+  narrow width, and the WhatsApp link actually opening a chat on a phone, are exactly what only a
+  real render proves.
+- **⚠ THIS WORKING TREE ALSO CARRIES A PARALLEL SESSION'S IN-FLIGHT WORK** — `src/lib/gatePassReport.ts`
+  (a fourth report bucket, `pending`) and `tests/unit/noNrgpPartialReturn.test.ts`. They are NOT
+  in this commit, and that file currently fails `tsc` on an unused `passStageStyle` import.
+
+**Earlier (2026-08-21, thirty-ninth pass): THE APPROVAL PENDING STRIP AND THE
 Pending Approvals CARD ABOVE IT NOW AGREE — ONE PASS COUNTS ONCE, AGAINST THE ONE DESK THAT CAN
 ACT ON IT.** Frontend only — no migration, no RPC change, and the same two queries the board
 already made.
@@ -2970,6 +3098,10 @@ the query and `GateConsole` renders the results full width above the queue.
 - Pinned by `tests/unit/phoneSearch.test.ts` (6) and `tests/unit/gateLookupPhone.test.tsx` (5).
 
 ### Known, not fixed
+
+- **`src/lib/adminOverview.ts` is 363 lines**, over the 300-line cap. It was already 343 before
+  the 2026-08-22 pass split the Pending Approvals card in two; the honest fix is moving
+  `buildOverviewCards` into its own module beside the trend and the ring.
 
 - **`gatepass.get_ceo_approver` and `set_ceo_approver` have no caller in `src/`** (2026-08-20,
   thirtieth pass) — the Admin panel's CEO-designation card was deleted. `is_ceo()` still reads

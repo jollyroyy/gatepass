@@ -2796,11 +2796,15 @@
   @media (min-width: 640px) {
     .gb-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
-  /* SIX across, not the mock's four: the client asked for a Pending Approvals
-   * card on this board (2026-08-20) and then a Rejected one, and a spare card
-   * on a four-track grid is an orphan on a second row. */
+  /* SEVEN cards now, not the mock's four: a Pending Approvals card landed here
+   * on 2026-08-20, then a Rejected one, and on 2026-08-22 the pending card
+   * became two — one per desk. Seven tracks crush a 32px figure at 1280, so the
+   * row breaks 4 + 3 there and goes flat only when there is width for it. */
   @media (min-width: 1280px) {
-    .gb-kpi-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .gb-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1536px) {
+    .gb-kpi-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
   }
 
   /* The WHOLE CARD is the drill control, not the number: a figure this size
@@ -3114,8 +3118,10 @@
   @media (min-width: 1024px) {
     .gb-ov-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
+  /* SIX across since 2026-08-22, when Pending Approvals became one card per
+   * desk. A spare card on a five-track grid is an orphan on a second row. */
   @media (min-width: 1280px) {
-    .gb-ov-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .gb-ov-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   }
 
   /* The WHOLE CARD is the drill control, not the number: a figure this size with
@@ -3593,8 +3599,14 @@
   @media (min-width: 768px) {
     .gb-rep-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
+  /* SEVEN cards since the `pending` bucket was split out of Partially Returned
+   * (2026-08-22). Four then seven rather than six then seven: 6 columns over 7
+   * cards leaves one stranded on a row of its own. */
   @media (min-width: 1280px) {
-    .gb-rep-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .gb-rep-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1536px) {
+    .gb-rep-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
   }
   /* The mock's card is a READING, not a control — it opens nothing, so it is a
    * div with no hover lift. The drillable version of this row is the admin

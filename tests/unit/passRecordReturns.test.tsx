@@ -112,7 +112,12 @@ describe('recording a return on the pass record', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm Return' }));
 
     // 800 of 1,000 litres is the whole point — and none of it has been sent.
-    await waitFor(() => expect(screen.getByText('Not recorded yet')).toBeInTheDocument());
+    // Scoped to the TABLE since 2026-08-22: the timeline's own line list says
+    // "Not recorded yet" against a staged line too, so the bare query now
+    // matches twice. Both are deliberate — the phrase is the one thing that
+    // stops "looks done" reading as "is done", wherever a staged figure shows.
+    await waitFor(() =>
+      expect(within(screen.getByRole('table')).getByText('Not recorded yet')).toBeInTheDocument());
     expect(rpc).not.toHaveBeenCalledWith('apply_item_returns', expect.anything());
     // One Quantity column now (client, 2026-08-19): the issued figure, then the
     // second number under it — what has actually come back — and what is left.

@@ -50,6 +50,9 @@
 // the indent by being added in the wrong place.
 import React from 'react';
 import type { ApprovalStep, ApprovalStepState } from '../../lib/approvalLadder';
+import type { ReturnTimelineLine } from '../../lib/returnTimeline';
+import { outstandingLineNote } from '../../lib/returnTimeline';
+import type { LineState } from '../../lib/returnDraft';
 import type { VerifyAction, Verification } from '../../types';
 import { formatDateTime, formatTime, formatDateOnly } from '../../lib/formatDate';
 
@@ -153,7 +156,55 @@ function StepLines({ step }: { step: ApprovalStep }): React.ReactElement {
   );
 }
 
-type Props = { steps: ApprovalStep[]; activity: ActivityEntry[] };
+type Props = {
+  steps: ApprovalStep[];
+  activity: ActivityEntry[];
+  /** EVERY MATERIAL LINE OF AN RGP AND HOW FAR IT HAS COME BACK (client,
+   *  2026-08-22). Empty on an NRGP and on a refused pass — see
+   *  `buildReturnTimeline`, which decides that, not this component. The
+   *  quantities include what the guard has STAGED but not yet recorded, which
+   *  is what makes the rail move as they type. */
+  returnLines?: ReturnTimelineLine[];
+};
+
+/** THE SAME THREE HUES THE ITEM TABLE PAINTS A LINE IN (`ITEM_RETURN_STYLES`),
+ *  in the house theme this card is drawn in — the rail and the table are read
+ *  side by side and a line must not be one colour on one and another on the
+ *  other. House tokens, not the guard skin's `.gb-pill-*`: those paint from
+ *  `--gb-*` custom properties, and the timeline carries no such island.
+ *  Keyed on the union, so a fourth state is a compile error. */
+const LINE_INK: Record<LineState, string> = {
+  returned: 'bg-matched-50 text-matched-700',
+  partial: 'bg-accent-50 text-accent-700',
+  pending: 'bg-pending-50 text-pending-700',
+};
+
+/** The line list that hangs under the return rung. Short on purpose: a state
+ *  and two numbers per line, in a rail one column wide. The name of the line
+ *  is what a reader matches against the table on the other side of the screen;
+ *  everything else about it lives there. */
+function ReturnLines({ lines }: { lines: ReturnTimelineLine[] }): React.ReactElement {
+  const note = outstandingLineNote(lines);
+  return (
+    <div className="mt-2" data-testid="timeline-return-lines">
+      {note && <p className="text-xs font-semibold text-navy-700 mb-1">{note}</p>}
+      <ul className="flex flex-col gap-1.5">
+        {lines.map((l) => (
+          <li key={l.id} className="min-w-0">
+            <p className="text-xs text-navy-700 break-words">{`${l.lineNo}. ${l.name}`}</p>
+            <span className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold ${LINE_INK[l.state]}`}>
+              {l.short}
+            </span>
+            {/* A STAGED FIGURE IS NOT A RECORDED ONE. `apply_item_returns` has
+                no undo, so the rail must never let "looks done" read as
+                "is done" — the same rule the table's tinted row follows. */}
+            {l.staged && <span className="ml-1 text-[11px] text-pending-700">Not recorded yet</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 /** THE RETURN LEG CLOSES THE RAIL, UNDER THE GATE'S OWN EVENTS (client,
  *  2026-08-19: "Cleared out at the gate should be just before the return …
@@ -167,7 +218,9 @@ type Props = { steps: ApprovalStep[]; activity: ActivityEntry[] };
  *  this is a rendering order, not a change to the ladder itself. */
 const RETURN_STEP_KEY = 'return';
 
-export default function PassTimeline({ steps, activity }: Props): React.ReactElement {
+export default function PassTimeline({
+  steps, activity, returnLines = [],
+}: Props): React.ReactElement {
   const ladder = steps.filter((s) => s.key !== RETURN_STEP_KEY);
   const closing = steps.filter((s) => s.key === RETURN_STEP_KEY);
 
@@ -220,6 +273,11 @@ export default function PassTimeline({ steps, activity }: Props): React.ReactEle
           >
             <p className="text-sm font-semibold text-navy-900">{step.label}</p>
             <StepLines step={step} />
+            {returnLines.length > 0 && (
+              <StepDetail>
+                <ReturnLines lines={returnLines} />
+              </StepDetail>
+            )}
           </Rail>
         ))}
       </ol>
