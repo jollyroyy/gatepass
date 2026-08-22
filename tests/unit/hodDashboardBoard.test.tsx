@@ -332,16 +332,21 @@ describe('the Rejected card', () => {
   // Client, 2026-08-20: "show a dashboard KPI card of rejected under all HOD,
   // and under the rejected KPI card give the total number. Below that put it —
   // rejected at security gate, rejected by approver — show exact count."
-  it('prints the total and the two desks it is made of, which sum to it', async () => {
+  it('prints the total alone — no sub-line naming either desk', async () => {
+    // REWRITTEN 2026-08-22. It used to assert the card also printed
+    // "1 pass rejected at security gate" / "0 passes rejected by approver"
+    // underneath the figure. The client's instruction that day ("remove
+    // running and all kinds of subtext from kpi card from all dashboards ...
+    // across all views") deleted HodKpiCard.notes outright, so the card now
+    // carries the bare total and nothing else.
     renderBoard();
     await loaded();
 
     // t3 is `flagged` and raised today: the guard rejected it at the barrier.
-    // Nothing of this HOD's was rejected on the ladder today.
     const rejected = card('Rejected');
     expect(rejected).toHaveTextContent('1');
-    expect(rejected).toHaveTextContent('1 pass rejected at security gate');
-    expect(rejected).toHaveTextContent('0 passes rejected by approver');
+    expect(rejected).not.toHaveTextContent('rejected at security gate');
+    expect(rejected).not.toHaveTextContent('rejected by approver');
   });
 
   it('drills into the very rows it counted', async () => {

@@ -1679,12 +1679,17 @@ describe('057 — the ladder is linear in the client order, and an unapproved pa
     expect(add).toBeGreaterThan(update);
   });
 
-  it('snapshots new passes in the same order the constraint enforces', () => {
-    // Two copies of one mapping is exactly the drift this pins against: a
-    // trigger writing level 3 for the CEO would fail the check on every raise.
-    const body = fnBody('gatepass.snapshot_pass_approvals');
-    expect(body).toMatch(/when 'finance_head'\s*then 3/i);
-    expect(body).toMatch(/when 'ceo'\s*then 4/i);
+  // REWRITTEN 2026-08-22: this used to read the LATEST definition of the
+  // snapshot trigger and expect 057's mapping. 063 renumbered it, so the
+  // property this file owns is that 057's OWN copy of the trigger agreed with
+  // 057's OWN constraint — two copies of one mapping is the drift being pinned,
+  // and the current mapping is pinned in the 063 block below.
+  it('snapshots new passes in the same order its own constraint enforces', () => {
+    const trigger = bare.match(
+      /create or replace function gatepass\.snapshot_pass_approvals[\s\S]*?\$\$;/i,
+    )![0];
+    expect(trigger).toMatch(/when 'finance_head'\s*then 3/i);
+    expect(trigger).toMatch(/when 'ceo'\s*then 4/i);
   });
 
   it('rebuilds the view rather than replacing it, and re-grants select in the same file', () => {
@@ -2056,12 +2061,18 @@ describe('061 — ladder visibility is linear', () => {
   const fns = extractFunctions(migrations);
   const body = fns.filter((f) => f.name === 'gatepass.pass_routed_to_me').slice(-1)[0].body;
 
-  it('the office sees a pass only when every rung BELOW it is approved', () => {
+  // REWRITTEN 2026-08-22: the rung test used to be `<> 'approved'` exactly.
+  // 063 added the `not_required` status — a rung the OTHER office on a shared
+  // level signed — and restated this predicate as `not in ('approved',
+  // 'not_required')`. The property is the same one: a rung below me that is
+  // still open (or was rejected) means the turn never reached me.
+  it('the office sees a pass only when every rung BELOW it is closed in its favour', () => {
     expect(body).toMatch(/b\.level_no < a\.level_no/i);
-    // `<> 'approved'`, not `= 'pending'`: a rejection below me is not a turn
-    // that passed to me, so the pass stays invisible for good.
-    expect(body).toMatch(/b\.status <> 'approved'/i);
+    expect(body).toMatch(/b\.status not in \('approved', 'not_required'\)/i);
     expect(body).toMatch(/not exists/i);
+    // NOT `= 'pending'`: a rejection below me is not a turn that passed to me,
+    // so the pass stays invisible for good.
+    expect(body).not.toMatch(/b\.status = 'pending'/i);
   });
 
   it('still resolves the office through my_approval_role, so a deputy inherits it', () => {
@@ -2258,5 +2269,161 @@ describe('062 — approval delegation', () => {
 
   it('reloads the PostgREST schema cache', () => {
     expect(bare).toMatch(/notify pgrst, 'reload schema';/i);
+  });
+});
+
+describe('063 — the last rung is the COO or the CEO, and the CEO inherits it on a clock', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('063'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(migrations);
+  const fnBody = (name: string) => fns.filter((f) => f.name === name).slice(-1)[0].body;
+
+  it('touches nothing in `public` — the two-schema rule', () => {
+    expect(/create\s+(table|view|function|type)\s+public\./i.test(bare)).toBe(false);
+    expect(/alter\s+table\s+public\./i.test(bare)).toBe(false);
+  });
+
+  it('puts the COO and the CEO on the SAME level in the check constraint', () => {
+    const check = bare.match(/add constraint pass_approvals_level_matches[\s\S]*?\);/i)![0];
+    expect(check).toMatch(/when 'security_head'\s*then 1/i);
+    expect(check).toMatch(/when 'finance_head'\s*then 2/i);
+    expect(check).toMatch(/when 'coo'\s*then 3/i);
+    expect(check).toMatch(/when 'ceo'\s*then 3/i);
+  });
+
+  it('drops the old constraint BEFORE renumbering, or no single update could satisfy it', () => {
+    const drop = bare.search(/drop constraint if exists pass_approvals_level_matches/i);
+    const update = bare.search(/update gatepass\.pass_approvals set level_no/i);
+    const add = bare.search(/add constraint pass_approvals_level_matches/i);
+    expect(drop).toBeGreaterThan(-1);
+    expect(update).toBeGreaterThan(drop);
+    expect(add).toBeGreaterThan(update);
+  });
+
+  it('snapshots new passes in the same order its own constraint enforces', () => {
+    // Two copies of one mapping is exactly the drift this pins against: a
+    // trigger writing level 4 for the CEO would fail the check on every raise.
+    const body = fnBody('gatepass.snapshot_pass_approvals');
+    expect(body).toMatch(/when 'finance_head'\s*then 2/i);
+    expect(body).toMatch(/when 'coo'\s*then 3/i);
+    expect(body).toMatch(/when 'ceo'\s*then 3/i);
+    expect(body).not.toMatch(/then 4/i);
+  });
+
+  it('replaces the snapshot trigger rather than dropping it', () => {
+    // Dropping and recreating would open a window, however short, in which an
+    // insert snapshots nothing at all.
+    expect(bare).toMatch(/create or replace function gatepass\.snapshot_pass_approvals/i);
+    expect(bare).not.toMatch(/drop trigger[\s\S]*snapshot_approvals/i);
+  });
+
+  it('a `not_required` rung has a moment and a sentence, and NO author', () => {
+    const shape = bare.match(/add constraint pass_approvals_decision_shape[\s\S]*?\);/i)![0];
+    expect(shape).toMatch(
+      /status = 'not_required'\s+and decided_by is null\s+and decided_at is not null/i,
+    );
+    // Nobody signed it, so a decided_by here would print a name beside a
+    // signature that was never given.
+    expect(bare).toMatch(/status in \('pending', 'approved', 'rejected', 'not_required'\)/i);
+  });
+
+  it('keeps 058\'s two approval arms — the rollout is still authorless', () => {
+    const shape = bare.match(/add constraint pass_approvals_decision_shape[\s\S]*?\);/i)![0];
+    expect(shape).toMatch(/status = 'approved' and grandfathered and decided_by is null/i);
+    expect(shape).toMatch(/status = 'approved' and not grandfathered and decided_by is not null/i);
+  });
+
+  it('closes the sibling rung as `not_required` in the same call as the signature', () => {
+    const body = fnBody('gatepass.approve_pass_level');
+    expect(body).toMatch(/set status\s*=\s*'not_required'/i);
+    // Written as "every other pending row on MY OWN level", so the rule belongs
+    // to a shared level rather than to one pair of offices.
+    expect(body).toMatch(/a\.level_no = v_mine/i);
+    expect(body).toMatch(/a\.role_key <> v_role/i);
+    expect(body).toMatch(/a\.status = 'pending'/i);
+  });
+
+  it('refuses the CEO while the COO still has time, naming the moment', () => {
+    const body = fnBody('gatepass.approve_pass_level');
+    expect(body).toMatch(/gatepass\.level_escalates_at\(p_pass_id, v_role\)/i);
+    expect(body).toMatch(/now\(\) < v_escalates/i);
+    expect(body).toMatch(/raise exception 'This pass is with the COO until/i);
+  });
+
+  it('leaves the slip-order rule and the delegation ceiling exactly as they were', () => {
+    const body = fnBody('gatepass.approve_pass_level');
+    expect(body).toMatch(/An earlier approval level has not signed this pass yet/i);
+    expect(body).toMatch(/decided_as_delegate/i);
+    expect(body).toMatch(/is limited to/i);
+  });
+
+  it('never gates a REJECTION on the escalation window', () => {
+    // A limit caps what somebody may COMMIT the business to; refusing to let an
+    // office STOP a pass points the rule exactly the wrong way (062's call).
+    const body = fnBody('gatepass.reject_pass_level');
+    expect(body).not.toMatch(/level_escalates_at|escalat/i);
+  });
+
+  it('counts the window from when the rung was REACHED, never from now()', () => {
+    const body = fnBody('gatepass.level_escalates_at');
+    expect(body).toMatch(/max\(b\.decided_at\)/i);
+    expect(body).toMatch(/b\.level_no < a\.level_no/i);
+    expect(body).toMatch(/g\.created_at/i);
+    expect(body).toMatch(/gatepass\.get_escalation_hours\(\)/i);
+    expect(body).not.toMatch(/now\(\)\s*-/i);
+  });
+
+  it('answers null unless the CEO is genuinely waiting behind a pending COO', () => {
+    const body = fnBody('gatepass.level_escalates_at');
+    expect(body).toMatch(/when p_role_key <> 'ceo' then null/i);
+    expect(body).toMatch(/c\.role_key = 'coo'[\s\S]*?c\.status = 'pending'/i);
+  });
+
+  it('pins search_path on every definer function it adds', () => {
+    for (const name of [
+      'gatepass.level_escalates_at',
+      'gatepass.get_escalation_hours',
+      'gatepass.get_app_settings',
+      'gatepass.set_app_settings',
+      'gatepass.approve_pass_level',
+      'gatepass.snapshot_pass_approvals',
+      'gatepass.pass_routed_to_me',
+    ]) {
+      const body = fnBody(name);
+      expect(body).toMatch(/security definer/i);
+      expect(body).toMatch(/set search_path = ''/i);
+    }
+  });
+
+  it('drops the 4-arg settings setter, so no overload is reachable by named args', () => {
+    // 045's lesson: two overloads reachable by named arguments is exactly the
+    // ambiguity PostgREST guesses at.
+    const drop = bare.search(
+      /drop function if exists gatepass\.set_app_settings\(text, text, boolean, int\)/i,
+    );
+    const create = bare.search(/create function gatepass\.set_app_settings/i);
+    expect(drop).toBeGreaterThan(-1);
+    expect(create).toBeGreaterThan(drop);
+  });
+
+  it('bounds the escalation window in the column and restates it as a sentence', () => {
+    expect(bare).toMatch(/coo_escalation_hours smallint not null default 48/i);
+    expect(bare).toMatch(/check \(coo_escalation_hours between 1 and 720\)/i);
+    expect(fnBody('gatepass.set_app_settings'))
+      .toMatch(/raise exception 'The COO escalation window has to be/i);
+  });
+
+  it('keeps the settings table admin-only, and the one integer readable by everyone', () => {
+    // `get_session_timeout`'s argument (056): the office holding the pass is not
+    // an admin, and their own screen has to say when it becomes theirs.
+    expect(fnBody('gatepass.get_app_settings')).toMatch(/if not gatepass\.is_admin\(\) then/i);
+    expect(fnBody('gatepass.set_app_settings')).toMatch(/if not gatepass\.is_admin\(\) then/i);
+    expect(fnBody('gatepass.get_escalation_hours')).not.toMatch(/is_admin/i);
+    expect(bare).toMatch(/grant execute on function gatepass\.get_escalation_hours\(\) to authenticated;/i);
+  });
+
+  it('leaves `pass_awaits_approval` alone — a not_required rung stops blocking at once', () => {
+    expect(bare).not.toMatch(/function gatepass\.pass_awaits_approval/i);
   });
 });

@@ -155,13 +155,20 @@ describe('the six figures', () => {
     ];
     for (const card of buildOverviewCards(rows, 7, NOW)) {
       expect(card).not.toHaveProperty('delta');
-      expect(card.note).not.toMatch(/vs |previous|%/);
+      expect(card).not.toHaveProperty('note');
+      expect(card).not.toHaveProperty('notes');
     }
   });
 
-  it('states each windowed figure scope in words instead', () => {
-    expect(cardOf([pass({ id: 'n1', created_at: daysAgo(1, NOW) })], 'total').note)
-      .toBe('Raised in the last 7 days');
+  it('carries no subtext of any kind under a windowed figure', () => {
+    // REWRITTEN 2026-08-22: it used to assert the card's note read
+    // 'Raised in the last 7 days'. The client's instruction that day ("remove
+    // running and all kinds of subtext from kpi card from all dashboards ...
+    // across all views") deleted OverviewCard.note/notes outright, so a card
+    // now carries no scope line at all.
+    const card = cardOf([pass({ id: 'n1', created_at: daysAgo(1, NOW) })], 'total');
+    expect(card).not.toHaveProperty('note');
+    expect(card).not.toHaveProperty('notes');
   });
 
   describe('the two RUNNING queues', () => {
@@ -187,18 +194,18 @@ describe('the six figures', () => {
       expect(cardOf([dead], 'pendingApproval').value).toBe(0);
     });
 
-    it('says what it is, and never how it compares', () => {
+    it('carries no subtext at all — not even which desk it is', () => {
       // REWRITTEN 2026-08-20. It used to read 'Waiting at the gate now', which
       // became false the day 046 stopped the gate seeing a pass still climbing
-      // the ladder: most of this figure is not at the gate at all. The card now
-      // says what it actually counts and breaks it in two underneath.
-      // REWRITTEN AGAIN 2026-08-22: one card per desk, each saying which desk
-      // it is rather than one card saying "not through the gate yet" over both.
-      expect(cardOf([WAITING, LATE], 'pendingGate').note)
-        .toBe('Cleared the ladder, waiting at the gate');
-      expect(cardOf([WAITING, LATE], 'pendingApproval').note)
-        .toBe('Still climbing the approval ladder');
-      expect(cardOf([WAITING, LATE], 'overdue').note).toBe('Still out, past its date');
+      // the ladder: most of this figure is not at the gate at all. The card
+      // then said what it actually counts and broke it in two underneath.
+      // REWRITTEN AGAIN 2026-08-22: the client's instruction that day ("remove
+      // running and all kinds of subtext from kpi card from all dashboards ...
+      // across all views") deleted OverviewCard.note/notes outright — a running
+      // queue's card now carries no explanatory line of any kind.
+      expect(cardOf([WAITING, LATE], 'pendingGate')).not.toHaveProperty('note');
+      expect(cardOf([WAITING, LATE], 'pendingApproval')).not.toHaveProperty('note');
+      expect(cardOf([WAITING, LATE], 'overdue')).not.toHaveProperty('note');
     });
   });
 });

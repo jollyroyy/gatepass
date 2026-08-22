@@ -12,15 +12,15 @@ import { usePassApprovals } from '../../lib/usePassApprovals';
 import QrPass from '../../components/QrPass';
 import { QuestLockup } from '../../components/QuestMark';
 
-import PrintApprovalRecord from './PrintApprovalRecord';
+import PrintSignatureBoxes from './PrintSignatureBoxes';
+import { buildSignatureBoxes } from '../../lib/printSignatureBoxes';
 
-// `signatureBlocks.ts` and the `SignatureBox` that drew its seven empty boxes
-// are DELETED (client, 2026-08-22: "it should not show the previous boxes for
-// the signature … show it as per the digital approval"). A stale reference is
-// therefore a build error rather than a slip that quietly prints both. What
-// replaced them is `PrintApprovalRecord`, which renders the record's OWN
-// approval steps — see that file for why the boxes had to go rather than sit
-// beside the digital trail.
+// THE BOXES ARE BACK, WITH THE APPROVAL INSIDE THEM (client, 2026-08-22: "go
+// back to the boxes that were there before … if the approval has been given,
+// give a tick box inside that box … also give the approval date"). They are not
+// the old empty ones: `signatureBlocks.ts` and `PrintApprovalRecord` are both
+// DELETED, so a stale reference is a build error rather than a slip that prints
+// two versions of the same fact. See `src/lib/printSignatureBoxes.ts`.
 
 // A LOCAL formatter, not the shared `lib/formatCurrency` — the column header
 // here already carries "Value (₹)", so a second ₹ in every cell would repeat
@@ -231,12 +231,11 @@ export default function PassPrint(): React.ReactElement {
             </p>
           )}
 
-          {/* The digital approval trail, in place of the seven signature boxes
-              this slip used to carry. It is the record's OWN ladder — the same
-              `buildApprovalSteps` the pass record's timeline renders — so the
-              paper and the screen cannot name a different office, person or
-              moment. */}
-          <PrintApprovalRecord steps={steps} />
+          {/* One box per office, ticked and dated where the office has signed.
+              Built from the record's OWN ladder — the same `buildApprovalSteps`
+              the pass record's timeline renders — so the paper and the screen
+              cannot name a different office, person or moment. */}
+          <PrintSignatureBoxes boxes={buildSignatureBoxes(steps)} />
         </div>
       </div>
     </div>

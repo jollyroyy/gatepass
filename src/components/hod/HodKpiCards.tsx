@@ -14,7 +14,7 @@
 // No aggregate, no `count: 'exact'`, no second predicate that could drift.
 import React from 'react';
 import type { HodKpiCard } from '../../lib/hodBoard';
-import HodIcon, { DOT } from './HodIcon';
+import HodIcon from './HodIcon';
 
 type Props = {
   cards: HodKpiCard[];
@@ -43,23 +43,9 @@ export default function HodKpiCards({ cards, activeKey, onSelect, loading }: Pro
             <span className="min-w-0">
               <span className="gb-kpi-figure">{loading ? '—' : c.value}</span>
               <span className="gb-kpi-name">{c.label}</span>
-              <span className="gb-kpi-scope">{c.sub}</span>
             </span>
           </span>
 
-          {/* The hairline and its padding belong to the notes, so a card with
-              none draws neither — an empty bordered strip under a figure reads
-              as a line that failed to load. */}
-          {c.notes.length > 0 && (
-          <span className="gb-kpi-notes">
-            {c.notes.map((n) => (
-              <span key={n.text} className="gb-kpi-note">
-                {n.dot && <span className={`gb-dot ${DOT[n.dot]}`} aria-hidden="true" />}
-                {n.text}
-              </span>
-            ))}
-          </span>
-          )}
         </button>
       ))}
     </div>

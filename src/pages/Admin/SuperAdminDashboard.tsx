@@ -38,7 +38,7 @@ import DrillList from '../../components/DrillList';
 import SuperSummaryCards from '../../components/superadmin/SuperSummaryCards';
 import SuperQuickActions from '../../components/superadmin/SuperQuickActions';
 import { superAdminGroups, type SuperGroup } from '../../lib/superAdminBoard';
-import { buildOverviewCards, OVERVIEW_WINDOWS, rangeLabel, windowBounds, type OverviewWindow } from '../../lib/adminOverview';
+import { buildOverviewCards, OVERVIEW_WINDOWS, type OverviewWindow } from '../../lib/adminOverview';
 import { drillDefOf, type BoardDrill } from '../../lib/boardDrills';
 import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 import { fetchEmergencyReleases } from '../../lib/emergencyRelease';
@@ -115,8 +115,8 @@ export default function SuperAdminDashboard(): React.ReactElement {
   const days = Number(window);
   const cards = useMemo(() => buildOverviewCards(rows, days, stamp), [rows, days, stamp]);
   const groups = useMemo(
-    () => superAdminGroups(cards, rangeLabel(windowBounds(days, stamp))),
-    [cards, days, stamp],
+    () => superAdminGroups(cards),
+    [cards],
   );
   const drillRef = useScrollIntoViewOnChange<HTMLDivElement>(drill?.figureKey ?? null);
 

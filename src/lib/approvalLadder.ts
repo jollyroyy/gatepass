@@ -1,16 +1,17 @@
 // THE APPROVAL LADDER a gate pass record prints down its right-hand side.
 //
-// It is the printed slip's own chain and nothing else — `signatureBlocks.ts`
-// has carried it since the beginning:
+// It is the printed slip's own chain and nothing else — `printSignatureBoxes.ts`
+// draws the very same offices as the tick boxes on the paper:
 //
-//     Issuing HOD → Security Head → COO → Finance HOD → CEO → the gate
+//     Issuing HOD → Security Head → Finance HOD → COO *or* CEO → the gate
 //
-// so the screen and the paper name the same five offices in the same order
-// (client, 2026-08-19: "just match the print slip"). Change one and change the
-// other, or a guard comparing the slip in their hand to the record on the
-// tablet finds a level on one that is missing from the other. The CEO moved
-// from third to LAST on 2026-08-20, on the client's instruction — see
-// `APPROVAL_LADDER` below, `signatureBlocks.ts`, and migration 057.
+// so the screen and the paper name the same offices in the same order (client,
+// 2026-08-19: "just match the print slip"). Change one and change the other, or
+// a guard comparing the slip in their hand to the record on the tablet finds a
+// level on one that is missing from the other. The order has moved twice on the
+// client's instruction — the CEO from third to last on 2026-08-20 (057), and
+// then on 2026-08-22 to the shape below, where Finance signs second and LEVEL 3
+// IS ONE RUNG THE COO AND THE CEO SHARE (063). See `APPROVAL_LADDER`.
 //
 // SINCE MIGRATION 046 IT IS A WORKFLOW — for the passes that carry one. 043
 // recorded only WHO holds each office, and this module graded a level on
@@ -20,39 +21,31 @@
 //
 // SO THIS MODULE READS TWO KINDS OF PASS, and the difference is a fact about
 // the pass, not a flag:
-//
 //   * a pass WITH approval rows is graded from them — approved / waiting /
 //     rejected, with the name of whoever pressed it and the time they did. Its
 //     ladder is exactly the offices it was routed to; an office that was vacant
 //     the day it was raised was never required and is not drawn as missing.
-//   * a pass WITHOUT any is graded the old way, from the org chart alone. Every
-//     one of the 60 passes on this database predates 046 and reads exactly as
-//     it did before, which is the whole reason the fallback is kept rather than
-//     back-filled: nobody signed those levels in this system, and a migration
-//     that wrote "approved" against them would be inventing an audit trail.
+//   * a pass WITHOUT any is graded the old way, from the org chart alone. The
+//     oldest 60 passes here predate 046 and read exactly as they did before,
+//     which is why the fallback is kept rather than back-filled: nobody signed
+//     those levels, and writing "approved" would invent an audit trail.
 //
 // AN OFFICE NOBODY HOLDS IS NOT APPROVED — EXCEPT IN THE GUARD'S VIEW.
 // A vacant office reads "Not designated yet" rather than counting as signed:
 // implying an approval nobody gave is the one thing this ladder must not do.
-// (The fact strip's "N of 5 levels approved" counter was deleted on 2026-08-19
-// at the client's word — the rail states every level by name, and a number
-// beside it was the same fact twice.)
 //
 // A GUARD IS THE ONE READER FOR WHOM THE OLD KIND IS ALREADY TRUE — and only
 // the old kind. A REAL pending row outranks the paper fiction below, always: a
-// pass that still owes a signature under 046 is one a guard cannot even see,
-// so drawing its levels as signed would be a screen contradicting the policy
-// that hid it. Client, 2026-08-19:
-// "only the approved ones will be appearing in the guard's view — mark them so
-// that they have been approved by those approvers." A pass only reaches the
-// barrier with the signed A5 slip travelling beside it, so for a guard all four
-// offices read `done`; a seat nobody holds prints the office alone, because the
-// signature on the paper is the fact and the name is only how we print it. For
-// an HOD or an admin — who read the record from a desk, with no paper in hand —
-// a vacant office still reads `unset` / "Not designated yet", because for them
+// pass that still owes a signature under 046 is one a guard cannot even see, so
+// drawing its levels as signed would contradict the policy that hid it. Client,
+// 2026-08-19: "only the approved ones will be appearing in the guard's view."
+// A pass only reaches the barrier with the signed A5 slip beside it, so for a
+// guard every office reads `done`. For an HOD or an admin — reading from a desk
+// with no paper in hand — a vacant office still reads `unset`, because for them
 // the fix is a designation, not a truck waiting at the gate.
 import type { GatePassView, UserRole } from '../types';
 import { gateStep, returnStep, type ApprovalStep } from './passLadderLegs';
+import { escalationNote, isHeldForEscalation } from './approvalDecision';
 import {
   APPROVAL_NOTE,
   APPROVAL_STATE,
@@ -91,23 +84,27 @@ export const APPROVAL_ROLE_TITLES: Record<ApprovalRoleKey, string> = {
   finance_head: 'Finance HOD',
 };
 
-/** Slip order, and the order the levels are numbered in. An array rather than
- *  the Record's key order, because level numbers depend on it and object key
- *  order is a language detail, not a promise.
+/** Ladder order, and the order the levels are numbered in. An array rather
+ *  than the Record's key order, because level numbers depend on it and object
+ *  key order is a language detail, not a promise.
  *
- *  FINANCE SIGNS THIRD AND THE CEO SIGNS LAST (client, 2026-08-20: "1. The
- *  security head has to approve 2. COO 3. Finance 4. CEO"). This REVERSES the
- *  order 043 took off the printed A5 slip, which had the CEO third — the CEO
- *  now signs on a pass finance has already costed. `signatureBlocks.ts` and
- *  migration 057 move with it, and they must be moved together: the paper, the
- *  screen and `pass_approvals.level_no` are one order stated in three places,
- *  and a guard comparing the slip in their hand to the record on the tablet
- *  must not find a level on one that is missing from the other. */
+ *  LEVEL 3 IS HELD BY TWO OFFICES (client, 2026-08-22: "Level one approver will
+ *  be the security head. Level two approver will be the finance head and level
+ *  three approval approver will be either co or CEO"). One signature closes it:
+ *  whichever of the two signs, the other's rung is recorded `not_required`, and
+ *  the CEO may only sign it once the COO's window has run out (migration 063).
+ *
+ *  This supersedes 057's Security Head 1 · COO 2 · Finance HOD 3 · CEO 4.
+ *  `printSignatureBoxes.ts` and migration 063 carry the same order, and the
+ *  three move together: the paper, the screen and `pass_approvals.level_no` are
+ *  one order stated in three places, and a guard comparing the slip in their
+ *  hand to the record on the tablet must not find a level on one that is
+ *  missing from the other. */
 export const APPROVAL_LADDER: { key: ApprovalRoleKey; level: number }[] = [
   { key: 'security_head', level: 1 },
-  { key: 'coo', level: 2 },
-  { key: 'finance_head', level: 3 },
-  { key: 'ceo', level: 4 },
+  { key: 'finance_head', level: 2 },
+  { key: 'coo', level: 3 },
+  { key: 'ceo', level: 3 },
 ];
 
 /** "COO (Vikram Singh)" — the office first, the person in brackets (client).
@@ -198,7 +195,8 @@ export function buildApprovalSteps(
     // the office may have changed hands since.
     if (own) {
       steps.push({
-        key: `level-${own.level_no}`,
+        key: `level-${key}`,
+        office: key,
         label: `Level ${own.level_no} Approval`,
         // A ROLLOUT-CLOSED LEVEL NAMES NOBODY (058). `decided_name` is null on
         // such a row by design, and the usual fall-back to `routed_name` would
@@ -207,7 +205,11 @@ export function buildApprovalSteps(
         // A DELEGATE IS NAMED WITH THE PERSON WHO DELEGATED TO THEM, in the
         // bracket (062; client, 2026-08-22). `delegatedLine` degrades to the
         // plain bracket when either name is missing.
-        who: own.grandfathered
+        // A RUNG NOBODY HAD TO SIGN NAMES NOBODY EITHER. `not_required` means
+        // the other office on this level signed it; falling back to
+        // `routed_name` would print a person beside a signature that was never
+        // given, which is the same mistake `grandfathered` exists to prevent.
+        who: own.grandfathered || own.status === 'not_required'
           ? approverLine(title, null)
           : own.decided_as_delegate
             ? delegatedLine(title, own.decided_name ?? own.routed_name ?? row?.full_name, own.delegated_by_name)
@@ -221,7 +223,7 @@ export function buildApprovalSteps(
         // exclusive by the one-seat rule (049/054/062), so both flags cannot be
         // true of one decision — but if a row ever carried both, the delegation
         // is the more specific fact and the one with a window on it.
-        detail: own.grandfathered
+        detail: own.grandfathered || own.status === 'not_required'
           ? null
           : own.decided_as_delegate
             ? `Delegated ${title} — signed for ${own.delegated_by_name ?? 'the office holder'}`
@@ -232,11 +234,20 @@ export function buildApprovalSteps(
         state: APPROVAL_STATE[own.status],
         // A rejection's reason IS the note — it is the sentence somebody typed
         // and the only answer the raising HOD gets.
+        // A REJECTION'S AND A SKIPPED RUNG'S REASON IS ITS NOTE. One is the
+        // sentence somebody typed and the only answer the raising HOD gets; the
+        // other is the database's own sentence naming the office that signed
+        // instead. Both say more than the one-word fall-back.
         note: own.grandfathered
           ? GRANDFATHERED_NOTE
-          : own.status === 'rejected' && own.reason
+          : (own.status === 'rejected' || own.status === 'not_required') && own.reason
             ? own.reason
-            : APPROVAL_NOTE[own.status],
+            // A RUNG THIS OFFICE CANNOT YET SIGN SAYS SO, AND SAYS WHEN. "Waiting
+            // for this approval" against the CEO on a pass that is genuinely with
+            // the COO names the wrong desk (063).
+            : isHeldForEscalation(own) && own.escalates_at
+              ? escalationNote(own.escalates_at)
+              : APPROVAL_NOTE[own.status],
       });
       continue;
     }
@@ -248,7 +259,8 @@ export function buildApprovalSteps(
     if (approvals.length > 0) continue;
 
     steps.push({
-      key: `level-${level}`,
+      key: `level-${key}`,
+      office: key,
       label: `Level ${level} Approval`,
       who: approverLine(title, row?.full_name),
       detail: row?.department_name ?? null,

@@ -80,9 +80,14 @@ describe('the ladder is described in order, and linearly', () => {
 
   // Migration 061. The screen must not tell an approver they can see passes
   // routed to their office — they see them only once it is their turn.
-  it('every office after the first says it sees a pass only after the one below', () => {
+  // REWRITTEN 2026-08-22: every office after the first used to say "only
+  // after". The CEO now SHARES the last rung with the COO (063) and inherits it
+  // on a clock rather than on a signature, so its sentence says "once the COO
+  // has not approved it in the escalation window" instead. What every office
+  // after the first must still say is that it does not get the pass first.
+  it('every office after the first says it waits on the level below', () => {
     for (const r of approvalOfficeRoles().slice(1)) {
-      expect(r.can.join(' ')).toMatch(/only after/i);
+      expect(r.can.join(' ')).toMatch(/only after|escalation window/i);
     }
   });
 });

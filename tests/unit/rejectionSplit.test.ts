@@ -8,7 +8,7 @@
 // what tell them apart. Nobody rejected a pass that merely ran out of time.
 import { describe, expect, it } from 'vitest';
 import type { GatePassView } from '../../src/types';
-import { rejectionNotes, rejectionSplit, type RejectionApprovalRow } from '../../src/lib/rejectionSplit';
+import { rejectionSplit, type RejectionApprovalRow } from '../../src/lib/rejectionSplit';
 
 function pass(over: Partial<GatePassView>): GatePassView {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,10 +63,11 @@ describe('rejectionSplit', () => {
     expect(s.all).toHaveLength(0);
   });
 
-  it('prints the client\'s own two lines, pluralised', () => {
-    expect(rejectionNotes(rejectionSplit(ROWS, APPROVALS)).map((n) => n.text)).toEqual([
-      '2 passes rejected at security gate',
-      '1 pass rejected by approver',
-    ]);
-  });
+  // `rejectionNotes()` — the two printed sub-lines this split fed the
+  // Rejected card — is DELETED as of 2026-08-22 (it had no caller left). The
+  // client's instruction that day ("remove running and all kinds of subtext
+  // from kpi card from all dashboards ... across all views") removed the
+  // card's sub-lines, so the case pinning those two rendered sentences is
+  // removed with the function; `rejectionSplit` itself is unchanged and its
+  // split is still pinned by the cases above.
 });

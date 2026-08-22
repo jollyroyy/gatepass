@@ -22,8 +22,13 @@ import { formatDateOnly } from './formatDate';
  *             hue, the way the mock-up prints its missed return date in red.
  * `unset`   — nobody holds this office. Distinct from `pending` on purpose: the
  *             fix is an admin designating somebody, not waiting.
+ * `skipped` — this office never had to sign: the rung it shares was closed by
+ *             the other office on it (migration 063 — the COO and the CEO share
+ *             level 3, and one signature closes it). Distinct from `done`
+ *             because NOBODY SIGNED IT, and the printed slip draws a tick box
+ *             per office: a tick here would be a signature nobody gave.
  */
-export type ApprovalStepState = 'done' | 'pending' | 'blocked' | 'unset';
+export type ApprovalStepState = 'done' | 'pending' | 'blocked' | 'unset' | 'skipped';
 
 export interface ApprovalStep {
   /** Stable identity for tests and React keys — never the label, which is
@@ -39,6 +44,11 @@ export interface ApprovalStep {
   state: ApprovalStepState;
   /** A sentence the step needs and the label cannot carry. */
   note?: string;
+  /** The approval office this rung belongs to, for the rungs that have one.
+   *  Absent on the raise, the gate and the return leg. Carried so the printed
+   *  signature boxes can be HEADED by the office (the label a person signing
+   *  paper reads) without parsing it back out of `key` or `who`. */
+  office?: string;
 }
 
 /** The gate step: what happened when the material reached the barrier. Three

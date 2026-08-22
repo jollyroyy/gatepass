@@ -93,7 +93,12 @@ describe('both boards read the same split', () => {
     expect(gate?.value).toBe(2);
     expect(approval?.value).toBe(1);
     expect((gate?.value ?? 0) + (approval?.value ?? 0)).toBe(pendingSplit(ROWS).waiting.length);
-    expect(cards.every((c) => c.notes.length === 0)).toBe(true);
+    // REWRITTEN 2026-08-22: it used to assert `c.notes.length === 0`. The
+    // client's instruction that day ("remove running and all kinds of
+    // subtext from kpi card from all dashboards ... across all views")
+    // deleted OverviewCard.note/notes outright, so there is no `notes`
+    // property left to be empty.
+    expect(cards.every((c) => !('notes' in c) && !('note' in c))).toBe(true);
   });
 
   it("the HOD's two cards are the same figures, over whatever rows the HOD was served", () => {

@@ -2865,31 +2865,9 @@
     font-weight: 500;
     color: var(--gb-body);
   }
-  .gb-kpi-scope {
-    display: block;
-    margin-top: 1px;
-    font-size: 13.5px;
-    font-weight: 400;
-    color: var(--gb-muted);
-  }
   /* The notes sit under a hairline that runs the width of the card, exactly as
    * the mock draws it — they are a different KIND of fact from the figure
    * above (a running queue under a day count), and the rule says so. */
-  .gb-kpi-notes {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding-top: 12px;
-    border-top: 1px solid var(--gb-line);
-  }
-  .gb-kpi-note {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    font-weight: 400;
-    color: var(--gb-muted);
-  }
   .gb-dot {
     width: 7px;
     height: 7px;
@@ -3180,40 +3158,6 @@
     color: var(--gb-ink);
     font-variant-numeric: tabular-nums;
   }
-  /* The Pending Approvals card's two sub-figures (client, 2026-08-20). Same
-   * device as `.gb-kpi-notes` on the HOD board — a hairline, then one dotted
-   * line each — sized to this card's smaller type rather than the HOD card's,
-   * so the row keeps one rhythm. No new colour: both values are `.gb-board`'s
-   * own custom properties. */
-  .gb-ov-notes {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding-top: 10px;
-    margin-top: 10px;
-    border-top: 1px solid var(--gb-line);
-  }
-  .gb-ov-note {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--gb-muted);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .gb-ov-delta {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 12.5px;
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
-  }
-  /* The slot a running figure takes instead of an invented percentage. */
-  .gb-ov-none { color: var(--gb-muted); font-weight: 400; }
-
   /* ---- The two panels ----------------------------------------------------- */
   .gb-ov-panels {
     display: grid;
@@ -3419,14 +3363,6 @@
      scoped to. The guard's two cards need no such line — both are running
      queues — but here one card is windowed and the other is not, and a reader
      cannot be left to guess which. */
-  .gb-sum-note {
-    font-size: 12.5px;
-    color: var(--gb-muted);
-    margin-top: 2px;
-    /* Centred to sit under `.gb-sum-title`, which the guard's skin centres. */
-    text-align: center;
-  }
-
   /* A drillable figure. The guard's figures are links; these are buttons,
      because the admin's lists open in place. A <button> brings its own agent
      styling, so this strips it back to the link's appearance rather than

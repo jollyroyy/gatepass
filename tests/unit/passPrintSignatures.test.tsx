@@ -1,21 +1,24 @@
-// THE PRINTED SLIP CARRIES THE DIGITAL APPROVAL TRAIL, NOT SEVEN EMPTY BOXES.
+// THE PRINTED SLIP CARRIES SIGNATURE BOXES AGAIN — WITH THE DIGITAL APPROVAL
+// INSIDE THEM.
 //
-// REWRITTEN 2026-08-22. This file used to pin the opposite: seven signature
-// blocks over three rows (Issuing HOD · Security Head · COO / Finance HOD · CEO
-// / Security Verification · Receiver Signature), three per row because five
-// across an A5 sheet leaves ~18mm per box — too narrow for a rubber stamp — and
-// all seven drawn on every category. `src/pages/Shared/signatureBlocks.ts` is
-// DELETED with them.
+// REWRITTEN 2026-08-22, for the second time in one day. Earlier the same day
+// this file pinned that the slip drew NO boxes at all, and before that it
+// pinned seven EMPTY ones. The client asked for the boxes back, carrying the
+// decision:
 //
-// Client, 2026-08-22: "when I'm printing the pass from any page it should not
-// show the previous boxes for the signature. Show it as per the digital
-// approval. It should show all the digital signature timeline and everything in
-// a proper format. Remove those boxes for the signs."
+//   "In the print pass, when we are trying to take the print pass, please go
+//    back to the boxes that were there before. Make sure for all the approvals
+//    if the approval has been given, give a tick box inside that box … Also
+//    give the approval date when it was approved."
 //
-// The offices sign in the portal now (migration 046, linear since 061), and
-// `gatepass.pass_approvals` records who pressed each rung and when. A blank box
-// beside that is not a second safeguard — it is an invitation to sign paper and
-// believe it counted.
+// So a box is now one of four things — signed (a tick, the signer and the
+// moment), rejected, not required (the other office on a shared rung signed
+// it, 063), or awaiting — and every one of them is a WORD as well as a mark,
+// because the sheet is read on a cheap mono laser. The one box still blank by
+// design is the receiver's: nothing in this system records a receipt.
+//
+// The boxes are built from the record's own `buildApprovalSteps`, so the paper
+// and the screen cannot name a different office, person or moment.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -103,47 +106,38 @@ const CATEGORIES: { name: string; over: Record<string, unknown> }[] = [
   { name: 'NRGP Out', over: { type: 'NRGP', direction: 'out' } },
 ];
 
-describe('the slip prints no signature box, on any category', () => {
+describe('the slip prints a box per office, on every category', () => {
   for (const c of CATEGORIES) {
-    it(`draws none of the old blocks or their captions for ${c.name}`, async () => {
+    it(`draws the boxes and the receiver's blank one for ${c.name}`, async () => {
       await renderFor(c.over);
-      // "Security Verification" is deliberately NOT in this list: it survives
-      // as a STEP of the digital trail (`gateStep`), which is the gate's real
-      // decision rather than a box somebody signs.
-      for (const gone of ['Signature & Stamp', 'Receiver Signature', 'Issuing HOD']) {
-        expect(screen.queryByText(gone)).toBeNull();
+      for (const label of ['Issuing HOD', 'Security Verification', 'Receiver Signature']) {
+        expect(screen.getByText(label)).toBeInTheDocument();
       }
+      // The receiver's is the ONE box a person still signs by hand.
+      expect(screen.getByText('Signature & Stamp')).toBeInTheDocument();
     });
   }
 
-  // The boxes were the ONLY thing on this sheet drawn as an empty ruled
-  // rectangle; nothing else uses that height. If one comes back, this bites.
-  it('draws no empty ruled box for anybody to sign', async () => {
+  it('says a ticked box is a portal approval, not a mark made with a pen', async () => {
     await renderFor({});
-    expect(document.querySelectorAll('div.border.border-black.h-20')).toHaveLength(0);
+    expect(screen.getByText(/Approvals/)).toBeInTheDocument();
+    expect(screen.getByText(/recorded in Quest GatePass/i)).toBeInTheDocument();
+    expect(screen.getByText(/receiver's box is signed by hand/i)).toBeInTheDocument();
+  });
+
+  it('draws no return-leg box — a deadline is not a signature', async () => {
+    await renderFor({
+      type: 'RGP', return_status: 'awaiting_return', expected_return_date: '2026-08-20',
+    });
+    expect(screen.queryByText('To Be Returned')).toBeNull();
   });
 });
 
-describe('the slip prints the digital approval trail instead', () => {
-  it('heads the block and says signatures are captured digitally', async () => {
-    await renderFor({});
-    expect(screen.getByText(/Approval & Verification Record/i)).toBeInTheDocument();
-    expect(screen.getByText(/recorded digitally/i)).toBeInTheDocument();
-    expect(screen.getByText(/No manual signature is required/i)).toBeInTheDocument();
-  });
-
-  it('opens with the raise, naming the HOD and their department', async () => {
-    await renderFor({});
-    // Twice on the sheet by design: the slip's own fact row, and the first rung
-    // of the trail.
-    expect(screen.getAllByText('Raised By').length).toBeGreaterThan(1);
-    expect(screen.getAllByText('HOD One').length).toBeGreaterThan(0);
-    expect(screen.getByText('Approved on raising')).toBeInTheDocument();
-  });
-
-  // The point of the whole change: a level somebody actually signed in the
-  // portal prints WHO signed it and WHEN, where a blank box used to be.
-  it('prints the approver and the moment for a level that was signed', async () => {
+describe('a box carries the decision that was made in the portal', () => {
+  // THE POINT OF THE WHOLE CHANGE: a level somebody actually signed prints a
+  // tick, the person's name and the moment, inside the box that used to be
+  // ruled and empty.
+  it('ticks the box, names the signer and prints the date', async () => {
     current.roles = [{
       role_key: 'security_head', user_id: 'u9', full_name: 'Demi', department_name: 'Security',
       designated_at: '2026-08-01T00:00:00Z', deputy_id: null, deputy_name: null,
@@ -155,38 +149,56 @@ describe('the slip prints the digital approval trail instead', () => {
         reason: null, decided_as_deputy: false,
       },
       {
-        role_key: 'coo', level_no: 2, status: 'pending',
-        routed_name: 'Sudeshna', decided_name: null, decided_at: null,
+        role_key: 'finance_head', level_no: 2, status: 'pending',
+        routed_name: 'Sameer', decided_name: null, decided_at: null,
         reason: null, decided_as_deputy: false,
       },
     ];
     await renderFor({});
-    expect(screen.getByText('Level 1 Approval')).toBeInTheDocument();
-    expect(screen.getByText('Security Head (Demi)')).toBeInTheDocument();
-    expect(screen.getByText('Approved')).toBeInTheDocument();
-    expect(screen.getByText('Level 2 Approval')).toBeInTheDocument();
-    expect(screen.getByText('Waiting for this approval')).toBeInTheDocument();
+    expect(screen.getByText('Security Head')).toBeInTheDocument();
+    // The office is the box's heading, so the name inside it is the person
+    // alone — never "Security Head (Demi)" under a heading saying the same.
+    expect(screen.getByText('Demi')).toBeInTheDocument();
+    // Twice on this sheet: the issuing HOD's box says it too, because raising
+    // a pass IS that office's approval.
+    expect(screen.getAllByText('Approved in Quest GatePass').length).toBe(2);
+    // And the office that has not signed says so, with nothing in its box.
+    expect(screen.getByText('Finance HOD')).toBeInTheDocument();
+    // Twice: finance's own box, and the gate's, which has not acted either.
+    expect(screen.getAllByText('Awaiting approval').length).toBeGreaterThan(0);
   });
 
-  it('prints the gate clearance as a step of the same trail', async () => {
+  it('marks the office that never had to sign as Not required', async () => {
+    current.approvals = [
+      {
+        role_key: 'coo', level_no: 3, status: 'approved',
+        routed_name: 'Vikram', decided_name: 'Vikram', decided_at: '2026-08-04T08:00:00Z',
+        reason: null, decided_as_deputy: false,
+      },
+      {
+        role_key: 'ceo', level_no: 3, status: 'not_required',
+        routed_name: 'Neha', decided_name: null, decided_at: '2026-08-04T08:00:00Z',
+        reason: 'Not required — level 3 was approved by the COO.', decided_as_deputy: false,
+      },
+    ];
+    await renderFor({});
+    expect(screen.getByText('Not required')).toBeInTheDocument();
+    // NOT a tick and NOT a name: the CEO pressed nothing (063).
+    expect(screen.queryByText('Neha')).toBeNull();
+  });
+
+  it('prints the gate clearance in its own box', async () => {
     await renderFor({
       status: 'matched', verified_by_name: 'Guard Sam', verified_at: '2026-08-04T09:00:00Z',
       return_status: 'awaiting_return', expected_return_date: '2026-08-20',
     });
-    expect(screen.getByText('Cleared by Security')).toBeInTheDocument();
+    expect(screen.getByText('Security Verification')).toBeInTheDocument();
     expect(screen.getByText('Guard Sam')).toBeInTheDocument();
-    // RGP only — the return leg closes the trail.
-    expect(screen.getByText('To Be Returned')).toBeInTheDocument();
   });
 
-  it('invents no moment for a step this database records none for', async () => {
-    current.roles = [{
-      role_key: 'coo', user_id: 'u8', full_name: 'Sudeshna', department_name: 'Ops',
-      designated_at: '2026-08-01T00:00:00Z', deputy_id: null, deputy_name: null,
-    }];
+  it('opens with the issuing HOD, who approved it by raising it', async () => {
     await renderFor({});
-    // A legacy pass carries no ladder rows at all, so the gate step is still
-    // pending and prints a dash rather than a made-up timestamp.
-    expect(screen.getByText('Pending at the gate')).toBeInTheDocument();
+    expect(screen.getByText('Issuing HOD')).toBeInTheDocument();
+    expect(screen.getAllByText('HOD One').length).toBeGreaterThan(0);
   });
 });

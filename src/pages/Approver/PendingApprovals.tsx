@@ -75,6 +75,7 @@ import { decidedByMe } from '../../lib/approvalHistory';
 import { pageOf } from '../../lib/scheduledReturns';
 import type { GatePassView } from '../../types';
 import { usePendingApprovals } from '../../lib/usePendingApprovals';
+import { useEscalationHours } from '../../lib/useEscalationHours';
 
 /** Ten cards is about a screen and a half. A card is tall where a table row is
  *  not, so the page size is the guard's stack size, not the table's five. */
@@ -96,10 +97,14 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
   const [page, setPage] = useState(1);
   const [size, setSize] = useState<number>(PAGE_SIZE);
   const [stamp] = useState(() => new Date().toISOString());
+  // How long the office below a shared rung gets before it escalates (063).
+  // Falls back to the shipped default, so the queue filters the same way even
+  // if the settings read fails.
+  const escalationHours = useEscalationHours();
 
   const queue = useMemo(
-    () => (office ? sortOldestFirst(inMyQueue(passes, approvals, office)) : []),
-    [passes, approvals, office]
+    () => (office ? sortOldestFirst(inMyQueue(passes, approvals, office, escalationHours)) : []),
+    [passes, approvals, office, escalationHours]
   );
   const approved = useMemo(
     () => decidedByMe(passes, approvals, userId, 'approved'),

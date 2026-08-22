@@ -30,7 +30,7 @@ import type { GatePassView } from '../types';
 import type { BoardDrill } from './boardDrills';
 import { IS_OPEN_RETURN } from './boardDrills';
 import { pendingSplit } from './pendingSplit';
-import { rejectionNotes, rejectionSplit, type RejectionApprovalRow } from './rejectionSplit';
+import { rejectionSplit, type RejectionApprovalRow } from './rejectionSplit';
 import { DAY_MS, dayStart } from './localDay';
 import type { HodGlyph, HodTone } from '../components/hod/hodIconTypes';
 
@@ -56,12 +56,9 @@ export interface HodKpiCard {
   key: HodKpiKey;
   /** The words beside the figure — "Total Passes". */
   label: string;
-  /** The smaller line under the label — the mock's "Today" / "Overdue". */
-  sub: string;
   glyph: HodGlyph;
   tone: HodTone;
   value: number;
-  notes: HodKpiNote[];
   /** The rows the figure counted, and the heading the stacked list gets. */
   drill: BoardDrill;
 }
@@ -126,14 +123,12 @@ export function buildHodKpis(
     {
       key: 'total',
       label: 'Total Passes',
-      sub: 'Today',
       glyph: 'document',
       tone: 'blue',
       value: today.length,
       // NO NOTE. Client, 2026-08-19: "remove the bottom All types" — the figure
       // is every type by definition, and a line saying so under it is a second
       // statement of the same fact.
-      notes: [],
       drill: {
         key: 'total',
         heading: 'Passes raised today',
@@ -144,7 +139,6 @@ export function buildHodKpis(
     {
       key: 'nrgpIssued',
       label: 'NRGP Issued',
-      sub: 'Today',
       glyph: 'send',
       tone: 'green',
       value: nrgpToday.length,
@@ -153,7 +147,6 @@ export function buildHodKpis(
       // waiting pass can be sitting on. Repeating it here would print the same
       // number three times on one row — the exact thing the client asked to
       // stop on 2026-08-19 ("show it only once").
-      notes: [],
       drill: {
         key: 'nrgpIssued',
         heading: 'NRGP raised today',
@@ -164,13 +157,11 @@ export function buildHodKpis(
     {
       key: 'rgpIssued',
       label: 'RGP Issued',
-      sub: 'Today',
       glyph: 'exchange',
       tone: 'purple',
       value: rgpToday.length,
       // NO NOTE, same reason: both lines this card used to carry are the fifth
       // card now, and unlike these they are not narrowed to RGP.
-      notes: [],
       drill: {
         key: 'rgpIssued',
         heading: 'RGP raised today',
@@ -181,7 +172,6 @@ export function buildHodKpis(
     {
       key: 'pendingReturn',
       label: 'Pending Return',
-      sub: 'Overdue',
       glyph: 'clock',
       tone: 'orange',
       value: overdue.length,
@@ -189,7 +179,6 @@ export function buildHodKpis(
       // put zero overdue multiple times — show it only once"): the card already
       // reads `0` in 32px type over the words Pending Return · Overdue, and
       // "0 overdue" under it made the same zero appear three times.
-      notes: [],
       drill: {
         key: 'pendingReturn',
         heading: 'Material past its return date',
@@ -211,11 +200,9 @@ export function buildHodKpis(
       // narrows again to what they raised, server-side.
       key: 'pendingGate',
       label: 'Pending Gate Review',
-      sub: 'Running',
       glyph: 'clock',
       tone: 'orange',
       value: split.atGate.length,
-      notes: [],
       drill: {
         key: 'pendingGate',
         heading: 'Passes waiting at the gate',
@@ -226,11 +213,9 @@ export function buildHodKpis(
     {
       key: 'pendingApproval',
       label: 'Pending Approval',
-      sub: 'Running',
       glyph: 'hourglass',
       tone: 'purple',
       value: split.awaitingApproval.length,
-      notes: [],
       drill: {
         key: 'pendingApproval',
         heading: 'Passes still owing an approval',
@@ -250,14 +235,9 @@ export function buildHodKpis(
       // not what separates the two desks.
       key: 'rejected',
       label: 'Rejected',
-      sub: 'Today',
       glyph: 'alert',
       tone: 'red',
       value: rejected.all.length,
-      notes: rejectionNotes(rejected).map((n) => ({
-        text: n.text,
-        dot: n.key === 'gate' ? ('red' as HodTone) : ('purple' as HodTone),
-      })),
       drill: {
         key: 'rejected',
         heading: 'Passes rejected today',

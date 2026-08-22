@@ -72,13 +72,17 @@ describe('the ladder mirrors the printed slip', () => {
   // the CEO to LAST ("1. The security head has to approve 2. COO 3. Finance
   // 4. CEO"), so the CEO now signs on a pass finance has already costed, and
   // `signatureBlocks.ts` and migration 057 moved with it.
-  it('is Security Head, COO, Finance HOD, CEO — in slip order', () => {
+  // REWRITTEN 2026-08-22: this used to hold the 057 order, Security Head → COO
+  // → Finance HOD → CEO on four levels. The client moved Finance up and put the
+  // COO and the CEO on ONE shared rung (063).
+  it('is Security Head, Finance HOD, then COO or CEO — in ladder order', () => {
     expect(APPROVAL_LADDER.map((l) => l.key)).toEqual([
-      'security_head', 'coo', 'finance_head', 'ceo',
+      'security_head', 'finance_head', 'coo', 'ceo',
     ]);
     expect(APPROVAL_LADDER.map((l) => APPROVAL_ROLE_TITLES[l.key])).toEqual([
-      'Security Head', 'COO', 'Finance HOD', 'CEO',
+      'Security Head', 'Finance HOD', 'COO', 'CEO',
     ]);
+    expect(APPROVAL_LADDER.map((l) => l.level)).toEqual([1, 2, 3, 3]);
   });
 
   it('names the office and puts the person in brackets', () => {
@@ -97,25 +101,38 @@ describe('buildApprovalSteps', () => {
     expect(first.state).toBe('done');
   });
 
-  it('numbers the four offices Level 1 to Level 4 and carries no invented time', () => {
+  // REWRITTEN 2026-08-22: four offices used to carry four level numbers. The
+  // last two share level 3 now, so the last two rungs read "Level 3 Approval"
+  // both — which is the point, they are one rung either of them may sign.
+  it('numbers the offices Level 1 to Level 3 and carries no invented time', () => {
     const steps = buildApprovalSteps(pass(), FULL);
     const levels = steps.filter((s) => s.label.startsWith('Level'));
     expect(levels.map((s) => s.label)).toEqual([
-      'Level 1 Approval', 'Level 2 Approval', 'Level 3 Approval', 'Level 4 Approval',
+      'Level 1 Approval', 'Level 2 Approval', 'Level 3 Approval', 'Level 3 Approval',
     ]);
     expect(levels.map((s) => s.who)).toEqual([
       'Security Head (Arun Kumar)',
-      'COO (Vikram Singh)',
       'Finance HOD (Sameer Khan)',
+      'COO (Vikram Singh)',
       'CEO (Neha Sharma)',
     ]);
     expect(levels.map((s) => s.at)).toEqual([null, null, null, null]);
     expect(levels.every((s) => s.state === 'done')).toBe(true);
   });
 
+  it('gives every rung its own key, so a shared level cannot collide', () => {
+    const keys = buildApprovalSteps(pass(), FULL)
+      .filter((s) => s.key.startsWith('level-'))
+      .map((s) => s.key);
+    expect(keys).toEqual([
+      'level-security_head', 'level-finance_head', 'level-coo', 'level-ceo',
+    ]);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
   it('an office nobody holds reads "Not designated" and is not approved', () => {
     const steps = buildApprovalSteps(pass(), [FULL[0]]);
-    const coo = steps.find((s) => s.label === 'Level 2 Approval');
+    const coo = steps.find((s) => s.key === 'level-coo');
     expect(coo?.who).toBe('COO');
     expect(coo?.state).toBe('unset');
     expect(coo?.note).toMatch(/not designated/i);
@@ -131,11 +148,11 @@ describe('buildApprovalSteps', () => {
     expect(levels).toHaveLength(4);
     expect(levels.every((s) => s.state === 'done')).toBe(true);
     expect(levels.every((s) => /signed on the printed pass/i.test(s.note ?? ''))).toBe(true);
-    expect(levels.map((s) => s.who)).toEqual(['Security Head', 'COO', 'Finance HOD', 'CEO']);
+    expect(levels.map((s) => s.who)).toEqual(['Security Head', 'Finance HOD', 'COO', 'CEO']);
   });
 
   it('still names the holder for a guard when the office IS held', () => {
-    const coo = buildApprovalSteps(pass(), FULL, 'guard').find((s) => s.label === 'Level 2 Approval');
+    const coo = buildApprovalSteps(pass(), FULL, 'guard').find((s) => s.key === 'level-coo');
     expect(coo?.who).toBe('COO (Vikram Singh)');
     expect(coo?.state).toBe('done');
   });
@@ -143,7 +160,7 @@ describe('buildApprovalSteps', () => {
   it.each(['hod', 'admin', null] as const)(
     'keeps a vacant office unset for %s — their fix is a designation, not a truck at the gate',
     (role) => {
-      const coo = buildApprovalSteps(pass(), [], role).find((s) => s.label === 'Level 2 Approval');
+      const coo = buildApprovalSteps(pass(), [], role).find((s) => s.key === 'level-coo');
       expect(coo?.state).toBe('unset');
     }
   );
@@ -255,7 +272,7 @@ describe('buildApprovalSteps — a pass with a real ladder of its own (046)', ()
     const steps = buildApprovalSteps(pass({ status: 'pending' }), HELD, 'hod', [
       approval({ status: 'approved', decided_name: 'Sanjay Rao', decided_at: '2026-08-19T05:30:00Z' }),
     ]);
-    const level = steps.find((s) => s.key === 'level-1')!;
+    const level = steps.find((s) => s.key === 'level-security_head')!;
     expect(level.state).toBe('done');
     expect(level.note).toBe('Approved');
     expect(level.who).toBe(approverLine(APPROVAL_ROLE_TITLES.security_head, 'Sanjay Rao'));
@@ -265,7 +282,7 @@ describe('buildApprovalSteps — a pass with a real ladder of its own (046)', ()
 
   it('an undecided level says it is waiting, and carries no time', () => {
     const steps = buildApprovalSteps(pass({ status: 'pending' }), HELD, 'hod', [approval()]);
-    const level = steps.find((s) => s.key === 'level-1')!;
+    const level = steps.find((s) => s.key === 'level-security_head')!;
     expect(level.state).toBe('pending');
     expect(level.note).toBe('Waiting for this approval');
     expect(level.at).toBeNull();
@@ -282,7 +299,7 @@ describe('buildApprovalSteps — a pass with a real ladder of its own (046)', ()
         reason: 'Vendor invoice does not match the material listed.',
       }),
     ]);
-    const level = steps.find((s) => s.key === 'level-1')!;
+    const level = steps.find((s) => s.key === 'level-security_head')!;
     expect(level.state).toBe('blocked');
     expect(level.note).toBe('Vendor invoice does not match the material listed.');
   });
@@ -300,7 +317,7 @@ describe('buildApprovalSteps — a pass with a real ladder of its own (046)', ()
     // see. Drawing its levels as signed would be a screen contradicting the
     // policy that hid it.
     const steps = buildApprovalSteps(pass({ status: 'pending' }), HELD, 'guard', [approval()]);
-    const level = steps.find((s) => s.key === 'level-1')!;
+    const level = steps.find((s) => s.key === 'level-security_head')!;
     expect(level.state).toBe('pending');
     expect(level.note).not.toBe('Signed on the printed pass');
   });
@@ -333,7 +350,7 @@ describe('buildApprovalSteps — a level signed by the office deputy (054)', () 
       'hod',
       [approval({ status: 'approved', decided_name: 'Priya Nair', decided_as_deputy: true, decided_at: '2026-08-20T05:30:00Z' })],
     );
-    const level = steps.find((s) => s.key === 'level-1')!;
+    const level = steps.find((s) => s.key === 'level-security_head')!;
     expect(level.detail).toBe('Standing deputy for the Security Head');
     expect(level.who).toBe('Security Head (Priya Nair)');
     expect(level.state).toBe('done');
@@ -346,7 +363,7 @@ describe('buildApprovalSteps — a level signed by the office deputy (054)', () 
       'hod',
       [approval({ status: 'approved', decided_name: 'Sanjay Rao', decided_as_deputy: false })],
     );
-    expect(steps.find((s) => s.key === 'level-1')!.detail).toBe('Security');
+    expect(steps.find((s) => s.key === 'level-security_head')!.detail).toBe('Security');
   });
 
   it('says so on a REJECTION too, without displacing the reason', () => {
@@ -363,7 +380,7 @@ describe('buildApprovalSteps — a level signed by the office deputy (054)', () 
         reason: 'Vendor not cleared for this material.',
       })],
     );
-    const level = steps.find((s) => s.key === 'level-1')!;
+    const level = steps.find((s) => s.key === 'level-security_head')!;
     expect(level.detail).toBe('Standing deputy for the Security Head');
     expect(level.note).toBe('Vendor not cleared for this material.');
     expect(level.state).toBe('blocked');
@@ -392,7 +409,7 @@ describe('buildApprovalSteps — a level closed by the 058 rollout', () => {
 
   it('reads as approved, and names NOBODY', () => {
     const steps = buildApprovalSteps(pass({ status: 'pending' }), HELD, 'hod', [ROLLED]);
-    const level = steps.find((s) => s.key === 'level-1')!;
+    const level = steps.find((s) => s.key === 'level-security_head')!;
     expect(level.state).toBe('done');
     expect(level.who).toBe('Security Head');
     expect(level.who).not.toContain('Sanjay Rao');
@@ -401,7 +418,7 @@ describe('buildApprovalSteps — a level closed by the 058 rollout', () => {
 
   it('says why in words, so an authorless approval is not mistaken for a bug', () => {
     const steps = buildApprovalSteps(pass({ status: 'pending' }), HELD, 'hod', [ROLLED]);
-    const level = steps.find((s) => s.key === 'level-1')!;
+    const level = steps.find((s) => s.key === 'level-security_head')!;
     expect(level.note).toBe(GRANDFATHERED_NOTE);
     expect(level.note).toMatch(/before the approval workflow began/i);
   });
@@ -413,8 +430,8 @@ describe('buildApprovalSteps — a level closed by the 058 rollout', () => {
       approval({ status: 'approved', decided_name: 'Sanjay Rao', decided_at: '2026-08-19T05:30:00Z' }),
       { ...ROLLED, role_key: 'coo', level_no: 2 },
     ]);
-    expect(steps.find((s) => s.key === 'level-1')!.who).toBe('Security Head (Sanjay Rao)');
-    expect(steps.find((s) => s.key === 'level-2')!.who).toBe('COO');
+    expect(steps.find((s) => s.key === 'level-security_head')!.who).toBe('Security Head (Sanjay Rao)');
+    expect(steps.find((s) => s.key === 'level-coo')!.who).toBe('COO');
   });
 });
 
@@ -444,14 +461,14 @@ describe('buildApprovalSteps — a delegated decision (062)', () => {
 
   it('puts both names in the bracket — who signed, and who delegated it', () => {
     const steps = buildApprovalSteps(pass(), HELD, 'hod', [DELEGATED]);
-    const level = steps.find((s) => s.key === 'level-1')!;
+    const level = steps.find((s) => s.key === 'level-security_head')!;
     expect(level.who).toBe('Security Head (Priya Mehta — delegated by Sanjay Rao)');
     expect(level.state).toBe('done');
   });
 
   it('says so on the line beneath as well, where the department would sit', () => {
     const steps = buildApprovalSteps(pass(), HELD, 'hod', [DELEGATED]);
-    expect(steps.find((s) => s.key === 'level-1')!.detail)
+    expect(steps.find((s) => s.key === 'level-security_head')!.detail)
       .toBe('Delegated Security Head — signed for Sanjay Rao');
   });
 
@@ -459,7 +476,7 @@ describe('buildApprovalSteps — a delegated decision (062)', () => {
     const steps = buildApprovalSteps(pass(), HELD, 'hod', [
       { ...DELEGATED, status: 'rejected', reason: 'Vendor not cleared for this material.' },
     ]);
-    const level = steps.find((s) => s.key === 'level-1')!;
+    const level = steps.find((s) => s.key === 'level-security_head')!;
     expect(level.who).toContain('delegated by Sanjay Rao');
     expect(level.note).toBe('Vendor not cleared for this material.');
     expect(level.state).toBe('blocked');
@@ -471,7 +488,7 @@ describe('buildApprovalSteps — a delegated decision (062)', () => {
     const steps = buildApprovalSteps(pass(), HELD, 'hod', [
       { ...DELEGATED, delegated_by_name: null },
     ]);
-    const level = steps.find((s) => s.key === 'level-1')!;
+    const level = steps.find((s) => s.key === 'level-security_head')!;
     expect(level.who).toBe('Security Head (Priya Mehta)');
     expect(level.who).not.toContain('null');
     expect(level.detail).toBe('Delegated Security Head — signed for the office holder');
@@ -482,13 +499,13 @@ describe('buildApprovalSteps — a delegated decision (062)', () => {
   it('leaves an ordinary decision and a deputy decision exactly as they were', () => {
     const own = buildApprovalSteps(pass(), HELD, 'hod', [
       approval({ status: 'approved', decided_name: 'Sanjay Rao' }),
-    ]).find((s) => s.key === 'level-1')!;
+    ]).find((s) => s.key === 'level-security_head')!;
     expect(own.who).toBe('Security Head (Sanjay Rao)');
     expect(own.detail).toBe('Security');
 
     const deputy = buildApprovalSteps(pass(), HELD, 'hod', [
       approval({ status: 'approved', decided_name: 'Priya Nair', decided_as_deputy: true }),
-    ]).find((s) => s.key === 'level-1')!;
+    ]).find((s) => s.key === 'level-security_head')!;
     expect(deputy.detail).toBe('Standing deputy for the Security Head');
   });
 
@@ -498,8 +515,61 @@ describe('buildApprovalSteps — a delegated decision (062)', () => {
     const steps = buildApprovalSteps(pass(), HELD, 'hod', [
       { ...DELEGATED, grandfathered: true, decided_name: null },
     ]);
-    const level = steps.find((s) => s.key === 'level-1')!;
+    const level = steps.find((s) => s.key === 'level-security_head')!;
     expect(level.who).toBe('Security Head');
     expect(level.detail).toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 063 — THE COO AND THE CEO SHARE THE LAST RUNG. One signature closes it, and
+// the office that did not sign is recorded `not_required` rather than approved:
+// nobody signed it, and the printed slip ticks a box per office.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('buildApprovalSteps — the shared last rung (063)', () => {
+  const LADDER: ApprovalRoleRow[] = [
+    { role_key: 'coo', user_id: 'u2', full_name: 'Vikram Singh', department_name: 'Operations', designated_at: '2026-08-19T04:00:00Z', deputy_id: null, deputy_name: null },
+    { role_key: 'ceo', user_id: 'u3', full_name: 'Neha Sharma', department_name: 'Executive', designated_at: '2026-08-19T04:00:00Z', deputy_id: null, deputy_name: null },
+  ];
+
+  it('a rung nobody had to sign names NOBODY and says why', () => {
+    const steps = buildApprovalSteps(pass({ status: 'pending' }), LADDER, 'hod', [
+      approval({ role_key: 'coo', level_no: 3, status: 'approved', decided_name: 'Vikram Singh', decided_at: '2026-08-21T05:30:00Z' }),
+      approval({
+        role_key: 'ceo',
+        level_no: 3,
+        status: 'not_required',
+        decided_at: '2026-08-21T05:30:00Z',
+        reason: 'Not required — level 3 was approved by the COO.',
+      }),
+    ]);
+    const ceo = steps.find((s) => s.key === 'level-ceo')!;
+    expect(ceo.state).toBe('skipped');
+    // NOT a tick and NOT a name: the office never pressed anything, and naming
+    // the holder here would say they approved a pass they were never shown.
+    expect(ceo.who).toBe('CEO');
+    expect(ceo.note).toBe('Not required — level 3 was approved by the COO.');
+    expect(steps.find((s) => s.key === 'level-coo')!.state).toBe('done');
+  });
+
+  it('a rung waiting for the escalation names the desk and the moment', () => {
+    const steps = buildApprovalSteps(pass({ status: 'pending' }), LADDER, 'hod', [
+      approval({ role_key: 'coo', level_no: 3 }),
+      approval({ role_key: 'ceo', level_no: 3, escalates_at: '2099-01-02T09:00:00.000Z' }),
+    ]);
+    const ceo = steps.find((s) => s.key === 'level-ceo')!;
+    expect(ceo.state).toBe('pending');
+    expect(ceo.note).toMatch(/With the COO/i);
+    expect(ceo.note).toMatch(/escalates to the CEO/i);
+    // The COO's own rung is not waiting on anybody and says the ordinary thing.
+    expect(steps.find((s) => s.key === 'level-coo')!.note).toBe('Waiting for this approval');
+  });
+
+  it('says the ordinary thing again once the window has passed', () => {
+    const steps = buildApprovalSteps(pass({ status: 'pending' }), LADDER, 'hod', [
+      approval({ role_key: 'coo', level_no: 3 }),
+      approval({ role_key: 'ceo', level_no: 3, escalates_at: '2000-01-02T09:00:00.000Z' }),
+    ]);
+    expect(steps.find((s) => s.key === 'level-ceo')!.note).toBe('Waiting for this approval');
   });
 });

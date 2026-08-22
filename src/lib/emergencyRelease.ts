@@ -10,6 +10,7 @@
 // disabled with the count showing, instead of the admin writing "ok", pressing,
 // and being told no. The database is still the authority — this is the same
 // belt-and-braces `checkReturnQty` and `approvalDecision.ts` already use.
+import type { PassApprovalStatus } from './passApprovalState';
 import { gp } from '../supabaseClient';
 import { notifyApproval } from './notifyApproval';
 
@@ -57,7 +58,7 @@ export function isReasonWritten(reason: string): boolean {
  */
 export function canReleaseUnderEmergency(
   passStatus: string,
-  owedLevels: { status: 'pending' | 'approved' | 'rejected' }[],
+  owedLevels: { status: PassApprovalStatus }[],
   role: string | null,
 ): boolean {
   if (role !== 'super_admin') return false;

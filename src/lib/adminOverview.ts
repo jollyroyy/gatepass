@@ -110,11 +110,6 @@ export interface OverviewCard {
   glyph: HodGlyph;
   tone: HodTone;
   value: number;
-  /** What the figure is scoped to, in words. It is the whole of the card's
-   *  second line now that no figure compares itself to anything. */
-  note: string;
-  /** Empty on four of the five cards. See `OverviewNote`. */
-  notes: OverviewNote[];
   drill: BoardDrill;
 }
 
@@ -141,7 +136,6 @@ export function buildOverviewCards(
   // `awaits_approval`, so they sum to the figure by construction.
   const split = pendingSplit(rows);
   const overdue = rows.filter((p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue);
-  const since = `Raised in the last ${days} days`;
 
   return [
     {
@@ -150,8 +144,6 @@ export function buildOverviewCards(
       glyph: 'document',
       tone: 'blue',
       value: win.length,
-      note: since,
-      notes: [],
       drill: {
         key: 'total',
         heading: 'Passes raised in this window',
@@ -165,8 +157,6 @@ export function buildOverviewCards(
       glyph: 'exchange',
       tone: 'green',
       value: rgp.length,
-      note: since,
-      notes: [],
       drill: {
         key: 'rgp',
         heading: 'RGP raised in this window',
@@ -180,8 +170,6 @@ export function buildOverviewCards(
       glyph: 'send',
       tone: 'purple',
       value: nrgp.length,
-      note: since,
-      notes: [],
       drill: {
         key: 'nrgp',
         heading: 'NRGP raised in this window',
@@ -199,8 +187,6 @@ export function buildOverviewCards(
       glyph: 'clock',
       tone: 'orange',
       value: split.atGate.length,
-      note: 'Cleared the ladder, waiting at the gate',
-      notes: [],
       drill: {
         key: 'pendingGate',
         heading: 'Passes waiting at the gate',
@@ -214,8 +200,6 @@ export function buildOverviewCards(
       glyph: 'hourglass',
       tone: 'purple',
       value: split.awaitingApproval.length,
-      note: 'Still climbing the approval ladder',
-      notes: [],
       drill: {
         key: 'pendingApproval',
         heading: 'Passes still owing an approval',
@@ -229,8 +213,6 @@ export function buildOverviewCards(
       glyph: 'alert',
       tone: 'red',
       value: overdue.length,
-      note: 'Still out, past its date',
-      notes: [],
       drill: {
         key: 'overdue',
         heading: 'Material past its return date',

@@ -59,9 +59,14 @@ describe('the admin Overview', () => {
     expect(approval?.drill.rows).toHaveLength(3);
   });
 
-  it('no longer carries the combined card, nor any sub-line under a figure', () => {
+  it('no longer carries the combined card, nor any note property under a figure', () => {
+    // REWRITTEN 2026-08-22: it used to assert `c.notes.length === 0`. The
+    // client's instruction that day ("remove running and all kinds of
+    // subtext from kpi card from all dashboards ... across all views")
+    // deleted OverviewCard.note/notes outright, so there is no `notes`
+    // array left to be empty — the property itself is gone.
     expect(cards.some((c) => c.key === 'pending')).toBe(false);
-    expect(cards.every((c) => c.notes.length === 0)).toBe(true);
+    expect(cards.every((c) => !('notes' in c) && !('note' in c))).toBe(true);
   });
 
   it('still sums to what the one card counted', () => {
@@ -83,9 +88,16 @@ describe('the HOD board', () => {
     expect(approval?.drill.rows).toHaveLength(3);
   });
 
-  it('prints no sub-line under either of them', () => {
-    expect(gate?.notes).toEqual([]);
-    expect(approval?.notes).toEqual([]);
+  it('carries no `notes`/`sub` property at all under either of them', () => {
+    // REWRITTEN 2026-08-22: it used to assert `gate?.notes` / `approval?.notes`
+    // equalled `[]`. The client's instruction that day ("remove running and
+    // all kinds of subtext from kpi card from all dashboards ... across all
+    // views") deleted HodKpiCard.notes and .sub outright, so there is no
+    // property left to be an empty array.
+    expect(gate).not.toHaveProperty('notes');
+    expect(gate).not.toHaveProperty('sub');
+    expect(approval).not.toHaveProperty('notes');
+    expect(approval).not.toHaveProperty('sub');
   });
 
   it('leaves the Rejected card its own two sub-lines, which were not named', () => {

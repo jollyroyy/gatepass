@@ -14,6 +14,7 @@ import { parseCompanyInfo } from '../../lib/companyInfo';
 import { formatDateTime } from '../../lib/formatDate';
 import Badge, { TypeChip } from '../../components/Badge';
 import ModalShell from '../../components/ModalShell';
+import { vendorWhatsappLink } from '../../lib/whatsappShare';
 
 interface PassSubmittedModalProps {
   submittedPass: GatePassView;
@@ -54,6 +55,11 @@ export default function PassSubmittedModal({
   onClose,
 }: PassSubmittedModalProps): React.ReactElement {
   const company = parseCompanyInfo(submittedPass.visitor_company);
+  // The material lines are not passed in — this modal is handed a count, not
+  // the rows — so the message carries the pass, the vendor, the vehicle, the
+  // purpose and the return date without a line-by-line breakdown. The record's
+  // own button sends the fuller one.
+  const whatsapp = vendorWhatsappLink(submittedPass);
 
   return (
     <ModalShell onClose={onClose} className="max-w-lg" labelledBy="pass-submitted-title">
@@ -108,10 +114,34 @@ export default function PassSubmittedModal({
         Raised {formatDateTime(submittedPass.created_at)} — now in the security queue.
       </div>
 
-      <div className="flex gap-3">
+      {/* FORWARDING IT, THE MOMENT IT IS RAISED (client, 2026-08-22: "the hod,
+          after raising the pass, should have the option to send the pass … have
+          an option to send the pass using WhatsApp to the vendor's WhatsApp
+          number"). The same `wa.me` link the pass record carries, so there is
+          one message and one number rule; nothing is sent by this app — the HOD
+          presses send in their own WhatsApp. No vendor number on the pass, no
+          button ("if it is available").
+
+          Print Pass sits beside it because the boxes are what the vendor is
+          being sent to: a chat message cannot carry the sheet, so the HOD
+          prints or saves it here and attaches it themselves. */}
+      <div className="flex flex-wrap gap-3">
         <Link to={`/pass/${submittedPass.id}`} className="btn-primary flex-1 text-center">
           View Pass
         </Link>
+        <Link to={`/pass/${submittedPass.id}/print`} className="btn-secondary flex-1 text-center">
+          Print Pass
+        </Link>
+        {whatsapp && (
+          <a
+            href={whatsapp}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary flex-1 text-center"
+          >
+            Send to Vendor
+          </a>
+        )}
         <Link to="/dashboard" className="btn-secondary flex-1 text-center">
           Dashboard
         </Link>

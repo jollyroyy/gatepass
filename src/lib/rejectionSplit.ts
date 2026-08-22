@@ -29,12 +29,13 @@
 // the two summed rather than a third count of every `cancelled` row — because
 // nobody rejected it. The two sub-figures add up to the figure above them by
 // construction, which is this app's board rule one level down.
+import type { PassApprovalStatus } from './passApprovalState';
 import type { GatePassView } from '../types';
 
 /** The `pass_approvals` fields this module needs. Wider rows satisfy it. */
 export interface RejectionApprovalRow {
   gate_pass_id: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: PassApprovalStatus;
 }
 
 export interface RejectionSplit {
@@ -73,14 +74,4 @@ export function rejectionSplit(
   }
 
   return { all: [...atGate, ...byApprover], atGate, byApprover };
-}
-
-/** The two lines the card prints under its figure, in the client's own order
- *  and words. Singular/plural is done here so every board reads identically. */
-export function rejectionNotes(split: RejectionSplit): { text: string; key: 'gate' | 'approver' }[] {
-  const n = (count: number) => `${count} ${count === 1 ? 'pass' : 'passes'}`;
-  return [
-    { key: 'gate', text: `${n(split.atGate.length)} rejected at security gate` },
-    { key: 'approver', text: `${n(split.byApprover.length)} rejected by approver` },
-  ];
 }

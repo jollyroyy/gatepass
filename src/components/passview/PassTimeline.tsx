@@ -68,6 +68,9 @@ const DOT: Record<ApprovalStepState, string> = {
   pending: 'bg-transparent border-navy-300',
   blocked: 'bg-flagged-500 border-flagged-500',
   unset: 'bg-transparent border-pending-400',
+  // A rung the other office on this level closed (063). Filled neutral, never
+  // green: nobody signed it, and a green dot is what "approved" looks like.
+  skipped: 'bg-navy-300 border-navy-300',
 };
 
 const NOTE_INK: Record<ApprovalStepState, string> = {
@@ -75,6 +78,7 @@ const NOTE_INK: Record<ApprovalStepState, string> = {
   pending: 'text-navy-500',
   blocked: 'text-flagged-700 font-semibold',
   unset: 'text-pending-700',
+  skipped: 'text-navy-500',
 };
 
 const ACTION_DOT: Record<VerifyAction, string> = {

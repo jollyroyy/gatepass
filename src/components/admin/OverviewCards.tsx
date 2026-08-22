@@ -16,7 +16,7 @@
 // grey words, on all five, which is what keeps the row one height.
 import React from 'react';
 import type { OverviewCard } from '../../lib/adminOverview';
-import HodIcon, { DOT } from '../hod/HodIcon';
+import HodIcon from '../hod/HodIcon';
 
 type Props = {
   cards: OverviewCard[];
@@ -48,24 +48,6 @@ export default function OverviewCards({ cards, activeKey, onSelect, loading }: P
             </span>
           </span>
 
-          <span className="gb-ov-delta gb-ov-none">{c.note}</span>
-
-          {/* THE SUB-FIGURES (client, 2026-08-20), on Pending Approvals alone.
-              The hairline and its padding belong to the notes, so a card with
-              none draws neither — an empty bordered strip under a figure reads
-              as a line that failed to load. They are readings and not controls:
-              the whole card is already the drill button, and a button inside a
-              button is not valid HTML. */}
-          {c.notes.length > 0 && (
-            <span className="gb-ov-notes">
-              {c.notes.map((n) => (
-                <span key={n.key} className="gb-ov-note">
-                  <span className={`gb-dot ${DOT[n.tone]}`} aria-hidden="true" />
-                  {loading ? '—' : n.text}
-                </span>
-              ))}
-            </span>
-          )}
         </button>
       ))}
     </div>

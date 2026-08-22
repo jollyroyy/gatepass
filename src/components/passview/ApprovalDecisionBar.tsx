@@ -31,6 +31,7 @@ import { approvePass, rejectPass } from '../../lib/approvalActions';
 import {
   canDecideApproval,
   heldByOffice,
+  isHeldForEscalation,
   levelLabel,
   myStep,
 } from '../../lib/approvalDecision';
@@ -87,12 +88,23 @@ export default function ApprovalDecisionBar({
 
   if (!canDecideApproval(pass.status, approvals, office)) {
     const holder = heldByOffice(approvals, office);
+    const held = isHeldForEscalation(mine);
     return (
       <div data-testid="record-approval-actions" className="card p-4">
         <p className="text-sm text-navy-700">
-          This pass is routed to you as {title} ({level}), but it is still with the{' '}
-          {holder ? APPROVAL_ROLE_TITLES[holder] : 'office below you'}. It reaches you once
-          they have signed.
+          {/* A SHARED RUNG IS NOT AN EARLIER LEVEL, and must not read like one
+              (063). The CEO is on the same rung as the COO and is waiting for a
+              clock, not for a signature below them — so the sentence names the
+              moment rather than saying "once they have signed", which would be
+              false the day the window runs out with the COO still silent. */}
+          {held && mine.escalates_at
+            ? `This pass is routed to you as ${title} (${level}), and it is with the `
+              + `${holder ? APPROVAL_ROLE_TITLES[holder] : 'office beside you'} until `
+              + `${new Date(mine.escalates_at).toLocaleString('en-IN')}. `
+              + 'You can sign it after that if they have not decided it.'
+            : `This pass is routed to you as ${title} (${level}), but it is still with the `
+              + `${holder ? APPROVAL_ROLE_TITLES[holder] : 'office below you'}. `
+              + 'It reaches you once they have signed.'}
         </p>
       </div>
     );

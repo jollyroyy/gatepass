@@ -83,9 +83,102 @@ seats per person returned **no rows**, i.e. nobody occupies two).
 | Deployment | Vercel SPA; env = `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` only |
 | `gatepass.approval_roles` | **4 rows — ALL FOUR OFFICES ARE FILLED**, so since `046` was applied every NEWLY raised pass needs four approvals and **the gate cannot see it until it has them**. Re-read live as `postgres` on 2026-08-20 (thirty-third pass) and **THE CEO SEAT HAS MOVED AGAIN**: Security Head **securityhead** (`securityhead@demo.quest`) · COO **Questmallcoo** (`coo@demo.quest`) · CEO **QuestMallCEO** (`soham.patra@ultimatesolutions.in`) · Finance HOD **financehod** (`financehod@demo.quest`). **`ceo@demo.quest` IS DEACTIVATED** (`user_status.is_active = false`, `vacated_approval_office = 'ceo'` — 059 doing exactly what it was written to do), so signing in as it reads "Account Deactivated"; the office it left is filled by the account above. One person holds one office (`049`). Admin → Users → *Gate pass approval ladder* is the ONLY place they are set, and since 053 the CEO office is also what decides whitelist requests. |
 | `gatepass.mail_settings` | **1 row — `override_to = jollyroyy@gmail.com`**, which is the inbox every approval letter is redirected to. Editable at Admin → Settings. A value here beats the function's `MAIL_OVERRIDE_TO` secret; no SMTP server is configured and nothing sends through one. |
-| `gatepass.pass_approvals` | **20 rows, and only TWO passes are still climbing** — `RGP-20260820-0001/0002`, both waiting on the **COO**. The other three (`NRGP-20260819-0002`, `RGP-20260819-0006/0007`) were closed by `058`'s rollout: 10 levels marked `approved` with `grandfathered = true` and **`decided_by` NULL**, so the ladder names nobody on them and the gate can see them. Levels are numbered by `057`: Security Head 1 · COO 2 · Finance HOD 3 · CEO 4. The older 60 passes carry no ladder at all. |
+| `gatepass.pass_approvals` | **63 rows over 16 passes** (2026-08-22, forty-fourth pass, read as `postgres` after 063). Levels are renumbered by **`063`**: Security Head 1 · Finance HOD 2 · **COO and CEO jointly 3**. 13 passes have cleared the ladder (10 of them closed by `058`'s rollout — `approved`, `grandfathered = true`, `decided_by` NULL, so the ladder names nobody); 2 are still at level 1, 3 at level 2 and 3 on the shared level 3. One `coo` row is `rejected`. `gate_passes` is **76 rows**. The oldest 60 passes carry no ladder at all. |
 
-**Latest change (2026-08-22, forty-third pass): AN APPROVAL OFFICE IS NOW THE *WHOLE* OF WHAT
+**Latest change (2026-08-22, forty-fourth pass): THE PRINTED SLIP HAS ITS SIGNATURE BOXES
+BACK — TICKED, NAMED AND DATED FROM THE DIGITAL APPROVAL; THE LADDER IS SECURITY HEAD → FINANCE
+HOD → **COO *or* CEO**, WITH THE CEO INHERITING THE LAST RUNG ON A CLOCK (migration `063`,
+APPLIED via psql); THE HOD CAN FORWARD A PASS TO THE VENDOR ON WHATSAPP THE MOMENT THEY RAISE IT;
+AND NO KPI CARD ON ANY DASHBOARD CARRIES SUBTEXT.** The Edge Function is REDEPLOYED (four assets).
+
+- **THE BOXES ARE BACK, AND THEY ARE NOT THE OLD EMPTY ONES** (client: "go back to the boxes that
+  were there before. Make sure for all the approvals if the approval has been given, give a tick
+  box inside that box … Also give the approval date when it was approved"). This REVERSES the
+  forty-first pass, hours old — `PrintApprovalRecord.tsx` (the table that replaced the boxes) is
+  **DELETED**, so a stale reference is a build error.
+  - `src/lib/printSignatureBoxes.ts` (pure) + `src/pages/Shared/PrintSignatureBoxes.tsx`. A box is
+    one of four things and **every one is a WORD as well as a mark**, because the slip is read on a
+    mono laser: **signed** (✓, the signer's name and the moment), **rejected** (✗), **not
+    required** (—, 063's shared rung), **awaiting** (an empty square that says so).
+  - **IT IS BUILT FROM THE RECORD'S OWN `buildApprovalSteps`**, so the paper and the screen cannot
+    name a different office, person or moment; change the ladder and the paper follows for free.
+    The `ApprovalStep` gained an optional `office`, so a box can be HEADED by the office (what a
+    person signing paper looks for) without parsing it back out of `key` or `who`.
+  - **THE RECEIVER'S BOX IS THE ONE STILL BLANK BY DESIGN** — nothing in this system records a
+    receipt, so a tick there would be a receipt nobody gave. The return leg gets **no box at all**:
+    a deadline is not a signature.
+  - **ONE PRINT PAGE ALREADY SERVED EVERY VIEW** (`/pass/:id/print`), reached from the record and
+    from the pass-detail page, so "the same print page across all the views" needed no new route.
+- **MIGRATION `063` — THE LAST RUNG BELONGS TO TWO OFFICES** (client: "Level one approver will be
+  the security head. Level two approver will be the finance head and level three approval approver
+  will be either co or CEO. If the [COO] has given the approval then it will not go to the CEO …
+  if the [COO] has not given the approval within one or two days then it will escalate to CEO").
+  - **FOUR OFFICES, THREE LEVELS.** `pass_approvals_level_matches` now maps security_head 1 ·
+    finance_head 2 · **coo 3 · ceo 3**, and the 48 live rows were renumbered on 057's own
+    precedent: `level_no` is not an audit fact, it is the order the remaining signatures are
+    collected in.
+  - **A NEW STATUS, `not_required`.** Whichever office signs the shared rung closes the other's row
+    in the SAME statement — `decided_by` stays NULL, `decided_at` is stamped and `reason` names the
+    office that signed instead. **It is deliberately not `approved`**: an approved row with no
+    author is what 058 had to invent `grandfathered` for, and the printed slip now ticks a box per
+    office, so "signed" and "did not have to sign" is ink on paper that leaves the building. The
+    shape CHECK gains exactly one arm and keeps 058's two verbatim.
+  - **THE ESCALATION IS DERIVED, NEVER STAMPED.** `level_escalates_at(pass, role)` answers null for
+    every office but a CEO waiting behind a PENDING COO on the same level, and otherwise
+    `max(decided_at of the approved rungs below) — or the pass's `created_at` — plus
+    `app_settings.coo_escalation_hours` (new, NOT NULL, default **48**, 1–720). `approve_pass_level`
+    refuses the CEO before that moment **and names it in the sentence**.
+  - **⚠ NOTHING TELLS THE CEO WHEN THE WINDOW ELAPSES.** There is no scheduler on this deployment
+    (no pg_cron — the same reason expiry is derived at query time), so the escalation is true the
+    moment it is true on every screen that asks, and the CEO learns of it by opening their queue.
+    Making it a push means a cron job and is a deployment decision, not this migration's.
+  - **⚠ A REJECTION IS NEVER ESCALATION-GATED**, the same call 062 makes about a delegate's
+    ceiling: a limit caps what somebody may COMMIT the business to, and refusing to let an office
+    STOP a pass points the rule the wrong way. The CEO may reject the shared rung at any time.
+  - **THE HOLDER DOES NOT LOSE THE RUNG** when it escalates: both may sign and the first press
+    closes it. Escalation adds a signatory, it does not take an office's own rung away.
+  - `pass_routed_to_me` (061) is restated with `not in ('approved', 'not_required')`. It cannot
+    matter today — only the TOP level is shared — but a shared rung lower down would otherwise
+    hide the pass from every office above it for ever.
+  - **`get_pass_approvals` IS DELIBERATELY UNTOUCHED.** It already returns `status`. The escalation
+    MOMENT is derived once in `src/lib/approvalDecision.ts` (`withEscalation`) from rows the screens
+    already hold plus `get_escalation_hours()` — because the approver's queue reads
+    `pass_approvals` in ONE query across every pass and could not use a per-pass function's column.
+    It is DISPLAY ONLY; `approve_pass_level` enforces the window itself.
+  - **APPLIED with psql as `postgres`, which bypasses RLS.** Every statement returned; 16 + 32 rows
+    renumbered. **ITS RLS AND ESCALATION HALVES ARE NOT PROBED** — no `scripts/verify-063.mjs` has
+    driven real anon-key JWTs through COO-signs-so-CEO-is-not-required, CEO-refused-before-the-
+    window and CEO-allowed-after it. That probe now sits at the front of the security queue beside
+    `verify-060.mjs` and `verify-062.mjs`.
+- **THE HOD FORWARDS A PASS THE MOMENT IT IS RAISED** (client: "the hod, after raising the pass,
+  should have the option to send the pass … have an option to send the pass using WhatsApp to the
+  vendor's WhatsApp number"). `PassSubmittedModal` gained **Send to Vendor** — the record's own
+  `vendorWhatsappLink`, so there is one message and one number rule — and **Print Pass**, because a
+  chat message cannot carry the sheet and the boxes are what the vendor is being sent to. **Nothing
+  is sent by this app**: `wa.me` opens with the text prepared and the HOD presses send themselves.
+  No vendor number on the pass, no button.
+- **NO KPI CARD ON ANY DASHBOARD CARRIES SUBTEXT** (client: "remove running and all kinds of
+  subtext from kpi card from all dashboards … across all views"). **DELETED, not hidden**:
+  `OverviewCard.note`/`.notes` (+ `OverviewNote`), `HodKpiCard.sub`/`.notes` (+ `HodKpiNote`),
+  `SuperGroup.note` and `superAdminGroups`' `windowNote` parameter, `rejectionNotes()` with its
+  last caller, and the eight now-dead `.gb-*` CSS rules. **The report's KPI delta line is KEPT** —
+  `/all-passes` is a register, not a dashboard, and its "vs the previous window" figure was asked
+  for by name on 2026-08-20. Say so if that was meant too.
+- Pinned by a new `tests/unit/printSignatureBoxes.test.ts` (11), `sharedRungQueue.test.ts` (4),
+  3 new `passSubmittedModal` cases, a **REWRITTEN** `passPrintSignatures.test.tsx` (9 — its header
+  says it has now been rewritten twice in one day and why), a **REWRITTEN** `approvalOrderLinear`
+  (16, with a whole new escalation block), rewritten order cases in `approvalLadder` (42, + a
+  shared-rung block), `waitingWith`, `functionalRoles`, and **17 new `sqlInvariants` cases for
+  063**. Four deliberate breaks were **watched failing** first — the sibling close, the escalation
+  gate, `canDecideApproval`'s escalation check and the box's `not_required` state.
+  `npm run check` is **2109 tests across 162 files**, green; `npm run build` is green.
+- **NOT SEEN SIGNED-IN IN A BROWSER, AND NOTHING HAS BEEN PUT THROUGH A REAL PRINT DIALOG.** The
+  suite, a typecheck, a production build, the psql apply and two live `postgres` reads only. The
+  three things only a real run proves: the box grid on an A5 sheet under Ctrl+P, the CEO's queue
+  actually withholding a pass the COO still has time on (that is RLS and a clock, which psql
+  cannot test), and the WhatsApp link opening a chat on a phone.
+
+**Earlier (2026-08-22, forty-third pass): AN APPROVAL OFFICE IS NOW THE *WHOLE* OF WHAT
 ITS HOLDER DOES HERE — TWO TABS, "Pending for My Approval" AND "Delegation", AND NOTHING ELSE.
 NO RAISE FORM, NO REGISTER, NO GATE, NO RETURNS.** Frontend only — no migration, no RPC change,
 no grant change.
@@ -3263,8 +3356,8 @@ the query and `GateConsole` renders the results full width above the queue.
 
 ### Known, not fixed
 
-- **`src/lib/adminOverview.ts` is 363 lines**, over the 300-line cap. It was already 343 before
-  the 2026-08-22 pass split the Pending Approvals card in two; the honest fix is moving
+- **`src/lib/adminOverview.ts` is 345 lines**, over the 300-line cap (it lost 18 lines when the
+  cards' subtext was deleted on 2026-08-22 and is still over). The honest fix is moving
   `buildOverviewCards` into its own module beside the trend and the ring.
 
 - **`gatepass.get_ceo_approver` and `set_ceo_approver` have no caller in `src/`** (2026-08-20,

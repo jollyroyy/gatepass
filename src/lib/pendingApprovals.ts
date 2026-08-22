@@ -22,7 +22,11 @@
 import type { GatePassView } from '../types';
 import type { ApprovalRoleKey } from './approvalLadder';
 import { APPROVAL_LADDER } from './approvalLadder';
-import { canDecideApproval } from './approvalDecision';
+import {
+  canDecideApproval,
+  DEFAULT_ESCALATION_HOURS,
+  withEscalation,
+} from './approvalDecision';
 import { partyOf } from './guardBoard';
 
 /** One row of `gatepass.pass_approvals` — a single office's decision on a
@@ -47,7 +51,12 @@ export interface PassApproval {
 export function inMyQueue(
   passes: GatePassView[],
   approvals: PassApproval[],
-  office: ApprovalRoleKey
+  office: ApprovalRoleKey,
+  /** How long the office below a SHARED rung gets before it escalates (063).
+   *  Defaulted rather than required so a caller with no settings read still
+   *  filters the queue by the same rule the RPC enforces, an hour or two out at
+   *  worst. */
+  escalationHours: number = DEFAULT_ESCALATION_HOURS,
 ): GatePassView[] {
   const byPass = new Map<string, PassApproval[]>();
   for (const a of approvals) {
@@ -55,7 +64,11 @@ export function inMyQueue(
     if (list) list.push(a);
     else byPass.set(a.gate_pass_id, [a]);
   }
-  return passes.filter((p) => canDecideApproval(p.status, byPass.get(p.id) ?? [], office));
+  return passes.filter((p) => canDecideApproval(
+    p.status,
+    withEscalation(byPass.get(p.id) ?? [], p.created_at, escalationHours),
+    office,
+  ));
 }
 
 /** Oldest request first — the thing that has waited longest is the thing to

@@ -51,7 +51,6 @@ export default function SuperSummaryCards({ groups, openKey, onDrill, loading }:
           <GuardIcon glyph={PLATE[g.key].glyph} tone={PLATE[g.key].tone} />
           <div className="gb-sum-body">
             <h2 className={`gb-sum-title ${INK[g.key]}`}>{g.title}</h2>
-            <p className="gb-sum-note">{g.note}</p>
             <div className="gb-figures">
               {g.figures.map((f, i) => (
                 <React.Fragment key={f.key}>

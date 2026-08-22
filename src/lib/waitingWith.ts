@@ -47,7 +47,7 @@
 // correct on both because it counts exactly what it is handed.
 import type { GatePassView } from '../types';
 import { APPROVAL_LADDER, APPROVAL_ROLE_TITLES, type ApprovalRoleKey, type ApprovalRoleRow } from './approvalLadder';
-import { lowestPendingLevel, type ApprovalStepRow } from './approvalDecision';
+import { actingStep, type ApprovalStepRow } from './approvalDecision';
 import { isExpiredPending } from './statusStyles';
 
 
@@ -115,12 +115,7 @@ export function buildWaitingWith(
   for (const p of passes) {
     if (!isWaitingSomewhere(p)) continue;
     const rows = byPass.get(p.id) ?? [];
-    const lowest = lowestPendingLevel(rows);
-    if (lowest === null) {
-      bump(GATE_KEY);
-      continue;
-    }
-    const step = rows.find((r) => r.level_no === lowest && r.status === 'pending');
+    const step = actingStep(rows);
     bump(step ? step.role_key : GATE_KEY);
   }
 

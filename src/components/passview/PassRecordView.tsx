@@ -39,6 +39,8 @@ import { canVerifyAtGate } from '../../lib/phoneSearch';
 import { buildApprovalSteps, canRecordReturns } from '../../lib/approvalLadder';
 import { useApprovalRoles } from '../../lib/useApprovalRoles';
 import { usePassApprovals } from '../../lib/usePassApprovals';
+import { useEscalationHours } from '../../lib/useEscalationHours';
+import { withEscalation } from '../../lib/approvalDecision';
 import { usePassEmergencyRelease } from '../../lib/usePassEmergencyRelease';
 import { formatDateTime } from '../../lib/formatDate';
 import { buildReturnTimeline } from '../../lib/returnTimeline';
@@ -89,7 +91,16 @@ export default function PassRecordView({
   // What THIS pass actually owes, and who has decided (046). A pass raised
   // before any office was designated carries none, and the ladder falls back to
   // grading the org chart — see approvalLadder.ts.
-  const approvals = usePassApprovals(pass.id);
+  const rawApprovals = usePassApprovals(pass.id);
+  // WHEN A SHARED RUNG BECOMES THE SECOND OFFICE'S TO SIGN (063). Derived here,
+  // once, so the ladder's note and the Approve / Reject bar underneath it read
+  // the same clock — `approve_pass_level` enforces the same window itself, and
+  // this is only what stops a button being drawn on a press it would refuse.
+  const escalationHours = useEscalationHours();
+  const approvals = React.useMemo(
+    () => withEscalation(rawApprovals, pass.created_at, escalationHours),
+    [rawApprovals, pass.created_at, escalationHours],
+  );
   // A release happens on this very screen, so the banner needs re-reading
   // without a navigation — hence the nonce. See usePassEmergencyRelease.
   const [releaseNonce, setReleaseNonce] = React.useState(0);

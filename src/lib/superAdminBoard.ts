@@ -55,10 +55,6 @@ export interface SuperFigure {
 export interface SuperGroup {
   key: SuperGroupKey;
   title: string;
-  /** The one line under the heading saying what the whole card is scoped to.
-   *  One per CARD, not one per figure, because every figure on a card shares
-   *  its scope — that is what makes them groupable at all. */
-  note: string;
   figures: SuperFigure[];
 }
 
@@ -75,12 +71,9 @@ const PLACEMENT: Record<OverviewKey, { group: SuperGroupKey; label: string }> = 
   overdue: { group: 'attention', label: 'Overdue Returns' },
 };
 
-const GROUPS: readonly { key: SuperGroupKey; title: string; note: string }[] = [
-  // The windowed card's note is filled in by the caller with the REAL DATES —
-  // see `superAdminGroups`. "In the selected window" is only what it says
-  // before anyone has told it which window that is.
-  { key: 'raised', title: 'Gate Passes Raised', note: 'In the selected window' },
-  { key: 'attention', title: 'Needs Attention', note: 'Running totals — not scoped to the window' },
+const GROUPS: readonly { key: SuperGroupKey; title: string }[] = [
+  { key: 'raised', title: 'Gate Passes Raised' },
+  { key: 'attention', title: 'Needs Attention' },
 ];
 
 /**
@@ -101,10 +94,9 @@ const GROUPS: readonly { key: SuperGroupKey; title: string; note: string }[] = [
  * from the one the rest of the board is using. Only the WINDOWED card takes it —
  * putting a date range on the running card would state a scope it does not have.
  */
-export function superAdminGroups(cards: OverviewCard[], windowNote?: string): SuperGroup[] {
+export function superAdminGroups(cards: OverviewCard[]): SuperGroup[] {
   return GROUPS.map((g) => ({
     ...g,
-    note: g.key === 'raised' && windowNote ? windowNote : g.note,
     figures: cards
       .filter((c) => PLACEMENT[c.key].group === g.key)
       .map((c) => ({

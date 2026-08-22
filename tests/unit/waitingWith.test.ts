@@ -122,10 +122,32 @@ describe('buildWaitingWith', () => {
     expect(waitingWithTotal(rows)).toBe(3); // a, b and c — never the matched one.
   });
 
-  it('reads in slip order and ends at the gate', () => {
+  // REWRITTEN 2026-08-22: this used to hold the 057 order (Security Head, COO,
+  // Finance HOD, CEO). The client moved Finance to level 2 and put the COO and
+  // the CEO on one shared level 3, and the strip reads the ladder itself, so it
+  // follows for free.
+  it('reads in ladder order and ends at the gate', () => {
     expect(buildWaitingWith([], [], ROLES).map((r) => r.key)).toEqual([
-      'security_head', 'coo', 'finance_head', 'ceo', GATE_KEY,
+      'security_head', 'finance_head', 'coo', 'ceo', GATE_KEY,
     ]);
+  });
+
+  // ONE PASS, ONE DESK, EVEN WHEN TWO OFFICES SHARE THE RUNG (063). The COO
+  // gets first refusal, so a pass on the shared rung is waiting with them and
+  // not with the CEO — counting it against both would double the strip, and
+  // counting it against the CEO would name a desk that cannot act yet.
+  it('files a pass on the shared last rung against the COO, once', () => {
+    const passes = [pass({ id: 'a' })];
+    const approvals = [
+      { gate_pass_id: 'a', role_key: 'security_head' as const, level_no: 1, status: 'approved' as const },
+      { gate_pass_id: 'a', role_key: 'finance_head' as const, level_no: 2, status: 'approved' as const },
+      { gate_pass_id: 'a', role_key: 'coo' as const, level_no: 3, status: 'pending' as const },
+      { gate_pass_id: 'a', role_key: 'ceo' as const, level_no: 3, status: 'pending' as const },
+    ];
+    const rows = buildWaitingWith(passes, approvals, ROLES);
+    expect(rows.find((r) => r.key === 'coo')?.count).toBe(1);
+    expect(rows.find((r) => r.key === 'ceo')?.count).toBe(0);
+    expect(waitingWithTotal(rows)).toBe(1);
   });
 
   it('names the holder, and says so when nobody holds the office', () => {

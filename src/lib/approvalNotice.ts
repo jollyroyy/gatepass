@@ -91,7 +91,7 @@ export interface NoticePass {
 export interface NoticeApproval {
   role_key: NoticeRoleKey;
   level_no: number;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'not_required';
   approver_id: string;
   approver_name: string | null;
   approver_email: string | null;
@@ -319,7 +319,18 @@ export function joinUrl(base: string, path: string): string {
 export function currentApproval(approvals: NoticeApproval[]): NoticeApproval | null {
   const pending = approvals.filter((a) => a.status === 'pending');
   if (pending.length === 0) return null;
-  return pending.reduce((lowest, a) => (a.level_no < lowest.level_no ? a : lowest));
+  const lowest = pending.reduce((low, a) => (a.level_no < low.level_no ? a : low));
+  const here = pending.filter((a) => a.level_no === lowest.level_no);
+  if (here.length === 1) return here[0];
+  // TWO OFFICES ON ONE RUNG (063): the COO gets first refusal and the CEO only
+  // gets it if the window runs out. The letter goes to whoever may act NOW, and
+  // at the moment a rung is reached that is always the COO — this letter is
+  // sent by the decision that opened the rung, so no time has passed yet.
+  //
+  // ⚠ NOBODY IS WRITTEN TO WHEN THE WINDOW LATER ELAPSES. There is no scheduler
+  // on this deployment, so the CEO learns the pass has escalated by opening
+  // their queue. See migration 063.
+  return here.find((a) => a.role_key === 'coo') ?? here[0];
 }
 
 /** "Security Head (Ravi Menon)" — the app's own bracket form, the same one the
@@ -456,7 +467,9 @@ export function buildApprovalNotices(
   // in the subject and in the body, the reader of that inbox cannot tell the
   // Security Head's letter from the CEO's. Client, 2026-08-19.
   const who = holderLabel(current);
-  const rung = `Level ${current.level_no} of ${approvals.length}`;
+  // LEVELS, NOT ROWS: the COO and the CEO share level 3 (063), so a pass with
+  // all four offices designated has four rows and three rungs.
+  const rung = `Level ${current.level_no} of ${new Set(approvals.map((a) => a.level_no)).size}`;
   const heading = `Gate pass ${pass.pass_number} is waiting for your approval`;
   const greeting = current.approver_name ? `Hello ${current.approver_name},` : 'Hello,';
   const lead =

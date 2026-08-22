@@ -12,10 +12,18 @@ import type { ApprovalRoleKey, ApprovalStepState } from './approvalLadder';
  *  has been decided about it (migration 046). `routed_name` is who held the
  *  office the day the pass was raised; `decided_name` is who actually pressed
  *  the button, which is not always the same person. */
+/** What one office's row on one pass says. `not_required` arrived with 063:
+ *  the COO and the CEO share level 3, and whichever of them signs it closes the
+ *  other's row as never having been needed. It is NOT `approved` — nobody
+ *  signed it, `decided_by` is null on such a row by the database's own CHECK,
+ *  and the printed slip must not tick a box for a signature that was never
+ *  given. */
+export type PassApprovalStatus = 'pending' | 'approved' | 'rejected' | 'not_required';
+
 export interface PassApprovalRow {
   role_key: ApprovalRoleKey;
   level_no: number;
-  status: 'pending' | 'approved' | 'rejected';
+  status: PassApprovalStatus;
   routed_name: string | null;
   decided_name: string | null;
   decided_at: string | null;
@@ -48,20 +56,30 @@ export interface PassApprovalRow {
    *  saw. OPTIONAL, and falsy is the safe reading — a fixture or a row from
    *  before 058 describes an ordinary decision. */
   grandfathered?: boolean;
+  /** WHEN A SHARED RUNG BECOMES THIS OFFICE'S TO SIGN (migration 063). Filled
+   *  in by `withEscalation` from the rows the caller already holds — it is not
+   *  a column and does not come back from `get_pass_approvals`. Null on every
+   *  ordinary rung. */
+  escalates_at?: string | null;
 }
 
 /** How a decided (or undecided) level reads. A `Record` and not a chain, so a
  *  fifth status in the database is a type error here rather than a blank rung. */
-export const APPROVAL_STATE: Record<PassApprovalRow['status'], ApprovalStepState> = {
+export const APPROVAL_STATE: Record<PassApprovalStatus, ApprovalStepState> = {
   pending: 'pending',
   approved: 'done',
   rejected: 'blocked',
+  not_required: 'skipped',
 };
 
-export const APPROVAL_NOTE: Record<PassApprovalRow['status'], string> = {
+export const APPROVAL_NOTE: Record<PassApprovalStatus, string> = {
   pending: 'Waiting for this approval',
   approved: 'Approved',
   rejected: 'Rejected',
+  // The database writes the fuller sentence ("Not required — level 3 was
+  // approved by the COO.") into `reason`, and the ladder prefers it. This is
+  // the fall-back for a row that somehow carries none.
+  not_required: 'Not required',
 };
 
 /** What a level closed by the rollout says instead of a name and a note. Stated

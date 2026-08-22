@@ -62,7 +62,8 @@
 //     line.
 import type { GatePassView } from '../types';
 import type { ApprovalRoleKey } from './approvalLadder';
-import { lowestPendingLevel } from './approvalDecision';
+import type { PassApprovalStatus } from './passApprovalState';
+import { actingStep } from './approvalDecision';
 import { isWaitingAtGate } from './gateQueue';
 import type { HodGlyph, HodTone } from '../components/hod/hodIconTypes';
 
@@ -102,11 +103,11 @@ export const ROLE_TO_SLOT: Record<ApprovalRoleKey, ApprovalOffice> = {
 export interface PendingApprovalRow {
   gate_pass_id: string;
   role_key: ApprovalRoleKey;
-  /** The rung's position on the pass's own ladder (057: Security Head 1 · COO
-   *  2 · Finance HOD 3 · CEO 4). Load-bearing — it is what decides which single
-   *  desk a pass is counted against. */
+  /** The rung's position on the pass's own ladder (063: Security Head 1 ·
+   *  Finance HOD 2 · COO and CEO jointly 3). Load-bearing — it is what decides
+   *  which single desk a pass is counted against. */
   level_no: number;
-  status: 'pending' | 'approved' | 'rejected';
+  status: PassApprovalStatus;
 }
 
 /** How many of these passes each office is holding up, one pass counted once.
@@ -129,11 +130,9 @@ export function approvalWaiting(
   for (const p of passes) {
     if (!isWaitingAtGate(p)) continue;
     const rows = byPass.get(p.id) ?? [];
-    const lowest = lowestPendingLevel(rows);
     // Nothing pending: the ladder is finished, or there never was one. That
     // pass is at the barrier, and the barrier has no slot on this strip.
-    if (lowest === null) continue;
-    const step = rows.find((r) => r.level_no === lowest && r.status === 'pending');
+    const step = actingStep(rows);
     if (!step) continue;
     counts[ROLE_TO_SLOT[step.role_key]] += 1;
   }

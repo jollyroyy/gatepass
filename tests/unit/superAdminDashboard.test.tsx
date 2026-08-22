@@ -165,7 +165,14 @@ describe('The super admin dashboard is the guard\'s board with the admin\'s figu
     // The two cards say which is which, so no reader has to guess.
     expect(screen.getByText('Gate Passes Raised')).toBeInTheDocument();
     expect(screen.getByText('Needs Attention')).toBeInTheDocument();
-    expect(screen.getByText(/Running totals/)).toBeInTheDocument();
+    // REWRITTEN 2026-08-22: it used to also assert a 'Running totals' note
+    // rendered under the Needs Attention heading. The client's instruction
+    // that day ("remove running and all kinds of subtext from kpi card from
+    // all dashboards ... across all views") deleted `SuperGroup.note` and
+    // `superAdminGroups` now takes one argument, so neither group prints a
+    // note any more — the heading and the figures underneath are the whole
+    // card.
+    expect(screen.queryByText(/Running totals/)).toBeNull();
 
     // AND EACH FIGURE IS ON THE RIGHT CARD. Asserting the values alone would
     // not catch a windowed figure being grouped under the running heading —
