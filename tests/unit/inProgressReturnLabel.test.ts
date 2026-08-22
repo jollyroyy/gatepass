@@ -190,13 +190,18 @@ describe('the report filters by which desk a pass is waiting on', () => {
     expect(ids(rows, 'expired')).toEqual(['d']);
   });
 
-  it('sums to the In Progress bucket\'s own waiting passes', () => {
+  // REWRITTEN 2026-08-22. It used to hold that both desks were subsets of the
+  // "Partially Returned" bucket — which is exactly the defect the client
+  // reported: an NRGP waiting for a signature was being counted under a return
+  // obligation an NRGP cannot have. The two desks are subsets of the `pending`
+  // bucket now, and the property being pinned is unchanged in kind: they narrow
+  // ONE bucket rather than adding another.
+  it('sums to the pending bucket\'s own waiting passes', () => {
     const both = [...ids(rows, 'pending_gate'), ...ids(rows, 'pending_approval')].sort();
     expect(both).toEqual(['a', 'b', 'c']);
-    // Every one of them is In Progress — the two options narrow a bucket, they
-    // do not add a fourth.
     for (const id of both) {
-      expect(ids(rows, 'in_progress')).toContain(id);
+      expect(ids(rows, 'pending')).toContain(id);
+      expect(ids(rows, 'in_progress')).not.toContain(id);
     }
   });
 });

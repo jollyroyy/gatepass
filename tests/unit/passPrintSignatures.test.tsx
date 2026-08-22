@@ -1,24 +1,25 @@
-// The printed slip is the physical artefact seven people sign and stamp before
-// material crosses the gate. It carries all seven blocks on EVERY category —
-// RGP Out, RGP In and NRGP Out — because the approval chain does not change
-// with the direction the material is travelling.
+// THE PRINTED SLIP CARRIES THE DIGITAL APPROVAL TRAIL, NOT SEVEN EMPTY BOXES.
 //
-// Row 1 (approvals):   Issuing HOD · Security Head · COO
-// Row 2 (approvals):   Finance HOD · CEO
-// Row 3 (at the gate): Security Verification · Receiver Signature
+// REWRITTEN 2026-08-22. This file used to pin the opposite: seven signature
+// blocks over three rows (Issuing HOD · Security Head · COO / Finance HOD · CEO
+// / Security Verification · Receiver Signature), three per row because five
+// across an A5 sheet leaves ~18mm per box — too narrow for a rubber stamp — and
+// all seven drawn on every category. `src/pages/Shared/signatureBlocks.ts` is
+// DELETED with them.
 //
-// Read left→right, top→bottom the approval order is Issuing HOD → Security Head
-// → COO → Finance HOD → CEO (the CEO moved from third to last on 2026-08-20,
-// on the client's instruction — see `APPROVAL_LADDER` and migration 057; this
-// file's own cases below were rewritten with it). Three boxes per row is a
-// print constraint, not a
-// grouping: five across an A5 sheet leaves ~18mm per box, too narrow for a
-// rubber stamp.
+// Client, 2026-08-22: "when I'm printing the pass from any page it should not
+// show the previous boxes for the signature. Show it as per the digital
+// approval. It should show all the digital signature timeline and everything in
+// a proper format. Remove those boxes for the signs."
+//
+// The offices sign in the portal now (migration 046, linear since 061), and
+// `gatepass.pass_approvals` records who pressed each rung and when. A blank box
+// beside that is not a second safeguard — it is an invitation to sign paper and
+// believe it counted.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { SIGNATURE_ROWS } from '../../src/pages/Shared/signatureBlocks';
 
 function view(over: Record<string, unknown>) {
   return {
@@ -37,7 +38,13 @@ function view(over: Record<string, unknown>) {
   };
 }
 
-const { current } = vi.hoisted(() => ({ current: { pass: {} as Record<string, unknown> } }));
+const { current } = vi.hoisted(() => ({
+  current: {
+    pass: {} as Record<string, unknown>,
+    approvals: [] as Record<string, unknown>[],
+    roles: [] as Record<string, unknown>[],
+  },
+}));
 
 function thenable(data: unknown) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -54,7 +61,14 @@ vi.mock('../../src/supabaseClient', () => ({
       table === 'v_gate_pass_items'
         ? thenable([])
         : thenable(current.pass),
-    rpc: () => thenable(null),
+    rpc: (name: string) =>
+      thenable(
+        name === 'get_pass_approvals'
+          ? current.approvals
+          : name === 'get_approval_ladder'
+            ? current.roles
+            : null,
+      ),
   }),
   pub: () => ({ from: () => thenable([]) }),
   supabase: { auth: { getUser: () => Promise.resolve({ data: { user: { id: 'u1' } } }) } },
@@ -69,6 +83,8 @@ import PassPrint from '../../src/pages/Shared/PassPrint';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  current.approvals = [];
+  current.roles = [];
 });
 
 async function renderFor(over: Record<string, unknown>) {
@@ -81,64 +97,96 @@ async function renderFor(over: Record<string, unknown>) {
   await waitFor(() => expect(screen.getByText('RGP-OUT-20260804-0001')).toBeInTheDocument());
 }
 
-describe('signature block definitions', () => {
-  it('defines exactly seven blocks over three rows', () => {
-    const all = SIGNATURE_ROWS.flat();
-    expect(all).toHaveLength(7);
-    expect(SIGNATURE_ROWS).toHaveLength(3);
-  });
+const CATEGORIES: { name: string; over: Record<string, unknown> }[] = [
+  { name: 'RGP Out', over: { type: 'RGP', direction: 'out' } },
+  { name: 'RGP In', over: { type: 'RGP', direction: 'in' } },
+  { name: 'NRGP Out', over: { type: 'NRGP', direction: 'out' } },
+];
 
-  it('never puts more than three boxes on a row (an A5 sheet cannot hold more)', () => {
-    for (const row of SIGNATURE_ROWS) expect(row.length).toBeLessThanOrEqual(3);
-  });
-
-  // REWRITTEN 2026-08-20: this used to run …→ COO → CEO → finance, and the case
-  // under it pinned the CEO immediately after the COO. The client reordered the
-  // ladder so the CEO signs LAST; the slip and the screen must agree, or a
-  // guard comparing the two finds a level on one that is missing from the other.
-  it('runs the approval chain issuing → security → COO → finance → CEO', () => {
-    expect(SIGNATURE_ROWS.flat().slice(0, 5).map((b) => b.label)).toEqual([
-      'Issuing HOD',
-      'Security Head',
-      'COO',
-      'Finance HOD',
-      'CEO',
-    ]);
-  });
-
-  it('places the CEO block last of the five, immediately after Finance HOD', () => {
-    const labels = SIGNATURE_ROWS.flat().map((b) => b.label);
-    expect(labels.indexOf('CEO')).toBe(labels.indexOf('Finance HOD') + 1);
-    expect(labels.indexOf('Finance HOD')).toBe(labels.indexOf('COO') + 1);
-  });
-
-  it('puts gate verification and the receiver last, on their own row', () => {
-    expect(SIGNATURE_ROWS[SIGNATURE_ROWS.length - 1].map((b) => b.label)).toEqual([
-      'Security Verification',
-      'Receiver Signature',
-    ]);
-  });
-
-  it('gives every block room for a signature and a stamp', () => {
-    for (const b of SIGNATURE_ROWS.flat()) {
-      expect(b.caption.toLowerCase()).toContain('stamp');
-    }
-  });
-});
-
-describe('PassPrint renders all seven signature labels for every category', () => {
-  const CATEGORIES: { name: string; over: Record<string, unknown> }[] = [
-    { name: 'RGP Out', over: { type: 'RGP', direction: 'out' } },
-    { name: 'RGP In', over: { type: 'RGP', direction: 'in' } },
-    { name: 'NRGP Out', over: { type: 'NRGP', direction: 'out' } },
-  ];
-
+describe('the slip prints no signature box, on any category', () => {
   for (const c of CATEGORIES) {
-    it(`renders all seven signature labels for ${c.name}`, async () => {
+    it(`draws none of the old blocks or their captions for ${c.name}`, async () => {
       await renderFor(c.over);
-      for (const b of SIGNATURE_ROWS.flat()) {
-        expect(screen.getByText(b.label)).toBeInTheDocument();
+      // "Security Verification" is deliberately NOT in this list: it survives
+      // as a STEP of the digital trail (`gateStep`), which is the gate's real
+      // decision rather than a box somebody signs.
+      for (const gone of ['Signature & Stamp', 'Receiver Signature', 'Issuing HOD']) {
+        expect(screen.queryByText(gone)).toBeNull();
       }
     });
   }
+
+  // The boxes were the ONLY thing on this sheet drawn as an empty ruled
+  // rectangle; nothing else uses that height. If one comes back, this bites.
+  it('draws no empty ruled box for anybody to sign', async () => {
+    await renderFor({});
+    expect(document.querySelectorAll('div.border.border-black.h-20')).toHaveLength(0);
+  });
+});
+
+describe('the slip prints the digital approval trail instead', () => {
+  it('heads the block and says signatures are captured digitally', async () => {
+    await renderFor({});
+    expect(screen.getByText(/Approval & Verification Record/i)).toBeInTheDocument();
+    expect(screen.getByText(/recorded digitally/i)).toBeInTheDocument();
+    expect(screen.getByText(/No manual signature is required/i)).toBeInTheDocument();
+  });
+
+  it('opens with the raise, naming the HOD and their department', async () => {
+    await renderFor({});
+    // Twice on the sheet by design: the slip's own fact row, and the first rung
+    // of the trail.
+    expect(screen.getAllByText('Raised By').length).toBeGreaterThan(1);
+    expect(screen.getAllByText('HOD One').length).toBeGreaterThan(0);
+    expect(screen.getByText('Approved on raising')).toBeInTheDocument();
+  });
+
+  // The point of the whole change: a level somebody actually signed in the
+  // portal prints WHO signed it and WHEN, where a blank box used to be.
+  it('prints the approver and the moment for a level that was signed', async () => {
+    current.roles = [{
+      role_key: 'security_head', user_id: 'u9', full_name: 'Demi', department_name: 'Security',
+      designated_at: '2026-08-01T00:00:00Z', deputy_id: null, deputy_name: null,
+    }];
+    current.approvals = [
+      {
+        role_key: 'security_head', level_no: 1, status: 'approved',
+        routed_name: 'Demi', decided_name: 'Demi', decided_at: '2026-08-04T07:30:00Z',
+        reason: null, decided_as_deputy: false,
+      },
+      {
+        role_key: 'coo', level_no: 2, status: 'pending',
+        routed_name: 'Sudeshna', decided_name: null, decided_at: null,
+        reason: null, decided_as_deputy: false,
+      },
+    ];
+    await renderFor({});
+    expect(screen.getByText('Level 1 Approval')).toBeInTheDocument();
+    expect(screen.getByText('Security Head (Demi)')).toBeInTheDocument();
+    expect(screen.getByText('Approved')).toBeInTheDocument();
+    expect(screen.getByText('Level 2 Approval')).toBeInTheDocument();
+    expect(screen.getByText('Waiting for this approval')).toBeInTheDocument();
+  });
+
+  it('prints the gate clearance as a step of the same trail', async () => {
+    await renderFor({
+      status: 'matched', verified_by_name: 'Guard Sam', verified_at: '2026-08-04T09:00:00Z',
+      return_status: 'awaiting_return', expected_return_date: '2026-08-20',
+    });
+    expect(screen.getByText('Cleared by Security')).toBeInTheDocument();
+    expect(screen.getByText('Guard Sam')).toBeInTheDocument();
+    // RGP only — the return leg closes the trail.
+    expect(screen.getByText('To Be Returned')).toBeInTheDocument();
+  });
+
+  it('invents no moment for a step this database records none for', async () => {
+    current.roles = [{
+      role_key: 'coo', user_id: 'u8', full_name: 'Sudeshna', department_name: 'Ops',
+      designated_at: '2026-08-01T00:00:00Z', deputy_id: null, deputy_name: null,
+    }];
+    await renderFor({});
+    // A legacy pass carries no ladder rows at all, so the gate step is still
+    // pending and prints a dash rather than a made-up timestamp.
+    expect(screen.getByText('Pending at the gate')).toBeInTheDocument();
+  });
 });

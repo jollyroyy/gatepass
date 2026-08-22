@@ -16,15 +16,20 @@
 // missing from the other:
 //
 //   * `APPROVAL_LADDER`      — the screen's rungs and their numbers
-//   * `SIGNATURE_ROWS`       — the printed slip's boxes
 //   * migration 057          — `pass_approvals.level_no` and its CHECK
+//
+// THERE USED TO BE A THIRD: `SIGNATURE_ROWS`, the printed slip's seven empty
+// boxes, and the case below pinned that its four office labels ran in ladder
+// order. That file is DELETED (2026-08-22) — the slip prints the record's own
+// `buildApprovalSteps` now, so the paper cannot state an order of its own to
+// disagree with, and the property is satisfied by construction rather than by
+// an assertion.
 //
 // It also pins the SECOND half of the same client message — the error the
 // Security Head hit after approving. See `canVerifyAtGate` below.
 import { describe, it, expect } from 'vitest';
 import { APPROVAL_LADDER, APPROVAL_ROLE_TITLES } from '../../src/lib/approvalLadder';
 import { canVerifyAtGate } from '../../src/lib/phoneSearch';
-import { SIGNATURE_ROWS } from '../../src/pages/Shared/signatureBlocks';
 import { canDecideApproval, lowestPendingLevel } from '../../src/lib/approvalDecision';
 import type { GatePassView } from '../../src/types';
 
@@ -56,12 +61,14 @@ describe('the approval ladder is Security Head → COO → Finance HOD → CEO',
     ]);
   });
 
-  it('prints the same order on the slip, finance BEFORE the ceo', () => {
-    // Read left→right, top→bottom, skipping the issuing HOD and the two gate
-    // boxes: what is left must be the four offices in ladder order.
-    const labels = SIGNATURE_ROWS.flat().map((b) => b.label);
-    const offices = APPROVAL_LADDER.map(({ key }) => APPROVAL_ROLE_TITLES[key]);
-    expect(labels.filter((l) => offices.includes(l))).toEqual(offices);
+  // REWRITTEN 2026-08-22: the slip no longer states an order of its own — it
+  // renders the ladder itself. What is left to pin is that the titles the
+  // printed trail names each office by are the ladder's own, so the paper and
+  // the screen cannot call the same office two different things.
+  it('names the four offices by their slip titles, finance BEFORE the ceo', () => {
+    expect(APPROVAL_LADDER.map(({ key }) => APPROVAL_ROLE_TITLES[key])).toEqual([
+      'Security Head', 'COO', 'Finance HOD', 'CEO',
+    ]);
   });
 });
 

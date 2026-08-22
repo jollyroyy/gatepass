@@ -89,7 +89,10 @@ describe('reportStatusOf — the three buckets', () => {
     expect(isOverduePass(row({ return_status: 'returned', is_overdue: true }))).toBe(false);
   });
 
-  it('is disjoint and total, so the six cards add up', () => {
+  // REWRITTEN 2026-08-22: there are FOUR buckets now — `pending` was split out
+  // of Partially Returned so that no NRGP is filed under a return obligation it
+  // cannot have. The property is the same one: disjoint and total.
+  it('is disjoint and total, so the cards add up', () => {
     const rows = [
       row({ id: '1' }),
       row({ id: '2', status: 'matched' }),
@@ -97,9 +100,13 @@ describe('reportStatusOf — the three buckets', () => {
       row({ id: '4', is_expired: true }),
       row({ id: '5', status: 'matched', return_status: 'awaiting_return', is_overdue: true }),
     ];
-    const counts = { completed: 0, in_progress: 0, cancelled: 0 };
+    const counts = { completed: 0, pending: 0, in_progress: 0, cancelled: 0 };
     for (const p of rows) counts[reportStatusOf(p)] += 1;
-    expect(counts.completed + counts.in_progress + counts.cancelled).toBe(rows.length);
+    expect(counts.completed + counts.pending + counts.in_progress + counts.cancelled)
+      .toBe(rows.length);
+    // The pass that never left the gate is the pending one, not "partially
+    // returned" — nothing has been returned, because nothing went out.
+    expect(reportStatusOf(rows[0])).toBe('pending');
   });
 });
 
@@ -113,9 +120,14 @@ describe('the row pill says more than its bucket where more is true', () => {
     expect(reportStatusPill(dead)).toBe('gb-pill-orange');
   });
 
-  it('otherwise reads the mock\'s own three words', () => {
+  // REWRITTEN 2026-08-22. It used to hold that a `pending` pass read "Partially
+  // Returned"; it now names the desk it is actually sitting on, in
+  // `passStageStyle`'s own words.
+  it('otherwise reads the bucket, or the desk a pending pass is on', () => {
     expect(reportStatusLabel(row({ status: 'matched' }))).toBe('Completed');
-    expect(reportStatusLabel(row({ status: 'pending' }))).toBe('Partially Returned');
+    expect(reportStatusLabel(row({ status: 'pending' }))).toBe('Pending Gate Review');
+    expect(reportStatusLabel(row({ status: 'matched', return_status: 'partially_returned' })))
+      .toBe('Partially Returned');
     expect(reportStatusLabel(row({ status: 'flagged' }))).toBe('Cancelled');
     expect(reportStatusPill(row({ status: 'matched' }))).toBe('gb-pill-green');
   });
@@ -141,9 +153,12 @@ describe('applyReportFilters', () => {
     expect(ids({ department: 'd2' })).toEqual(['b']);
   });
 
+  // REWRITTEN 2026-08-22: `a` is a pass that never left the gate, so it is in
+  // the `pending` bucket now rather than being counted as partially returned.
   it('narrows by bucket', () => {
     expect(ids({ status: 'completed' })).toEqual(['b']);
-    expect(ids({ status: 'in_progress' })).toEqual(['a', 'c']);
+    expect(ids({ status: 'pending' })).toEqual(['a']);
+    expect(ids({ status: 'in_progress' })).toEqual(['c']);
     expect(ids({ status: 'cancelled' })).toEqual(['d']);
   });
 
@@ -188,12 +203,14 @@ describe('buildReportKpis', () => {
     row({ id: 'd', type: 'NRGP', status: 'matched' }),
   ];
 
-  it('counts the mock\'s six figures, and they add up', () => {
+  // REWRITTEN 2026-08-22: seven figures, since the `pending` bucket got its own
+  // card. The invariant is unchanged — the buckets sum to the total.
+  it('counts the report\'s seven figures, and they add up', () => {
     const cards = buildReportKpis(rows, [], 'last 30 days');
     const by = Object.fromEntries(cards.map((c) => [c.key, c.value]));
     expect(by.total).toBe(4);
     expect(by.rgp + by.nrgp).toBe(by.total);
-    expect(by.completed + by.in_progress + by.cancelled).toBe(by.total);
+    expect(by.completed + by.pending + by.in_progress + by.cancelled).toBe(by.total);
   });
 
   it('prints the share of total on the two type cards', () => {

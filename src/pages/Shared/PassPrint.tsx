@@ -6,25 +6,21 @@ import { formatDateOnly } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
 import { parseCompanyInfo } from '../../lib/companyInfo';
 import { quantityCell, quantityHeading } from '../../lib/units';
+import { buildApprovalSteps } from '../../lib/approvalLadder';
+import { useApprovalRoles } from '../../lib/useApprovalRoles';
+import { usePassApprovals } from '../../lib/usePassApprovals';
 import QrPass from '../../components/QrPass';
 import { QuestLockup } from '../../components/QuestMark';
 
-import { SIGNATURE_ROWS, type SignatureBlock } from './signatureBlocks';
+import PrintApprovalRecord from './PrintApprovalRecord';
 
-/** How many signature boxes fit across the A5 slip — see signatureBlocks.ts.
- *  Short rows are padded out to this so every box is the same width. */
-const BOXES_PER_ROW = 3;
-
-function SignatureBox({ label, caption }: SignatureBlock): React.ReactElement {
-  return (
-    <div className="flex-1">
-      {/* Tall enough for a signature AND a rubber stamp over it. */}
-      <div className="border border-black h-20 w-full" />
-      <p className="text-[10px] text-black font-bold text-center mt-1 uppercase tracking-wider">{label}</p>
-      <p className="text-[8px] text-black text-center leading-tight">{caption}</p>
-    </div>
-  );
-}
+// `signatureBlocks.ts` and the `SignatureBox` that drew its seven empty boxes
+// are DELETED (client, 2026-08-22: "it should not show the previous boxes for
+// the signature … show it as per the digital approval"). A stale reference is
+// therefore a build error rather than a slip that quietly prints both. What
+// replaced them is `PrintApprovalRecord`, which renders the record's OWN
+// approval steps — see that file for why the boxes had to go rather than sit
+// beside the digital trail.
 
 // A LOCAL formatter, not the shared `lib/formatCurrency` — the column header
 // here already carries "Value (₹)", so a second ₹ in every cell would repeat
@@ -45,6 +41,12 @@ export default function PassPrint(): React.ReactElement {
   const [pass, setPass] = useState<GatePassView | null | undefined>(undefined);
   const [items, setItems] = useState<GatePassItemView[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Both are the record's own hooks, and both degrade to an EMPTY list rather
+  // than to an error: a slip that refuses to print because an org-chart lookup
+  // failed is worse than one whose ladder reads "Not designated yet". Hooks, so
+  // they are called before the loading/not-found returns below.
+  const { roles } = useApprovalRoles();
+  const approvals = usePassApprovals(id);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,6 +91,11 @@ export default function PassPrint(): React.ReactElement {
   }
 
   const isRgp = pass.type === 'RGP';
+  // The printed trail. `viewerRole` is deliberately left null: the "signed on
+  // the printed pass" fiction exists for a GUARD reading a screen with the
+  // paper in their hand, and this IS the paper — asserting a signature to the
+  // sheet that would have carried it is circular.
+  const steps = buildApprovalSteps(pass, roles, null, approvals);
   const companyInfo = parseCompanyInfo(pass.visitor_company);
   // One shared unit is printed in the Qty heading instead of its own column —
   // an A5 slip has no width to spare, and "3 / Kg" over two cells said nothing
@@ -224,25 +231,12 @@ export default function PassPrint(): React.ReactElement {
             </p>
           )}
 
-          {/* Seven signatures over three rows — the approval chain, then the
-              gate. Identical on every category; see signatureBlocks.ts for why.
-              break-inside-avoid so a page break can never split a signature
-              from its label and leave an unlabelled box on the next sheet. */}
-          <div className="pt-2 print:break-inside-avoid">
-            {SIGNATURE_ROWS.map((row, i) => (
-              <div key={i} className={`flex gap-6 print:break-inside-avoid ${i > 0 ? 'mt-4' : ''}`}>
-                {row.map((block) => (
-                  <SignatureBox key={block.label} label={block.label} caption={block.caption} />
-                ))}
-                {/* Pad every short row out to BOXES_PER_ROW with empty flex
-                    slots, so a two-box row keeps the same box width as a full
-                    one instead of stretching across the sheet. */}
-                {Array.from({ length: BOXES_PER_ROW - row.length }, (_, k) => (
-                  <div key={`pad-${k}`} className="flex-1" aria-hidden="true" />
-                ))}
-              </div>
-            ))}
-          </div>
+          {/* The digital approval trail, in place of the seven signature boxes
+              this slip used to carry. It is the record's OWN ladder — the same
+              `buildApprovalSteps` the pass record's timeline renders — so the
+              paper and the screen cannot name a different office, person or
+              moment. */}
+          <PrintApprovalRecord steps={steps} />
         </div>
       </div>
     </div>

@@ -4,10 +4,9 @@
 // ONE array. That is this app's oldest board rule — a number and the list it
 // sits over cannot drift when neither is a second query.
 //
-// THREE STATUS BUCKETS, AND THEY ARE DISJOINT. The mock's table and its three
-// right-hand cards name Completed / Partially Returned / Cancelled, so those are
-// the buckets, and every pass falls in exactly one — the six cards therefore add
-// up (Total = RGP + NRGP, and Completed + Partially Returned + Cancelled = Total).
+// FOUR STATUS BUCKETS, AND THEY ARE DISJOINT. Every pass falls in exactly one,
+// so the cards add up (Total = RGP + NRGP, and Completed + Pending + Partially
+// Returned + Cancelled = Total).
 //
 //   * Completed   — the trip is over. An NRGP the gate cleared is finished (it
 //                   is not coming back); an RGP is finished only when every line
@@ -17,11 +16,24 @@
 //                   voided expiry). An EXPIRED pass is here too — `match_pass`
 //                   refuses it forever, so it is dead paperwork, not work in
 //                   progress.
-//   * Partially Returned — everything else, which is every pass somebody is still
-//                   waiting on: at the ladder, at the gate, or out on an RGP that
-//                   has not fully come back. An OVERDUE pass is in this bucket —
-//                   late is not finished. The bucket was called "In Progress"
-//                   until the client renamed it (2026-08-21).
+//   * Pending     — the pass has not been through the gate at all. It is sitting
+//                   on ONE of two desks — the approval ladder, or the barrier —
+//                   and the row's own pill names which. Both pass types are here.
+//   * Partially Returned — an RGP that went out and has not fully come back. An
+//                   OVERDUE pass is in this bucket — late is not finished. The
+//                   bucket was called "In Progress" until the client renamed it
+//                   (2026-08-21).
+//
+// ⚠ THE PARTIALLY RETURNED BUCKET TESTS THE RETURN LEG POSITIVELY, AND THAT IS
+// THE WHOLE OF THE 2026-08-22 FIX. It used to be the REMAINDER — everything that
+// was neither completed nor cancelled — so an NRGP waiting for a signature was
+// filed under an obligation an NRGP cannot have (`return_status` is pinned to
+// 'not_applicable' for every NRGP by `gate_passes_return_status_rgp_only`,
+// migration 001). Client: "partial return can only be true for the RGP … if they
+// are waiting for the gate for approval then put them under pending gate
+// approval". The `pending` bucket is where they went. NOTHING WAS BACKFILLED:
+// this is a reading of `v_gate_passes`, so every pass ever raised is re-filed the
+// moment it is deployed.
 //
 // The row PILL says more than its bucket where more is true: an overdue pass
 // reads "Overdue" and an expired one "Expired", both counted in the bucket above.
@@ -32,16 +44,21 @@ import type { HodGlyph, HodTone } from '../components/hod/hodIconTypes';
 import { IS_OPEN_RETURN } from './boardDrills';
 import { isWaitingAtGate } from './gateQueue';
 import { isExpiredPending } from './statusStyles';
+import { passStageStyle } from './passStage';
 import { csvCategory, csvDateTime, csvText } from './csvCells';
 import type { CsvColumn } from './exportUtils';
 import { formatCurrency } from './formatCurrency';
 
 // ─── The buckets ─────────────────────────────────────────────────────────────
 
-export type ReportStatus = 'completed' | 'in_progress' | 'cancelled';
+export type ReportStatus = 'completed' | 'pending' | 'in_progress' | 'cancelled';
 
 export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
   completed: 'Completed',
+  // The CARD's word for both desks. The ROW says which one — see
+  // `reportStatusLabel`, which prints `passStageStyle`'s own label so the
+  // register and the badge on the card above it cannot disagree.
+  pending: 'Pending',
   // The KEY is unchanged — it is the bucket's identity, and it is what the
   // report's Status filter is persisted under. Only the WORD moved (client,
   // 2026-08-21): "replace the 'in progress' with 'partially returned' across
@@ -56,20 +73,34 @@ export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
  *  already use — no new hue, and no literal hex in a `.tsx`. */
 export const REPORT_STATUS_PILL: Record<ReportStatus, string> = {
   completed: 'gb-pill-green',
+  // Orange — "waiting on somebody", the tone `STAGE_TONES` already gives Pending
+  // Gate Review, Pending Approval and Held at Gate on every card in the app.
+  pending: 'gb-pill-orange',
   in_progress: 'gb-pill-blue',
   cancelled: 'gb-pill-red',
 };
 
-type PassFacts = Pick<GatePassView, 'status' | 'return_status' | 'is_expired' | 'is_overdue'>;
+type PassFacts = Pick<
+  GatePassView, 'status' | 'return_status' | 'is_expired' | 'is_overdue' | 'awaits_approval'
+>;
 
-/** Which of the three the pass is counted under. Exact enum tests only — no
- *  `includes()` chain, per the repo's no-fuzzy-matching rule. */
+/** Which of the four the pass is counted under. Exact enum tests only — no
+ *  `includes()` chain, per the repo's no-fuzzy-matching rule.
+ *
+ *  The order is the precedence `passStageStyle` gives the badge: expiry and the
+ *  two refusals outrank everything, then the return leg, then the desk. */
 export function reportStatusOf(p: PassFacts): ReportStatus {
   if (isExpiredPending(p)) return 'cancelled';
   if (p.status === 'flagged' || p.status === 'cancelled') return 'cancelled';
-  if (p.status === 'matched' && p.return_status === 'not_applicable') return 'completed';
   if (p.return_status === 'returned') return 'completed';
-  return 'in_progress';
+  // POSITIVE, never a remainder: only a pass whose return leg is actually open
+  // is partially returned, and `IS_OPEN_RETURN` is false for every NRGP.
+  if (IS_OPEN_RETURN[p.return_status]) return 'in_progress';
+  // `matched` with no return loop at all is an NRGP through the gate: finished.
+  if (p.status === 'matched') return 'completed';
+  // pending / held / hod_reviewed — it never left the gate, so somebody still
+  // owes a decision on it.
+  return 'pending';
 }
 
 /** True when material is still out and past its date. `is_overdue` comes off
@@ -78,11 +109,20 @@ export function isOverduePass(p: PassFacts): boolean {
   return IS_OPEN_RETURN[p.return_status] && p.is_overdue;
 }
 
-/** The word on the row's pill — the bucket, unless something sharper is true. */
+/** The word on the row's pill — the bucket, unless something sharper is true.
+ *
+ *  A PENDING PASS NAMES ITS DESK instead of printing the card's flat "Pending"
+ *  (client, 2026-08-22: "if they are waiting for the gate for approval then put
+ *  them under pending gate approval"). The words come from `passStageStyle`
+ *  itself — Pending Approval / Pending Gate Review / Held at Gate / HOD Approved
+ *  — so the register prints exactly what the card above it does and there is no
+ *  second vocabulary to keep in step. */
 export function reportStatusLabel(p: PassFacts): string {
   if (isExpiredPending(p)) return 'Expired';
   if (isOverduePass(p)) return 'Overdue';
-  return REPORT_STATUS_LABELS[reportStatusOf(p)];
+  const bucket = reportStatusOf(p);
+  if (bucket === 'pending') return passStageStyle(p).label;
+  return REPORT_STATUS_LABELS[bucket];
 }
 
 /** Attention outranks the bucket's own colour, both in orange — the hue every
@@ -106,6 +146,9 @@ export type StatusFilter =
 export const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'completed', label: 'Completed' },
+  // The fourth bucket (2026-08-22). The two desk options below it are SUBSETS of
+  // this one, exactly as Overdue and Expired are subsets of Partially Returned.
+  { key: 'pending', label: 'Pending' },
   { key: 'in_progress', label: 'Partially Returned' },
   { key: 'cancelled', label: 'Cancelled' },
   // The two desks a pass that has not moved can be sitting on (client,
@@ -191,7 +234,8 @@ export function reportOptions(rows: GatePassView[]): {
 
 // ─── The six figures ─────────────────────────────────────────────────────────
 
-export type ReportKpiKey = 'total' | 'rgp' | 'nrgp' | 'completed' | 'in_progress' | 'cancelled';
+export type ReportKpiKey =
+  | 'total' | 'rgp' | 'nrgp' | 'completed' | 'pending' | 'in_progress' | 'cancelled';
 
 export interface ReportKpi {
   key: ReportKpiKey;
@@ -228,7 +272,8 @@ function delta(now: number, before: number, spanLabel: string): { note: string; 
 }
 
 /**
- * The mock's six cards, in its own order.
+ * The mock's cards, in its own order — SEVEN since the `pending` bucket was
+ * split out of Partially Returned (2026-08-22).
  *
  * `previous` is the same-length window immediately before the report's range,
  * already narrowed by everything except the dates — so the comparison is like
@@ -253,7 +298,9 @@ export function buildReportKpis(
       note: share(nrgp, rows.length), trend: 'none' },
     { key: 'completed', label: 'Completed', glyph: 'check', tone: 'purple', value: count(rows, 'completed'),
       ...delta(count(rows, 'completed'), count(previous, 'completed'), spanLabel) },
-    { key: 'in_progress', label: REPORT_STATUS_LABELS.in_progress, glyph: 'clock', tone: 'orange', value: count(rows, 'in_progress'),
+    { key: 'pending', label: REPORT_STATUS_LABELS.pending, glyph: 'clock', tone: 'orange', value: count(rows, 'pending'),
+      ...delta(count(rows, 'pending'), count(previous, 'pending'), spanLabel) },
+    { key: 'in_progress', label: REPORT_STATUS_LABELS.in_progress, glyph: 'exchange', tone: 'blue', value: count(rows, 'in_progress'),
       ...delta(count(rows, 'in_progress'), count(previous, 'in_progress'), spanLabel) },
     { key: 'cancelled', label: 'Cancelled', glyph: 'alert', tone: 'red', value: count(rows, 'cancelled'),
       ...delta(count(rows, 'cancelled'), count(previous, 'cancelled'), spanLabel) },
