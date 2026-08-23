@@ -159,16 +159,22 @@ describe('Gate Pass Report — the mock-up itself', () => {
     }
     // 5 rows: 3 RGP + 2 NRGP.
     expect(figures).toHaveTextContent('5');
-    expect(figures).toHaveTextContent('60.00% of total');
-    expect(figures).toHaveTextContent('40.00% of total');
+    // NO SECOND LINE on any card (client, 2026-08-23): the share of total and
+    // the "vs last 30 days" comparison are both gone.
+    expect(figures).not.toHaveTextContent('of total');
+    expect(figures).not.toHaveTextContent('vs last');
   });
 
   // The two columns the client asked for on top of the mock.
-  it('carries a Value of Items column and a Raised By Department column', async () => {
+  it('carries a Total Value of Items column and a Raised By Department column', async () => {
     renderReports();
     await waitFor(() => expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument());
 
-    expect(screen.getByRole('columnheader', { name: 'Value of Items' })).toBeInTheDocument();
+    // The three headings the client renamed on 2026-08-23.
+    expect(screen.getByRole('columnheader', { name: 'Pass Number' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Total Number of Items' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'GP No.' })).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Total Value of Items' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Raised By Department' })).toBeInTheDocument();
     // ₹4,500 is the priced pass; an unpriced one is a dash, never ₹0.
     expect(screen.getByText('₹4,500')).toBeInTheDocument();

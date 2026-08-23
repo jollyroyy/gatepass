@@ -1,6 +1,8 @@
 // The report's six figures, drawn to the client's mock-up (2026-08-20): a tinted
-// square plate, the card's name in small grey Inter, the figure in big near-black
-// and the mock's own second line under it.
+// square plate, the card's name in small grey Inter and the figure in big
+// near-black. NO SECOND LINE (client, 2026-08-23): the mock's "vs last 30 days"
+// comparison and the "% of total" share line are both gone from
+// `buildReportKpis`, so there is no note left to draw.
 //
 // NONE OF THEM IS A CONTROL. The mock draws no affordance on these cards and
 // there is nothing for one to open — the very rows they count are in the table
@@ -14,12 +16,6 @@
 import React from 'react';
 import type { ReportKpi } from '../../lib/gatePassReport';
 import HodIcon from '../../components/hod/HodIcon';
-
-const TREND_INK: Record<ReportKpi['trend'], string> = {
-  up: 'gb-rep-up',
-  down: 'gb-rep-down',
-  none: '',
-};
 
 type Props = {
   cards: ReportKpi[];
@@ -42,7 +38,6 @@ export default function ReportsKpiCards({ cards, loading }: Props): React.ReactE
               </span>
             </span>
           </span>
-          <span className={`gb-rep-kpi-note ${TREND_INK[c.trend]}`}>{c.note}</span>
         </div>
       ))}
     </div>

@@ -5,7 +5,7 @@
 // revealed in place).
 //
 // THE STACKED CARD IS NOT HERE ANY MORE. Every stacked list — the HOD and
-// admin KPI drills and My Passes — draws `PassStackCard`, the guard's own
+// admin KPI drills — draws `PassStackCard`, the guard's own
 // plate, and navigates to `/pass/:id` (client, 2026-08-19: "all the cards …
 // should mimic the exact same stacked card style of the guard's view"). The
 // `drill` variant, `PassRowBody` and `PassItemLines` went with that change,
@@ -150,7 +150,7 @@ export default function PassRow({
     </div>
   ) : null;
 
-  // Stack card (My Passes, HOD flagged review): collapsed = three facts only;
+  // Stack card (board drills, HOD flagged review): collapsed = three facts only;
   // the click expands inline rather than navigating — the "View full pass"
   // affordance inside the opened card preserves the old navigation path.
   if (compact) {

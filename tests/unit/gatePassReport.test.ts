@@ -206,41 +206,24 @@ describe('buildReportKpis', () => {
   // REWRITTEN 2026-08-22: seven figures, since the `pending` bucket got its own
   // card. The invariant is unchanged — the buckets sum to the total.
   it('counts the report\'s seven figures, and they add up', () => {
-    const cards = buildReportKpis(rows, [], 'last 30 days');
+    const cards = buildReportKpis(rows);
     const by = Object.fromEntries(cards.map((c) => [c.key, c.value]));
     expect(by.total).toBe(4);
     expect(by.rgp + by.nrgp).toBe(by.total);
     expect(by.completed + by.pending + by.in_progress + by.cancelled).toBe(by.total);
   });
 
-  it('prints the share of total on the two type cards', () => {
-    const cards = buildReportKpis(rows, [], 'last 30 days');
-    expect(cards.find((c) => c.key === 'rgp')?.note).toBe('50.00% of total');
-    expect(cards.find((c) => c.key === 'nrgp')?.trend).toBe('none');
-  });
-
-  it('compares against the previous window, with a direction', () => {
-    const up = buildReportKpis(rows, [row({ id: 'p' }), row({ id: 'q' })], 'last 30 days');
-    expect(up[0].note).toBe('↑ 100% vs last 30 days');
-    expect(up[0].trend).toBe('up');
-
-    const down = buildReportKpis([row({ id: 'a' })], rows, 'last 30 days');
-    expect(down[0].note).toBe('↓ 75% vs last 30 days');
-    expect(down[0].trend).toBe('down');
-  });
-
-  // A change from nothing is not a number, and a red arrow beside an invented
-  // figure is worse than a plain sentence.
-  it('states no percentage when the previous window was empty', () => {
-    const cards = buildReportKpis(rows, [], 'last 30 days');
-    expect(cards[0].note).toBe('vs last 30 days');
-    expect(cards[0].trend).toBe('none');
-  });
-
-  it('says so plainly when nothing changed', () => {
-    const cards = buildReportKpis(rows, rows, 'last 30 days');
-    expect(cards[0].note).toBe('No change vs last 30 days');
-    expect(cards[0].trend).toBe('none');
+  // REWRITTEN 2026-08-23. Four cases here pinned the second line every card
+  // carried: the "% of total" share on the two type cards, and "↑ 100% vs last
+  // 30 days" / "vs last 30 days" / "No change vs last 30 days" on the rest. The
+  // client removed the subtext from every card ("remove the subtext like 'vs
+  // yesterday' ... vs last 30 days"), so what is pinned now is that no card has
+  // a line of any kind left to print, and that the function no longer takes a
+  // previous window to compare against.
+  it('carries no note, no trend and no previous-window parameter', () => {
+    const cards = buildReportKpis(rows);
+    expect(cards.every((c) => !('note' in c) && !('trend' in c))).toBe(true);
+    expect(buildReportKpis.length).toBe(1);
   });
 });
 
@@ -263,12 +246,18 @@ describe('the cells', () => {
     expect(valueText(null)).toBe('—');
   });
 
-  it('exports the two columns the client added, with a blank rather than a dash', () => {
+  // The export says what the screen says, so the three headings the client
+  // renamed on 2026-08-23 ("GP No" -> Pass Number, Items -> Total Number of
+  // Items, Value of Items -> Total Value of Items) moved here in the same edit.
+  it('exports the two columns the client added, under the headings the table uses', () => {
     const headers = REPORT_CSV_COLUMNS.map((c) => c.header);
-    expect(headers).toContain('Value of Items');
+    expect(headers).toContain('Pass Number');
+    expect(headers).toContain('Total Number of Items');
+    expect(headers).toContain('Total Value of Items');
     expect(headers).toContain('Raised By Department');
+    expect(headers).not.toContain('GP No');
 
-    const value = REPORT_CSV_COLUMNS.find((c) => c.header === 'Value of Items')!;
+    const value = REPORT_CSV_COLUMNS.find((c) => c.header === 'Total Value of Items')!;
     // A dash in a value column breaks SUM in the spreadsheet it lands in.
     expect(value.format!(row({ total_value: 0 }))).toBe('');
     expect(value.format!(row({ total_value: 4500.4 }))).toBe('4500');

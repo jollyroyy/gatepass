@@ -101,26 +101,32 @@ describe('both boards read the same split', () => {
     expect(cards.every((c) => !('notes' in c) && !('note' in c))).toBe(true);
   });
 
-  it("the HOD's two cards are the same figures, over whatever rows the HOD was served", () => {
+  it("the HOD's one card is the same figures, over whatever rows the HOD was served", () => {
     // SCOPE IS NOT THIS MODULE'S. The HOD board is narrowed by RLS to their
     // department and by `.eq('raised_by', …)` to their own passes, both
     // server-side, and this function simply counts what it is handed — which is
     // what makes the same code correct on both boards.
     const cards = buildHodKpis(ROWS, Date.now());
-    expect(cards.find((c) => c.key === 'pendingGate')?.value).toBe(2);
-    expect(cards.find((c) => c.key === 'pendingApproval')?.value).toBe(1);
-    expect(cards.find((c) => c.key === 'pendingApproval')?.label).toBe('Pending Approval');
+    //
+    // REWRITTEN 2026-08-23: the HOD's two cards became one card with the split
+    // under it. The three numbers are the same three numbers.
+    const pending = cards.find((c) => c.key === 'pendingApprovals');
+    expect(pending?.value).toBe(3);
+    expect(pending?.notes?.map((n) => n.value)).toEqual([2, 1]);
   });
 
   it('a card and its own drill list can never disagree', () => {
     for (const rows of [[], [CLIMBING], ROWS]) {
       for (const key of ['pendingGate', 'pendingApproval'] as const) {
         const admin = buildOverviewCards(rows, 30).find((c) => c.key === key);
-        const hod = buildHodKpis(rows, Date.now()).find((c) => c.key === key);
-        expect(admin?.value).toBe(admin?.drill.rows.length);
-        expect(hod?.value).toBe(hod?.drill.rows.length);
-        expect(admin?.value).toBe(hod?.value);
+        expect(admin?.value).toBe(admin?.drill?.rows.length);
       }
+      // The HOD's one card, over both desks: its figure is the length of the
+      // list it opens, and its two notes sum to that figure.
+      const hod = buildHodKpis(rows, Date.now()).find((c) => c.key === 'pendingApprovals');
+      expect(hod?.value).toBe(hod?.drill?.rows.length);
+      expect((hod?.notes ?? []).reduce((t, n) => t + n.value, 0)).toBe(hod?.value);
+      expect(hod?.value).toBe(pendingSplit(rows).waiting.length);
     }
   });
 });

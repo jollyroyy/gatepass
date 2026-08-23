@@ -223,7 +223,7 @@ describe('an approval office REPLACES the role`s access', () => {
   });
 
   it('an HOD who holds an office can no longer raise a pass or read the register', () => {
-    for (const path of ['/dashboard', '/raise', '/my-passes', '/reports', '/overdue']) {
+    for (const path of ['/dashboard', '/raise', '/reports', '/overdue']) {
       expect(isForbidden(path, 'hod', true), path).toBe(true);
     }
     expect(isForbidden('/approvals', 'hod', true)).toBe(false);

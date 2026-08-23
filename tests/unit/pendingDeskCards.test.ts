@@ -1,16 +1,16 @@
-// THE TWO PENDING DESKS ARE TWO CARDS NOW, AND NEITHER CARRIES A SUB-LINE
-// (client, 2026-08-22: "in the dashboard make sure you separate the pending at
-// gate review and pending for approvals, and remove those subtext").
+// THE TWO PENDING DESKS: TWO CARDS ON THE ADMIN'S BOARD, ONE ON THE HOD'S.
 //
-// They used to be ONE card — "Pending Approvals" — with the split printed under
-// it as two small notes. A figure standing over two sub-figures is a card whose
-// drill opens a list that is two different queues; the desks are separate
-// people with separate work, so they are separate cards, each drilling into its
-// own rows.
+// They were one card with the split under it until 2026-08-22, when the client
+// separated them ("in the dashboard make sure you separate the pending at gate
+// review and pending for approvals, and remove those subtext"), and on
+// 2026-08-23 the HOD's board took the opposite instruction ("merge both the
+// pending gate approval and pending approval into one total card. Below the
+// card you put it in two subtexts"). The admin's board was not named and keeps
+// its two cards.
 //
-// WHAT THE SPLIT COUNTS HAS NOT MOVED: `pendingSplit` is unchanged, so the two
-// cards still sum to what the single one showed, and both boards still read the
-// same function.
+// WHAT THE SPLIT COUNTS HAS NOT MOVED ACROSS ANY OF THAT: `pendingSplit` is
+// unchanged, so one card plus its two notes and two cards side by side are the
+// same three numbers, and both boards still read the same function.
 import { describe, it, expect } from 'vitest';
 import { buildOverviewCards } from '../../src/lib/adminOverview';
 import { buildHodKpis } from '../../src/lib/hodBoard';
@@ -77,31 +77,36 @@ describe('the admin Overview', () => {
 
 describe('the HOD board', () => {
   const cards = buildHodKpis(ROWS, NOW);
-  const gate = cards.find((c) => c.key === 'pendingGate');
-  const approval = cards.find((c) => c.key === 'pendingApproval');
+  const pending = cards.find((c) => c.key === 'pendingApprovals');
 
-  it('draws the same two cards, with the HOD wording of the empty list', () => {
-    expect(gate?.label).toBe('Pending Gate Review');
-    expect(gate?.value).toBe(2);
-    expect(approval?.label).toBe('Pending Approval');
-    expect(approval?.value).toBe(3);
-    expect(approval?.drill.rows).toHaveLength(3);
+  it('draws ONE card over both desks, with the HOD wording of the empty list', () => {
+    expect(pending?.label).toBe('Pending Approvals');
+    expect(pending?.value).toBe(5);
+    expect(pending?.drill?.rows).toHaveLength(5);
+    expect(pending?.drill?.empty).toBe('Nothing of yours is waiting.');
+    expect(cards.some((c) => c.key === 'pendingGate' || c.key === 'pendingApproval')).toBe(false);
   });
 
-  it('carries no `notes`/`sub` property at all under either of them', () => {
-    // REWRITTEN 2026-08-22: it used to assert `gate?.notes` / `approval?.notes`
-    // equalled `[]`. The client's instruction that day ("remove running and
-    // all kinds of subtext from kpi card from all dashboards ... across all
-    // views") deleted HodKpiCard.notes and .sub outright, so there is no
-    // property left to be an empty array.
-    expect(gate).not.toHaveProperty('notes');
-    expect(gate).not.toHaveProperty('sub');
-    expect(approval).not.toHaveProperty('notes');
-    expect(approval).not.toHaveProperty('sub');
+  it('prints the two desks under it, and they sum to the figure above', () => {
+    expect(pending?.notes?.map((n) => [n.label, n.value])).toEqual([
+      ['Pending gate approval', 2],
+      ['Pending approval', 3],
+    ]);
+    const split = pendingSplit(ROWS);
+    expect((pending?.notes ?? []).reduce((t, n) => t + n.value, 0)).toBe(split.waiting.length);
   });
 
-  it('leaves the Rejected card its own two sub-lines, which were not named', () => {
-    const rejected = cards.find((c) => c.key === 'rejected');
-    expect(rejected).toBeDefined();
+  it('has no Rejected card, and its Overdue card navigates rather than drilling', () => {
+    expect(cards.some((c) => c.key === 'rejected')).toBe(false);
+    const overdue = cards.find((c) => c.key === 'overdue');
+    expect(overdue?.to).toBe('/overdue');
+    expect(overdue?.drill).toBeUndefined();
+  });
+
+  it('leaves every other card a drill and no notes', () => {
+    for (const c of cards.filter((c) => c.key !== 'pendingApprovals' && c.key !== 'overdue')) {
+      expect(c.drill, c.key).toBeDefined();
+      expect(c.notes, c.key).toBeUndefined();
+    }
   });
 });

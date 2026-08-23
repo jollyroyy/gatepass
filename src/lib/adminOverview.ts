@@ -89,7 +89,12 @@ function raisedBetween(rows: GatePassView[], from: number, to: number): GatePass
 // card that carried both as sub-lines — is GONE, so a stale reference is a type
 // error rather than a card that silently never renders.
 export type OverviewKey =
-  | 'total' | 'rgp' | 'nrgp' | 'pendingGate' | 'pendingApproval' | 'overdue';
+  // NO `total`. The Total Gate Passes card went on 2026-08-23 (client: "remove
+  // total passes from all the dashboard views ... we already have the count of
+  // rgp and nrgp") — RGP + NRGP is that figure by construction. The RING still
+  // sums to the windowed row count; that is the ring's own arithmetic and is
+  // unaffected.
+  | 'rgp' | 'nrgp' | 'pendingGate' | 'pendingApproval' | 'overdue';
 
 /** One line under a figure — the mock has no such thing, and exactly one card
  *  carries them: Pending Approvals, which the client asked to be broken into
@@ -110,7 +115,12 @@ export interface OverviewCard {
   glyph: HodGlyph;
   tone: HodTone;
   value: number;
-  drill: BoardDrill;
+  /** The rows the figure counted, and the heading the stacked list gets.
+   *  Absent on a card that navigates instead of drilling. */
+  drill?: BoardDrill;
+  /** Where the card goes when pressed, INSTEAD of opening a list under itself.
+   *  Exactly one of `drill` / `to` is set on every card. */
+  to?: string;
 }
 
 /**
@@ -138,19 +148,6 @@ export function buildOverviewCards(
   const overdue = rows.filter((p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue);
 
   return [
-    {
-      key: 'total',
-      label: 'Total Gate Passes',
-      glyph: 'document',
-      tone: 'blue',
-      value: win.length,
-      drill: {
-        key: 'total',
-        heading: 'Passes raised in this window',
-        empty: 'No pass was raised in this window.',
-        rows: win,
-      },
-    },
     {
       key: 'rgp',
       label: 'RGP',
@@ -208,17 +205,18 @@ export function buildOverviewCards(
       },
     },
     {
+      // IT NAVIGATES RATHER THAN DRILLING (client, 2026-08-23: "once anybody
+      // clicks on the overdue card, it should open up the new page as the
+      // current overdue page is showing"), and it is now the admin's only route
+      // to `/overdue`: the sidebar tab came off in the same message. That page
+      // is item-level and carries its own filters, which a stacked pass list
+      // under a card cannot be.
       key: 'overdue',
       label: 'Overdue Returns',
       glyph: 'alert',
       tone: 'red',
       value: overdue.length,
-      drill: {
-        key: 'overdue',
-        heading: 'Material past its return date',
-        empty: 'Nothing is overdue.',
-        rows: overdue,
-      },
+      to: '/overdue',
     },
   ];
 }
@@ -298,7 +296,7 @@ export const OVERVIEW_STATUS_LABELS: Record<OverviewStatus, string> = {
 /**
  * Which of the mock's five buckets a pass falls in. EXACTLY ONE, always — the
  * arms are tried in order and the last is a remainder, so the ring's arcs sum to
- * the row count and its centre total is the Total Gate Passes card.
+ * the windowed row count, which its own centre prints.
  *
  * The order is the mock's own reading of urgency, and it matters:
  *

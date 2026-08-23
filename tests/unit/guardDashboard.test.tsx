@@ -330,13 +330,15 @@ describe('The old drill board is gone, not hidden', () => {
     expect(document.querySelector('[data-testid="pass-card-header"]')).toBeNull();
   });
 
-  // REWRITTEN 2026-08-22. It used to hold that the guard's tabs were
-  // Dashboard · Pending OUT · Pending RGP Return · Overdue Items. The client
-  // took both list tabs away, and the routes with them: the two lists open on
-  // this board when their figure is pressed, and nowhere else.
-  it('gives the guard a Dashboard and Overdue Items, and no list tab or route', () => {
+  // REWRITTEN 2026-08-22, and again 2026-08-23 when Overdue Items came off
+  // every sidebar. It used to hold that the guard's tabs were Dashboard ·
+  // Pending OUT · Pending RGP Return · Overdue Items. The two list tabs went
+  // with their routes — both lists open on this board when their figure is
+  // pressed — and the Overdue tab went on its own: `/overdue` is still a guard
+  // route, opened from the Overdue Returns quick action on this board.
+  it('gives the guard a Dashboard and no other tab', () => {
     const guardTabs = ALL_LINKS.filter((l) => l.roles.includes('guard'));
-    expect(guardTabs.map((l) => l.to)).toEqual(['/guard-dashboard', '/overdue']);
+    expect(guardTabs.map((l) => l.to)).toEqual(['/guard-dashboard']);
     for (const gone of ['/pending-out', '/pending-returns']) {
       expect(guardTabs.map((l) => l.to)).not.toContain(gone);
       expect(ROLE_ROUTES.guard).not.toContain(gone);

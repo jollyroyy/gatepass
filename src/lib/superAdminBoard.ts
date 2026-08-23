@@ -49,7 +49,11 @@ export interface SuperFigure {
    *  cut of it this is — exactly how the guard's RGP / NRGP split reads. */
   label: string;
   value: number;
+  /** The rows the figure counted. Absent on a figure that navigates. */
   drill: OverviewCard['drill'];
+  /** Where the figure goes when pressed, INSTEAD of opening a list under the
+   *  card — Overdue Returns opens `/overdue` (client, 2026-08-23). */
+  to?: string;
 }
 
 export interface SuperGroup {
@@ -58,12 +62,13 @@ export interface SuperGroup {
   figures: SuperFigure[];
 }
 
-/** Which card each of the admin's six keys belongs on, and what it is called
+/** Which card each of the admin's five keys belongs on, and what it is called
  *  once its card has stated the subject. A `Record` over the whole union, so a
  *  sixth Overview figure is a TYPE ERROR here rather than a figure that
- *  silently never renders. */
+ *  silently never renders — which is how the Total figure's removal
+ *  (2026-08-23) reached this file rather than being left behind as a label for
+ *  a card that no longer exists. */
 const PLACEMENT: Record<OverviewKey, { group: SuperGroupKey; label: string }> = {
-  total: { group: 'raised', label: 'Total' },
   rgp: { group: 'raised', label: 'RGP' },
   nrgp: { group: 'raised', label: 'NRGP' },
   pendingGate: { group: 'attention', label: 'Pending Gate Review' },
@@ -81,7 +86,7 @@ const GROUPS: readonly { key: SuperGroupKey; title: string }[] = [
  *
  * ORDER IS THE OVERVIEW'S, not this file's: the figures inside a card come out
  * in the order `buildOverviewCards` produced them, so the mock-up's own
- * sequence (Total · RGP · NRGP, then Pending · Overdue) survives without being
+ * sequence (RGP · NRGP, then Pending · Overdue) survives without being
  * restated in a second place that could disagree with the first.
  *
  * A group with no figures is DROPPED rather than rendered empty — an empty
@@ -104,6 +109,7 @@ export function superAdminGroups(cards: OverviewCard[]): SuperGroup[] {
         label: PLACEMENT[c.key].label,
         value: c.value,
         drill: c.drill,
+        to: c.to,
       })),
   })).filter((g) => g.figures.length > 0);
 }

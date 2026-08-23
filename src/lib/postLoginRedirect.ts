@@ -50,3 +50,24 @@ export function nextAfterLogin(search: string): string | null {
 export function pathnameOf(target: string): string {
   return target.split('?')[0].split('#')[0];
 }
+
+/**
+ * WHETHER A `next=` IS WORTH RESUMING AT ALL (client, 2026-08-23: "when I'm
+ * logging in as the HOD of any department it should always open up the page of
+ * the dashboard … for any of the views, not only the HOD").
+ *
+ * `?next=` was built for ONE journey: the approval mails' Approve and Reject
+ * buttons, which open a pass record. But `loginPathFor` stamps the parameter on
+ * EVERY unauthenticated request, so a session that lapsed while somebody was on
+ * Reports sent them back to Reports after signing in — never to their board.
+ * That is what this narrows: the pass record resumes, everything else falls
+ * back to `homeFor`, which is each role's dashboard.
+ *
+ * Grade the PATHNAME (`pathnameOf`), never the raw target — the query string
+ * carries `?decide=approve` and must not be matched against.
+ */
+const RESUMABLE_PREFIXES = ['/pass'] as const;
+
+export function isResumableTarget(pathname: string): boolean {
+  return RESUMABLE_PREFIXES.some((r) => pathname === r || pathname.startsWith(`${r}/`));
+}

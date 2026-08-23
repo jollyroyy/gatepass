@@ -93,6 +93,13 @@ describe('every permitted route is reachable without typing a URL', () => {
     // redirects onto it with a flash after a decision, and the dashboard's
     // Scan QR quick action opens it.
     '/console',
+    // Overdue Items. It lost its sidebar tab on 2026-08-23, on every role
+    // ("remove ... the tab name from the left-hand side panel"), and every role
+    // still has a door to it that this file cannot see because it is not a nav
+    // link: the guard's Overdue Returns quick action tile, the HOD dashboard's
+    // Overdue card, and the admin's / super admin's Overdue Returns figure —
+    // all three `<Link to="/overdue">`.
+    '/overdue',
     // Raise Gate Pass. It lost its sidebar tab on 2026-08-20 (client) — the
     // HOD dashboard's Quick Action tile is the one door to the form, and the
     // re-raise flow reaches it with `?from=`.

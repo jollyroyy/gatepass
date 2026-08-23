@@ -10,7 +10,7 @@
 // is untouched and still a plate that only links.
 //
 // LOADED ON DEMAND, one card at a time, through the same `usePassItems` the
-// guard's Pending OUT row and the HOD's My Passes card use — a page of twenty
+// guard's Pending OUT row uses — a page of twenty
 // passes must not fire twenty item queries for tables nobody opened. Closing
 // the card throws the rows away rather than caching a set the database could
 // invalidate underneath it.

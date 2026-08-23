@@ -1,4 +1,4 @@
-// The COMPACT pass card for stack views (My Passes, the HOD's flagged review):
+// The COMPACT pass card for stack views (the HOD's flagged review, board drills):
 // the HOD asked for three facts on the collapsed card — ITEM, VALUE, REASON —
 // with everything else revealed on click. This component renders JUST those
 // (plus identity + status), and, when `open`, the remaining facts on a second
@@ -40,7 +40,7 @@ type Props = {
   badge?: React.ReactNode;
   /** Pre-rendered status pill — PassRow owns the EXPIRED-vs-status decision. */
   statusBadge: React.ReactNode;
-  /** Detail destination, if the consumer navigates via Link (MyPassesTable). */
+  /** Detail destination, if the consumer navigates via Link. */
   detailUrl?: string;
   /** Detail opener, if the consumer navigates via callback (flagged review). */
   onViewDetail?: (id: string) => void;
@@ -110,7 +110,7 @@ export default function PassRowCompact({
           <Fact label="Vehicle" value={p.vehicle_number || '—'} />
           <Fact label="Dept" value={p.department_code || '—'} />
           {/* No "Raised By" — this component is used ONLY by HOD surfaces
-              (MyPassesTable, FlaggedReviewCard), and the HOD raised every pass
+              (FlaggedReviewCard), and the HOD raised every pass
               on them. Client feedback, 2026-08-11. */}
           {isRgp && p.expected_return_date && (
             <Fact label="Return" value={formatDateOnly(p.expected_return_date)} emphasize />

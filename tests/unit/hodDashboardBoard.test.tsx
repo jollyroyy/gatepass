@@ -218,6 +218,15 @@ function card(label: string): HTMLElement {
   return found;
 }
 
+/** The figure printed on the sub-line named `label`, under a card's hairline. */
+function noteValue(label: string): string | undefined {
+  const group = screen.getByRole('group', { name: 'Dashboard figures' });
+  const note = [...group.querySelectorAll('.gb-kpi-note')]
+    .find((n) => n.querySelector('.gb-kpi-note-label')?.textContent === label);
+  if (!note) throw new Error(`no "${label}" sub-line`);
+  return note.querySelector('.gb-kpi-note-value')?.textContent ?? undefined;
+}
+
 function expectFigure(label: string, value: number): void {
   const el = card(label);
   expect(el.querySelector('.gb-kpi-figure')?.textContent).toBe(String(value));
@@ -228,7 +237,18 @@ function stack(): HTMLElement {
 }
 
 async function loaded(): Promise<void> {
-  await waitFor(() => expectFigure('Total Passes', 4));
+  await waitFor(() => expectFigure('RGP Issued', 3));
+}
+
+/** THE TOTAL PASSES CARD IS GONE (client, 2026-08-23): "remove total passes
+ *  from all the dashboard views ... we already have the count of RGP and
+ *  NRGP". The two type cards ARE the total, and a third figure that is their
+ *  sum is a number nobody reads and one more thing to disagree. */
+function noCard(label: string): void {
+  const found = screen
+    .getAllByRole('button')
+    .some((b) => b.querySelector('.gb-kpi-name')?.textContent === label);
+  expect(found).toBe(false);
 }
 
 describe('the HOD dashboard is scoped to this HOD', () => {
@@ -236,7 +256,7 @@ describe('the HOD dashboard is scoped to this HOD', () => {
     renderBoard();
     await loaded();
 
-    // The colleague's pending RGP raised today would push Total to 5, RGP
+    // The colleague's pending RGP raised today would push RGP
     // Issued to 4 and Pending Approvals to 5.
     //
     // REWRITTEN 2026-08-20: the "N pending at the gate" note used to sit on the
@@ -244,8 +264,13 @@ describe('the HOD dashboard is scoped to this HOD', () => {
     // that card became TWO — one per desk — so the figure that used to read 4
     // is now those two, summing to 4.
     expectFigure('RGP Issued', 3);
-    expectFigure('Pending Gate Review', 2);
-    expectFigure('Pending Approval', 2);
+    // REWRITTEN AGAIN 2026-08-23: the two desks merged back into ONE card, with
+    // the split printed under it as two sub-lines ("merge both the pending gate
+    // approval and pending approval into one total card"). The notes sum to the
+    // figure, which is the same 4 the RGP note once carried.
+    expectFigure('Pending Approvals', 4);
+    expect(noteValue('Pending gate approval')).toBe('2');
+    expect(noteValue('Pending approval')).toBe('2');
     expect(screen.queryByText('RGP-20260819-0099')).not.toBeInTheDocument();
   });
 
@@ -253,12 +278,12 @@ describe('the HOD dashboard is scoped to this HOD', () => {
     renderBoard();
     await loaded();
 
-    fireEvent.click(card('Total Passes'));
+    fireEvent.click(card('RGP Issued'));
     expect(within(stack()).getByText('Alice')).toBeInTheDocument();
     expect(within(stack()).queryByText('Zara')).not.toBeInTheDocument();
     // The drill draws no `N passes` count any more (see the case below); the
     // scope is proved by the cards it lists, which is what it always meant.
-    expect(within(stack()).getAllByTestId('pass-ordinal').length).toBe(4);
+    expect(within(stack()).getAllByTestId('pass-ordinal').length).toBe(3);
   });
 
   it('greets the reader by name', async () => {
@@ -274,7 +299,7 @@ describe("the four figures, and the two scopes they mix", () => {
     renderBoard();
     await loaded();
 
-    expectFigure('Total Passes', 4); // t1 t2 t3 t4
+    noCard('Total Passes'); // t1..t4 are the two type cards below, and nothing else
     expectFigure('NRGP Issued', 1); // t4
     expectFigure('RGP Issued', 3); // t1 t2 t3
     expectFigure('Pending Return', 1); // o1 — five days old, and RUNNING
@@ -284,7 +309,7 @@ describe("the four figures, and the two scopes they mix", () => {
     renderBoard();
     await loaded();
 
-    fireEvent.click(card('Total Passes'));
+    fireEvent.click(card('RGP Issued'));
     expect(within(stack()).queryByText('Gus')).not.toBeInTheDocument();
 
     fireEvent.click(card('Pending Return'));
@@ -323,40 +348,38 @@ describe("the four figures, and the two scopes they mix", () => {
   it("a drill row does not repeat the reader's own name back at them", async () => {
     renderBoard();
     await loaded();
-    fireEvent.click(card('Total Passes'));
+    fireEvent.click(card('RGP Issued'));
     expect(within(stack()).queryByText(/P M Sharma/)).not.toBeInTheDocument();
   });
 });
 
-describe('the Rejected card', () => {
-  // Client, 2026-08-20: "show a dashboard KPI card of rejected under all HOD,
-  // and under the rejected KPI card give the total number. Below that put it —
-  // rejected at security gate, rejected by approver — show exact count."
-  it('prints the total alone — no sub-line naming either desk', async () => {
-    // REWRITTEN 2026-08-22. It used to assert the card also printed
-    // "1 pass rejected at security gate" / "0 passes rejected by approver"
-    // underneath the figure. The client's instruction that day ("remove
-    // running and all kinds of subtext from kpi card from all dashboards ...
-    // across all views") deleted HodKpiCard.notes outright, so the card now
-    // carries the bare total and nothing else.
+// REPLACES `describe('the Rejected card')` (client, 2026-08-23: "remove the
+// rejected. Instead put the overdue in the dashboard"). The Rejected card, the
+// `rejectionSplit` module behind it and that module's own spec all went in the
+// same edit, so a stale reference is a build error rather than dead code still
+// reachable over PostgREST-shaped habit.
+describe('the Overdue card', () => {
+  it('replaces Rejected, and there is no Rejected card left anywhere', async () => {
     renderBoard();
     await loaded();
-
-    // t3 is `flagged` and raised today: the guard rejected it at the barrier.
-    const rejected = card('Rejected');
-    expect(rejected).toHaveTextContent('1');
-    expect(rejected).not.toHaveTextContent('rejected at security gate');
-    expect(rejected).not.toHaveTextContent('rejected by approver');
+    noCard('Rejected');
+    expect(screen.getByRole('link', { name: /Overdue/ })).toBeInTheDocument();
   });
 
-  it('drills into the very rows it counted', async () => {
+  // "Once anybody clicks on the overdue card, it should open up the new page as
+  // the current overdue page is showing" — so it is a LINK, not a drill: the
+  // page it opens is item-level and carries its own filters, which a stacked
+  // pass list under a card cannot be. It is also the HOD's only door to
+  // `/overdue` now that the sidebar tab is gone.
+  it('is a link to /overdue, not a card that drills in place', async () => {
     renderBoard();
     await loaded();
-    fireEvent.click(card('Rejected'));
-    await waitFor(() => expect(stack()).toBeInTheDocument());
-    // Eve's pass is the flagged one; nothing else of this HOD's is rejected.
-    expect(within(stack()).getByText(/Eve/)).toBeInTheDocument();
-    expect(within(stack()).getAllByTestId('pass-stack-card')).toHaveLength(1);
+    const overdue = screen.getByRole('link', { name: /Overdue/ });
+    expect(overdue).toHaveAttribute('href', '/overdue');
+    // r1 is this HOD's overdue RGP.
+    expect(overdue.querySelector('.gb-kpi-figure')?.textContent).toBe('1');
+    fireEvent.click(overdue);
+    expect(screen.queryByRole('region', { name: 'Selected passes' })).not.toBeInTheDocument();
   });
 });
 
@@ -410,8 +433,11 @@ describe('Quick Actions and the Approval Pending strip', () => {
     // Pending Approvals card ("2 passes pending approval"). The desks are a
     // card each now and the sub-lines are gone, so the card's own FIGURE is
     // what has to agree with the strip.
-    expect(card('Pending Approval').textContent).toContain('2');
-    expect(card('Pending Approval').textContent).not.toContain('passes pending');
+    // REWRITTEN AGAIN 2026-08-23: the desks are one card again, so what has to
+    // agree with the strip is that card's "Pending approval" sub-line — the
+    // half of its total that is still climbing the ladder.
+    expect(noteValue('Pending approval')).toBe('2');
+    expect(card('Pending Approvals').textContent).not.toContain('passes pending');
 
     // REWRITTEN 2026-08-20: the NRGP Issued and RGP Issued cards used to repeat
     // this strip's roll-up ("3 pending approval") as a note each. They carry no

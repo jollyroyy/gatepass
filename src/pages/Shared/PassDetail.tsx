@@ -7,7 +7,7 @@
 // clicking to check the details of our gate pass, it should show exactly in
 // the same format as when we are searching with that gate pass"). Every
 // stacked list in the app — the guard's KPI drills, the board drills, Overdue
-// Items, Scheduled Returns, My Passes, the notification bell — routes here, so
+// Items, Scheduled Returns, Reports, the notification bell — routes here, so
 // swapping this page's body for `PassRecordView` makes every drill-down
 // identical in one place. There is no second detail format left; `DetailRow`
 // and `PassDetailItems` were deleted with it.

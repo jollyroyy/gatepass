@@ -1,10 +1,12 @@
 // The sidebar's ORDER is ROLE_ROUTES' order.
 //
-// Client, 2026-08-18: "make the overdue item the second tab in the admin view.
-// Keep the dashboard as the first tab." `/overdue` is ONE entry in ALL_LINKS
-// shared by three roles, so it cannot sit in the right slot for all of them by
-// position in that array — Sidebar sorts the role's links by the role's own
-// route list instead, which is also where the landing page is defined.
+// It was `/overdue` that made the point, from 2026-08-18 until the client took
+// the tab off entirely on 2026-08-23: ONE entry in ALL_LINKS shared by three
+// roles cannot sit in the right slot for all of them by position in that array,
+// so Sidebar sorts the role's links by the role's own route list instead, which
+// is also where the landing page is defined. The ordering rule is unchanged and
+// is what these three cases pin; Overdue Items is simply no longer one of the
+// labels any role gets.
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -40,9 +42,9 @@ function labels(role: UserRole): string[] {
 }
 
 describe('sidebar order', () => {
-  it('gives the admin Dashboard first and Overdue Items second', () => {
-    expect(labels('admin').slice(0, 4)).toEqual([
-      'Dashboard', 'Overdue Items', 'Settings', 'Reports',
+  it('gives the admin Dashboard first, then Settings and Reports', () => {
+    expect(labels('admin').slice(0, 3)).toEqual([
+      'Dashboard', 'Settings', 'Reports',
     ]);
   });
 
@@ -51,15 +53,18 @@ describe('sidebar order', () => {
   // took both list tabs away — the two lists open on the dashboard itself when
   // their KPI figure is pressed — so a guard has two tabs and the search sits
   // on the board beside Scan QR.
-  it('gives the guard a Dashboard and Overdue Items, and no list tab of any kind', () => {
-    expect(labels('guard')).toEqual(['Dashboard', 'Overdue Items']);
+  // REWRITTEN AGAIN 2026-08-23: Overdue Items came off every sidebar ("remove
+  // ... the tab name from the left-hand side panel"). The guard still reaches
+  // `/overdue` from the Overdue Returns quick action on the board.
+  it('gives the guard a Dashboard and nothing else', () => {
+    expect(labels('guard')).toEqual(['Dashboard']);
   });
 
-  it('gives the HOD Dashboard, My Passes, Overdue Items and Reports — no Raise tab', () => {
+  it('gives the HOD Dashboard and Reports — no Raise, My Passes or Overdue tab', () => {
     // Client, 2026-08-20: Raise Gate Pass left the sidebar; the dashboard's
     // Quick Action tile opens the same form. Reports was ADDED the same day —
     // the HOD's own copy of the admin's report screen, scoped to their own
     // department by RLS (see HodReports.tsx).
-    expect(labels('hod')).toEqual(['Dashboard', 'My Passes', 'Overdue Items', 'Reports']);
+    expect(labels('hod')).toEqual(['Dashboard', 'Reports']);
   });
 });

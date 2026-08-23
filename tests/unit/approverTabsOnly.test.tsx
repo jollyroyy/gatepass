@@ -69,14 +69,14 @@ describe('an office holder`s sidebar is two tabs and nothing else', () => {
 
   it('a guard who holds an office keeps NO gate tab — not the returns, not the queue', () => {
     const shown = tabs('guard', true);
-    for (const gone of ['Dashboard', 'Overdue Items']) {
+    for (const gone of ['Dashboard']) {
       expect(shown, gone).not.toContain(gone);
     }
   });
 
   it('an HOD who holds an office is offered no way to raise or read a pass', () => {
     const shown = tabs('hod', true);
-    for (const gone of ['Dashboard', 'My Passes', 'Reports', 'Overdue Items']) {
+    for (const gone of ['Dashboard', 'My Passes', 'Reports']) {
       expect(shown, gone).not.toContain(gone);
     }
   });
@@ -87,7 +87,9 @@ describe('an office holder`s sidebar is two tabs and nothing else', () => {
     // the dashboard when their figure is pressed — so the gate tab a guard
     // still has is the one that survived.
     expect(shown).toContain('Dashboard');
-    expect(shown).toContain('Overdue Items');
+    // Overdue Items stopped being a tab for every role on 2026-08-23 — the
+    // board's own quick action opens `/overdue`.
+    expect(shown).not.toContain('Overdue Items');
     expect(shown).not.toContain('Pending for My Approval');
   });
 

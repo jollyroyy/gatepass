@@ -112,34 +112,47 @@ describe('the six figures', () => {
   // printed under it as two sub-lines. The client separated the desks.
   it('is the mock cards, in its own order, with a card per pending desk', () => {
     expect(buildOverviewCards(ROWS, 7, NOW).map((c) => c.key))
-      .toEqual(['total', 'rgp', 'nrgp', 'pendingGate', 'pendingApproval', 'overdue']);
+      .toEqual(['rgp', 'nrgp', 'pendingGate', 'pendingApproval', 'overdue']);
   });
 
   it('labels the third card NRGP — the mock says "Energy Pay Pass", which this app has no such thing as', () => {
     const labels = buildOverviewCards(ROWS, 7, NOW).map((c) => c.label);
+    // TOTAL GATE PASSES IS GONE (client, 2026-08-23): "remove total passes from
+    // all the dashboard views ... we already have the count of RGP and NRGP".
     expect(labels).toEqual([
-      'Total Gate Passes', 'RGP', 'NRGP', 'Pending Gate Review', 'Pending Approval',
+      'RGP', 'NRGP', 'Pending Gate Review', 'Pending Approval',
       'Overdue Returns',
     ]);
+    expect(labels).not.toContain('Total Gate Passes');
     expect(labels.join(' ')).not.toMatch(/Energy/i);
   });
 
-  it('counts raises inside the window only, and RGP + NRGP sum to Total', () => {
-    expect(cardOf(ROWS, 'total').value).toBe(4);
+  it('counts raises inside the window only — the two type cards ARE the total', () => {
     expect(cardOf(ROWS, 'rgp').value).toBe(3);
     expect(cardOf(ROWS, 'nrgp').value).toBe(1);
-    expect(cardOf(ROWS, 'rgp').value + cardOf(ROWS, 'nrgp').value).toBe(cardOf(ROWS, 'total').value);
+    // Four of the five fixture rows are inside the 7-day window; the fifth is
+    // ten days old. With no Total card, the pair of type cards is what says so.
+    expect(cardOf(ROWS, 'rgp').value + cardOf(ROWS, 'nrgp').value).toBe(4);
   });
 
   it('carries the very rows it counted, so a figure and its list cannot disagree', () => {
     for (const card of buildOverviewCards(ROWS, 7, NOW)) {
-      expect(card.drill.rows).toHaveLength(card.value);
+      // Overdue Returns carries a DESTINATION rather than rows since
+      // 2026-08-23: it opens `/overdue`, which counts the same backlog at item
+      // level. Every other figure still carries the array it counted.
+      if (card.to) {
+        expect(card.key).toBe('overdue');
+        expect(card.to).toBe('/overdue');
+        expect(card.drill).toBeUndefined();
+        continue;
+      }
+      expect(card.drill?.rows).toHaveLength(card.value);
     }
-    expect(cardOf(ROWS, 'nrgp').drill.rows.map((r) => r.id)).toEqual(['d']);
+    expect(cardOf(ROWS, 'nrgp').drill?.rows.map((r) => r.id)).toEqual(['d']);
   });
 
   it('widening the window takes the older pass in', () => {
-    expect(cardOf(ROWS, 'total', 30).value).toBe(5);
+    expect(cardOf(ROWS, 'rgp', 30).value + cardOf(ROWS, 'nrgp', 30).value).toBe(5);
   });
 
   it('compares itself to NOTHING — no card carries a delta, whatever the previous window held', () => {
@@ -166,7 +179,7 @@ describe('the six figures', () => {
     // running and all kinds of subtext from kpi card from all dashboards ...
     // across all views") deleted OverviewCard.note/notes outright, so a card
     // now carries no scope line at all.
-    const card = cardOf([pass({ id: 'n1', created_at: daysAgo(1, NOW) })], 'total');
+    const card = cardOf([pass({ id: 'n1', created_at: daysAgo(1, NOW) })], 'rgp');
     expect(card).not.toHaveProperty('note');
     expect(card).not.toHaveProperty('notes');
   });
@@ -185,7 +198,8 @@ describe('the six figures', () => {
       expect(cardOf([WAITING, LATE], 'pendingApproval').value).toBe(0);
       expect(cardOf([WAITING, LATE], 'overdue').value).toBe(1);
       // …and neither is in a windowed figure.
-      expect(cardOf([WAITING, LATE], 'total').value).toBe(0);
+      expect(cardOf([WAITING, LATE], 'rgp').value).toBe(0);
+      expect(cardOf([WAITING, LATE], 'nrgp').value).toBe(0);
     });
 
     it('excludes an EXPIRED pass from Pending Approvals — nothing can clear it', () => {
@@ -299,7 +313,13 @@ describe('passes by status', () => {
       pass({ id: 'old', created_at: daysAgo(20, NOW), status: 'matched' }),
     ];
     const slices = statusSlices(rows, 7, NOW);
-    expect(slices.reduce((n, s) => n + s.value, 0)).toBe(cardOf(rows, 'total').value);
+    // The ring's arcs sum to the WINDOWED ROW COUNT. That used to be written
+    // as the Total Gate Passes card; the card is gone (2026-08-23) and the
+    // invariant is not — it is the ring's whole meaning, so it is asserted
+    // against the rows themselves and against the two type cards that remain.
+    expect(slices.reduce((n, s) => n + s.value, 0)).toBe(4);
+    expect(slices.reduce((n, s) => n + s.value, 0))
+      .toBe(cardOf(rows, 'rgp').value + cardOf(rows, 'nrgp').value);
     expect(slices.reduce((n, s) => n + s.rows.length, 0)).toBe(4);
   });
 });

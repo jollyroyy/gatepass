@@ -15,6 +15,7 @@
 // reference is a build error. The second line is now the card's scope in plain
 // grey words, on all five, which is what keeps the row one height.
 import React from 'react';
+import { Link } from 'react-router-dom';
 import type { OverviewCard } from '../../lib/adminOverview';
 import HodIcon from '../hod/HodIcon';
 
@@ -29,26 +30,43 @@ type Props = {
   loading: boolean;
 };
 
+/** The plate, the card's name and the figure — identical whichever control
+ *  wraps it. */
+function Body({ card, loading }: { card: OverviewCard; loading: boolean }): React.ReactElement {
+  return (
+    <span className="gb-ov-head">
+      <HodIcon glyph={card.glyph} tone={card.tone} shape="round" />
+      <span className="min-w-0">
+        <span className="gb-ov-label">{card.label}</span>
+        <span className="gb-ov-figure">{loading ? '—' : card.value.toLocaleString('en-IN')}</span>
+      </span>
+    </span>
+  );
+}
+
 export default function OverviewCards({ cards, activeKey, onSelect, loading }: Props): React.ReactElement {
   return (
     <div className="gb-ov-grid" role="group" aria-label="Overview figures">
       {cards.map((c) => (
-        <button
-          key={c.key}
-          type="button"
-          className="gb-card gb-ov"
-          aria-pressed={activeKey === c.key}
-          onClick={() => onSelect(c)}
-        >
-          <span className="gb-ov-head">
-            <HodIcon glyph={c.glyph} tone={c.tone} shape="round" />
-            <span className="min-w-0">
-              <span className="gb-ov-label">{c.label}</span>
-              <span className="gb-ov-figure">{loading ? '—' : c.value.toLocaleString('en-IN')}</span>
-            </span>
-          </span>
-
-        </button>
+        // A CARD WITH A DESTINATION IS A LINK, not a button that navigates:
+        // Overdue Returns opens `/overdue`, a page of its own, so it must be
+        // middle-clickable and it must say where it goes. Every other card
+        // opens its list in place and stays a button.
+        c.to ? (
+          <Link key={c.key} to={c.to} className="gb-card gb-ov">
+            <Body card={c} loading={loading} />
+          </Link>
+        ) : (
+          <button
+            key={c.key}
+            type="button"
+            className="gb-card gb-ov"
+            aria-pressed={activeKey === c.key}
+            onClick={() => onSelect(c)}
+          >
+            <Body card={c} loading={loading} />
+          </button>
+        )
       ))}
     </div>
   );

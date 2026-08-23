@@ -13,6 +13,7 @@
 // own rows on a `BoardDrill`; the page passes that array straight to `DrillList`.
 // No aggregate, no `count: 'exact'`, no second predicate that could drift.
 import React from 'react';
+import { Link } from 'react-router-dom';
 import type { HodKpiCard } from '../../lib/hodBoard';
 import HodIcon from './HodIcon';
 
@@ -27,26 +28,64 @@ type Props = {
   loading: boolean;
 };
 
+/** The plate, the figure, the card's name, and the sub-lines under a hairline —
+ *  identical whichever control wraps it. */
+function Body({ card, loading }: { card: HodKpiCard; loading: boolean }): React.ReactElement {
+  return (
+    <>
+      <span className="gb-kpi-head">
+        <HodIcon glyph={card.glyph} tone={card.tone} />
+        <span className="min-w-0">
+          <span className="gb-kpi-figure">{loading ? '—' : card.value}</span>
+          <span className="gb-kpi-name">{card.label}</span>
+        </span>
+      </span>
+
+      {/* THE TWO DESKS UNDER THE TOTAL (client, 2026-08-23). They are READINGS,
+          not controls — the whole card is already the control, and a button
+          inside a button is not valid HTML — and the rule between them is the
+          straight line the client asked for. They sum to the figure above by
+          construction (`pendingSplit`), never by a predicate re-applied here. */}
+      {card.notes && card.notes.length > 0 && (
+        <span className="gb-kpi-notes">
+          {card.notes.map((n, i) => (
+            <React.Fragment key={n.key}>
+              {i > 0 && <span className="gb-kpi-note-rule" aria-hidden="true" />}
+              <span className="gb-kpi-note">
+                <span className="gb-kpi-note-value">{loading ? '—' : n.value}</span>
+                <span className="gb-kpi-note-label">{n.label}</span>
+              </span>
+            </React.Fragment>
+          ))}
+        </span>
+      )}
+    </>
+  );
+}
+
 export default function HodKpiCards({ cards, activeKey, onSelect, loading }: Props): React.ReactElement {
   return (
     <div className="gb-kpi-grid" role="group" aria-label="Dashboard figures">
       {cards.map((c) => (
-        <button
-          key={c.key}
-          type="button"
-          className="gb-card gb-kpi"
-          aria-pressed={activeKey === c.key}
-          onClick={() => onSelect(c)}
-        >
-          <span className="gb-kpi-head">
-            <HodIcon glyph={c.glyph} tone={c.tone} />
-            <span className="min-w-0">
-              <span className="gb-kpi-figure">{loading ? '—' : c.value}</span>
-              <span className="gb-kpi-name">{c.label}</span>
-            </span>
-          </span>
-
-        </button>
+        // A CARD WITH A DESTINATION IS A LINK, not a button that navigates:
+        // Overdue opens `/overdue`, a page of its own, so it must be
+        // middle-clickable and it must say where it goes. Every other card
+        // opens its list in place and stays a button.
+        c.to ? (
+          <Link key={c.key} to={c.to} className="gb-card gb-kpi">
+            <Body card={c} loading={loading} />
+          </Link>
+        ) : (
+          <button
+            key={c.key}
+            type="button"
+            className="gb-card gb-kpi"
+            aria-pressed={activeKey === c.key}
+            onClick={() => onSelect(c)}
+          >
+            <Body card={c} loading={loading} />
+          </button>
+        )
       ))}
     </div>
   );

@@ -1836,7 +1836,7 @@
     border-color: var(--gb-red-line);
     color: var(--gb-red);
   }
-  /* Purple joins the set for My Passes (client mock-up, 2026-08-20), where an
+  /* Purple joins the set for the HOD's type cards (client mock-up, 2026-08-20), where an
    * NRGP is purple rather than the guard screens' green. There is no
    * `--gb-purple-line`, so the tint doubles as the border — the same pale/ink
    * pairing every pill above uses. */
@@ -2808,15 +2808,16 @@
   @media (min-width: 640px) {
     .gb-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
-  /* SEVEN cards now, not the mock's four: a Pending Approvals card landed here
-   * on 2026-08-20, then a Rejected one, and on 2026-08-22 the pending card
-   * became two — one per desk. Seven tracks crush a 32px figure at 1280, so the
-   * row breaks 4 + 3 there and goes flat only when there is width for it. */
+  /* FIVE cards since 2026-08-23: the two pending desks merged back into one
+   * card and Rejected became Overdue. Five tracks crush a 32px figure at 1280,
+   * so the row breaks there and goes flat only when there is width for it. A
+   * track count that outruns the cards leaves a hole on the right of the row,
+   * which is why this moves whenever a card does. */
   @media (min-width: 1280px) {
-    .gb-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .gb-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
   @media (min-width: 1536px) {
-    .gb-kpi-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+    .gb-kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   }
 
   /* The WHOLE CARD is the drill control, not the number: a figure this size
@@ -2877,9 +2878,46 @@
     font-weight: 500;
     color: var(--gb-body);
   }
-  /* The notes sit under a hairline that runs the width of the card, exactly as
-   * the mock draws it — they are a different KIND of fact from the figure
-   * above (a running queue under a day count), and the rule says so. */
+  /* The notes sit under a hairline that runs the width of the card — they are a
+   * different KIND of fact from the figure above (one desk each, under their
+   * total), and the rule says so. A second, vertical rule stands between the
+   * two, which is the straight line the client asked for (2026-08-23). */
+  .gb-kpi-notes {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--gb-line);
+  }
+  .gb-kpi-note {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1 1 0;
+  }
+  .gb-kpi-note-rule {
+    width: 1px;
+    align-self: stretch;
+    background: var(--gb-line);
+    flex-shrink: 0;
+  }
+  .gb-kpi-note-value {
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--gb-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .gb-kpi-note-label {
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--gb-muted);
+  }
+  /* A card that navigates is an `<a>`, and an anchor is not a button: it needs
+   * the column layout and the ink back. */
+  a.gb-kpi { text-decoration: none; color: inherit; }
   .gb-dot {
     width: 7px;
     height: 7px;
@@ -3108,14 +3146,18 @@
   @media (min-width: 1024px) {
     .gb-ov-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
-  /* SIX across since 2026-08-22, when Pending Approvals became one card per
-   * desk. A spare card on a five-track grid is an orphan on a second row. */
+  /* FIVE across since 2026-08-23, when Total Gate Passes came off the board.
+   * The track count follows the card count exactly: too many leaves a hole,
+   * too few orphans a card on a second row. */
   @media (min-width: 1280px) {
-    .gb-ov-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .gb-ov-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   }
 
   /* The WHOLE CARD is the drill control, not the number: a figure this size with
    * a hit area of two characters is a control nobody can press. */
+  /* A card that navigates is an `<a>`, and an anchor is not a button: it needs
+   * the ink back. */
+  a.gb-ov { text-decoration: none; color: inherit; }
   .gb-ov {
     display: flex;
     flex-direction: column;
@@ -3391,6 +3433,7 @@
     font-variant-numeric: tabular-nums;
     color: var(--gb-ink);
   }
+  a.gb-figure-button { text-decoration: none; display: inline-block; }
   .gb-figure-button:hover { color: var(--gb-blue); }
   .gb-figure-button[aria-pressed='true'] { color: var(--gb-blue); }
 
@@ -3587,14 +3630,6 @@
     color: var(--gb-ink);
     font-variant-numeric: tabular-nums;
   }
-  .gb-rep-kpi-note {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--gb-muted);
-  }
-  .gb-rep-up { color: var(--gb-green); }
-  .gb-rep-down { color: var(--gb-red); }
-
   /* ---- The table ----------------------------------------------------------- */
   .gb-rep-gp {
     font-weight: 600;

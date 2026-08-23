@@ -116,12 +116,17 @@ async function renderBoard(): Promise<void> {
   );
   await waitFor(() => expect(screen.getByRole('heading', { name: 'Overview' })).toBeInTheDocument());
   // The figures render an em dash while loading; wait for the real one.
-  await waitFor(() => expect(figure('Total Gate Passes')).not.toBe('—'));
+  await waitFor(() => expect(figure('RGP')).not.toBe('—'));
 }
 
 /** The number printed on a named card. */
+/** A figure's card. Every one is a button EXCEPT Overdue Returns, which is a
+ *  `<Link>` to `/overdue` since 2026-08-23 — the client asked that card to open
+ *  the page rather than drill in place. */
 function card(label: string): HTMLElement {
-  return screen.getByRole('button', { name: new RegExp(`^${label}`) });
+  return screen.getByRole(label === 'Overdue Returns' ? 'link' : 'button', {
+    name: new RegExp(`^${label}`),
+  });
 }
 function figure(label: string): string {
   return within(card(label)).getByText(/^[\d,—]+$/).textContent ?? '';
@@ -142,14 +147,17 @@ describe('the admin dashboard is the Overview mock-up', () => {
   });
 
   // REWRITTEN 2026-08-22: the one Pending Approvals card became one card per
-  // desk (client), so the row is six figures.
-  it('renders the six figures, in the mock order', async () => {
+  // desk (client), so the row was six figures. REWRITTEN AGAIN 2026-08-23: Total
+  // Gate Passes came off ("remove total passes from all the dashboard views ...
+  // we already have the count of rgp and nrgp"), so it is five.
+  it('renders the five figures, in the mock order', async () => {
     await renderBoard();
     const labels = [
-      'Total Gate Passes', 'RGP', 'NRGP', 'Pending Gate Review', 'Pending Approval',
+      'RGP', 'NRGP', 'Pending Gate Review', 'Pending Approval',
       'Overdue Returns',
     ];
     for (const l of labels) expect(card(l)).toBeInTheDocument();
+    expect(screen.queryByText('Total Gate Passes')).toBeNull();
     // NRGP, never the mock's "Energy Pay Pass" — the client corrected that
     // phrase on sight the first time it appeared, on the raise form.
     expect(screen.queryByText(/Energy Pay/i)).toBeNull();
@@ -157,7 +165,6 @@ describe('the admin dashboard is the Overview mock-up', () => {
 
   it('counts the window for three figures and ignores it for the running queues', async () => {
     await renderBoard();
-    expect(figure('Total Gate Passes')).toBe('4');
     expect(figure('RGP')).toBe('3');
     expect(figure('NRGP')).toBe('1');
     // Both raised 40 days ago — outside every window, and still counted.
@@ -231,13 +238,24 @@ describe('every figure drills into the very rows it counted', () => {
 
   it('lists exactly what each figure printed', async () => {
     await renderBoard();
-    for (const label of ['Total Gate Passes', 'RGP', 'Pending Gate Review', 'Overdue Returns']) {
+    // Overdue Returns is not in this list any more: it opens `/overdue` rather
+    // than a stack under the row (client, 2026-08-23), and the case below pins
+    // that instead.
+    for (const label of ['NRGP', 'RGP', 'Pending Gate Review']) {
       fireEvent.click(card(label));
       const expected = Number(figure(label));
       await waitFor(() => expect(stack()).toHaveLength(expected));
       fireEvent.click(card(label));
       await waitFor(() => expect(screen.queryByRole('region', { name: 'Selected passes' })).toBeNull());
     }
+  });
+
+  it('sends Overdue Returns to /overdue instead of drilling', async () => {
+    await renderBoard();
+    const overdue = card('Overdue Returns');
+    expect(overdue).toHaveAttribute('href', '/overdue');
+    fireEvent.click(overdue);
+    expect(screen.queryByRole('region', { name: 'Selected passes' })).toBeNull();
   });
 
   it('drills a status arc from the ring\'s legend', async () => {
@@ -278,7 +296,7 @@ describe('the window control', () => {
     fireEvent.change(panel, { target: { value: '30' } });
     await waitFor(() => expect(header.value).toBe('30'));
     // The 20-day-old pass is inside a 30-day window and was outside a 7-day one.
-    await waitFor(() => expect(figure('Total Gate Passes')).toBe('5'));
+    await waitFor(() => expect(figure('RGP')).toBe('4'));
   });
 
   it('names the span in words, so the chip is readable without opening it', async () => {

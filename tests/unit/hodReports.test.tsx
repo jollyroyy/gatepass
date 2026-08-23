@@ -109,7 +109,7 @@ describe('HOD Reports — the same register, minus the two people columns', () =
     // gone on the client's instruction, leaving only the `print-only` sheet
     // header, which never renders on screen.
     expect(screen.getAllByRole('heading', { name: 'Gate Pass Report (RGP & NRGP)' }).length).toBe(1);
-    expect(screen.getByRole('columnheader', { name: 'Value of Items' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Total Value of Items' })).toBeInTheDocument();
     expect(screen.getByLabelText('Pass Type')).toBeInTheDocument();
     expect(screen.getByLabelText('Status')).toBeInTheDocument();
   });

@@ -8,7 +8,7 @@
 // generalised to any pass: a white plate with a coloured left edge, a pass
 // number, a grid of labelled facts and the stage pill. The two boards that used
 // to draw their own idiom — `DrillPassCard` (the HOD and admin KPI drills) and
-// `MyPassCard` (the HOD's register) — are DELETED, so a stale reference is a
+// `MyPassCard` (the HOD's register, gone with My Passes on 2026-08-23) — are DELETED, so a stale reference is a
 // build error rather than a third card style nobody notices.
 //
 // THE WHOLE CARD IS A LINK TO `/pass/:id`, and it expands nothing unless the

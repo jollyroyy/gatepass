@@ -10,7 +10,8 @@
 //
 //   * THE FIVE PANELS. Every figure they carried is either on one of the four
 //     cards, or one click away: `/overdue` (the HOD's own scope) is the backlog
-//     the Pending Return card counts, `/my-passes` is the register.
+//     the Pending Return card counts, and `/reports` is the register — My
+//     Passes itself was removed on 2026-08-23 (client: "remove my passes").
 //   * THE ALERTS CARD is not drawn at all (client: "remove the alert part"). Its
 //     three lines restated the three cards beside it, each with a "View" link
 //     to the list the card's own drill now opens in place.
@@ -70,10 +71,7 @@ export default function Dashboard(): React.ReactElement {
   // to count owed SIGNATURES, which made a single freshly raised pass read as
   // four things waiting (client, 2026-08-21: "it should match, right?").
   const officeWaiting = useMemo(() => approvalWaiting(rows, approvals), [rows, approvals]);
-  // `approvals` is the SAME array the strip at the foot reads — it is what
-  // tells a rejection made on the ladder apart from a pass that merely expired
-  // and was voided (see `rejectionSplit.ts`). One read, two figures.
-  const cards = useMemo(() => buildHodKpis(rows, stamp, approvals), [rows, stamp, approvals]);
+  const cards = useMemo(() => buildHodKpis(rows, stamp), [rows, stamp]);
   // AN ADMIN WANTING TO DELETE THIS PERSON'S DEPARTMENT (060). One more read,
   // and it draws nothing at all in the ordinary case where nothing is waiting —
   // which is why it sits above the figures rather than beside them: when it IS
@@ -83,7 +81,12 @@ export default function Dashboard(): React.ReactElement {
   // Toggling: pressing the card already open closes it. Compared by `key`, not
   // by object identity — every render builds fresh drill objects.
   const select = useCallback((card: HodKpiCard) => {
-    setDrill((cur) => (cur?.key === card.drill.key ? null : card.drill));
+    // The Overdue card has no list of its own — it is a `<Link>` to `/overdue`
+    // and never reaches this handler. The guard keeps that a fact rather than a
+    // promise two files apart.
+    if (!card.drill) return;
+    const next = card.drill;
+    setDrill((cur) => (cur?.key === next.key ? null : next));
   }, []);
 
   const activeKey = drill?.key ?? null;
@@ -94,7 +97,7 @@ export default function Dashboard(): React.ReactElement {
       <div className="gb-head-row">
         <div className="min-w-0">
           <h1 className="gb-hello">
-            {greetingFor(stamp)}, {hodGreetingName(name)} <span aria-hidden="true">👋</span>
+            {greetingFor(stamp)}, {hodGreetingName(name)}
           </h1>
           <p className="gb-sub">Here&rsquo;s what&rsquo;s happening with your passes today.</p>
         </div>

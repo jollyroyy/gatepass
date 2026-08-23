@@ -6,7 +6,7 @@
 // card style of the guard's view"), and that skin has its own five-colour
 // vocabulary (`.gb-pill-*`) rather than the house status ramp. This maps one to
 // the other in a single lookup, so the HOD's dashboard, the admin's drills and
-// My Passes cannot colour the same pass three ways.
+// two boards cannot colour the same pass three ways.
 //
 // IT IS KEYED ON THE STAGE'S OWN LABEL, which is the closed set
 // `passStageStyle` can return: `STATUS_STYLES` (six), `RGP_STAGE_STYLES`
@@ -52,7 +52,7 @@ export function stageTone(p: StageInput): GbTone {
 }
 
 /** ONE MATERIAL LINE'S own pill, for the panels that unfold inside a stacked
- *  card (the approver's queue, My Passes) — the guard-skin half of
+ *  card (the approver's queue, the board drills) — the guard-skin half of
  *  `itemLineView`, and it follows exactly the same rule: the line's own return
  *  outcome where it has one, and the PASS's tone for everything else. A line
  *  therefore cannot be a different colour from the badge whose words it is

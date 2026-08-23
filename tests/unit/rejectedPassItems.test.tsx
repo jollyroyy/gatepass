@@ -27,7 +27,6 @@ import { itemLineView, passWasRejected } from '../../src/lib/passRecordView';
 import { passStageStyle } from '../../src/lib/passStage';
 import PassRecordItems from '../../src/components/passview/PassRecordItems';
 import PassStackItems from '../../src/components/PassStackItems';
-import MyPassItems from '../../src/components/mypasses/MyPassItems';
 import { itemPillClass } from '../../src/lib/passStackCard';
 import { EMPTY_DRAFT } from '../../src/lib/returnDraft';
 
@@ -130,7 +129,9 @@ describe('the record\'s item table on a rejected pass', () => {
   });
 });
 
-describe('the unfolded panels — a stacked card and My Passes', () => {
+// MY PASSES IS GONE (client, 2026-08-23), and `MyPassItems` with it. What it
+// asserted about the STACKED card's unfolded panel is unchanged and stays here.
+describe('the unfolded panel of a stacked card', () => {
   it('badge each line with the pass\'s own status on a refused pass', () => {
     items.length = 0;
     items.push(line(), line({ id: 'i2', name: 'Bolts', unit: 'nos' }));
@@ -141,10 +142,6 @@ describe('the unfolded panels — a stacked card and My Passes', () => {
     expect(stack.getAllByText(word)).toHaveLength(2);
     expect(stack.queryByText('Pending')).not.toBeInTheDocument();
     stack.unmount();
-
-    const mine = render(<MyPassItems pass={refused} />);
-    expect(mine.getAllByText(word)).toHaveLength(2);
-    mine.unmount();
   });
 
   it('says what a LIVE pass is actually doing, line by line', () => {

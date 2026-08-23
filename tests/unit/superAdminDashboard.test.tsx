@@ -120,13 +120,15 @@ async function renderBoard(): Promise<void> {
       <SuperAdminDashboard />
     </MemoryRouter>,
   );
-  await waitFor(() => expect(figure('Total')).not.toBe('—'));
+  await waitFor(() => expect(figure('RGP')).not.toBe('—'));
 }
 
-/** The button a named figure is printed on. */
+/** The control a named figure is printed on — a button for every figure that
+ *  drills in place, and a `<Link>` for Overdue Returns, which opens `/overdue`
+ *  instead (client, 2026-08-23). */
 function figureButton(label: string): HTMLElement {
   const wrap = screen.getByText(label, { selector: '.gb-figure-label' }).parentElement as HTMLElement;
-  return within(wrap).getByRole('button');
+  return within(wrap).getByRole(label === 'Overdue Returns' ? 'link' : 'button');
 }
 function figure(label: string): string {
   return figureButton(label).textContent ?? '';
@@ -151,11 +153,11 @@ describe('The super admin dashboard is the guard\'s board with the admin\'s figu
 
   // REWRITTEN 2026-08-22: the admin's Pending Approvals figure became two, one
   // per desk (client), so Needs Attention carries three.
-  it('shows the ADMIN’s six figures, grouped windowed against running', async () => {
+  it('shows the ADMIN’s five figures, grouped windowed against running', async () => {
     await renderBoard();
     // Windowed: 4 raised in the last 7 days (3 RGP + 1 NRGP). The 20-day-old
     // one is outside it.
-    expect(figure('Total')).toBe('4');
+    expect(screen.queryByText('Total')).toBeNull();
     expect(figure('RGP')).toBe('3');
     expect(figure('NRGP')).toBe('1');
     // Running, and NOT scoped to the window — both rows are 40 days old.
@@ -180,8 +182,14 @@ describe('The super admin dashboard is the guard\'s board with the admin\'s figu
     // card's own note would then be false for one of the figures under it.
     const raised = within(screen.getByTestId('super-card-raised'));
     const attention = within(screen.getByTestId('super-card-attention'));
-    expect(raised.getAllByRole('button').map((b) => b.textContent)).toEqual(['4', '3', '1']);
-    expect(attention.getAllByRole('button').map((b) => b.textContent)).toEqual(['1', '0', '1']);
+    // TWO FIGURES ON THE RAISED CARD, NOT THREE (client, 2026-08-23): the Total
+    // figure came off every dashboard, and the two type figures under it are
+    // what it was the sum of.
+    expect(raised.getAllByRole('button').map((b) => b.textContent)).toEqual(['3', '1']);
+    // TWO BUTTONS AND A LINK on the attention card (client, 2026-08-23):
+    // Overdue Returns opens `/overdue` rather than drilling in place.
+    expect(attention.getAllByRole('button').map((b) => b.textContent)).toEqual(['1', '0']);
+    expect(attention.getAllByRole('link').map((b) => b.textContent)).toEqual(['1']);
     expect(raised.queryByText('Pending Gate Review')).toBeNull();
     expect(attention.getByText('Pending Gate Review')).toBeInTheDocument();
     expect(attention.getByText('Pending Approval')).toBeInTheDocument();
@@ -199,17 +207,31 @@ describe('The super admin dashboard is the guard\'s board with the admin\'s figu
     await waitFor(() => expect(stack()).toHaveLength(0));
   });
 
+  // REWRITTEN 2026-08-23. It used to press Overdue Returns and assert the one
+  // 40-day-old row it counted appeared in the stack. That figure opens
+  // `/overdue` now ("once anybody clicks on the overdue card, it should open up
+  // the new page"), so the RUNNING scope is pinned on Pending Gate Review — the
+  // other figure on the attention card whose row is outside every window — and
+  // the destination is pinned here.
   it('drills a RUNNING figure to the one old row it counted, window notwithstanding', async () => {
     await renderBoard();
-    fireEvent.click(figureButton('Overdue Returns'));
+    fireEvent.click(figureButton('Pending Gate Review'));
     await waitFor(() => expect(stack()).toHaveLength(1));
-    expect(screen.getByRole('region', { name: 'Selected passes' }).textContent).toContain('RGP-20260701-0002');
+    expect(screen.getByRole('region', { name: 'Selected passes' }).textContent).toContain('RGP-20260701-0001');
+  });
+
+  it('sends Overdue Returns to /overdue rather than opening a stack', async () => {
+    await renderBoard();
+    const overdue = figureButton('Overdue Returns');
+    expect(overdue).toHaveAttribute('href', '/overdue');
+    fireEvent.click(overdue);
+    expect(stack()).toHaveLength(0);
   });
 
   it('widening the window changes the windowed figures and leaves the running ones alone', async () => {
     await renderBoard();
     fireEvent.change(screen.getByLabelText('Window'), { target: { value: '30' } });
-    await waitFor(() => expect(figure('Total')).toBe('5'));
+    await waitFor(() => expect(figure('RGP')).toBe('4'));
     expect(figure('RGP')).toBe('4');
     expect(figure('Pending Gate Review')).toBe('1');
     expect(figure('Overdue Returns')).toBe('1');

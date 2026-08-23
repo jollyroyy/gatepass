@@ -63,12 +63,6 @@ const OPENING: ReportFilters = {
   department: '',
 };
 
-/** How many whole days the range covers, for the cards' "vs last N days" line. */
-function spanDays(f: ReportFilters): number {
-  const { start, end } = localDayBounds(f.from, f.to);
-  return Math.max(1, Math.round((end - start) / DAY_MS));
-}
-
 function inRange(rows: GatePassView[], start: number, end: number): GatePassView[] {
   return rows.filter((p) => {
     const t = new Date(p.created_at).getTime();
@@ -131,18 +125,10 @@ export default function ReportsPage({ showPeople = true }: Props): React.ReactEl
     () => applyReportFilters(inRange(rows, bounds.start, bounds.end), applied),
     [rows, bounds, applied],
   );
-  // The same-length window immediately before this one, narrowed the same way,
-  // so each card's change is a like-for-like comparison.
-  const previous = useMemo(() => {
-    const span = bounds.end - bounds.start;
-    return applyReportFilters(inRange(rows, bounds.start - span, bounds.start), applied);
-  }, [rows, bounds, applied]);
-
-  const days = spanDays(applied);
-  const cards = useMemo(
-    () => buildReportKpis(scoped, previous, `last ${days} days`),
-    [scoped, previous, days],
-  );
+  // NO PREVIOUS WINDOW. The cards compared themselves to the same-length window
+  // before this one until 2026-08-23, when the client removed every "vs last N
+  // days" line; nothing reads it now, so nothing computes it.
+  const cards = useMemo(() => buildReportKpis(scoped), [scoped]);
 
   const current = pageOf(scoped, printAll ? 1 : page, printAll ? Math.max(scoped.length, 1) : size);
 

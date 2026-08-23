@@ -25,7 +25,6 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { GatePassView } from '../../src/types';
 import DrillList from '../../src/components/DrillList';
-import MyPassesTable from '../../src/pages/HOD/MyPassesTable';
 import { drillDefOf } from '../../src/lib/boardDrills';
 import { TYPE_PILL } from '../../src/lib/guardBoard';
 import { STAGE_TONES, stageTone } from '../../src/lib/passStackCard';
@@ -159,27 +158,11 @@ describe('every stacked list draws the guard’s card', () => {
   });
 });
 
-// REWRITTEN (client, 2026-08-20). This block used to hold that My Passes drew
-// `PassStackCard` — "draws the guard's card and hides the HOD's own name" —
-// which was true from 2026-08-19, when every stacked list in the app was made
-// one card. The client then redrew MY PASSES ALONE to a mock-up of its own, so
-// that page has `MyPassCard` now. What is pinned here instead is that the guard's
-// card did NOT follow it: this list no longer draws `pass-stack-card`, and every
-// other stack in the app still does (the drills above).
-describe('My Passes has a card of its own now', () => {
-  it('does not draw the guard’s stacked card, and still opens the record', () => {
-    const rows = [pass()];
-    render(
-      <MemoryRouter>
-        <MyPassesTable rows={rows} filtered={rows} loading={false} showDepartment={false} />
-      </MemoryRouter>,
-    );
-    expect(screen.queryByTestId('pass-stack-card')).not.toBeInTheDocument();
-    expect(screen.queryByText('Requested By')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /RGP-20260818-0001/ }))
-      .toHaveAttribute('href', '/pass/p1');
-  });
-});
+// THE My Passes BLOCK THAT SAT HERE IS GONE (client, 2026-08-23: "remove my
+// passes"). It pinned that the HOD's register drew `MyPassCard` rather than the
+// guard's stacked card; the page, the card and the route were deleted together,
+// so there is nothing left to pin. Every stack that remains in the app draws
+// `pass-stack-card`, which the drills above assert.
 
 // A tone map keyed on a LABEL cannot be exhaustive at compile time the way a
 // Record<Enum, T> is, so this is the test that catches a new stage arriving

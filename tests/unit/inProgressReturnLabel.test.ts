@@ -99,7 +99,7 @@ describe('the report bucket and its filter option are "Partially Returned"', () 
   });
 
   it('names the KPI card over that list the same', () => {
-    const cards = buildReportKpis([], [], 'the previous 30 days');
+    const cards = buildReportKpis([]);
     expect(cards.find((c) => c.key === 'in_progress')?.label).toBe('Partially Returned');
   });
 

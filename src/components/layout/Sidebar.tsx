@@ -52,10 +52,11 @@ export const ALL_LINKS: NavLink[] = [
   // the dashboard's own Raise Gate Pass tile, which is where an HOD already
   // is; `/raise` stays in ROLE_ROUTES.hod, so the route, the `?type=` deep
   // link and the re-raise flow are untouched.
-  {
-    to: '/my-passes', label: 'My Passes', roles: ['hod'],
-    icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M7 3.75h7.5L19 8.25V19.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 017 19.5V3.75z" /><path strokeLinecap="round" strokeLinejoin="round" d="M14.5 3.75V8.25H19M9.5 12.75h5M9.5 15.75h5M9.5 18.75h3" /></svg>,
-  },
+  // MY PASSES IS NOT A TAB, AND NOT A PAGE (client, 2026-08-23: "remove my
+  // passes"). The register went with it: Reports is the HOD's own list of
+  // everything they raised, and each dashboard figure opens the very rows it
+  // counted. `/my-passes` is out of ROLE_ROUTES too, so the path is forbidden
+  // rather than merely unlinked.
   {
     to: '/guard-dashboard', label: 'Dashboard', roles: ['guard'],
     icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>,
@@ -66,13 +67,12 @@ export const ALL_LINKS: NavLink[] = [
   // would only show when the KPI cards have been drilled down". The routes are
   // gone too, so there is nothing here to link to. Search Pass is not a tab
   // either (2026-08-19): the search sits on the dashboard beside Scan QR.
-  {
-    // Overdue Items, not Pending Returns (client, 2026-08-18). Everything still
-    // out is on the boards; this tab is what is LATE, which is what needs a
-    // person. All three roles get it — scope differs, layout does not.
-    to: '/overdue', label: 'Overdue Items', roles: ['guard', 'hod', 'admin', 'super_admin'],
-    icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>,
-  },
+  // OVERDUE ITEMS IS NOT A TAB EITHER (client, 2026-08-23: "remove the overdue
+  // items ... the tab name from the left-hand side panel"). `/overdue` is still
+  // the page it always was and is still in every one of those roles'
+  // `ROLE_ROUTES`; the HOD dashboard's Overdue card is what opens it now.
+  // KNOWN COST, flagged to the client: the guard and the admin have no link to
+  // it left — their boards count overdue material but drill in place.
   {
     to: '/admin-dashboard', label: 'Dashboard', roles: ['admin', 'super_admin'],
     icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.5L8.25 8.25l4.5 4.5 6-6L21 9M8.25 8.25V6.75a1.5 1.5 0 011.5-1.5h.75M21 9l-1.5-1.5m3 6.75v4.5a1.5 1.5 0 01-1.5 1.5h-15a1.5 1.5 0 01-1.5-1.5v-4.5" /></svg>,

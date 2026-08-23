@@ -1,5 +1,5 @@
 // The one rupee formatter in the app — the HOD board's overdue value, the pass
-// detail page, the compact pass card and My Passes all read from it, so a value
+// detail page and the compact pass card all read from it, so a value
 // can never be spelled two ways on two screens.
 //
 // IT DOES NOT ABBREVIATE, and that is the point (client's call, 2026-08-17:

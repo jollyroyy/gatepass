@@ -7,16 +7,31 @@ import { ALL_LINKS } from '../../src/components/layout/Sidebar';
 import { ROLE_ROUTES, isForbidden } from '../../src/lib/roleRoutes';
 
 describe('HOD sidebar navigation', () => {
-  // Overdue Items joined the list on 2026-08-18 — the same page the guard and
-  // the admin get, narrowed to this HOD's own passes.
-  it('shows exactly Dashboard, My Passes, Overdue Items and Reports, in that order', () => {
+  // Overdue Items joined the list on 2026-08-18 and left it on 2026-08-23
+  // ("remove ... the tab name from the left-hand side panel"). The page is
+  // unchanged and still narrowed to this HOD's own passes; the dashboard's
+  // Overdue card is the door to it.
+  it('shows exactly Dashboard and Reports, in that order', () => {
     // Raise Gate Pass was a tab until 2026-08-20; the client removed it, and
     // the dashboard's Quick Action tile is now the only way into the form.
     // Reports was ADDED the same day — the HOD's own copy of the admin's
     // report screen, scoped to their own department by RLS (see
     // src/pages/HOD/HodReports.tsx).
     const hodLabels = ALL_LINKS.filter((n) => n.roles.includes('hod')).map((n) => n.label);
-    expect(hodLabels).toEqual(['Dashboard', 'My Passes', 'Overdue Items', 'Reports']);
+    // MY PASSES IS GONE (client, 2026-08-23: "remove my passes"). The page,
+    // its route and its sidebar tab went together; the HOD's own register is
+    // Reports, and the dashboard's figures open the rows they counted.
+    expect(hodLabels).toEqual(['Dashboard', 'Reports']);
+  });
+
+  it('has no nav link anywhere pointing at /my-passes', () => {
+    expect(ALL_LINKS.some((n) => n.to === '/my-passes')).toBe(false);
+    expect(ALL_LINKS.some((n) => n.label === 'My Passes')).toBe(false);
+  });
+
+  it('does not list /my-passes among the HOD role routes, and forbids it', () => {
+    expect(ROLE_ROUTES.hod).not.toContain('/my-passes');
+    expect(isForbidden('/my-passes', 'hod')).toBe(true);
   });
 
   it('has no nav link anywhere pointing at /raise', () => {
@@ -49,7 +64,7 @@ describe('HOD sidebar navigation', () => {
   });
 
   it('still permits the HOD routes that remain', () => {
-    const remaining = ['/dashboard', '/raise', '/my-passes', '/profile'];
+    const remaining = ['/dashboard', '/raise', '/reports', '/profile'];
     for (const path of remaining) {
       expect(isForbidden(path, 'hod')).toBe(false);
     }

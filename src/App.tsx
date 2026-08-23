@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase, getUserRole } from './supabaseClient';
 import type { UserRole } from './types/index';
 import { homeFor, isForbidden } from './lib/roleRoutes';
-import { loginPathFor, nextAfterLogin, pathnameOf } from './lib/postLoginRedirect';
+import { isResumableTarget, loginPathFor, nextAfterLogin, pathnameOf } from './lib/postLoginRedirect';
 import { fetchMyApprovalRole } from './lib/approverAccess';
 import type { ApprovalRoleKey } from './lib/approvalLadder';
 import { fetchAccessState } from './lib/profiles';
@@ -17,7 +17,6 @@ import ForcePasswordChange from './pages/ForcePasswordChange';
 import NoAccess from './pages/NoAccess';
 import HodDashboard from './pages/HOD/Dashboard';
 import RaisePass from './pages/HOD/RaisePass';
-import MyPasses from './pages/HOD/MyPasses';
 import MismatchReview from './pages/HOD/MismatchReview';
 import ExpiredReview from './pages/HOD/ExpiredReview';
 import HodReports from './pages/HOD/HodReports';
@@ -62,12 +61,23 @@ function RouteGuard({
   return <>{children}</>;
 }
 
-/** Where a reader goes once they have signed in on a `/login?next=…` URL: the
- *  path they were reaching for, when it is a real path in this app and their
- *  role may reach it, otherwise their own home. */
+/** Where a reader goes once they have signed in on a `/login?next=…` URL.
+ *
+ *  SIGNING IN LANDS ON THE DASHBOARD (client, 2026-08-23), with ONE exception:
+ *  the pass record an approval mail's Approve/Reject button opens, which is the
+ *  journey `?next=` was built for. `loginPathFor` stamps the parameter on every
+ *  unauthenticated request, so without `isResumableTarget` a session that
+ *  lapsed on Reports resumed on Reports — never on the reader's own board.
+ *
+ *  `isForbidden` still grades the destination on top of that: the parameter is
+ *  attacker-supplied, and a wrong-role target must land on this reader's home
+ *  rather than on a screen that will bounce. */
 function resumeAfterLogin(search: string, role: UserRole | null, isApprover: boolean): string {
   const target = nextAfterLogin(search);
-  if (target && !isForbidden(pathnameOf(target), role, isApprover)) return target;
+  const path = target ? pathnameOf(target) : null;
+  if (target && path && isResumableTarget(path) && !isForbidden(path, role, isApprover)) {
+    return target;
+  }
   return homeFor(role, isApprover);
 }
 
@@ -257,7 +267,6 @@ export default function App(): React.ReactElement {
           {/* HOD */}
           <Route path="/dashboard" element={<HodDashboard />} />
           <Route path="/raise" element={<RaisePass />} />
-          <Route path="/my-passes" element={<MyPasses />} />
           <Route path="/mismatch/:id" element={<MismatchReview />} />
           <Route path="/expired/:id" element={<ExpiredReview />} />
           <Route path="/reports" element={<HodReports />} />

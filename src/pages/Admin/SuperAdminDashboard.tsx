@@ -122,9 +122,13 @@ export default function SuperAdminDashboard(): React.ReactElement {
 
   const onDrill = (group: SuperGroup, index: number): void => {
     const figure = group.figures[index];
+    // The Overdue figure has no list of its own — it is a `<Link>` to
+    // `/overdue` and never reaches this handler.
+    if (!figure.drill) return;
+    const def = figure.drill;
     // Pressing the open figure closes it — the same toggle every drillable
     // board in this app uses.
-    setDrill((cur) => (cur?.figureKey === figure.key ? null : { ...figure.drill, figureKey: figure.key }));
+    setDrill((cur) => (cur?.figureKey === figure.key ? null : { ...def, figureKey: figure.key }));
   };
 
   return (

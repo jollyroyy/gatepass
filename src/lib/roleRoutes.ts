@@ -55,8 +55,11 @@ export const ROLE_ROUTES: Record<UserRole, string[]> = {
   // `/reports` is the HOD's own copy of the admin's Gate Pass Report screen
   // (client, 2026-08-20), scoped to their own department by RLS alone — see
   // `src/pages/HOD/HodReports.tsx`. It sits right after `/overdue`, so the
-  // sidebar reads Dashboard · My Passes · Overdue Items · Reports.
-  hod: ['/dashboard', '/raise', '/my-passes', '/overdue', '/reports', '/returns', '/mismatch', '/expired', '/pass', '/profile'],
+  // sidebar reads Dashboard · Overdue Items · Reports.
+  // `/my-passes` IS GONE (client, 2026-08-23: "remove my passes"). The page,
+  // its route and its tab went together — the HOD's register is Reports, and
+  // every dashboard figure opens the very rows it counted.
+  hod: ['/dashboard', '/raise', '/overdue', '/reports', '/returns', '/mismatch', '/expired', '/pass', '/profile'],
   // Admin manages departments, users, and sees everything. THE ORDER OF THIS
   // LIST IS THE ORDER OF THE SIDEBAR (Sidebar.tsx sorts by it), so `/overdue`
   // sits second, straight under the board — client, 2026-08-18: "make the

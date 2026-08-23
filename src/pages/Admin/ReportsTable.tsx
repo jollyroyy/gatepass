@@ -1,11 +1,13 @@
 // The register itself, drawn to the client's mock-up (2026-08-20).
 //
-// The mock's columns are GP No. · Date & Time · Pass Type · Purpose /
-// Description · Items · Status · Created By, plus a per-row menu. TWO MORE ARE
-// HERE ON THE CLIENT'S OWN INSTRUCTION (same message): **Value of Items** — the
-// view's `total_value`, the sum of the pass's priced lines — and **Raised By
-// Department**. Both are columns of the CSV as well; a report and its export
-// must say the same thing.
+// The mock's columns are Pass Number · Date & Time · Pass Type · Purpose /
+// Description · Total Number of Items · Status · Created By, plus a per-row
+// menu. TWO MORE ARE HERE ON THE CLIENT'S OWN INSTRUCTION: **Total Value of
+// Items** — the view's `total_value`, the sum of the pass's priced lines — and
+// **Raised By Department**. Both are columns of the CSV as well; a report and
+// its export must say the same thing, so the three headings the client renamed
+// on 2026-08-23 ("GP No." → Pass Number, and the two totals) moved in both
+// places at once.
 //
 // The whole row opens `/pass/:id`, which is the ONE gate pass record format in
 // this app, so the kebab carries only what the row itself cannot do: the printed
@@ -96,12 +98,12 @@ export default function ReportsTable({ rows, showPeople = true }: Props): React.
     <table className="gb-table">
       <thead>
         <tr>
-          <th>GP No.</th>
+          <th>Pass Number</th>
           <th>Date &amp; Time</th>
           <th>Pass Type</th>
           <th>Purpose / Description</th>
-          <th>Items</th>
-          <th>Value of Items</th>
+          <th>Total Number of Items</th>
+          <th>Total Value of Items</th>
           {showPeople && <th>Raised By Department</th>}
           <th>Status</th>
           {showPeople && <th>Created By</th>}

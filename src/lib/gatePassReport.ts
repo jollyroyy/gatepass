@@ -243,67 +243,33 @@ export interface ReportKpi {
   glyph: HodGlyph;
   tone: HodTone;
   value: number;
-  note: string;
-  /** 'up' / 'down' colour the note the way the mock does; 'none' is plain grey,
-   *  which is what a share-of-total line and an uncomparable window both get. */
-  trend: 'up' | 'down' | 'none';
-}
-
-function share(part: number, whole: number): string {
-  if (whole === 0) return '0% of total';
-  return `${((part / whole) * 100).toFixed(2)}% of total`;
-}
-
-/** The mock's "↑ 12% vs last 23 days" line, computed against the window of the
- *  same length immediately before this one.
- *
- *  A PREVIOUS WINDOW OF ZERO GETS NO PERCENTAGE. A change from nothing is not a
- *  number, and a red arrow beside an invented figure is worse than a plain
- *  sentence — the same call the admin Overview made. */
-function delta(now: number, before: number, spanLabel: string): { note: string; trend: ReportKpi['trend'] } {
-  if (before === 0) return { note: `vs ${spanLabel}`, trend: 'none' };
-  const pct = ((now - before) / before) * 100;
-  if (Math.round(pct) === 0) return { note: `No change vs ${spanLabel}`, trend: 'none' };
-  const up = pct > 0;
-  return {
-    note: `${up ? '↑' : '↓'} ${Math.abs(pct).toFixed(0)}% vs ${spanLabel}`,
-    trend: up ? 'up' : 'down',
-  };
 }
 
 /**
  * The mock's cards, in its own order — SEVEN since the `pending` bucket was
  * split out of Partially Returned (2026-08-22).
  *
- * `previous` is the same-length window immediately before the report's range,
- * already narrowed by everything except the dates — so the comparison is like
- * for like. Pass an empty array and every card falls back to its plain line.
+ * NO CARD CARRIES A SECOND LINE (client, 2026-08-23: "remove the subtext like
+ * 'vs yesterday' from all the dashboard cards ... vs last 30 days"). The
+ * mock's "↑ 12% vs last 23 days" comparison and the "% of total" share line are
+ * both DELETED — the `note`/`trend` fields, the `delta` and `share` helpers and
+ * the previous-window read that fed them, so a stale reference is a build error.
+ * It is the same call the admin Overview made on 2026-08-19.
  */
-export function buildReportKpis(
-  rows: GatePassView[],
-  previous: GatePassView[],
-  spanLabel: string,
-): ReportKpi[] {
+export function buildReportKpis(rows: GatePassView[]): ReportKpi[] {
   const count = (set: GatePassView[], s: ReportStatus) =>
     set.filter((p) => reportStatusOf(p) === s).length;
   const rgp = rows.filter((p) => p.type === 'RGP').length;
   const nrgp = rows.filter((p) => p.type === 'NRGP').length;
 
   return [
-    { key: 'total', label: 'Total Passes', glyph: 'document', tone: 'blue', value: rows.length,
-      ...delta(rows.length, previous.length, spanLabel) },
-    { key: 'rgp', label: 'RGP Passes', glyph: 'exchange', tone: 'green', value: rgp,
-      note: share(rgp, rows.length), trend: 'none' },
-    { key: 'nrgp', label: 'NRGP Passes', glyph: 'send', tone: 'orange', value: nrgp,
-      note: share(nrgp, rows.length), trend: 'none' },
-    { key: 'completed', label: 'Completed', glyph: 'check', tone: 'purple', value: count(rows, 'completed'),
-      ...delta(count(rows, 'completed'), count(previous, 'completed'), spanLabel) },
-    { key: 'pending', label: REPORT_STATUS_LABELS.pending, glyph: 'clock', tone: 'orange', value: count(rows, 'pending'),
-      ...delta(count(rows, 'pending'), count(previous, 'pending'), spanLabel) },
-    { key: 'in_progress', label: REPORT_STATUS_LABELS.in_progress, glyph: 'exchange', tone: 'blue', value: count(rows, 'in_progress'),
-      ...delta(count(rows, 'in_progress'), count(previous, 'in_progress'), spanLabel) },
-    { key: 'cancelled', label: 'Cancelled', glyph: 'alert', tone: 'red', value: count(rows, 'cancelled'),
-      ...delta(count(rows, 'cancelled'), count(previous, 'cancelled'), spanLabel) },
+    { key: 'total', label: 'Total Passes', glyph: 'document', tone: 'blue', value: rows.length },
+    { key: 'rgp', label: 'RGP Passes', glyph: 'exchange', tone: 'green', value: rgp },
+    { key: 'nrgp', label: 'NRGP Passes', glyph: 'send', tone: 'orange', value: nrgp },
+    { key: 'completed', label: 'Completed', glyph: 'check', tone: 'purple', value: count(rows, 'completed') },
+    { key: 'pending', label: REPORT_STATUS_LABELS.pending, glyph: 'clock', tone: 'orange', value: count(rows, 'pending') },
+    { key: 'in_progress', label: REPORT_STATUS_LABELS.in_progress, glyph: 'exchange', tone: 'blue', value: count(rows, 'in_progress') },
+    { key: 'cancelled', label: 'Cancelled', glyph: 'alert', tone: 'red', value: count(rows, 'cancelled') },
   ];
 }
 
@@ -331,12 +297,12 @@ export function valueText(total: number | null | undefined): string {
  *  Department` are columns of both (client, 2026-08-20). A blank cell, never the
  *  dash the screen shows — a dash breaks SUM on the value column. */
 export const REPORT_CSV_COLUMNS: CsvColumn<GatePassView>[] = [
-  { key: 'pass_number', header: 'GP No' },
+  { key: 'pass_number', header: 'Pass Number' },
   { key: 'created_at', header: 'Date & Time', format: (p) => csvDateTime(p.created_at) },
   { key: 'type', header: 'Pass Type', format: csvCategory },
   { key: 'purpose', header: 'Purpose / Description', format: (p) => csvText(p.purpose ?? p.material_summary) },
-  { key: 'item_count', header: 'Items' },
-  { key: 'total_value', header: 'Value of Items', format: (p) => (p.total_value > 0 ? String(Math.round(p.total_value)) : '') },
+  { key: 'item_count', header: 'Total Number of Items' },
+  { key: 'total_value', header: 'Total Value of Items', format: (p) => (p.total_value > 0 ? String(Math.round(p.total_value)) : '') },
   { key: 'department_name', header: 'Raised By Department', format: (p) => csvText(p.department_name) },
   { key: 'status', header: 'Status', format: (p) => reportStatusLabel(p) },
   { key: 'raised_by_name', header: 'Created By', format: (p) => csvText(p.raised_by_name) },

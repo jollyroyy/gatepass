@@ -135,7 +135,7 @@ export default function AdminDashboard(): React.ReactElement {
 
       {error && <div className="gb-alert">{error}</div>}
 
-      <OverviewCards cards={cards} activeKey={activeKey} onSelect={(c) => select(c.drill)} loading={loading} />
+      <OverviewCards cards={cards} activeKey={activeKey} onSelect={(c) => c.drill && select(c.drill)} loading={loading} />
 
       {/* The drill panel sits directly under the figures rather than at the foot
           of the page: it is opened from anywhere on the board, and a reader who

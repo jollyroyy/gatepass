@@ -58,7 +58,7 @@ export default function AppShell({ session, role, isApprover = false, office = n
               `.gb-main` (index.css) is that skin — white ground, Inter,
               near-black ink, the neutral ramp pinned light, and every `dark:`
               utility inside it switched off — and putting it HERE rather than
-              on each page is what makes it true of My Passes, Reports, the
+              on each page is what makes it true of Reports, the
               Admin panel and the pass record without any of them knowing about
               it. The mock-up screens keep their own `.gb-board`, which sits
               inside this and repaints the same ground.

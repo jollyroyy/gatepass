@@ -26,7 +26,6 @@ import { describe, it, expect } from 'vitest';
 import { toCsv, type CsvColumn } from '../../src/lib/exportUtils';
 import { csvCategory, csvDate, csvDateTime, csvReturnStatus, csvStatus, csvUnit } from '../../src/lib/csvCells';
 import { ALL_PASSES_CSV_COLUMNS } from '../../src/lib/gatePassReport';
-import { MY_PASSES_CSV_COLUMNS } from '../../src/pages/HOD/MyPasses';
 
 describe('escaping — nothing a human did not type', () => {
   it('leaves a negative number exactly as it is', () => {
@@ -95,9 +94,10 @@ describe('cell formatters — the label, not the stored key', () => {
 });
 
 describe('the exported columns', () => {
+  // ONE SET SINCE 2026-08-23. My Passes had a column list of its own; the page
+  // went with the client's "remove my passes", and its export with it.
   const COLUMN_SETS: [string, CsvColumn<never>[]][] = [
     ['All Passes', ALL_PASSES_CSV_COLUMNS as unknown as CsvColumn<never>[]],
-    ['My Passes', MY_PASSES_CSV_COLUMNS as unknown as CsvColumn<never>[]],
   ];
 
   // Migration 013 moved the material lines out of `gate_passes` into

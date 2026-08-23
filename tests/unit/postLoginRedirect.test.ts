@@ -16,7 +16,8 @@
 // scheme. Anything else degrades to null and the reader lands on their own home
 // — a lost destination is a nuisance, an open redirect is a phishing tool.
 import { describe, it, expect } from 'vitest';
-import { loginPathFor, nextAfterLogin } from '../../src/lib/postLoginRedirect';
+import { isResumableTarget, loginPathFor, nextAfterLogin } from '../../src/lib/postLoginRedirect';
+import { ROLE_HOME, ROLE_ROUTES } from '../../src/lib/roleRoutes';
 
 describe('loginPathFor', () => {
   it('carries the attempted path and its query', () => {
@@ -48,5 +49,36 @@ describe('nextAfterLogin', () => {
 
   it('never sends anybody back to the login page', () => {
     expect(nextAfterLogin('?next=%2Flogin')).toBeNull();
+  });
+});
+
+// SIGNING IN LANDS ON THE DASHBOARD, ALWAYS (client, 2026-08-23: "when I'm
+// logging in as the HOD of any department it should always open up the page of
+// the dashboard … for any of the views, not only the HOD").
+//
+// `?next=` exists for ONE thing: the approval mails' Approve and Reject
+// buttons, which open a pass record. Every other path got carried across the
+// sign-in too — a session that expired on Reports sent the reader back to
+// Reports — which is exactly what the client stopped. So a resumable target is
+// the pass record and nothing else; anything else falls back to `homeFor`.
+describe('isResumableTarget', () => {
+  it('resumes the emailed pass record', () => {
+    expect(isResumableTarget('/pass/abc')).toBe(true);
+    expect(isResumableTarget('/pass')).toBe(true);
+  });
+
+  it('does not resume any other screen — the reader lands on their board', () => {
+    for (const path of ['/reports', '/overdue', '/returns', '/admin', '/console', '/approvals']) {
+      expect(isResumableTarget(path), path).toBe(false);
+    }
+  });
+});
+
+describe('every role with screens lands on its own dashboard', () => {
+  it('is the first route in its list, and is named a dashboard', () => {
+    for (const role of ['guard', 'hod', 'admin', 'super_admin'] as const) {
+      expect(ROLE_HOME[role]).toBe(ROLE_ROUTES[role][0]);
+      expect(ROLE_HOME[role], role).toMatch(/dashboard/);
+    }
   });
 });

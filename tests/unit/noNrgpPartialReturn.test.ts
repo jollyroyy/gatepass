@@ -145,7 +145,7 @@ describe('the buckets are still disjoint and total', () => {
       row({ id: 'c', type: 'RGP', status: 'matched', return_status: 'awaiting_return' }),
       row({ id: 'd', type: 'NRGP', status: 'flagged' }),
     ];
-    const cards = buildReportKpis(rows, [], 'last 30 days');
+    const cards = buildReportKpis(rows);
     const by = Object.fromEntries(cards.map((c) => [c.key, c.value]));
     expect(by.pending).toBe(1);
     expect(by.in_progress).toBe(1);

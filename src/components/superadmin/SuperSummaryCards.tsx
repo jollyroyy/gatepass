@@ -19,6 +19,7 @@
 // absolute over `src/components/**`.
 import React from 'react';
 import GuardIcon, { type GuardGlyph, type GuardTone } from '../guard/GuardIcon';
+import { Link } from 'react-router-dom';
 import type { SuperGroup, SuperGroupKey } from '../../lib/superAdminBoard';
 
 /** The plate each card wears. A `Record` over the group union, so a third card
@@ -57,17 +58,27 @@ export default function SuperSummaryCards({ groups, openKey, onDrill, loading }:
                   {i > 0 && <span className="gb-figure-rule" aria-hidden="true" />}
                   <span className="gb-figure">
                     <span className={`gb-figure-label ${INK[g.key]}`}>{f.label}</span>
-                    <button
-                      type="button"
-                      className="gb-figure-value gb-figure-button"
-                      aria-pressed={openKey === f.key}
-                      onClick={() => onDrill(g, i)}
-                    >
-                      {/* A figure that flashes a spinner on every silent refresh
-                          is worse than one that shows a placeholder — the rule
-                          every KPI in this app follows. */}
-                      {loading ? '—' : f.value.toLocaleString('en-IN')}
-                    </button>
+                    {/* A figure with a destination is a LINK, not a button that
+                        navigates: Overdue Returns opens `/overdue`, a page of
+                        its own, so it must be middle-clickable and say where it
+                        goes. Every other figure drills in place.
+                        A figure that flashes a spinner on every silent refresh
+                        is worse than one that shows a placeholder — the rule
+                        every KPI in this app follows. */}
+                    {f.to ? (
+                      <Link to={f.to} className="gb-figure-value gb-figure-button">
+                        {loading ? '—' : f.value.toLocaleString('en-IN')}
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        className="gb-figure-value gb-figure-button"
+                        aria-pressed={openKey === f.key}
+                        onClick={() => onDrill(g, i)}
+                      >
+                        {loading ? '—' : f.value.toLocaleString('en-IN')}
+                      </button>
+                    )}
                   </span>
                 </React.Fragment>
               ))}
