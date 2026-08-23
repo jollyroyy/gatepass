@@ -17,9 +17,10 @@ import QrScanner from '../../components/QrScanner';
 import { OUTCOME_MESSAGES, useGateSearch } from '../../lib/useGateSearch';
 
 type Props = {
-  /** A mobile-number search resolves to a LIST — Search Pass renders it full
-   *  width under the search bar. */
-  onPhoneResults?: (query: string, rows: GatePassView[]) => void;
+  /** A mobile number, a name, a vendor, a requester, an order number or a make
+   *  and model resolves to a LIST — Search Pass renders it full width under the
+   *  search bar. */
+  onListResults?: (query: string, rows: GatePassView[]) => void;
   /**
    * A pass-number search resolved to a row. When this is given, the page shows
    * the full Gate Pass Details record IN PLACE instead of jumping to /verify.
@@ -27,7 +28,7 @@ type Props = {
   onPassResolved?: (passId: string, outcome: ScanOutcome) => void;
 };
 
-export default function GateLookup({ onPhoneResults, onPassResolved }: Props = {}): React.ReactElement {
+export default function GateLookup({ onListResults, onPassResolved }: Props = {}): React.ReactElement {
   const navigate = useNavigate();
   const [value, setValue] = useState('');
   const [scanning, setScanning] = useState(false);
@@ -45,7 +46,7 @@ export default function GateLookup({ onPhoneResults, onPassResolved }: Props = {
     [navigate, onPassResolved]
   );
 
-  const search = useGateSearch({ onPhoneResults, onPassResolved: handleResolved });
+  const search = useGateSearch({ onListResults, onPassResolved: handleResolved });
 
   // Close the viewfinder before resolving so the camera light goes out while the
   // round trip is in flight, rather than lingering behind the next screen.
@@ -63,7 +64,7 @@ export default function GateLookup({ onPhoneResults, onPassResolved }: Props = {
   return (
     <div data-testid="gate-lookup" className="w-full max-w-2xl mx-auto flex flex-col gap-3">
       <label className="sr-only" htmlFor="gate-lookup">
-        Find a pass by number or mobile
+        Find a pass by number, mobile, name, vendor, requester, order number or make and model
       </label>
 
       {/* Always mounted, never behind the scanner. A damaged code, a denied
@@ -89,7 +90,7 @@ export default function GateLookup({ onPhoneResults, onPassResolved }: Props = {
           <input
             id="gate-lookup"
             className="input !pl-11 !py-2.5 !rounded-full text-sm w-full"
-            placeholder="Search a pass number or a mobile number…"
+            placeholder="Pass no., mobile, name, vendor, requester, order no., make / model…"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             autoFocus

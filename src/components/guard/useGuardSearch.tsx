@@ -14,8 +14,10 @@
 // place. `/pass/:id` is the app's ONE gate-pass record format, and it is drawn
 // in the house theme — rendering it inside this fixed-light mock-up skin would
 // put a dark card on a white ground for every reader on the shipped dark
-// default. A mobile number held by several people renders below, in this
-// screen's own skin.
+// default. A query that matches SEVERAL passes — a mobile number, a vendor, a
+// name, an order number, a make and model — renders below as a stack of the
+// board's own cards (`SearchMatches`), each carrying the action its state
+// allows.
 //
 // Returned as ELEMENTS rather than as a component with props, because the
 // three parts land in three different places: the bar inside the toolbar's
@@ -26,9 +28,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { GatePassView } from '../../types';
 import QrScanner from '../QrScanner';
 import { OUTCOME_MESSAGES, useGateSearch } from '../../lib/useGateSearch';
-import { canVerifyAtGate } from '../../lib/phoneSearch';
-import { partyOf, TYPE_PILL } from '../../lib/guardBoard';
-import ApproveOutAction from './ApproveOutAction';
+import SearchMatches from './SearchMatches';
 
 const SearchGlyph = (
   <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
@@ -58,8 +58,8 @@ export interface GuardSearch {
   scanning: boolean;
   /** The viewfinder and any alert the last query raised, or null. */
   notice: React.ReactElement | null;
-  /** A mobile-number result set, or null when no search is showing. When this
-   *  is non-null the page renders it INSTEAD of its own list. */
+  /** A multi-pass result set, or null when no search is showing. When this is
+   *  non-null the page renders it INSTEAD of its own list. */
   results: React.ReactElement | null;
 }
 
@@ -69,30 +69,30 @@ export function useGuardSearch(placeholder: string): GuardSearch {
   const [scanning, setScanning] = useState(false);
   // Null = no mobile search showing. An EMPTY array is a real answer ("nobody
   // by that number") and must not collapse into the same state.
-  const [phone, setPhone] = useState<{ query: string; rows: GatePassView[] } | null>(null);
+  const [matches, setMatches] = useState<{ query: string; rows: GatePassView[] } | null>(null);
 
-  const onPhoneResults = useCallback(
+  const onListResults = useCallback(
     (query: string, rows: GatePassView[]) => {
       // One match is an answer, not a list.
       if (rows.length === 1) {
-        setPhone(null);
+        setMatches(null);
         navigate(`/pass/${rows[0].id}`);
         return;
       }
-      setPhone({ query, rows });
+      setMatches({ query, rows });
     },
     [navigate]
   );
 
   const onPassResolved = useCallback(
     (passId: string) => {
-      setPhone(null);
+      setMatches(null);
       navigate(`/pass/${passId}`);
     },
     [navigate]
   );
 
-  const search = useGateSearch({ onPhoneResults, onPassResolved });
+  const search = useGateSearch({ onListResults, onPassResolved });
 
   const handleScan = useCallback(
     (scanned: string) => {
@@ -165,80 +165,9 @@ export function useGuardSearch(placeholder: string): GuardSearch {
     </div>
   ) : null;
 
-  const results = phone ? (
-    <PhoneMatches query={phone.query} rows={phone.rows} onClear={() => setPhone(null)} />
+  const results = matches ? (
+    <SearchMatches query={matches.query} rows={matches.rows} onClear={() => setMatches(null)} />
   ) : null;
 
   return { bar, notice, results, scanning };
-}
-
-/** Several passes carry the same mobile number — a person at the barrier with
- *  more than one slip to their name. Drawn in this screen's own skin, with the
- *  SAME action rule the queue uses (`canVerifyAtGate`), so a button here can
- *  never be one that always fails. */
-function PhoneMatches({
-  query,
-  rows,
-  onClear,
-}: {
-  query: string;
-  rows: GatePassView[];
-  onClear: () => void;
-}): React.ReactElement {
-  return (
-    <section className="gb-card gb-panel" data-testid="guard-phone-results">
-      <div className="gb-panel-head">
-        <h2 className="gb-panel-title">
-          Mobile {query} — {rows.length} {rows.length === 1 ? 'pass' : 'passes'}
-        </h2>
-        <button type="button" className="gb-link" onClick={onClear}>
-          Clear search
-        </button>
-      </div>
-      {rows.length === 0 ? (
-        <div className="gb-empty">No gate pass carries that mobile number.</div>
-      ) : (
-        <div className="gb-scroll">
-          <table className="gb-table">
-            <thead>
-              <tr>
-                <th>Pass No.</th>
-                <th>Type</th>
-                <th>Vendor</th>
-                <th>Material</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <Link to={`/pass/${p.id}`} className={`gb-pill ${TYPE_PILL[p.type]}`}>
-                      {p.pass_number}
-                    </Link>
-                  </td>
-                  <td>
-                    <span className={`gb-pill ${TYPE_PILL[p.type]}`}>{p.type}</span>
-                  </td>
-                  <td className="gb-truncate">{partyOf(p)}</td>
-                  <td className="gb-truncate" title={p.material_summary ?? undefined}>
-                    {p.material_summary ?? '—'}
-                  </td>
-                  <td>
-                    {canVerifyAtGate(p) ? (
-                      <ApproveOutAction id={p.id} />
-                    ) : (
-                      <Link to={`/pass/${p.id}`} className="gb-link">
-                        View pass
-                      </Link>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
 }

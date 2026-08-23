@@ -5,8 +5,16 @@
 //   * a mobile number must NOT go through `lookup_pass` (one row, one outcome,
 //     a logged scan attempt — none of which fits a person with three passes);
 //   * a pass number must still go through it;
-//   * every result carries its own action, and that action is Verify only when
-//     the gate can still act on the pass.
+//   * every result carries its own action, and that action is Approve OUT only
+//     when the gate can still act on the pass, else Record Return when it owes
+//     material back, else View pass.
+//
+// The mobile-number branch is one of THREE now (client, 2026-08-24): search
+// grew a free-text branch (`searchPassesByText`, pinned in its own tests) for
+// a name, a vendor, an order number or a make/model. That branch is not
+// exercised here — this file stays about the phone branch and the boundary
+// between it and the pass-code branch — but the sr-only label and the results
+// panel below are shared with it, so both moved with the client's copy.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -87,8 +95,13 @@ async function renderConsole() {
   await waitFor(() => expect(screen.getByTestId('gate-lookup')).toBeInTheDocument());
 }
 
+// The sr-only label grew the other query shapes into its own wording
+// (client, 2026-08-24) — the searchable field is the same one input.
 async function search(text: string) {
-  fireEvent.change(screen.getByLabelText('Find a pass by number or mobile'), { target: { value: text } });
+  fireEvent.change(
+    screen.getByLabelText('Find a pass by number, mobile, name, vendor, requester, order number or make and model'),
+    { target: { value: text } }
+  );
   fireEvent.click(screen.getByRole('button', { name: 'Find' }));
 }
 
@@ -112,7 +125,10 @@ describe('gate lookup by mobile number', () => {
     await renderConsole();
     await search('9876543210');
 
-    await waitFor(() => expect(screen.getByTestId('phone-search-results')).toBeInTheDocument());
+    // Renamed from `phone-search-results`: the same stacked-card panel now
+    // answers all three search branches, not just a mobile number
+    // (`SearchMatches`, testid `guard-search-results`).
+    await waitFor(() => expect(screen.getByTestId('guard-search-results')).toBeInTheDocument());
     expect(rpcCalls).not.toContain('lookup_pass');
     expect(ilikeCalls).toEqual([{ col: 'visitor_company', pattern: '%3210%' }]);
     expect(screen.getByText('RGP-OUT-20260818-0009')).toBeInTheDocument();
@@ -124,7 +140,7 @@ describe('gate lookup by mobile number', () => {
 
     await waitFor(() => expect(rpcCalls).toContain('lookup_pass'));
     expect(ilikeCalls).toHaveLength(0);
-    expect(screen.queryByTestId('phone-search-results')).toBeNull();
+    expect(screen.queryByTestId('guard-search-results')).toBeNull();
   });
 
   it('drops a row the ilike over-matched on some other field', async () => {
@@ -145,7 +161,13 @@ describe('gate lookup by mobile number', () => {
     expect(screen.queryByText('DROP-0001')).toBeNull();
   });
 
-  it('offers Verify at Gate on an actionable result, and details on one the gate cannot act on', async () => {
+  // Labels changed from "Verify at Gate" / "View Details" to "Approve OUT" /
+  // "View pass" (client, 2026-08-24) — one stacked card format now answers
+  // every search branch, and each card's one action is the same one the
+  // guard's drilled KPI list would offer for that pass (`matchAction` in
+  // `src/components/guard/SearchMatches.tsx`), addressed by href rather than
+  // by a pass number in the link's own name.
+  it('offers Approve OUT on an actionable result, and View pass on one the gate cannot act on', async () => {
     searchRows = [
       pass({ id: 'a', pass_number: 'LIVE-0001' }),
       pass({ id: 'b', pass_number: 'DONE-0001', status: 'matched' }),
@@ -153,11 +175,11 @@ describe('gate lookup by mobile number', () => {
     await renderConsole();
     await search('9876543210');
 
-    await waitFor(() => expect(screen.getByTestId('phone-search-results')).toBeInTheDocument());
-    const verify = screen.getByRole('link', { name: /Verify at gate — LIVE-0001/ });
-    expect(verify).toHaveAttribute('href', '/verify/a');
-    const details = screen.getByRole('link', { name: /View details — DONE-0001/ });
-    expect(details).toHaveAttribute('href', '/pass/b');
+    await waitFor(() => expect(screen.getByTestId('guard-search-results')).toBeInTheDocument());
+    const approve = screen.getByRole('link', { name: 'Approve OUT' });
+    expect(approve).toHaveAttribute('href', '/verify/a');
+    const viewPass = screen.getByRole('link', { name: 'View pass' });
+    expect(viewPass).toHaveAttribute('href', '/pass/b');
   });
 
   it('says so plainly when nobody holds that number, and can be cleared', async () => {
@@ -165,8 +187,17 @@ describe('gate lookup by mobile number', () => {
     await renderConsole();
     await search('9876543210');
 
-    await waitFor(() => expect(screen.getByText(/No gate pass carries that mobile number/)).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
-    expect(screen.queryByTestId('phone-search-results')).toBeNull();
+    // The empty state is `SearchMatches`'s own — shared with the free-text
+    // branch, so it names every shape a query can be, not just a mobile
+    // number (client, 2026-08-24).
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          /No gate pass matches that pass number, mobile number, name, vendor, requester, order number or make and model/
+        )
+      ).toBeInTheDocument()
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(screen.queryByTestId('guard-search-results')).toBeNull();
   });
 });

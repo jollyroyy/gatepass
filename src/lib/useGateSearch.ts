@@ -8,19 +8,33 @@
 // by status or date. A guard standing at the barrier is handed a slip, not a
 // row of the table they happen to have open.
 //
-// WHY THE TWO BRANCHES DIFFER, and why this is not one query:
-//   * a pass number (anything containing a letter) runs through
-//     `gatepass.lookup_pass`, so the attempt is logged to `scan_attempts`, the
-//     blacklist alert fires, and expired / voided / already-verified is decided
-//     ONCE, server-side, where `match_pass` will decide it again a moment later;
-//   * a mobile number identifies a PERSON, who may hold three passes and has
+// WHY THE THREE BRANCHES DIFFER, and why this is not one query:
+//   * a CODE — a whole pass number, a pass id, or the URL inside a QR — runs
+//     through `gatepass.lookup_pass`, so the attempt is logged to
+//     `scan_attempts`, the blacklist alert fires, and expired / voided /
+//     already-verified is decided ONCE, server-side, where `match_pass` will
+//     decide it again a moment later;
+//   * a MOBILE NUMBER identifies a PERSON, who may hold three passes and has
 //     scanned nothing. That is a list, not an outcome, so it must not be forced
-//     through an RPC that returns one row and writes a scan record.
+//     through an RPC that returns one row and writes a scan record;
+//   * anything else is FREE TEXT (client, 2026-08-24): a person's name, the
+//     vendor, the requester who took the material out, an invoice / order
+//     number, a make and model. `searchPassesByText` reads the pass columns and
+//     the material lines and unions them, and the answer is a list by
+//     construction — "there are maybe five passes in for Dell".
+//
+// THE CODE BRANCH USED TO SWALLOW ALL THREE. Its old test was "does the query
+// contain a letter", so a typed NAME was sent to `lookup_pass` and came back
+// "No pass matches that code". `isPassCodeQuery` is a SHAPE test now; a partial
+// pass number falls through to the text branch, which matches `pass_number`
+// with an ilike and answers with a list.
 import { useCallback, useState } from 'react';
 import { gp } from '../supabaseClient';
 import type { GatePassView, ScanOutcome, ScanResult } from '../types';
 import { safeErrorMessage } from './errors';
-import { isPhoneQuery, passMatchesPhone, phoneSearchPattern } from './phoneSearch';
+import { isPhoneQuery } from './phoneSearch';
+import { isPassCodeQuery } from './passTextSearch';
+import { searchPassesByPhone, searchPassesByText } from './searchPasses';
 
 /** Direct lookup, never an includes() chain — same rule as statusStyles.ts.
  *  Adding an outcome to the Postgres function breaks the build here until it
@@ -46,9 +60,10 @@ export interface GateSearchOutcome {
 }
 
 export interface GateSearchHandlers {
-  /** A mobile-number search resolved to a list (possibly empty — "nobody by
-   *  that number" is a real answer and must not read as "still searching"). */
-  onPhoneResults?: (query: string, rows: GatePassView[]) => void;
+  /** A mobile-number or free-text search resolved to a LIST (possibly empty —
+   *  "nothing matches that" is a real answer and must not read as "still
+   *  searching"). */
+  onListResults?: (query: string, rows: GatePassView[]) => void;
   /** A pass-number search resolved to a row. Fires for EVERY outcome carrying
    *  a `pass_id`, not just `ok`: a guard who typed the number of an expired
    *  pass still wants to read the record, and the record's own stage badge
@@ -69,7 +84,7 @@ export interface GateSearch {
   reset: () => void;
 }
 
-export function useGateSearch({ onPhoneResults, onPassResolved }: GateSearchHandlers = {}): GateSearch {
+export function useGateSearch({ onListResults, onPassResolved }: GateSearchHandlers = {}): GateSearch {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<GateSearchOutcome | null>(null);
@@ -94,18 +109,16 @@ export function useGateSearch({ onPhoneResults, onPassResolved }: GateSearchHand
       setPendingPassId(null);
       try {
         if (isPhoneQuery(raw)) {
-          const { data, error: qErr } = await gp()
-            .from('v_gate_passes')
-            .select('*')
-            .ilike('visitor_company', phoneSearchPattern(raw))
-            .order('created_at', { ascending: false })
-            .limit(50);
-          if (qErr) throw qErr;
-          // The ilike is a narrowing on the last four digits only and can
-          // over-match (an address with the same digits); this is the filter
-          // that decides, on the pass's own phone field.
-          const rows = ((data as GatePassView[] | null) ?? []).filter((p) => passMatchesPhone(p, raw));
-          onPhoneResults?.(raw, rows);
+          onListResults?.(raw, await searchPassesByPhone(raw));
+          return;
+        }
+
+        // Not a code and not a number: a name, a vendor, a requester, an order
+        // number, a make and model. Never `lookup_pass` — that RPC answers with
+        // one row and writes a scan record, and neither is right for a word
+        // somebody typed.
+        if (!isPassCodeQuery(raw)) {
+          onListResults?.(raw, await searchPassesByText(raw));
           return;
         }
 
@@ -140,7 +153,7 @@ export function useGateSearch({ onPhoneResults, onPassResolved }: GateSearchHand
         setBusy(false);
       }
     },
-    [onPhoneResults, onPassResolved]
+    [onListResults, onPassResolved]
   );
 
   return { busy, error, outcome, blacklistMatch, pendingPassId, resolve, reset };

@@ -11,6 +11,11 @@
 //   * the record's figures are the rows underneath it — the total row sums the
 //     very quantities printed above it (2026-08-19: the progress bar and the
 //     attention banner were replaced by the mock-up's own Total row).
+//
+// Search grew a third branch (client, 2026-08-24): free text — name, vendor,
+// requester, order number, make/model — is not exercised by this file (it has
+// its own coverage), but the sr-only label and the multi-row results panel are
+// shared with it, so both moved here too.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -90,6 +95,9 @@ const VERIFS = [
 
 let searchRows: GatePassView[] = [];
 const rpcCalls: string[] = [];
+// Every `.or(...)` call made on the free-text branch's two tables — asserted
+// to confirm the code-path a full pass number takes never touches them.
+const orCalls: { table: string; filter: string }[] = [];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ch: any = {};
@@ -106,11 +114,16 @@ vi.mock('../../src/supabaseClient', () => {
       isSearch = true;
       return o;
     };
+    o.or = (filter: string) => {
+      orCalls.push({ table, filter });
+      isSearch = true;
+      return o;
+    };
     const rows = () => {
-      if (table === 'v_gate_pass_items') return ITEMS;
+      if (table === 'v_gate_pass_items') return isSearch ? [] : ITEMS;
       if (table === 'v_verifications') return VERIFS;
-      // The queue query and the phone search both read v_gate_passes; only the
-      // latter narrows with ilike.
+      // The queue query and the phone/text search both read v_gate_passes;
+      // only the latter narrows with ilike/or.
       return isSearch ? searchRows : [];
     };
     o.maybeSingle = () => Promise.resolve({ data: PASS, error: null });
@@ -145,8 +158,13 @@ async function renderConsole() {
   await waitFor(() => expect(screen.getByTestId('gate-lookup')).toBeInTheDocument());
 }
 
+// The sr-only label grew the other query shapes into its own wording
+// (client, 2026-08-24) — the searchable field is the same one input.
 function search(text: string) {
-  fireEvent.change(screen.getByLabelText('Find a pass by number or mobile'), { target: { value: text } });
+  fireEvent.change(
+    screen.getByLabelText('Find a pass by number, mobile, name, vendor, requester, order number or make and model'),
+    { target: { value: text } }
+  );
   fireEvent.click(screen.getByRole('button', { name: 'Find' }));
 }
 
@@ -154,6 +172,7 @@ describe('Search Pass — an exact query opens the whole record in place', () =>
   beforeEach(() => {
     searchRows = [];
     rpcCalls.length = 0;
+    orCalls.length = 0;
     vi.clearAllMocks();
   });
 
@@ -163,6 +182,9 @@ describe('Search Pass — an exact query opens the whole record in place', () =>
 
     await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
     expect(rpcCalls).toContain('lookup_pass');
+    // A whole pass number is a CODE, never free text — the `.or(...)` branch
+    // (`searchPassesByText`) must not fire alongside `lookup_pass`.
+    expect(orCalls).toHaveLength(0);
     expect(screen.getByRole('heading', { name: 'RGP Gate Pass Details' })).toBeInTheDocument();
     // Once only: the breadcrumb above the title was redundant with it.
     expect(screen.getAllByText('RGP-OUT-20260818-0481')).toHaveLength(1);
@@ -181,7 +203,10 @@ describe('Search Pass — an exact query opens the whole record in place', () =>
 
     await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
     // A one-row list would be a click the guard should never have to make.
-    expect(screen.queryByTestId('phone-search-results')).toBeNull();
+    // Testid renamed from `phone-search-results` to `guard-search-results`
+    // (client, 2026-08-24): the same stacked-card panel now answers every
+    // search branch, not just a mobile number.
+    expect(screen.queryByTestId('guard-search-results')).toBeNull();
     expect(rpcCalls).not.toContain('lookup_pass');
   });
 

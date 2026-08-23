@@ -1,11 +1,13 @@
 // Search Pass — the gate's working screen, and ONLY a search screen
 // (client, 2026-08-18: the Pending Queue was removed from this tab).
 //
-// A search that resolves to one pass (an exact pass number, or a mobile number
-// that only one pass carries) renders the full Gate Pass Details record in
-// place — summary, item table, return activity — instead of jumping to the
-// verify screen. A mobile number held by several people renders the list, and
-// clicking a row opens that record in the same place.
+// A search that resolves to one pass (an exact pass number, or any query only
+// one pass answers) renders the full Gate Pass Details record in place —
+// summary, item table, return activity — instead of jumping to the verify
+// screen. A query several passes answer — a mobile number, a vendor, a name,
+// the requester who took the material out, an order number, a make and model —
+// renders as the board's own stack of cards below, each carrying the action its
+// state allows (client, 2026-08-24).
 //
 // WHERE THE QUEUE WENT: the guard dashboard (/guard-dashboard) already counts
 // it as "Pending for Gate Approval" and opens the same passes as cards, and
@@ -18,7 +20,7 @@ import type { GatePassView, UserRole } from '../../types';
 import { useGatePassRecord } from '../../lib/useGatePassRecord';
 import PassRecordView from '../../components/passview/PassRecordView';
 import GateLookup from './GateLookup';
-import PhoneSearchResults from './PhoneSearchResults';
+import SearchMatches from '../../components/guard/SearchMatches';
 
 export default function GateConsole({ role = null }: { role?: UserRole | null }): React.ReactElement {
   const navigate = useNavigate();
@@ -37,10 +39,10 @@ export default function GateConsole({ role = null }: { role?: UserRole | null })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // A mobile-number search from the lookup card. Null = no search running;
-  // an empty array is a real answer ("nobody by that number") and must not
-  // collapse into the same state.
-  const [phoneSearch, setPhoneSearch] = useState<{ query: string; rows: GatePassView[] } | null>(null);
+  // A multi-pass search from the lookup card. Null = no search running; an
+  // empty array is a real answer ("nothing matches that") and must not collapse
+  // into the same state.
+  const [matches, setMatches] = useState<{ query: string; rows: GatePassView[] } | null>(null);
 
   // The pass whose full record is open under the search bar. Null = none.
   const [recordId, setRecordId] = useState<string | null>(null);
@@ -49,21 +51,21 @@ export default function GateConsole({ role = null }: { role?: UserRole | null })
   const [reloadKey, setReloadKey] = useState(0);
   const { record, error: recordError } = useGatePassRecord(recordId, reloadKey);
 
-  // One match is an answer, not a list: a mobile number that only one pass
-  // carries opens that record straight away, exactly as a pass number does.
-  function handlePhoneResults(query: string, rows: GatePassView[]) {
+  // One match is an answer, not a list: a query only one pass answers opens
+  // that record straight away, exactly as a pass number does.
+  function handleListResults(query: string, rows: GatePassView[]) {
     if (rows.length === 1) {
-      setPhoneSearch(null);
+      setMatches(null);
       setRecordId(rows[0].id);
       return;
     }
     setRecordId(null);
-    setPhoneSearch({ query, rows });
+    setMatches({ query, rows });
   }
 
   function clearSearch() {
     setRecordId(null);
-    setPhoneSearch(null);
+    setMatches(null);
   }
 
   return (
@@ -71,14 +73,17 @@ export default function GateConsole({ role = null }: { role?: UserRole | null })
       {/* The search bar is the page, so it is centred and alone at the top. */}
       <div className="page-header text-center">
         <h1 className="page-title">Search Pass</h1>
-        <p className="page-subtitle">Find a pass by its number or by the mobile number of the person carrying it.</p>
+        <p className="page-subtitle">
+          Find a pass by its number, or by the mobile number, name, vendor,
+          requester, order number or make and model on it.
+        </p>
       </div>
 
       <div className="mb-6">
         <GateLookup
-          onPhoneResults={handlePhoneResults}
+          onListResults={handleListResults}
           onPassResolved={(passId) => {
-            setPhoneSearch(null);
+            setMatches(null);
             setRecordId(passId);
           }}
         />
@@ -107,16 +112,10 @@ export default function GateConsole({ role = null }: { role?: UserRole | null })
         </div>
       )}
 
-      {phoneSearch && (
-        <PhoneSearchResults
-          query={phoneSearch.query}
-          rows={phoneSearch.rows}
-          onClear={clearSearch}
-          onOpen={(id) => {
-            setPhoneSearch(null);
-            setRecordId(id);
-          }}
-        />
+      {matches && (
+        <div className="mb-6">
+          <SearchMatches query={matches.query} rows={matches.rows} onClear={clearSearch} />
+        </div>
       )}
     </div>
   );
