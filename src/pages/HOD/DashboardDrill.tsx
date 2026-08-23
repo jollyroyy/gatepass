@@ -9,6 +9,11 @@
 // counted, rebuilt from the same query rather than carried across a navigation
 // in router state, which would break on a refresh or a shared link.
 //
+// A DESK LINE IS A KEY HERE TOO — the two sub-lines under each pass-type card
+// carry their own rows and their own page, so pressing one opens what IT
+// counted rather than the card's list of everything raised today. `drillFor`
+// resolves either kind of key.
+//
 // AN UNKNOWN KEY GOES HOME. `:key` is user-typed and untrusted; a card that no
 // longer exists must land the reader on the board, not on an empty page that
 // looks like a failed load. Overdue never reaches here — its card is a link to
@@ -17,7 +22,7 @@ import React, { useMemo, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import DrillList from '../../components/DrillList';
 import DrillPageShell from '../../components/DrillPageShell';
-import { drillDefOf } from '../../lib/boardDrills';
+import { drillDefOf, drillFor } from '../../lib/boardDrills';
 import { buildHodKpis } from '../../lib/hodBoard';
 import { useHodBoardData } from './useHodBoardData';
 
@@ -28,17 +33,16 @@ export default function DashboardDrill(): React.ReactElement {
   // opened this page a minute before midnight.
   const [stamp] = useState(() => Date.now());
   const cards = useMemo(() => buildHodKpis(rows, stamp), [rows, stamp]);
-  const card = cards.find((c) => c.key === key);
+  const drill = drillFor(cards, key);
 
-  if (!loading && (!card || !card.drill)) return <Navigate to="/dashboard" replace />;
-
-  const drill = card?.drill;
+  if (!loading && !drill) return <Navigate to="/dashboard" replace />;
 
   return (
     <DrillPageShell
       backTo="/dashboard"
       backLabel="Back to dashboard"
       title={drill?.heading ?? 'Passes'}
+      subtitle={drill?.scopeNote}
       count={loading ? undefined : drill?.rows.length ?? 0}
       error={error}
     >

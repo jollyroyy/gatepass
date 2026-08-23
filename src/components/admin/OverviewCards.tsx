@@ -13,9 +13,14 @@
 // this row from the same one read of `v_gate_passes`, over the same window, and
 // renders that card's own `drill.rows` — no aggregate, no second predicate.
 //
-// THE TWO DESK LINES under the pass-type cards are READINGS, not controls: an
-// anchor inside an anchor is not valid HTML, and the card's own page is what
-// opens. They sum to that type's waiting set by construction (`pendingNotes`).
+// AND SO IS EACH DESK LINE. The two sub-lines under the pass-type cards used to
+// be readings inside the card's own anchor, which meant pressing one opened the
+// CARD's list — every pass of that type raised in the window, finished ones
+// included. A reader who filtered to Today and pressed "Pending approval" was
+// shown completed and returned passes; the figure was right and the list was
+// somebody else's. So the card is a plain element holding SEVERAL anchors now
+// (an anchor inside an anchor is not valid HTML), and each desk opens the rows
+// it counted. They still sum to that type's waiting set (`pendingNotes`).
 //
 // NO CARD COMPARES ITSELF TO ANYTHING (client, 2026-08-19: "remove all those
 // comparisons"). The mock's red/green "18.6% vs last week" arrow is DELETED —
@@ -43,36 +48,37 @@ export default function OverviewCards({ cards, days, loading }: Props): React.Re
   return (
     <div className="gb-ov-grid" role="group" aria-label="Overview figures">
       {cards.map((c) => (
-        <Link
-          key={c.key}
-          // The window rides on the URL for the cards whose figure is windowed;
-          // `/overdue` counts a running obligation and would be lying if it
-          // claimed a range.
-          to={c.drill ? `${c.to}?days=${days}` : c.to}
-          className="gb-card gb-ov"
-        >
-          <span className="gb-ov-head">
+        <div key={c.key} className="gb-card gb-ov">
+          <Link
+            // The window rides on the URL for the cards whose figure is
+            // windowed; `/overdue` counts a running obligation and would be
+            // lying if it claimed a range.
+            to={c.drill ? `${c.to}?days=${days}` : c.to}
+            className="gb-ov-head gb-ov-main"
+          >
             <HodIcon glyph={c.glyph} tone={c.tone} shape="round" />
             <span className="min-w-0">
               <span className="gb-ov-label">{c.label}</span>
               <span className="gb-ov-figure">{loading ? '—' : c.value.toLocaleString('en-IN')}</span>
             </span>
-          </span>
+          </Link>
 
+          {/* NO `?days=`: a desk is a running queue, and a range on its URL
+              would be a scope it does not have. Its page says so in words. */}
           {c.notes && c.notes.length > 0 && (
-            <span className="gb-kpi-notes">
+            <div className="gb-kpi-notes">
               {c.notes.map((n, i) => (
                 <React.Fragment key={n.key}>
                   {i > 0 && <span className="gb-kpi-note-rule" aria-hidden="true" />}
-                  <span className="gb-kpi-note">
+                  <Link to={n.to} className="gb-kpi-note">
                     <span className="gb-kpi-note-value">{loading ? '—' : n.value}</span>
                     <span className="gb-kpi-note-label">{n.label}</span>
-                  </span>
+                  </Link>
                 </React.Fragment>
               ))}
-            </span>
+            </div>
           )}
-        </Link>
+        </div>
       ))}
     </div>
   );

@@ -50,6 +50,37 @@ export interface BoardDrill {
   heading: string;
   empty: string;
   rows: GatePassView[];
+  /** THE SCOPE IN WORDS, when it is not the board's own. A card's drill inherits
+   *  the window the board is filtered to and needs no sentence — the drill page
+   *  already prints the date span. A desk line does: it is RUNNING while the
+   *  figure above it is windowed, and a reader who filtered to Today and got
+   *  yesterday's unsigned pass back would otherwise read that as a broken
+   *  filter. Set, it replaces the span under the page title. */
+  scopeNote?: string;
+}
+
+/** A thing on a board that can be pressed: a card, or one of the desk lines
+ *  under it. Both carry a `BoardDrill`, and a drill page is handed a `:key`
+ *  that could be either. */
+export interface Drillable {
+  key: string;
+  drill?: BoardDrill;
+  notes?: readonly { key: string; drill: BoardDrill }[];
+}
+
+/** The drill a URL's `:key` names — searched over the cards AND their desk
+ *  lines, in one place, so both drill pages resolve a key the same way and a
+ *  new sub-figure becomes reachable by carrying a drill rather than by editing
+ *  a route table. `undefined` for a key no figure on the board owns, which the
+ *  pages turn into a redirect home. */
+export function drillFor(cards: readonly Drillable[], key: string | undefined): BoardDrill | undefined {
+  if (!key) return undefined;
+  for (const c of cards) {
+    if (c.key === key) return c.drill;
+    const note = c.notes?.find((n) => n.key === key);
+    if (note) return note.drill;
+  }
+  return undefined;
 }
 
 /** `DrillList` takes the HOD/guard `DrillDef` shape and reads only `heading` and

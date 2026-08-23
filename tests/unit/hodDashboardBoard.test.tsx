@@ -225,9 +225,10 @@ function renderDrill(key: string) {
   );
 }
 
-/** The card whose name is `label`. Every one of the four is a LINK — the WHOLE
- *  card is the control, and what it opens is a page. */
-function card(label: string): HTMLElement {
+/** THE CARD'S OWN LINK — its head, which carries the figure and the name. The
+ *  whole card used to be one anchor; that swallowed the desk sub-lines, so
+ *  pressing one opened the card's list rather than the queue it counted. */
+function cardLink(label: string): HTMLElement {
   const group = screen.getByRole('group', { name: 'Dashboard figures' });
   // Matched on the NAME element, not the card's whole text: "RGP Issued" is a
   // substring of "NRGP Issued", and a loose `includes` picks the wrong card.
@@ -236,6 +237,10 @@ function card(label: string): HTMLElement {
     .find((b) => b.querySelector('.gb-kpi-name')?.textContent === label);
   if (!found) throw new Error(`no "${label}" card`);
   return found;
+}
+/** The whole card, desk sub-lines included. */
+function card(label: string): HTMLElement {
+  return cardLink(label).closest('.gb-kpi') as HTMLElement;
 }
 
 /** The figure on the sub-line named `label`, under the hairline of the card
@@ -360,13 +365,17 @@ describe("the four figures, and the two scopes they mix", () => {
     renderBoard();
     await loaded();
 
-    expect(card('NRGP Issued')).toHaveAttribute('href', '/dashboard/nrgpIssued');
-    expect(card('RGP Issued')).toHaveAttribute('href', '/dashboard/rgpIssued');
-    expect(card('Pending Return')).toHaveAttribute('href', '/dashboard/pendingReturn');
+    expect(cardLink('NRGP Issued')).toHaveAttribute('href', '/dashboard/nrgpIssued');
+    expect(cardLink('RGP Issued')).toHaveAttribute('href', '/dashboard/rgpIssued');
+    expect(cardLink('Pending Return')).toHaveAttribute('href', '/dashboard/pendingReturn');
     // No pressed state left to leak: a link is not a toggle.
     for (const c of ['NRGP Issued', 'RGP Issued', 'Pending Return']) {
-      expect(card(c)).not.toHaveAttribute('aria-pressed');
+      expect(cardLink(c)).not.toHaveAttribute('aria-pressed');
     }
+    // A desk sub-line goes to ITS queue, not to the card above it — the card's
+    // list is what is raised TODAY, the desk's is everything still waiting.
+    expect(card('RGP Issued').querySelectorAll('.gb-kpi-note')[1])
+      .toHaveAttribute('href', '/dashboard/rgpPendingApproval');
     expect(screen.queryByTestId('pass-stack')).not.toBeInTheDocument();
   });
 
@@ -414,7 +423,7 @@ describe('the Overdue card', () => {
   it('is a link to /overdue, not to a pass stack', async () => {
     renderBoard();
     await loaded();
-    const overdue = card('Overdue');
+    const overdue = cardLink('Overdue');
     expect(overdue).toHaveAttribute('href', '/overdue');
     // o1 is this HOD's overdue RGP.
     expect(overdue.querySelector('.gb-kpi-figure')?.textContent).toBe('1');

@@ -3819,3 +3819,50 @@ the empty state reads "Nothing is due back today."
 status is offered), `guardDashboard` (the figure counts 1 of 3, not 2), `pendingReturnsDrill` (a
 late fixture added expressly to assert it does NOT render), `itemLevelReturns` (its fixture was
 overdue and would otherwise have rendered no row at all).
+
+## 2026-08-24 — A desk sub-line opens its own queue, not the card it sits under
+
+Client:
+
+*"In the admin dashboard I do see that if it is filtered by today's date, it is showing pending
+approval. When I am clicking on the pending approval drill down list, it is showing complete or
+return. Why is there a mismatch?"*
+
+**Index.** F1 `src/lib/pendingSplit.ts` · F2 `src/lib/boardDrills.ts` · F3 `src/lib/adminOverview.ts`
+· F4 `src/lib/hodBoard.ts` · F5 `src/components/admin/OverviewCards.tsx` ·
+F6 `src/components/hod/HodKpiCards.tsx` · F7 `src/components/superadmin/SuperSummaryCards.tsx` ·
+F8 `src/pages/Admin/DashboardDrill.tsx` · F9 `src/pages/HOD/DashboardDrill.tsx`
+
+### The cause
+
+Not a counting bug — the desk figures were right. The two sub-lines under each pass-type card
+("Pending gate approval", "Pending approval") were READINGS inside the card's own `<Link>`: the
+whole card was one anchor, so a press anywhere in it — a sub-figure included — opened the CARD's
+drill, which is every pass of that type raised in the window, matched and returned ones with it.
+The number said 1 and the page opened somebody else's list. The board invariant ("a KPI's number is
+`rows.length` of the array its click opens") had never been applied one level down, to a sub-figure.
+
+### The fix
+
+F1 `pendingNotes(rows, scope)` now returns a `to` and a `BoardDrill` per desk — the rows it counted,
+keyed `rgpPendingGate` / `rgpPendingApproval` / `nrgp…`, routed under the caller's own board
+(`/admin-dashboard` or `/dashboard`). F2 gains `BoardDrill.scopeNote` and `drillFor(cards, key)`,
+which resolves a card key or a desk key alike so both drill pages (F8, F9) read one function.
+
+**The two scopes are now stated, not implied.** The figure is windowed and the desks are running —
+that is deliberate and long-standing, and it is precisely what made the old behaviour read as a
+bug to a reader filtered to Today. A desk's page prints "Everything still waiting, whatever day it
+was raised — not limited to the window above" in place of the date span, and its URL carries no
+`?days=`: a running queue has no range.
+
+**Each card became a plain element holding several anchors** (F5, F6, F7) — an anchor inside an
+anchor is not valid HTML. The head keeps the card's own link and still fills the card's width, so
+the hit area is unchanged; each desk line is its own link, with hover and focus of its own.
+
+### Gate
+
+`npm run check` — clean: typecheck plus 2103 tests in 162 files. New `tests/unit/pendingDeskDrill.test.ts`
+pins the fix in the client's own shape (a Today window holding one unsigned pass and two returned
+ones, plus yesterday's unsigned pass which the desk MUST still list). Helpers in
+`adminDashboardOverview`, `hodDashboardBoard` and `superAdminDashboard` were split into
+`cardLink` (the head) and `card` (the whole card), which is the structural change stated as a test.

@@ -1720,11 +1720,22 @@
     width: 100%;
     text-align: center;
   }
+  /* A LINK since the desk lines started opening their own queue: as readings
+   * inside the card they showed the figure's list, which is windowed while they
+   * are running. Ink and underline back, and a hover that says it is pressable. */
   .gb-figure-note {
     font-size: 12px;
     font-weight: 500;
     line-height: 1.35;
     color: var(--gb-muted);
+    text-decoration: none;
+    border-radius: 6px;
+  }
+  a.gb-figure-note:hover { color: var(--gb-blue); }
+  a.gb-figure-note:hover .gb-figure-note-value { color: var(--gb-blue); }
+  a.gb-figure-note:focus-visible {
+    outline: 2px solid var(--gb-blue);
+    outline-offset: 2px;
   }
   .gb-figure-note-value {
     margin-right: 4px;
@@ -2979,9 +2990,23 @@
     line-height: 1.3;
     color: var(--gb-muted);
   }
-  /* A card that navigates is an `<a>`, and an anchor is not a button: it needs
-   * the column layout and the ink back. */
-  a.gb-kpi { text-decoration: none; color: inherit; }
+  /* THE CARD IS A PLAIN ELEMENT HOLDING SEVERAL ANCHORS. It used to be one
+   * anchor around the whole card, which made the desk sub-lines part of the
+   * card's own link — press "Pending approval" and the card's list opened,
+   * showing passes that are long finished. An anchor inside an anchor is not
+   * valid HTML, so the head became the card's link and each desk line became
+   * its own. The hit area is unchanged: the head still fills the card's width. */
+  a.gb-kpi-main,
+  a.gb-kpi-note { text-decoration: none; color: inherit; }
+  a.gb-kpi-main { width: 100%; }
+  a.gb-kpi-main:focus-visible,
+  a.gb-kpi-note:focus-visible {
+    outline: 2px solid var(--gb-blue);
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+  a.gb-kpi-note:hover .gb-kpi-note-label { color: var(--gb-blue); }
+  a.gb-kpi-note:hover .gb-kpi-note-value { color: var(--gb-blue); }
   .gb-dot {
     width: 7px;
     height: 7px;
@@ -3217,9 +3242,15 @@
 
   /* The WHOLE CARD is the drill control, not the number: a figure this size with
    * a hit area of two characters is a control nobody can press. */
-  /* A card that navigates is an `<a>`, and an anchor is not a button: it needs
-   * the ink back. */
-  a.gb-ov { text-decoration: none; color: inherit; }
+  /* THE CARD IS A PLAIN ELEMENT HOLDING SEVERAL ANCHORS — see `.gb-kpi-main`
+   * above; the same bug and the same fix. The head is the card's own link and
+   * fills its width, so nothing about the hit area changed. */
+  a.gb-ov-main { text-decoration: none; color: inherit; width: 100%; }
+  a.gb-ov-main:focus-visible {
+    outline: 2px solid var(--gb-blue);
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
   .gb-ov {
     display: flex;
     flex-direction: column;

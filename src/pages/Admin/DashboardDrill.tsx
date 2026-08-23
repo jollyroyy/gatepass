@@ -15,6 +15,13 @@
 // junk value falls back to the board's own default rather than showing a
 // different window under the same title.
 //
+// A DESK LINE IS A KEY HERE TOO. The two sub-lines under each pass-type card
+// ("Pending gate approval", "Pending approval") carry their own `BoardDrill`
+// and their own page, so pressing one opens the passes IT counted rather than
+// the card's whole windowed list — which is what made a Today filter open
+// completed and returned passes. `drillFor` resolves a card key or a desk key
+// alike, and a desk's page prints its own scope (running, not windowed).
+//
 // AN UNKNOWN KEY GOES BACK TO THE BOARD. `:key` is user-typed and untrusted;
 // Overdue Returns never reaches here — its card links to `/overdue`.
 import React, { useMemo, useState } from 'react';
@@ -24,7 +31,7 @@ import type { GatePassView } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
 import DrillList from '../../components/DrillList';
 import DrillPageShell from '../../components/DrillPageShell';
-import { drillDefOf } from '../../lib/boardDrills';
+import { drillDefOf, drillFor } from '../../lib/boardDrills';
 import {
   buildOverviewCards, OVERVIEW_WINDOWS, rangeLabel, windowBounds,
 } from '../../lib/adminOverview';
@@ -70,18 +77,16 @@ export default function DashboardDrill(): React.ReactElement {
 
   const cards = useMemo(() => buildOverviewCards(rows, days, stamp), [rows, days, stamp]);
   const span = useMemo(() => rangeLabel(windowBounds(days, stamp)), [days, stamp]);
-  const card = cards.find((c) => c.key === key);
+  const drill = drillFor(cards, key);
 
-  if (!loading && (!card || !card.drill)) return <Navigate to="/admin-dashboard" replace />;
-
-  const drill = card?.drill;
+  if (!loading && !drill) return <Navigate to="/admin-dashboard" replace />;
 
   return (
     <DrillPageShell
       backTo="/admin-dashboard"
       backLabel="Back to dashboard"
       title={drill?.heading ?? 'Passes'}
-      subtitle={span}
+      subtitle={drill?.scopeNote ?? span}
       count={loading ? undefined : drill?.rows.length ?? 0}
       error={error}
     >

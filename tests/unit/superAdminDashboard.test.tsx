@@ -135,7 +135,10 @@ async function renderBoard(): Promise<void> {
  *  `/overdue`. */
 function figureButton(label: string): HTMLElement {
   const wrap = screen.getByText(label, { selector: '.gb-figure-label' }).parentElement as HTMLElement;
-  return within(wrap).getByRole('link');
+  // `.gb-figure-value`, not "the link in here": the two desk sub-lines under a
+  // pass-type figure are links of their own now, each opening the queue it
+  // counted rather than this figure's windowed list.
+  return wrap.querySelector('.gb-figure-value') as HTMLElement;
 }
 function figure(label: string): string {
   return figureButton(label).textContent ?? '';
@@ -189,15 +192,19 @@ describe('The super admin dashboard is the guard\'s board with the admin\'s figu
     // AND EACH FIGURE IS ON THE RIGHT CARD. Asserting the values alone would
     // not catch a windowed figure being grouped under the running heading —
     // which is exactly the mistake the grouping exists to prevent.
-    const raised = within(screen.getByTestId('super-card-raised'));
     const attention = within(screen.getByTestId('super-card-attention'));
     // TWO FIGURES ON THE RAISED CARD (client, 2026-08-23): the Total figure
     // came off every dashboard, and the two type figures under it are what it
     // was the sum of.
-    expect(raised.getAllByRole('link').map((b) => b.textContent)).toEqual(['3', '1']);
+    // `.gb-figure-value` only: each figure's two desk sub-lines are links of
+    // their own since 2026-08-23 evening, so "the links on this card" is no
+    // longer the same question as "the figures on this card".
+    expect([...screen.getByTestId('super-card-raised').querySelectorAll('.gb-figure-value')]
+      .map((b) => b.textContent)).toEqual(['3', '1']);
     // ONE FIGURE ON THE ATTENTION CARD NOW (client, 2026-08-23): the two
     // pending-desk figures came off it entirely, leaving Overdue Returns alone.
-    expect(attention.getAllByRole('link').map((b) => b.textContent)).toEqual(['1']);
+    expect([...screen.getByTestId('super-card-attention').querySelectorAll('.gb-figure-value')]
+      .map((b) => b.textContent)).toEqual(['1']);
     expect(attention.getByText('Overdue Returns')).toBeInTheDocument();
     expect(attention.queryByText('Pending Gate Review')).toBeNull();
     expect(attention.queryByText('Pending Approval')).toBeNull();

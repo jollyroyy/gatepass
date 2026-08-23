@@ -71,15 +71,18 @@ export default function SuperSummaryCards({ groups, days, loading }: Props): Rea
                       {loading ? '—' : f.value.toLocaleString('en-IN')}
                     </Link>
                     {/* The two desks under a pass-type figure (client,
-                        2026-08-23) — readings, not controls: an anchor inside
-                        an anchor is not valid HTML. */}
+                        2026-08-23), each opening ITS OWN queue. They used to be
+                        readings; the figure above them is windowed and they are
+                        running, so a reader who pressed one and got the
+                        figure's list was shown finished passes. No `?days=` on
+                        these: a running queue has no range. */}
                     {f.notes && f.notes.length > 0 && (
                       <span className="gb-figure-notes">
                         {f.notes.map((n) => (
-                          <span key={n.key} className="gb-figure-note">
+                          <Link key={n.key} to={n.to} className="gb-figure-note">
                             <span className="gb-figure-note-value">{loading ? '—' : n.value}</span>
                             {n.label}
-                          </span>
+                          </Link>
                         ))}
                       </span>
                     )}

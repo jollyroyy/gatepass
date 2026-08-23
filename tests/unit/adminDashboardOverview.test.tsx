@@ -128,10 +128,21 @@ async function renderBoard(): Promise<void> {
   await waitFor(() => expect(figure('RGP')).not.toBe('—'));
 }
 
-/** A figure's card. Every card is a `<Link>` since 2026-08-23 — none of the
- *  three drills in place any more. */
-function card(label: string): HTMLElement {
+/** THE CARD'S OWN LINK — its head. The whole card used to be one anchor, which
+ *  swallowed the two desk sub-lines: pressing "Pending approval" opened the
+ *  CARD's windowed list of finished passes. Each desk is its own anchor now, so
+ *  the card is a plain element and this is the link the head carries. */
+function cardLink(label: string): HTMLElement {
   return screen.getByRole('link', { name: new RegExp(`^${label}`) });
+}
+/** The whole card, desks included. */
+function card(label: string): HTMLElement {
+  return cardLink(label).closest('.gb-ov') as HTMLElement;
+}
+/** The link one desk sub-line carries — its own running queue, no `?days=`. */
+function noteLink(cardLabel: string, noteLabel: string): HTMLElement {
+  const labelEl = within(card(cardLabel)).getByText(noteLabel, { selector: '.gb-kpi-note-label' });
+  return labelEl.closest('a') as HTMLElement;
 }
 function figure(label: string): string {
   return within(card(label)).getByText(/^[\d,—]+$/, { selector: '.gb-ov-figure' }).textContent ?? '';
@@ -247,15 +258,30 @@ describe('the admin dashboard is the Overview mock-up', () => {
 describe('every KPI card links to its own drill page instead of opening in place', () => {
   it('carries the window on its href for RGP and NRGP, and no board region opens on click', async () => {
     await renderBoard();
-    expect(card('RGP')).toHaveAttribute('href', '/admin-dashboard/rgp?days=7');
-    expect(card('NRGP')).toHaveAttribute('href', '/admin-dashboard/nrgp?days=7');
-    fireEvent.click(card('NRGP'));
+    expect(cardLink('RGP')).toHaveAttribute('href', '/admin-dashboard/rgp?days=7');
+    expect(cardLink('NRGP')).toHaveAttribute('href', '/admin-dashboard/nrgp?days=7');
+    fireEvent.click(cardLink('NRGP'));
     expect(screen.queryByRole('region', { name: 'Selected passes' })).toBeNull();
+  });
+
+  // THE BUG THIS PAIR EXISTS FOR (client, 2026-08-23): with the board filtered
+  // to Today, "Pending approval" showed a figure and opened a list of completed
+  // and returned passes. It opened the CARD's drill, because the desk line was
+  // a reading inside the card's anchor. Each desk is its own page now — and
+  // NOT a windowed one: a running queue carries no `?days=`.
+  it('sends each desk sub-line to its own running queue, not to the card the figure sits under', async () => {
+    await renderBoard();
+    expect(noteLink('RGP', 'Pending gate approval'))
+      .toHaveAttribute('href', '/admin-dashboard/rgpPendingGate');
+    expect(noteLink('RGP', 'Pending approval'))
+      .toHaveAttribute('href', '/admin-dashboard/rgpPendingApproval');
+    expect(noteLink('NRGP', 'Pending approval'))
+      .toHaveAttribute('href', '/admin-dashboard/nrgpPendingApproval');
   });
 
   it('sends Overdue Returns to /overdue, unwindowed', async () => {
     await renderBoard();
-    const overdue = card('Overdue Returns');
+    const overdue = cardLink('Overdue Returns');
     expect(overdue).toHaveAttribute('href', '/overdue');
     fireEvent.click(overdue);
     expect(screen.queryByRole('region', { name: 'Selected passes' })).toBeNull();
@@ -339,7 +365,7 @@ describe('the window control', () => {
     // The 20-day-old pass is inside a 30-day window and was outside a 7-day one.
     await waitFor(() => expect(figure('RGP')).toBe('4'));
     // The window rides into the card's own href too.
-    expect(card('RGP')).toHaveAttribute('href', '/admin-dashboard/rgp?days=30');
+    expect(cardLink('RGP')).toHaveAttribute('href', '/admin-dashboard/rgp?days=30');
   });
 
   it('names the span in words, so the chip is readable without opening it', async () => {

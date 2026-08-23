@@ -36,6 +36,7 @@
 // department, and `.eq('raised_by', …)` narrows again, server-side). Filtering
 // here would mean two places that decide who sees what.
 import type { GatePassView } from '../types';
+import type { BoardDrill } from './boardDrills';
 import { isWaitingAtGate } from './gateQueue';
 
 export interface PendingSplit {
@@ -54,12 +55,37 @@ export function pendingSplit(rows: GatePassView[]): PendingSplit {
   return { waiting, atGate, awaitingApproval };
 }
 
-/** One line under a KPI figure — a desk, and how many passes sit on it. */
+/** One line under a KPI figure — a desk, how many passes sit on it, AND the
+ *  page that press opens.
+ *
+ *  IT CARRIES ITS OWN ROWS. A desk line used to be a reading inside the card's
+ *  anchor, so pressing it opened the CARD's list — every pass of that type
+ *  raised in the window, matched and returned ones included. The figure was
+ *  right and the list was somebody else's; this app's board invariant says a
+ *  number opens the array it counted, and a sub-figure is a number. */
 export interface PendingNote {
   key: string;
   label: string;
   value: number;
+  /** `${base}/${key}` — the drill page for this desk alone. */
+  to: string;
+  /** The waiting passes behind the figure, and the words above them. */
+  drill: BoardDrill;
 }
+
+/** Which board is asking, and about which pass type. The type decides the key,
+ *  which is what the URL is built from, so the RGP card's two desks and the
+ *  NRGP card's two cannot collide on one route. */
+export interface PendingScope {
+  type: 'RGP' | 'NRGP';
+  /** `/admin-dashboard` or `/dashboard` — the board the desk belongs to. */
+  base: string;
+}
+
+/** The desks are RUNNING and the figure above them is windowed, on both boards.
+ *  A reader who filtered to Today and pressed a desk is owed that sentence on
+ *  the page, or the list looks like the filter failed. */
+const RUNNING = 'Everything still waiting, whatever day it was raised — not limited to the window above.';
 
 /**
  * THE TWO DESKS, AS THE SUB-LINES OF A PASS-TYPE CARD (client, 2026-08-23:
@@ -76,13 +102,36 @@ export interface PendingNote {
  * THE NOTES ARE RUNNING, THE FIGURE ABOVE THEM IS WINDOWED, and that is
  * deliberate on both boards: an obligation does not stop being open because the
  * window rolled past the day it started in. They are a reading of what is
- * waiting, not a breakdown of the figure.
+ * waiting, not a breakdown of the figure — and the page each one opens repeats
+ * that in words, because the two scopes standing side by side is precisely
+ * what made the old behaviour read as a bug.
  */
-export function pendingNotes(rows: GatePassView[]): PendingNote[] {
+export function pendingNotes(rows: GatePassView[], scope: PendingScope): PendingNote[] {
   const split = pendingSplit(rows);
+  const low = scope.type === 'RGP' ? 'rgp' : 'nrgp';
+  const note = (
+    suffix: string, label: string, own: GatePassView[], heading: string, empty: string,
+  ): PendingNote => {
+    const key = `${low}${suffix}`;
+    return {
+      key,
+      label,
+      value: own.length,
+      to: `${scope.base}/${key}`,
+      drill: { key, heading, empty, rows: own, scopeNote: RUNNING },
+    };
+  };
   return [
-    { key: 'pendingGate', label: 'Pending gate approval', value: split.atGate.length },
-    { key: 'pendingApproval', label: 'Pending approval', value: split.awaitingApproval.length },
+    note(
+      'PendingGate', 'Pending gate approval', split.atGate,
+      `${scope.type} pending gate approval`,
+      `No ${scope.type} is waiting at the gate.`,
+    ),
+    note(
+      'PendingApproval', 'Pending approval', split.awaitingApproval,
+      `${scope.type} pending approval`,
+      `No ${scope.type} is waiting on the approval ladder.`,
+    ),
   ];
 }
 

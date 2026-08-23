@@ -135,7 +135,7 @@ export function buildHodKpis(
       // THE TWO DESKS, NRGP's OWN (client, 2026-08-23). The card that used to
       // carry them for the whole board is gone; these count only NRGP, and only
       // what is still waiting — see `pendingNotes`.
-      notes: pendingNotes(nrgpAll),
+      notes: pendingNotes(nrgpAll, { type: 'NRGP', base: '/dashboard' }),
       to: '/dashboard/nrgpIssued',
       drill: {
         key: 'nrgpIssued',
@@ -151,7 +151,7 @@ export function buildHodKpis(
       tone: 'purple',
       value: rgpToday.length,
       // The same two desks, narrowed to RGP.
-      notes: pendingNotes(rgpAll),
+      notes: pendingNotes(rgpAll, { type: 'RGP', base: '/dashboard' }),
       to: '/dashboard/rgpIssued',
       drill: {
         key: 'rgpIssued',

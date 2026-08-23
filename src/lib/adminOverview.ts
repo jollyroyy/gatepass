@@ -108,9 +108,12 @@ export type OverviewKey =
  *  cards carry a pair each: the desks their own waiting passes are sitting on
  *  (`pendingNotes`).
  *
- *  THEY ARE READINGS, NOT CONTROLS. The whole card is already the link, and an
- *  anchor inside an anchor is not valid HTML, so a sub-figure states itself and
- *  the card's own page is what opens. */
+ *  EACH ONE IS A CONTROL OF ITS OWN, and its own page. It used to be a reading
+ *  inside the card's anchor — the card was the only link, so pressing a desk
+ *  opened the card's list: every pass of that type raised in the window,
+ *  matched and returned ones included. A figure that opens somebody else's rows
+ *  is the one thing this board is arranged to prevent, so the card is now a
+ *  plain element holding several anchors instead of one anchor holding text. */
 export type OverviewNote = PendingNote;
 
 export interface OverviewCard {
@@ -165,7 +168,7 @@ export function buildOverviewCards(
       tone: 'green',
       value: rgp.length,
       // THE TWO DESKS, RGP's OWN (client, 2026-08-23) — running, not windowed.
-      notes: pendingNotes(rgpAll),
+      notes: pendingNotes(rgpAll, { type: 'RGP', base: '/admin-dashboard' }),
       to: '/admin-dashboard/rgp',
       drill: {
         key: 'rgp',
@@ -181,7 +184,7 @@ export function buildOverviewCards(
       tone: 'purple',
       value: nrgp.length,
       // The same two desks, narrowed to NRGP.
-      notes: pendingNotes(nrgpAll),
+      notes: pendingNotes(nrgpAll, { type: 'NRGP', base: '/admin-dashboard' }),
       to: '/admin-dashboard/nrgp',
       drill: {
         key: 'nrgp',

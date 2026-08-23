@@ -36,33 +36,35 @@ export default function HodKpiCards({ cards, loading }: Props): React.ReactEleme
   return (
     <div className="gb-kpi-grid" role="group" aria-label="Dashboard figures">
       {cards.map((card) => (
-        <Link key={card.key} to={card.to} className="gb-card gb-kpi">
-          <span className="gb-kpi-head">
+        <div key={card.key} className="gb-card gb-kpi">
+          <Link to={card.to} className="gb-kpi-head gb-kpi-main">
             <HodIcon glyph={card.glyph} tone={card.tone} />
             <span className="min-w-0">
               <span className="gb-kpi-figure">{loading ? '—' : card.value}</span>
               <span className="gb-kpi-name">{card.label}</span>
             </span>
-          </span>
+          </Link>
 
-          {/* THE TWO DESKS UNDER EACH PASS TYPE (client, 2026-08-23). They are
-              READINGS, not controls — the whole card is already the control —
-              and they sum to that type's waiting set by construction
-              (`pendingNotes`), never by a predicate re-applied here. */}
+          {/* THE TWO DESKS UNDER EACH PASS TYPE (client, 2026-08-23), each a
+              CONTROL of its own since the figure and its list stopped agreeing:
+              as readings inside the card's anchor they opened the card's list,
+              which is everything raised today whatever became of it. They still
+              sum to that type's waiting set by construction (`pendingNotes`),
+              never by a predicate re-applied here. */}
           {card.notes && card.notes.length > 0 && (
-            <span className="gb-kpi-notes">
+            <div className="gb-kpi-notes">
               {card.notes.map((n, i) => (
                 <React.Fragment key={n.key}>
                   {i > 0 && <span className="gb-kpi-note-rule" aria-hidden="true" />}
-                  <span className="gb-kpi-note">
+                  <Link to={n.to} className="gb-kpi-note">
                     <span className="gb-kpi-note-value">{loading ? '—' : n.value}</span>
                     <span className="gb-kpi-note-label">{n.label}</span>
-                  </span>
+                  </Link>
                 </React.Fragment>
               ))}
-            </span>
+            </div>
           )}
-        </Link>
+        </div>
       ))}
     </div>
   );
