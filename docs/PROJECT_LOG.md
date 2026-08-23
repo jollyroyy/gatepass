@@ -6,6 +6,37 @@ For current rules and architecture, see CLAUDE.md.
 
 ## Current state (session-by-session history)
 
+## 2026-08-24 — the old super admin's approval history is destroyed (DATA CHANGE, no migration)
+
+**Client decision, this session: "those records which were approved by the previous super admin …
+I just remove and delete all those passes."** Raised twice that this is irreversible, contradicts
+`024` ("a raised gate pass is permanent") and can only be done as `postgres` because nobody holds
+`DELETE` on `gatepass.gate_passes`; the client reaffirmed "the whole passes". Done as stated.
+
+**The scope was ONE pass, not four.** The entry below counts 4 `pass_approvals` authorships, but all
+four sat on the SAME record: `emergency_release_pass` (055) stamps every open rung at once, so
+`NRGP-IT-0013` carried security_head / finance_head / coo / ceo all `emergency`, all
+`decided_by = afcb2871-4fad-4686-b880-7567a962eeb7`, all at `2026-08-20 07:22:30Z`, plus that
+account's single `emergency_releases` row. It was `status = matched` — the guard had already let the
+material out at 07:23 — 2 items, 1 verification, `not_applicable` return leg, IT / Barman Telecom.
+
+- `delete from gatepass.gate_passes where pass_number = 'NRGP-IT-0013'` — one statement, one row,
+  single transaction. The cascades did the rest: `gate_pass_items`, `verifications`, `pass_remarks`,
+  `pass_approvals`, `emergency_releases` are `on delete cascade`; `scan_attempts` and `email_log` are
+  `on delete set null` and their rows survive with a null pass. Verified after: 0 rows anywhere with
+  `decided_by` / `released_by` = that account.
+- **A full JSON dump of the pass and every child row was taken first**, to the session scratchpad
+  (`NRGP-IT-0013-backup.json`). That directory is temporary — if this record is ever wanted back,
+  copy it somewhere durable NOW, because nothing else holds it.
+- `pass_number` counters are per (type, direction, day) and never reused, so `NRGP-IT-0013` is now a
+  gap. Any report or CSV already issued that names it no longer resolves.
+- **`superadmin@quest.vms` can now be hard-deleted.** The blocker the entry below describes is gone —
+  the account owns no `pass_approvals` and no `emergency_releases` row, so `delete from auth.users`
+  no longer trips `pass_approvals_decision_shape`. NOT done: it was not asked for, and the account is
+  already `staff` + suspended with every session dropped, so it grants nothing.
+
+No schema change, no migration, no code change. Nothing in `src/` or `supabase/` was touched.
+
 ## 2026-08-24 — the COO and the CEO cover each other, and they are the super admin
 
 **`066_delegate_is_an_hod.sql` AND `067_super_admin_is_the_coo_and_the_ceo.sql` ARE APPLIED**
