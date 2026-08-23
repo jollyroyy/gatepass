@@ -83,6 +83,11 @@ export default function AddReturnBox({
       aria-label={`Add Return (${item.name})`}
     >
       <div className="gb-returnbox-title">Add Return ({item.name})</div>
+      {/* MAKE / MODEL / BRAND (client, 2026-08-23) — the box names one item and
+          the guard is holding the thing itself; the model number is what
+          confirms they opened the right line. Absent on every line raised
+          before migration 045, and then simply not drawn. */}
+      {item.make_model && <div className="gb-returnbox-note">{item.make_model}</div>}
       <div className="gb-returnbox-note">
         Expected: {formatQty(item.quantity)} {unit} · Already Returned:{' '}
         {formatQty(alreadyReturned)} {unit}

@@ -114,6 +114,14 @@ export default function PassRecordItems({
                 <th>#</th>
                 <th>Item</th>
                 <th>Description</th>
+                {/* MAKE / MODEL / BRAND IS A COLUMN, not a line of small print
+                    under the item's name (client, 2026-08-23: "put the make,
+                    model and brand name against each item across all the
+                    views … like in the expandable card"). The expandable
+                    stacked card had given it a column since 045 and this table
+                    had not, so the same pass read two ways depending on which
+                    screen opened it. */}
+                <th>Make / Model</th>
                 <th>Serial / ID</th>
                 <th>Quantity</th>
                 <th>Value</th>
@@ -139,13 +147,6 @@ export default function PassRecordItems({
                     <td className="tabular text-navy-500">{index + 1}</td>
                     <td className="font-semibold text-navy-900">
                       {item.name}
-                      {/* Make / Model / Size (045) — no column of its own here
-                          either; it rides under the item's identity the same
-                          way the print slip carries it, since it is a fact
-                          about the item, not the line's status. */}
-                      {item.make_model && (
-                        <span className="block text-caption font-normal text-navy-500">{item.make_model}</span>
-                      )}
                     </td>
                     <td className="text-navy-500">
                       {item.description || ''}
@@ -160,6 +161,11 @@ export default function PassRecordItems({
                         <span className="block text-caption text-navy-500">Note: {item.remarks}</span>
                       )}
                     </td>
+                    {/* Null on every line raised before migration 045. EMPTY,
+                        never an em dash: this table's own rule, the one Serial
+                        / ID follows and the one csvCells.ts states — a dash
+                        breaks a sort and a SUM in every export of it. */}
+                    <td className="text-navy-700">{item.make_model || ''}</td>
                     <td className="text-navy-700 tabular">{item.serial_no || ''}</td>
                     <td className="tabular">
                       {qtyWithUnit(item.quantity, item.unit)}
@@ -227,7 +233,7 @@ export default function PassRecordItems({
             {priced.length > 0 && (
               <tfoot>
                 <tr>
-                  <td colSpan={5} className="text-right font-semibold text-navy-700">Total Value</td>
+                  <td colSpan={6} className="text-right font-semibold text-navy-700">Total Value</td>
                   <td data-testid="items-total-value" className="tabular font-semibold text-navy-900">
                     {formatCurrency(totalValue)}
                   </td>

@@ -79,7 +79,10 @@ describe('Pending OUT — the panel a guard unfolds', () => {
     expect(within(table).getByRole('columnheader', { name: 'Value' })).toBeTruthy();
     const rows = within(table).getAllByRole('row');
     expect(within(rows[1]).getByText('₹40,000')).toBeTruthy();
-    expect(within(rows[2]).getByText('—')).toBeTruthy();
+    // Two dashes on this row since 2026-08-23: the absent Make / Model and the
+    // absent value. The one under the Value heading is what this pins.
+    expect(within(rows[2]).getAllByText('—').length).toBeGreaterThan(0);
+    expect(within(rows[2]).getAllByRole('cell').at(-1)?.textContent).toBe('—');
   });
 
   it('states the pass total beside the vendor and purpose facts', () => {
@@ -109,7 +112,11 @@ describe('Pending RGP Return — the panel a guard records a return in', () => {
     expect(screen.getByRole('columnheader', { name: 'Value' })).toBeTruthy();
     const rows = screen.getAllByRole('row');
     expect(within(rows[1]).getByText('₹40,000')).toBeTruthy();
-    expect(within(rows[2]).getByText('—')).toBeTruthy();
+    // Two dashes on this row since 2026-08-23: the absent Make / Model and the
+    // absent value. `valueCell` is read by heading position rather than by text.
+    const heads = screen.getAllByRole('columnheader').map((h) => h.textContent);
+    const valueAt = heads.indexOf('Value');
+    expect(within(rows[2]).getAllByRole('cell')[valueAt].textContent).toBe('—');
   });
 
   it('states the pass total in the block beside it', () => {

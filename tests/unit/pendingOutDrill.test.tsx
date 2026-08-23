@@ -324,13 +324,14 @@ describe('A row opens its own material lines', () => {
     expect(heads).toContain('Quantity');
 
     const line = screen.getByText('Adjustable Steel Prop 3.0m').closest('tr') as HTMLElement;
-    // The sixth cell is the line's VALUE, added to this panel by the pass that
+    // The seventh cell is the line's VALUE, added to this panel by the pass that
     // brought `guardValueColumns.test.tsx` with it; this expectation was left
     // naming five columns and had been failing on `main` since. An unpriced
     // line prints a dash — `approx_value` is optional, and "nothing declared"
-    // is not "₹0".
+    // is not "₹0". The fourth is MAKE / MODEL (client, 2026-08-23), dashed here
+    // on a line raised before migration 045.
     expect(within(line).getAllByRole('cell').map((c) => c.textContent)).toEqual([
-      '1', 'Steel Props', 'Adjustable Steel Prop 3.0m', '150', 'Numbers', '—',
+      '1', 'Steel Props', 'Adjustable Steel Prop 3.0m', '—', '150', 'Numbers', '—',
     ]);
   });
 });

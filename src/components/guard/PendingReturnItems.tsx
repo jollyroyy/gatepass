@@ -71,6 +71,10 @@ export default function PendingReturnItems({ items, draft, onAdd }: Props): Reac
           <th>#</th>
           <th>Item Name</th>
           <th>Description</th>
+          {/* MAKE / MODEL / BRAND, on every list of lines (client, 2026-08-23).
+              The guard checking material back in is matching a physical thing
+              against a row; the model number is how that match is made. */}
+          <th>Make / Model</th>
           {/* WHAT THE LINE IS WORTH (client, 2026-08-21) — the material coming
               back through the barrier, priced line by line. */}
           <th>Value</th>
@@ -90,6 +94,10 @@ export default function PendingReturnItems({ items, draft, onAdd }: Props): Reac
               <td>{item.name}</td>
               <td className="gb-truncate" title={item.description || undefined}>
                 {item.description || '—'}
+              </td>
+              {/* Null on every line raised before migration 045. */}
+              <td className="gb-truncate" title={item.make_model || undefined}>
+                {item.make_model || '—'}
               </td>
               {/* An unpriced line is a dash, never ₹0 — `approx_value` is
                 * optional, and "nothing declared" is not "declared zero". */}
@@ -139,7 +147,7 @@ export default function PendingReturnItems({ items, draft, onAdd }: Props): Reac
       {shared !== null && (
         <tfoot>
           <tr>
-            <td colSpan={4}>Total</td>
+            <td colSpan={5}>Total</td>
             <td>{formatQty(totalExpected)} {unitLabel(shared)}</td>
             <td>{formatQty(totalBack)} {unitLabel(shared)}</td>
             <td colSpan={2}>

@@ -172,6 +172,10 @@ export default function PendingOutRow({ pass, open, onToggle }: Props): React.Re
                           <th>#</th>
                           <th>Item Name</th>
                           <th>Description</th>
+                          {/* MAKE / MODEL / BRAND, on every list of lines
+                              (client, 2026-08-23). At the barrier this is the
+                              fact the guard reads off the equipment itself. */}
+                          <th>Make / Model</th>
                           <th>Quantity</th>
                           <th>Unit</th>
                           {/* WHAT THE LINE IS WORTH (client, 2026-08-21). The
@@ -188,6 +192,10 @@ export default function PendingOutRow({ pass, open, onToggle }: Props): React.Re
                             <td>{item.name}</td>
                             <td className="gb-truncate" title={item.description || undefined}>
                               {item.description || '—'}
+                            </td>
+                            {/* Null on every line raised before migration 045. */}
+                            <td className="gb-truncate" title={item.make_model || undefined}>
+                              {item.make_model || '—'}
                             </td>
                             <td>{item.quantity}</td>
                             <td className="gb-unit">{unitLabel(item.unit)}</td>

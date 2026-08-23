@@ -99,8 +99,10 @@ describe('an RGP line carries its own return entry', () => {
     const heads = screen.getAllByRole('columnheader').map((h) => h.textContent);
     // The client's latest mock-up (2026-08-19): ONE Quantity column naming the
     // line's own unit, a real Serial / ID column, and no Unit column at all.
+    // Make / Model joined them on 2026-08-23 — "put the make, model and brand
+    // name against each item across all the views".
     expect(heads).toEqual([
-      '#', 'Item', 'Description', 'Serial / ID', 'Quantity', 'Value',
+      '#', 'Item', 'Description', 'Make / Model', 'Serial / ID', 'Quantity', 'Value',
       'Return Status', 'Action',
     ]);
   });

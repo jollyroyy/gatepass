@@ -40,6 +40,10 @@ export default function ScheduledReturnsTable({
           <thead>
             <tr>
               <th>Item</th>
+              {/* MAKE / MODEL / BRAND, on every list of lines (client,
+                  2026-08-23) — the item name alone does not identify which
+                  drill is still out. */}
+              <th>Make / Model</th>
               <th>Gate Pass</th>
               <th>Carried By</th>
               <th>Department</th>
@@ -66,6 +70,8 @@ export default function ScheduledReturnsTable({
                       <span className="font-semibold text-navy-900">{item.name}</span>
                     </span>
                   </td>
+                  {/* Null on every line raised before migration 045. */}
+                  <td className="text-navy-700">{item.make_model || '—'}</td>
                   <td>
                     <Link to={`/pass/${pass.id}`} className="text-accent-600 hover:underline font-medium whitespace-nowrap">
                       {pass.pass_number}
