@@ -437,22 +437,6 @@ export interface NewGatePass {
   items: NewGatePassItem[];
 }
 
-// ─── Vendor profiles ──────────────────────────────────────────────────────
-export interface VendorProfile {
-  id: string;
-  company_name: string;
-  contact_person: string | null;
-  phone: string | null;
-  vehicle_number: string | null;
-  typical_material: string | null;
-  /** Migration 045 — what the mock's "Vendor Address (Auto-filled)" reads. */
-  address: string | null;
-  department_id: string;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-}
-
 // ─── Blacklist ────────────────────────────────────────────────────────────
 export type BlacklistType = 'company' | 'vehicle' | 'driver';
 

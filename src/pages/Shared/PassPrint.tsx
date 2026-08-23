@@ -175,7 +175,9 @@ export default function PassPrint(): React.ReactElement {
                     {quantityHeading('Qty', itemUnits)}
                   </th>
                   <th className="border border-black px-2 py-1 font-semibold text-black text-right w-16">Value (₹)</th>
-                  <th className="border border-black px-2 py-1 font-semibold text-black text-left">Return Date</th>
+                  {isRgp && (
+                    <th className="border border-black px-2 py-1 font-semibold text-black text-left">Return Date</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -208,11 +210,13 @@ export default function PassPrint(): React.ReactElement {
                       {quantityCell(item.quantity, item.unit, itemUnits)}
                     </td>
                     <td className="border border-black px-2 py-1 text-black text-right">{formatCurrency(item.approx_value)}</td>
-                    <td className="border border-black px-2 py-1 text-black text-[10px]">{item.expected_return_date ? formatDateOnly(item.expected_return_date) : '—'}</td>
+                    {isRgp && (
+                      <td className="border border-black px-2 py-1 text-black text-[10px]">{item.expected_return_date ? formatDateOnly(item.expected_return_date) : '—'}</td>
+                    )}
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={7} className="border border-black px-2 py-2 text-black text-gray-600 italic">
+                    <td colSpan={isRgp ? 7 : 6} className="border border-black px-2 py-2 text-black text-gray-600 italic">
                       {pass.material_summary ?? '—'}
                     </td>
                   </tr>

@@ -23,10 +23,6 @@ function thenable(result: { data: unknown; error: unknown }) {
   return obj;
 }
 
-const VENDORS = [
-  { id: 'v1', company_name: 'BSC Services', address: '12 Park St', vehicle_number: 'WB01AB1234' },
-];
-
 const TABLE_DATA: Record<string, { data: unknown; error: unknown }> = {
   hod_departments: { data: [{ department_id: 'd1' }], error: null },
   departments: { data: [{ id: 'd1', name: 'IT', code: 'IT' }], error: null },
@@ -42,7 +38,6 @@ function fakeFrom(table: string) {
 let raiseError: { message: string } | null = null;
 
 const rpc = vi.fn((name: string) => {
-  if (name === 'list_vendor_profiles') return thenable({ data: VENDORS, error: null });
   if (name === 'raise_pass') {
     if (raiseError) return thenable({ data: null, error: raiseError });
     return thenable({
@@ -85,8 +80,7 @@ function renderRaisePass() {
 }
 
 function typeVendor(name: string) {
-  fireEvent.change(screen.getByRole('combobox', { name: /Vendor Name/ }), { target: { value: '__new' } });
-  fireEvent.change(screen.getByLabelText('New vendor name'), { target: { value: name } });
+  fireEvent.change(screen.getByLabelText('Vendor Name'), { target: { value: name } });
 }
 
 function fillFirstItem(name: string, makeModel: string, qty: string) {
@@ -268,30 +262,15 @@ describe('RaisePass — an RGP can actually be submitted', () => {
 });
 
 describe('RaisePass — the mock-up\'s Vendor Details section', () => {
-  it('picking a stored vendor auto-fills the address', async () => {
+  it('the vendor name and address are plain text inputs, not tied to a saved-vendor picker', async () => {
     renderRaisePass();
     await waitFor(() => expect(screen.getAllByLabelText('Item Description')).toHaveLength(2));
 
-    fireEvent.change(screen.getByRole('combobox', { name: /Vendor Name/ }), { target: { value: 'v1' } });
-
-    expect(screen.getByLabelText('Vendor Address')).toHaveValue('12 Park St');
-    expect((screen.getByLabelText('Vendor Address') as HTMLInputElement).readOnly).toBe(true);
-  });
-
-  it('a hand-typed new vendor triggers save_vendor_profile with p_address', async () => {
-    renderRaisePass();
-    await waitFor(() => expect(screen.getAllByLabelText('Item Description')).toHaveLength(2));
-    fillAllRequired();
+    fireEvent.change(screen.getByLabelText('Vendor Name'), { target: { value: 'Acme Co' } });
     fireEvent.change(screen.getByLabelText('Vendor Address'), { target: { value: '9 New Road' } });
 
-    setItemDates([futureDate(5), futureDate(5)]);
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
-
-    await waitFor(() =>
-      expect(rpc).toHaveBeenCalledWith(
-        'save_vendor_profile',
-        expect.objectContaining({ p_company_name: 'Acme Co', p_address: '9 New Road' }),
-      ),
-    );
+    expect(screen.getByLabelText('Vendor Name')).toHaveValue('Acme Co');
+    expect(screen.getByLabelText('Vendor Address')).toHaveValue('9 New Road');
+    expect((screen.getByLabelText('Vendor Address') as HTMLInputElement).readOnly).toBe(false);
   });
 });

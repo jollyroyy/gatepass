@@ -17,24 +17,16 @@
 // for. THE PASS-LEVEL RETURN DATE IS GONE TOO: a date is taken against each ITEM
 // now, and the pass's deadline is the earliest of them.
 import React from 'react';
-import type { NewGatePass, PassType, VendorProfile } from '../../types';
+import type { NewGatePass, PassType } from '../../types';
 import PassTypeSelector from './PassTypeSelector';
 import { passNumberPreview, PURPOSE_MAX } from '../../lib/raisePassForm';
 import { DIAL_CODES, joinMobile, splitMobile } from '../../lib/mobileNumber';
 
-/** The sentinel the vendor select carries when the HOD is typing a vendor this
- *  department has never dealt with. Not a UUID, and not `''` — an empty value on
- *  a select is "nothing chosen yet", which is a different state. */
-export const NEW_VENDOR = '__new';
-
 interface PassDetailsCardsProps {
   form: NewGatePass;
   errors: Record<string, string | undefined>;
-  vendors: VendorProfile[];
-  vendorId: string;
   onTypeChange: (type: PassType) => void;
   onUpdate: <K extends keyof NewGatePass>(key: K, value: NewGatePass[K]) => void;
-  onVendorPick: (vendorId: string) => void;
 }
 
 function Legend({ children }: { children: React.ReactNode }): React.ReactElement {
@@ -48,17 +40,10 @@ function Req(): React.ReactElement {
 export default function PassDetailsCards({
   form,
   errors,
-  vendors,
-  vendorId,
   onTypeChange,
   onUpdate,
-  onVendorPick,
 }: PassDetailsCardsProps): React.ReactElement {
   const mobile = splitMobile(form.visitor_phone);
-  // An address that came off a stored vendor is READ-ONLY, exactly as the mock
-  // draws it ("Auto-filled"). It is editable only while a new vendor is being
-  // typed, because that is the one moment the app has nowhere else to get it.
-  const addressLocked = vendorId !== NEW_VENDOR && vendorId !== '';
 
   return (
     <>
@@ -107,41 +92,25 @@ export default function PassDetailsCards({
             <label className="label" htmlFor="rp-vendor">
               Vendor Name<Req />
             </label>
-            <select
+            <input
               id="rp-vendor"
               className="input"
-              value={vendorId}
-              onChange={(e) => onVendorPick(e.target.value)}
-            >
-              <option value="">Select or enter vendor name</option>
-              {vendors.map((v) => (
-                <option key={v.id} value={v.id}>{v.company_name}</option>
-              ))}
-              <option value={NEW_VENDOR}>+ Enter a new vendor</option>
-            </select>
-            {vendorId === NEW_VENDOR && (
-              <input
-                className="input mt-2"
-                aria-label="New vendor name"
-                placeholder="Enter vendor name"
-                value={form.visitor_company}
-                onChange={(e) => onUpdate('visitor_company', e.target.value)}
-              />
-            )}
+              aria-label="Vendor Name"
+              placeholder="Enter vendor name"
+              value={form.visitor_company}
+              onChange={(e) => onUpdate('visitor_company', e.target.value)}
+            />
             {errors.visitor_company && <p className="field-error">{errors.visitor_company}</p>}
           </div>
 
           <div>
-            <label className="label" htmlFor="rp-address">
-              Vendor Address <span className="rp-hint">(Auto-filled)</span>
-            </label>
+            <label className="label" htmlFor="rp-address">Vendor Address</label>
             <input
               id="rp-address"
               className="input"
               aria-label="Vendor Address"
-              placeholder={addressLocked ? 'Will be auto-filled based on selected vendor' : 'Street, area, city, pincode'}
+              placeholder="Street, area, city, pincode"
               value={form.company_address}
-              readOnly={addressLocked}
               onChange={(e) => onUpdate('company_address', e.target.value)}
             />
           </div>

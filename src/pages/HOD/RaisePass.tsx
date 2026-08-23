@@ -10,7 +10,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { gp, pub, supabase } from '../../supabaseClient';
-import type { DeptOption, GatePassView, NewGatePass, NewGatePassItem, PassType, VendorProfile } from '../../types';
+import type { DeptOption, GatePassView, NewGatePass, NewGatePassItem, PassType } from '../../types';
 import { EMPTY_ITEM } from '../../types';
 import { requiresReturnDate } from '../../lib/passTypes';
 import { validateRaiseForm, packVendor, todayStr, earliestReturnDate, type FormErrors } from '../../lib/raisePassForm';
@@ -18,7 +18,7 @@ import { safeErrorMessage } from '../../lib/errors';
 import { notifyApproval } from '../../lib/notifyApproval';
 import { useReraisePass, voidSupersededPass } from './useReraisePass';
 import PassSubmittedModal from './PassSubmittedModal';
-import PassDetailsCards, { NEW_VENDOR } from './PassDetailsCards';
+import PassDetailsCards from './PassDetailsCards';
 import MaterialItemsCard from './MaterialItemsCard';
 
 /** The mock draws TWO blank lines before anything is typed — a gate pass for a
@@ -53,8 +53,6 @@ export default function RaisePass(): React.ReactElement {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submittedPass, setSubmittedPass] = useState<GatePassView | null>(null);
-  const [vendors, setVendors] = useState<VendorProfile[]>([]);
-  const [vendorId, setVendorId] = useState('');
   const [supersedeWarning, setSupersedeWarning] = useState<string | null>(null);
   const chosenDept = depts.find((d) => d.id === form.department_id) ?? depts[0];
   const deptName = chosenDept ? `${chosenDept.name} (${chosenDept.code})` : '';
@@ -62,13 +60,10 @@ export default function RaisePass(): React.ReactElement {
 
   // Merged, never assigned wholesale: the department effect below may already
   // have chosen a department by the time the pre-fill arrives, and replacing the
-  // whole form would drop it. A re-raise names its vendor by hand, so the select
-  // moves to the free-text branch rather than silently showing "Select…" over a
-  // filled-in name.
+  // whole form would drop it.
   useEffect(() => {
     if (!prefill) return;
     setForm((f) => ({ ...f, ...prefill }));
-    if (prefill.visitor_company) setVendorId(NEW_VENDOR);
   }, [prefill]);
 
   useEffect(() => {
@@ -106,14 +101,6 @@ export default function RaisePass(): React.ReactElement {
     };
   }, []);
 
-  // Load vendor profiles when department changes
-  useEffect(() => {
-    if (!form.department_id) { setVendors([]); return; }
-    gp().rpc('list_vendor_profiles', { p_department_id: form.department_id }).then(({ data }) => {
-      setVendors((data as VendorProfile[]) ?? []);
-    });
-  }, [form.department_id]);
-
   function handleTypeChange(type: PassType) {
     setForm((f) => ({
       ...f,
@@ -139,23 +126,6 @@ export default function RaisePass(): React.ReactElement {
   function update<K extends keyof NewGatePass>(key: K, value: NewGatePass[K]) {
     setForm((f) => ({ ...f, [key]: value }));
     setErrors((e) => ({ ...e, [key]: undefined }));
-  }
-
-  /** The mock's "Vendor Address (Auto-filled)" — the whole point of migration
-   *  045's `vendor_profiles.address`. Picking a stored vendor fills the name,
-   *  the address and the vehicle it usually comes in; choosing "a new vendor"
-   *  clears all three so the HOD is typing into empty fields, not over
-   *  somebody else's. */
-  function pickVendor(id: string) {
-    setVendorId(id);
-    const v = vendors.find((x) => x.id === id);
-    setForm((f) => ({
-      ...f,
-      visitor_company: v ? v.company_name : '',
-      company_address: v ? (v.address ?? '') : '',
-      vehicle_number: v?.vehicle_number ?? f.vehicle_number,
-    }));
-    setErrors((e) => ({ ...e, visitor_company: undefined }));
   }
 
   function updateItem(idx: number, field: keyof NewGatePassItem, value: string) {
@@ -283,19 +253,6 @@ export default function RaisePass(): React.ReactElement {
             : null,
         );
       }
-      // A vendor typed by hand is REMEMBERED, so the next pass to the same
-      // supplier auto-fills its address instead of asking for it again — which
-      // is the only way the mock's "(Auto-filled)" can ever come true. Fire and
-      // forget: the pass is raised, and a failed profile write must not read as
-      // a failed submit.
-      if (vendorId === NEW_VENDOR && form.visitor_company.trim()) {
-        gp().rpc('save_vendor_profile', {
-          p_company_name: form.visitor_company.trim(),
-          p_department_id: departmentId,
-          p_vehicle_number: form.vehicle_number.trim() || null,
-          p_address: form.company_address.trim() || null,
-        });
-      }
     } catch (err) {
       setSubmitError(safeErrorMessage(err));
     } finally {
@@ -329,11 +286,8 @@ export default function RaisePass(): React.ReactElement {
         <PassDetailsCards
           form={form}
           errors={errors}
-          vendors={vendors}
-          vendorId={vendorId}
           onTypeChange={handleTypeChange}
           onUpdate={update}
-          onVendorPick={pickVendor}
         />
 
         <MaterialItemsCard
