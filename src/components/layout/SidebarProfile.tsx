@@ -3,6 +3,8 @@ import { Link, useLocation } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
 import { fetchMyProfile } from '../../lib/profiles';
 import type { UserRole } from '../../types';
+import type { ApprovalRoleKey } from '../../lib/approvalLadder';
+import { APPROVAL_ROLE_TITLES } from '../../lib/approvalLadder';
 
 /** Direct lookup — never derive a role label from string matching. */
 export const ROLE_LABELS: Record<UserRole, string> = {
@@ -17,6 +19,12 @@ const SIGNOUT_ICON = 'M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 
 
 type Props = {
   role: UserRole | null;
+  /** The approval office this account holds (046), or null. An office holder's
+   *  VMS role is `staff` — true, but not the word they should read under their
+   *  own name — so the office title REPLACES it here, exactly as it does on the
+   *  profile page (ProfileDetails) and for the same reason:
+   *  `officeReplacesRole` means the office is all their access is. */
+  office?: ApprovalRoleKey | null;
   isCollapsed: boolean;
   profileName: string;
   initials: string;
@@ -26,10 +34,11 @@ type Props = {
 // remove all live on that page (src/pages/Shared/Profile.tsx). Re-read the
 // avatar on navigation so returning from /profile shows the new photo without
 // a reload.
-export default function SidebarProfile({ role, isCollapsed, profileName, initials }: Props): React.ReactElement {
+export default function SidebarProfile({ role, office = null, isCollapsed, profileName, initials }: Props): React.ReactElement {
   const loc = useLocation();
   const onProfile = loc.pathname.startsWith('/profile');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const roleLabel = office ? APPROVAL_ROLE_TITLES[office] : role ? ROLE_LABELS[role] : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -81,7 +90,7 @@ export default function SidebarProfile({ role, isCollapsed, profileName, initial
             {avatar}
             <div className="min-w-0 flex-1 text-left">
               <p className="text-sm font-bold text-white truncate leading-tight">{profileName || '—'}</p>
-              {role && <p className="text-[11px] font-semibold text-brand-400 leading-tight mt-0.5">{ROLE_LABELS[role]}</p>}
+              {roleLabel && <p className="text-[11px] font-semibold text-brand-400 leading-tight mt-0.5">{roleLabel}</p>}
             </div>
           </Link>
           {signOutButton}

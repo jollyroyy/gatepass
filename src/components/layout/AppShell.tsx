@@ -45,7 +45,7 @@ export default function AppShell({ session, role, isApprover = false, office = n
     <NotificationProvider session={session} role={noticeRole} office={office}>
       <SessionTimeout />
       <div className="min-h-screen bg-surface-50">
-        <Sidebar session={session} role={role} isApprover={isApprover} collapsed={collapsed} onCollapsedChange={setCollapsed} />
+        <Sidebar session={session} role={role} isApprover={isApprover} office={office} collapsed={collapsed} onCollapsedChange={setCollapsed} />
 
         <div className={`flex flex-col min-h-screen transition-[padding] duration-300 ease-in-out ${collapsed ? 'lg:pl-[84px]' : 'lg:pl-[264px]'}`}>
           {/* THE MOCK-UP'S SKIN IS THE WHOLE APP'S SKIN, ON EVERY TAB, FOR
