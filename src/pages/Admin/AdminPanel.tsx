@@ -12,9 +12,12 @@
 // The Users tab carries the gate pass approval ladder (043) for the same
 // reason: it is four people picked out of the very directory listed under it.
 //
-// Settings (052) is where anything an operator configures goes. It holds the
-// approval-email card today: which inbox the ladder's letters are redirected
-// to, the sender, and the SMTP server fields that are stored provision only.
+// Settings (052) is where anything an operator configures goes: the approval
+// email card — which inbox the ladder's letters are redirected to, the sender,
+// and the SMTP fields that are stored provision only — and, since 067, the
+// read-only statement of who holds the super admin fallback. That last one
+// names the CEO and the COO and points back at the ladder on the Users tab; it
+// designates nothing itself, because the seat IS the answer.
 import React, { useState } from 'react';
 import DepartmentsTab from './DepartmentsTab';
 import UsersTab from './UsersTab';
@@ -25,6 +28,7 @@ import ApprovalLadderCard from './ApprovalLadderCard';
 import EmergencyReleasesCard from './EmergencyReleasesCard';
 import MailSettingsCard from './MailSettingsCard';
 import AppSettingsCard from './AppSettingsCard';
+import SuperAdminsCard from './SuperAdminsCard';
 
 type Tab = 'departments' | 'users' | 'roles' | 'blacklist' | 'whitelist' | 'settings';
 
@@ -56,6 +60,9 @@ export default function AdminPanel(): React.ReactElement {
     blacklist: <BlacklistTab />,
     settings: (
       <div className="space-y-6">
+        {/* Who the super admin IS (067) — the CEO and the COO, read-only,
+            because the seat is the answer and Users is where it is filled. */}
+        <SuperAdminsCard />
         <AppSettingsCard />
         <MailSettingsCard />
       </div>

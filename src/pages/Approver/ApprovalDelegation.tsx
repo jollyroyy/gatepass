@@ -193,6 +193,7 @@ export default function ApprovalDelegation({
           {canDelegate ? (
             <div ref={formRef}>
               <DelegationForm
+                office={office}
                 draft={draft}
                 errors={errors}
                 candidates={candidates}

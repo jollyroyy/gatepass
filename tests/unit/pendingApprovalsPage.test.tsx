@@ -156,14 +156,18 @@ vi.mock('../../src/supabaseClient', () => ({
 
 import PendingApprovals from '../../src/pages/Approver/PendingApprovals';
 
-async function renderPage(office: 'coo' | null = 'coo') {
+async function renderPage(office: 'coo' | 'security_head' | null = 'coo') {
   const view = render(
     <MemoryRouter>
       <PendingApprovals office={office} />
     </MemoryRouter>,
   );
-  if (office) {
+  if (office === 'coo') {
     await waitFor(() => expect(screen.getByText('RGP-00057')).toBeInTheDocument());
+  } else if (office) {
+    // The fixture's ladder is the COO's, so another office simply has an empty
+    // board — wait for the figures instead of for a row that is not theirs.
+    await waitFor(() => expect(screen.getByTestId('approval-kpis')).toBeInTheDocument());
   }
   return view;
 }
@@ -388,7 +392,14 @@ describe('What this office holder has already decided', () => {
     const figures = [...container.querySelectorAll('.gpo-total-figure')].map((n) => n.textContent);
     // Awaiting 2 (p1, p2) · Approved 1 (p4) · Rejected 1 (p5). p6 was approved
     // by somebody else and belongs on nobody's card here.
-    expect(figures).toEqual(['2', '1', '1']);
+    //
+    // A FOURTH FIGURE, because this fixture signs as the COO (067): "Nobody Has
+    // Approved" carries the super admin fallback's own list. p3 is on it — it
+    // is held up by an EARLIER office and has been sitting there well past the
+    // escalation window, which is exactly the pass the fallback exists for. It
+    // is deliberately not on the first card: that rung is not the COO's to
+    // sign, and the only thing offered on it is a written release.
+    expect(figures).toEqual(['2', '1', '1', '1']);
     expect(screen.getByText('Approved by You')).toBeInTheDocument();
     expect(screen.getByText('Rejected by You')).toBeInTheDocument();
   });
@@ -435,9 +446,25 @@ describe('What this office holder has already decided', () => {
         { target: { value: 'RGP-00040' } });
       await waitFor(() => {
         const figures = [...container.querySelectorAll('.gpo-total-figure')].map((n) => n.textContent);
-        expect(figures).toEqual(['0', '1', '0']);
+        expect(figures).toEqual(['0', '1', '0', '0']);
       });
       fireEvent.click(screen.getByText('Approved by You'));
       await waitFor(() => expect(screen.getAllByTestId('pass-stack-card')).toHaveLength(1));
     });
+});
+
+// THE FOURTH FIGURE IS NOT EVERY OFFICE'S (client, 2026-08-24; migration 067).
+describe('The super admin fallback card', () => {
+  it('is drawn for the COO, who carries the fallback', async () => {
+    await renderPage('coo');
+    expect(screen.getByText('Nobody Has Approved')).toBeInTheDocument();
+  });
+
+  it('is not drawn at all for an office that does not carry it', async () => {
+    // Not a permanent nought — no card. A Security Head shown a figure that
+    // could never be anything but zero would read it as a queue that is empty
+    // today rather than one that is not theirs.
+    await renderPage('security_head');
+    expect(screen.queryByText('Nobody Has Approved')).not.toBeInTheDocument();
+  });
 });

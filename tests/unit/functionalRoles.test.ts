@@ -56,12 +56,23 @@ describe('the list is honest about how a role is granted', () => {
   // Migration 021: an admin account needs the server-side key from the command
   // line. A screen offering to create one would be offering something it cannot
   // do.
-  it('an admin and a super admin say they cannot be granted from the portal', () => {
-    for (const key of ['admin', 'super_admin'] as const) {
-      const role = FUNCTIONAL_ROLES.find((r) => r.key === key)!;
-      expect(role.grantedBy).toBe('not_from_portal');
-      expect(GRANT_NOTE[role.grantedBy]).toMatch(/cannot be granted/i);
-    }
+  it('an admin says it cannot be granted from the portal', () => {
+    const admin = FUNCTIONAL_ROLES.find((r) => r.key === 'admin')!;
+    expect(admin.grantedBy).toBe('not_from_portal');
+    expect(GRANT_NOTE[admin.grantedBy]).toMatch(/cannot be granted/i);
+  });
+
+  it('a super admin points at the approval ladder, because that is where it now lives', () => {
+    // Client, 2026-08-24: the standing super admin ACCOUNT was deleted and the
+    // fallback given to the COO and the CEO alongside their office (067). So
+    // "created from the command line" became untrue — the way to make somebody
+    // a super admin is to seat them, and this screen has to say the true thing.
+    const sa = FUNCTIONAL_ROLES.find((r) => r.key === 'super_admin')!;
+    expect(sa.grantedBy).toBe('approval_ladder');
+    expect(sa.purpose).toMatch(/COO and the CEO/i);
+    // And it must not claim to open an admin screen — is_super_admin() is
+    // deliberately not is_admin().
+    expect(sa.purpose).toMatch(/opens no admin screen/i);
   });
 
   it('`staff` is described as opening nothing on its own', () => {

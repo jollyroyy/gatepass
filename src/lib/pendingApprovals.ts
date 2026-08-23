@@ -28,6 +28,7 @@ import {
   withEscalation,
 } from './approvalDecision';
 import { partyOf } from './guardBoard';
+import { holdsFallbackOffice, isPassStuck } from './superAdminFallback';
 
 /** One row of `gatepass.pass_approvals` — a single office's decision on a
  *  single pass, snapshotted when the pass was raised. Mirrors the migration
@@ -69,6 +70,41 @@ export function inMyQueue(
     withEscalation(byPass.get(p.id) ?? [], p.created_at, escalationHours),
     office,
   ));
+}
+
+/**
+ * Passes NOBODY HAS APPROVED IN TIME, for the two offices that carry the super
+ * admin fallback (migration 067).
+ *
+ * It is deliberately not a second reading of `inMyQueue`: these are passes held
+ * up on a rung BELOW this office, which 061 hides until every lower rung is
+ * signed and which the select policy now admits once they are stuck. So the
+ * office holder sees the pass they are being asked to unstick, and nothing
+ * else — a pass that IS theirs to sign sits in the first card, where signing it
+ * properly is the offer, and never in this one.
+ *
+ * Empty for every office but the COO and the CEO, and empty for them too until
+ * a pass has waited longer than the escalation window.
+ */
+export function stuckBelowMe(
+  passes: GatePassView[],
+  approvals: PassApproval[],
+  office: ApprovalRoleKey | null,
+  escalationHours: number = DEFAULT_ESCALATION_HOURS,
+  now: number = Date.now(),
+): GatePassView[] {
+  if (!holdsFallbackOffice(office)) return [];
+  const byPass = new Map<string, PassApproval[]>();
+  for (const a of approvals) {
+    const list = byPass.get(a.gate_pass_id);
+    if (list) list.push(a);
+    else byPass.set(a.gate_pass_id, [a]);
+  }
+  return passes.filter((p) => {
+    const rows = withEscalation(byPass.get(p.id) ?? [], p.created_at, escalationHours);
+    if (canDecideApproval(p.status, rows, office)) return false;
+    return isPassStuck(p.status, rows, p.created_at, escalationHours, now);
+  });
 }
 
 /** Oldest request first — the thing that has waited longest is the thing to

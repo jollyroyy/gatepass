@@ -22,12 +22,17 @@
 import React from 'react';
 import {
   candidateLabel,
+  delegateEligibilityNote,
   type DelegateCandidate,
   type DelegationDraft,
   type DelegationErrors,
 } from '../../lib/approvalDelegation';
+import type { ApprovalRoleKey } from '../../lib/approvalLadder';
 
 type Props = {
+  /** The office being handed over. It decides who may receive it — see
+   *  `delegateEligibilityNote`. */
+  office: ApprovalRoleKey | null;
   draft: DelegationDraft;
   errors: DelegationErrors;
   candidates: DelegateCandidate[];
@@ -42,6 +47,7 @@ type Props = {
 };
 
 export default function DelegationForm({
+  office,
   draft,
   errors,
   candidates,
@@ -86,15 +92,13 @@ export default function DelegationForm({
             ))}
           </select>
           {/* WHY SOMEBODY MAY BE MISSING FROM THIS LIST, said where they would
-              have looked for them. The list is narrowed server-side (066) to
-              active DEPARTMENT HEADS holding no other approval seat — never
-              staff and never the gate — and a name silently absent reads as a
+              have looked for them. The list is narrowed server-side — to the
+              office that shares this one's rung for the COO and the CEO (067),
+              and to active DEPARTMENT HEADS holding no other approval seat for
+              everybody else (066) — and a name silently absent reads as a
               broken query. The database refuses the rest on the write too, so
               this sentence describes a rule and not a convenience. */}
-          <p className="gbd-hint">
-            Department heads only. Anyone active who does not already hold an approval office,
-            deputy seat or delegation.
-          </p>
+          <p className="gbd-hint">{delegateEligibilityNote(office)}</p>
           {errors.delegateId && <p className="gb-field-error">{errors.delegateId}</p>}
         </div>
 

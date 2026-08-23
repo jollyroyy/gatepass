@@ -13,6 +13,7 @@ import { describe, it, expect } from 'vitest';
 import {
   canRevoke,
   candidateLabel,
+  delegateEligibilityNote,
   currentDelegation,
   delegateLabel,
   delegationArgs,
@@ -226,5 +227,24 @@ describe('the two name labels', () => {
   it('names an account VMS gave no name for, rather than rendering nothing', () => {
     expect(delegateLabel(row({ delegate_name: null, department_name: null })))
       .toBe('Unnamed account');
+  });
+});
+
+describe('delegateEligibilityNote — who this office may hand its rung to', () => {
+  it('names the counterpart for the two offices that share the last level (067)', () => {
+    // Client, 2026-08-24: "in the COO's delegation he can only delegate it to
+    // CEO … and CEO can also give the delegation only to COO". A name missing
+    // from a dropdown with no sentence beside it reads as a broken query.
+    expect(delegateEligibilityNote('coo')).toContain('CEO');
+    expect(delegateEligibilityNote('coo')).not.toContain('Department heads');
+    expect(delegateEligibilityNote('ceo')).toContain('COO');
+    expect(delegateEligibilityNote('ceo')).not.toContain('Department heads');
+  });
+
+  it("keeps 066's department-head sentence for every other office", () => {
+    for (const office of ['security_head', 'finance_head'] as const) {
+      expect(delegateEligibilityNote(office)).toContain('Department heads only');
+    }
+    expect(delegateEligibilityNote(null)).toContain('Department heads only');
   });
 });

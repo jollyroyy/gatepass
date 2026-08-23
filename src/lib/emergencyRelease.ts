@@ -11,6 +11,9 @@
 // and being told no. The database is still the authority — this is the same
 // belt-and-braces `checkReturnQty` and `approvalDecision.ts` already use.
 import type { PassApprovalStatus } from './passApprovalState';
+import type { ApprovalRoleKey } from './approvalLadder';
+import type { ApprovalStepRow } from './approvalDecision';
+import { holdsFallbackOffice, isPassStuck } from './superAdminFallback';
 import { gp } from '../supabaseClient';
 import { notifyApproval } from './notifyApproval';
 
@@ -47,23 +50,57 @@ export function isReasonWritten(reason: string): boolean {
   return reason.trim().length >= EMERGENCY_REASON_MIN;
 }
 
+/** What the SECOND pool needs in order to be judged (067). Passed as one object
+ *  rather than four more positional arguments, and OPTIONAL — a caller with no
+ *  office to speak of is asking 055's original question and gets 055's original
+ *  answer. */
+export interface FallbackContext {
+  /** The approval office this reader holds, or null. Not a role — see
+   *  `approverAccess.ts`. */
+  office: ApprovalRoleKey | null;
+  /** This pass's own ladder rows, with their levels. Wider than `owedLevels`
+   *  because "how long has it sat on its current rung" cannot be answered from
+   *  statuses alone. */
+  approvals: ApprovalStepRow[];
+  passCreatedAt: string;
+  escalationHours?: number;
+  now?: number;
+}
+
 /**
  * May this reader release this pass past its ladder?
  *
- * Both halves are 055's own: a super admin, and a pass that is still `pending`
- * and still owes at least one signature. A pass owing nothing has nothing to
- * release, and a cancelled one was REJECTED by an office — overturning a
- * written decision is a different and much larger power than unsticking a
- * silent queue, and this system does not have it.
+ * TWO CONDITIONS EVERY CALLER FACES, both 055's own: the pass is still
+ * `pending` and still owes at least one signature. A pass owing nothing has
+ * nothing to release, and a cancelled one was REJECTED by an office —
+ * overturning a written decision is a different and much larger power than
+ * unsticking a silent queue, and this system does not have it.
+ *
+ * THEN TWO POOLS (067). The VMS role `super_admin` may release any such pass,
+ * as it always could. The sitting COO or CEO may release one that is STUCK —
+ * has waited on its current rung longer than the escalation window — and only
+ * then: an office holder is one rung of the very ladder they are about to skip,
+ * and the wait is what makes skipping it their business rather than an override
+ * of colleagues who are simply still reading it. `emergency_release_pass`
+ * refuses exactly the same two ways.
  */
 export function canReleaseUnderEmergency(
   passStatus: string,
   owedLevels: { status: PassApprovalStatus }[],
   role: string | null,
+  fallback?: FallbackContext,
 ): boolean {
-  if (role !== 'super_admin') return false;
   if (passStatus !== 'pending') return false;
-  return owedLevels.some((a) => a.status === 'pending');
+  if (!owedLevels.some((a) => a.status === 'pending')) return false;
+  if (role === 'super_admin') return true;
+  if (!fallback || !holdsFallbackOffice(fallback.office)) return false;
+  return isPassStuck(
+    passStatus,
+    fallback.approvals,
+    fallback.passCreatedAt,
+    fallback.escalationHours,
+    fallback.now,
+  );
 }
 
 /** May this reader review this release? An admin who is not the person who

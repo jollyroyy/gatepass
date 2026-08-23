@@ -75,6 +75,22 @@ nothing for a suspended person — both load-bearing, because `gate_passes_selec
 policy). Deactivation keeps the role and department assignment and deletes every
 `auth.sessions` row.
 
+**Super admin is a FALLBACK, held by the COO and the CEO** (migration `067`). There is no standing
+super admin account — the one that existed was stripped and suspended on 2026-08-24.
+`is_super_admin()` = the VMS role **or** the sitting COO/CEO holder (not a deputy, not a delegate),
+and it is deliberately **not** `is_admin()`: it grants `emergency_release_pass` and nothing else, so
+those two keep approver routes only. An office holder may release only a **stuck** pass —
+`pass_is_stuck()`, meaning pending, still owing a signature, and on its current rung longer than
+`app_settings.coo_escalation_hours` (063's window, reused so "waited too long" is defined once). The
+one softening of `061`: `gate_passes_select` / `gate_pass_items_select` carry
+`holds_fallback_office() and pass_is_stuck(id)` so the power has a reachable subject.
+`pass_routed_to_me` is NOT where that arm goes — its name states 061's rule.
+
+**The COO and the CEO delegate only to each other** (`067`), because 063 put them on ONE level that
+takes ONE signature. Every other office delegates only to an active HOD holding no seat (`066`).
+`approval_office_pair()` is the rule; the one-seat refusal is skipped for that pair alone, and only
+because covering a shared rung cannot put two signatures on one pass.
+
 **An approval office replaces a role's routes, not adds to them** (`officeReplacesRole` in
 `roleRoutes.ts`): an office holder gets `APPROVER_ROUTES` only — "Pending for My Approval" and
 "Delegation" — never their VMS role's screens. Admin/super_admin are exempt (an admin who lost

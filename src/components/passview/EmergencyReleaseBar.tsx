@@ -1,9 +1,11 @@
 // THE BREAK-GLASS CONTROL, at the foot of the gate pass record (migration 055).
 //
 // WHO SEES IT. A super admin, on a pending pass that still owes at least one
-// signature — `canReleaseUnderEmergency` restates the RPC's own two conditions
-// so this is never drawn where `emergency_release_pass` would refuse the press.
-// Everybody else, including an ordinary admin, gets nothing at all here.
+// signature — and since 067 the sitting COO or CEO as well, on a pass that has
+// STUCK: waited on its current rung longer than the escalation window.
+// `canReleaseUnderEmergency` restates the RPC's own conditions so this is never
+// drawn where `emergency_release_pass` would refuse the press. Everybody else,
+// including an ordinary admin, gets nothing at all here.
 //
 // WHY IT IS NOT DRAWN AS A NORMAL ACTION. It sits under its own rule, in the
 // danger hue, with the ladder's remaining offices named above it, because the
@@ -21,25 +23,39 @@ import type { GatePassView } from '../../types';
 import { APPROVAL_ROLE_TITLES, type ApprovalRoleKey } from '../../lib/approvalLadder';
 import type { PassApprovalRow } from '../../lib/passApprovalState';
 import { canReleaseUnderEmergency, releasePassUnderEmergency } from '../../lib/emergencyRelease';
+import { useEscalationHours } from '../../lib/useEscalationHours';
 import { safeErrorMessage } from '../../lib/errors';
 import EmergencyReleaseModal from './EmergencyReleaseModal';
 
 type Props = {
   pass: GatePassView;
   approvals: PassApprovalRow[];
-  /** The reader's VMS role. Only `super_admin` gets this control. */
+  /** The reader's VMS role. `super_admin` gets this control unconditionally. */
   role: string | null;
+  /** The approval office the reader holds, or null. The COO and the CEO carry
+   *  the same power over a stuck pass (067) without holding the role. */
+  office?: ApprovalRoleKey | null;
   /** Re-read the record — the ladder, the banner and the stage all change. */
   onReleased: () => void;
 };
 
 export default function EmergencyReleaseBar({
-  pass, approvals, role, onReleased,
+  pass, approvals, role, office = null, onReleased,
 }: Props): React.ReactElement | null {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The admin's own window (063), which is also what "stuck" means (067). The
+  // hook falls back to the shipped default, so a failed settings read still
+  // judges this the way the RPC will.
+  const escalationHours = useEscalationHours();
 
-  if (!canReleaseUnderEmergency(pass.status, approvals, role)) return null;
+  const mayRelease = canReleaseUnderEmergency(pass.status, approvals, role, {
+    office,
+    approvals,
+    passCreatedAt: pass.created_at,
+    escalationHours,
+  });
+  if (!mayRelease) return null;
 
   const owed = approvals.filter((a) => a.status === 'pending');
   const names = owed

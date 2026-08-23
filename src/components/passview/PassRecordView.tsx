@@ -214,13 +214,16 @@ export default function PassRecordView({
           together — 046 hides a pass that still owes a signature from the
           gate entirely, so the two conditions are mutually exclusive in the
           database, not merely in this component. */}
-      {/* BREAK GLASS — a super admin only, and only while the ladder is still
-          owed something (055). It sits BELOW the office's own Approve/Reject so
-          that signing properly is always the first thing offered. */}
+      {/* BREAK GLASS — a super admin, and since 067 the sitting COO or CEO over
+          a pass nobody has approved inside the escalation window; only ever
+          while the ladder is still owed something (055). It sits BELOW the
+          office's own Approve/Reject so that signing properly is always the
+          first thing offered. */}
       <EmergencyReleaseBar
         pass={pass}
         approvals={approvals}
         role={role}
+        office={office}
         onReleased={() => {
           setReleaseNonce((n) => n + 1);
           onRecorded?.();

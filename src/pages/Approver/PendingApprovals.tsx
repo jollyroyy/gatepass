@@ -47,6 +47,16 @@
 // THE QUEUE IS RE-READ AFTER EVERY DECISION, never patched: only the database
 // knows whether that press was the pass's last level.
 //
+// A FOURTH FIGURE, FOR TWO OFFICES ONLY (client, 2026-08-24; migration 067).
+// The COO and the CEO carry the super admin fallback — "in the case where
+// nobody is able to approve, in those scenarios the Superadmin can take charge
+// and get it approved" — so "Nobody Has Approved" lists the passes held up on a
+// rung BELOW them for longer than the escalation window. It offers no Approve
+// or Reject: those rungs are not theirs to sign, and never become so. Opening
+// such a pass shows the break-glass panel at the foot of the record, which
+// takes a written reason and is reviewed by an admin afterwards. Every other
+// office is not shown the card at all, rather than shown a permanent nought.
+//
 // `office` comes from `App.tsx`, which resolved `my_approval_role()` once at
 // sign-in and holds it beside `role`. `null` means this account holds no office
 // at all: the empty state below is drawn and no query is made.
@@ -61,6 +71,7 @@ import GuardPager from '../../components/guard/GuardPager';
 import { Link } from 'react-router-dom';
 import PassStack from '../../components/PassStack';
 import ApprovalCardActions from '../../components/approver/ApprovalCardActions';
+import ApprovalFilterBar from '../../components/approver/ApprovalFilterBar';
 import ApprovalKpiCards, { type ApprovalCardKey } from '../../components/approver/ApprovalKpiCards';
 import { APPROVAL_ROLE_TITLES, type ApprovalRoleKey } from '../../lib/approvalLadder';
 import {
@@ -69,6 +80,7 @@ import {
   departmentOptions,
   inMyQueue,
   sortOldestFirst,
+  stuckBelowMe,
   type PendingApprovalFilters,
 } from '../../lib/pendingApprovals';
 import { decidedByMe } from '../../lib/approvalHistory';
@@ -76,17 +88,11 @@ import { pageOf } from '../../lib/scheduledReturns';
 import type { GatePassView } from '../../types';
 import { usePendingApprovals } from '../../lib/usePendingApprovals';
 import { useEscalationHours } from '../../lib/useEscalationHours';
+import { holdsFallbackOffice } from '../../lib/superAdminFallback';
 
 /** Ten cards is about a screen and a half. A card is tall where a table row is
  *  not, so the page size is the guard's stack size, not the table's five. */
 const PAGE_SIZE = 10;
-
-const SearchGlyph = (
-  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-    <circle cx="11" cy="11" r="7" />
-    <path strokeLinecap="round" d="M20 20l-3.5-3.5" />
-  </svg>
-);
 
 export default function PendingApprovals({ office }: { office: ApprovalRoleKey | null }): React.ReactElement {
   const { passes, approvals, userId, loading, error, reload } = usePendingApprovals(office);
@@ -114,12 +120,22 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
     () => decidedByMe(passes, approvals, userId, 'rejected'),
     [passes, approvals, userId]
   );
+  // THE SUPER ADMIN FALLBACK'S OWN LIST (067) — passes held up on a rung BELOW
+  // this office for longer than the escalation window. Empty for every office
+  // but the COO and the CEO, whose select policy is the only one that admits
+  // such a pass at all.
+  const stuck = useMemo(
+    () => (holdsFallbackOffice(office)
+      ? sortOldestFirst(stuckBelowMe(passes, approvals, office, escalationHours))
+      : []),
+    [passes, approvals, office, escalationHours]
+  );
 
   // ONE OPTION LIST OVER ALL THREE: whichever card is open, a department
   // offered here has rows behind it somewhere on this board.
   const departments = useMemo(
-    () => departmentOptions([...queue, ...approved, ...rejected]),
-    [queue, approved, rejected]
+    () => departmentOptions([...queue, ...approved, ...rejected, ...stuck]),
+    [queue, approved, rejected, stuck]
   );
 
   // Each figure is its OWN filtered array, so all three narrow together and
@@ -128,12 +144,17 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
     pending: applyApprovalFilters(queue, filters),
     approved: applyApprovalFilters(approved, filters),
     rejected: applyApprovalFilters(rejected, filters),
-  }), [queue, approved, rejected, filters]);
+    stuck: applyApprovalFilters(stuck, filters),
+  }), [queue, approved, rejected, stuck, filters]);
 
-  const counts: Record<ApprovalCardKey, number> = {
+  // The fourth key is OMITTED, not zeroed, for an office that does not carry
+  // the fallback — a Security Head must not be shown a figure that could never
+  // be anything but nought.
+  const counts: Partial<Record<ApprovalCardKey, number>> = {
     pending: lists.pending.length,
     approved: lists.approved.length,
     rejected: lists.rejected.length,
+    ...(holdsFallbackOffice(office) ? { stuck: lists.stuck.length } : {}),
   };
   const rows = card ? lists[card] : [];
   const view = pageOf(rows, page, size);
@@ -205,46 +226,13 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
             </div>
           )}
 
-          <div className="gb-filters">
-            <div className="gb-search">
-              {SearchGlyph}
-              <input
-                type="text"
-                aria-label="Search by Pass ID / Vendor / Purpose"
-                placeholder="Search by Pass ID / Vendor / Purpose..."
-                value={filters.search}
-                onChange={(e) => narrow({ ...filters, search: e.target.value })}
-              />
-            </div>
-            <select
-              className="gb-select"
-              aria-label="Pass Type"
-              value={filters.type}
-              onChange={(e) => narrow({ ...filters, type: e.target.value as PendingApprovalFilters['type'] })}
-            >
-              <option value="">Type: All</option>
-              <option value="RGP">RGP</option>
-              <option value="NRGP">NRGP</option>
-            </select>
-            <select
-              className="gb-select"
-              aria-label="Department"
-              value={filters.department}
-              onChange={(e) => narrow({ ...filters, department: e.target.value })}
-            >
-              <option value="">Department: All</option>
-              {departments.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </div>
+          <ApprovalFilterBar filters={filters} departments={departments} onChange={narrow} />
 
-          {counts.pending + counts.approved + counts.rejected === 0 ? (
+          {lists.pending.length + lists.approved.length + lists.rejected.length
+            + lists.stuck.length === 0 ? (
             <div className="gb-card gb-panel">
               <div className="gb-empty">
-                {queue.length + approved.length + rejected.length === 0
+                {queue.length + approved.length + rejected.length + stuck.length === 0
                   ? 'Nothing is waiting on your signature.'
                   : 'No request matches these filters.'}
               </div>

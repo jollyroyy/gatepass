@@ -6,6 +6,68 @@ For current rules and architecture, see CLAUDE.md.
 
 ## Current state (session-by-session history)
 
+## 2026-08-24 — the COO and the CEO cover each other, and they are the super admin
+
+**`066_delegate_is_an_hod.sql` AND `067_super_admin_is_the_coo_and_the_ceo.sql` ARE APPLIED**
+(psql as `postgres`, one single-transaction paste each; 066 turned out never to have been applied
+by the session that wrote it, so it went in first). `postgres` bypasses every policy, so the RLS
+half of 067 is **NOT proved** — the two select policies were read back out of `pg_policy` and carry
+the new arm, and that is all this run establishes. A `scripts/verify-067.mjs` with real anon-key
+JWTs is what would prove a COO can see a stuck pass and cannot see anything else.
+
+**A shared rung is covered by the office that shares it** (client, 2026-08-24: "in the COO's
+delegation he can only delegate it to CEO … and CEO can also give the delegation only to COO").
+066 narrowed every office's delegation to a department head; the COO and the CEO now narrow further
+to each other alone, in `list_delegation_candidates` and again in `create_approval_delegation`.
+This is the one place the one-seat rule bends and it is safe only because 063 put both offices on
+ONE level that takes ONE signature and closes the other's row as `not_required` — so a CEO covering
+the COO still cannot sign two rungs of the same pass. The exemption is written as "the counterpart
+office on my own rung" (`approval_office_pair`), not as "the CEO".
+
+**The standing super admin account is gone, and the fallback is the two top offices.** Client:
+"the super admin role will be given to COO and CEO … remove the normal super admin person account …
+Basically the Superadmin role is a kind of fallback role. In the case where nobody is able to
+approve, in those scenarios the Superadmin can take charge and get it approved. It's basically a
+role but it doesn't remove their CEO or COO role also."
+
+- `is_super_admin()` = the VMS role `super_admin` **or** the sitting COO/CEO (`holds_fallback_office()`,
+  holder only — not a deputy and not a delegate). It is deliberately **not** `is_admin()`: it opens
+  no admin tab, and `officeReplacesRole` is untouched, so those two still get "Pending for My
+  Approval" and "Delegation" and nothing else.
+- `emergency_release_pass` admits that wider pool, and adds ONE condition for an office holder:
+  the pass must be **stuck** — pending, still owing a signature, and on its current rung longer than
+  `app_settings.coo_escalation_hours` (`pass_is_stuck`, over `pass_rung_reached_at`). 063's window
+  is reused deliberately so "waited too long" has one definition. A VMS `super_admin` keeps 055's
+  unrestricted door.
+- **061 had to give a little, and only a little.** An approver is blind to a pass until every rung
+  below theirs is approved — which is exactly the pass this fallback is for. So one arm went onto
+  `gate_passes_select` and `gate_pass_items_select`: `holds_fallback_office() and pass_is_stuck(id)`.
+  `pass_routed_to_me` is untouched (its name states 061's rule and this is not that rule), and
+  `can_see_pass` is SECURITY INVOKER so `pass_approvals` / `pass_remarks` / `emergency_releases`
+  widened with it rather than needing a third copy.
+- The queue grew a fourth KPI, **"Nobody Has Approved"**, for those two offices only — the key is
+  OMITTED from `counts` for anybody else rather than shown as a permanent nought. It offers no
+  Approve/Reject; opening a row shows the break-glass panel on the record.
+- Admin → Settings gained a read-only **Super administrators** card printing "CEO / Super Admin" and
+  "COO / Super Admin" with who sits there today, and shouting when neither seat is filled.
+
+**⚠ `superadmin@quest.vms` COULD NOT BE HARD-DELETED, and was stripped and suspended instead.**
+The account had signed 4 rungs (`pass_approvals.decided_by`) and made 1 emergency release
+(`emergency_releases.released_by`). Deleting `auth.users` cascades `decided_by` to NULL, which
+`pass_approvals_decision_shape` refuses on an approved row — the delete aborts, and forcing it means
+deleting real approval history to remove one login. So, as `postgres`: `profiles.role` and
+`raw_app_meta_data.role` set to `staff`, a `gatepass.user_status` row written inactive, and every
+session dropped. **Nobody holds `super_admin` anywhere now**, which is the point — the door is the
+COO's and the CEO's. If the history is ever considered expendable, the hard delete needs the
+`emergency_releases` row and those 4 authorships destroyed first, and that is a decision for the
+client, not for a migration.
+
+Gate: `npm run check` — tsc clean, 2081 passed. The 24 failures in `gateConsoleSearch`,
+`gateLookupPhone`, `guardDashboard`, `guardValueColumns`, `itemLevelReturns` and `pendingOutDrill`
+are a **separate, uncommitted guard-search rework** that was already in the working tree when this
+session started (verified: those files pass at HEAD). None of them touch anything above, and none
+of that work is in this commit.
+
 ## 2026-08-23 — the gate flags to the requester; make / model everywhere; an office reads as its office
 
 **`065_requester_answers_a_flag_in_writing.sql` IS APPLIED** (psql as `postgres`, single

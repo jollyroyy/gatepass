@@ -1662,12 +1662,18 @@ describe('055 — an emergency release is written down, and reviewed by somebody
     expect(/alter\s+table\s+public\./i.test(bare)).toBe(false);
   });
 
-  it('admits ONLY a super admin, the way 039 does — never is_admin()', () => {
+  it('admits ONLY a super admin — never is_admin()', () => {
     // An ordinary admin already creates users and resets passwords. Gating this
     // on is_admin() would hand the entire approval ladder to the same group
     // that administers it.
+    //
+    // SINCE 067 THE POOL IS `is_super_admin()`, which is the VMS role OR the
+    // sitting COO/CEO — the client deleted the standing super admin account and
+    // gave the fallback to those two offices. It is still deliberately NOT
+    // is_admin(), and an office holder additionally has to wait out the
+    // escalation window (`pass_is_stuck`); see 067's own test file.
     const body = fnBody('gatepass.emergency_release_pass');
-    expect(body).toMatch(/gatepass\.app_role\(\) <> 'super_admin'/i);
+    expect(body).toMatch(/if not gatepass\.is_super_admin\(\) then/i);
     expect(body).not.toMatch(/if not gatepass\.is_admin\(\) then/i);
   });
 
@@ -2334,7 +2340,10 @@ describe('062 — approval delegation', () => {
   it('scopes the delegation list to the caller and the candidate list to an office holder', () => {
     expect(fnBody('gatepass.list_my_delegations')).toMatch(/where d\.delegator_id = auth\.uid\(\)/i);
     const cands = fnBody('gatepass.list_delegation_candidates');
-    expect(cands).toMatch(/from gatepass\.approval_roles r where r\.user_id = auth\.uid\(\)/i);
+    // Whitespace-tolerant: 067 rewrote this lookup across three lines when the
+    // COO/CEO arm went in front of it, and the RULE — the caller's own office
+    // decides what the list contains — did not move.
+    expect(cands).toMatch(/from\s+gatepass\.approval_roles\s+r\s+where\s+r\.user_id\s*=\s*auth\.uid\(\)/i);
     expect(cands).toMatch(/You do not hold a gate pass approval office/i);
     // It hands back no email and no role — this is not the admin directory.
     // (066 FILTERS on `p.role`; the assertion is about what is SELECTED, so it

@@ -232,6 +232,24 @@ export function delegationArgs(draft: DelegationDraft): {
   };
 }
 
+/** WHO THIS OFFICE MAY DELEGATE TO, in one sentence, under the Delegate To
+ *  control — the RPC's own rule stated where somebody would look for the name
+ *  they cannot find. A silently short list reads as a broken query.
+ *
+ *  TWO RULES, because there are two (migrations 066 and 067). The COO and the
+ *  CEO share the last rung of the ladder, so each may hand it only to the
+ *  other; every other office may hand it only to an active department head who
+ *  holds no approval seat — never staff, and never the gate. */
+export function delegateEligibilityNote(office: ApprovalRoleKey | null): string {
+  if (office === 'coo') {
+    return 'The COO office can only be delegated to the CEO, who signs the same level. Nobody else may cover it.';
+  }
+  if (office === 'ceo') {
+    return 'The CEO office can only be delegated to the COO, who signs the same level. Nobody else may cover it.';
+  }
+  return 'Department heads only. Anyone active who does not already hold an approval office, deputy seat or delegation.';
+}
+
 /** "Priya Mehta (Housekeeping)" — the person, with where they work in brackets
  *  so two people of the same name can be told apart. The mock's own bracket
  *  carried an employee number; this directory has no such column, and the

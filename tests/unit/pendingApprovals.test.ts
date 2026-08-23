@@ -6,6 +6,7 @@ import type { GatePassView } from '../../src/types';
 import {
   inMyQueue,
   sortOldestFirst,
+  stuckBelowMe,
   matchesSearch,
   applyApprovalFilters,
   departmentOptions,
@@ -157,5 +158,53 @@ describe('departmentOptions', () => {
       pass({ department_name: null as unknown as string }),
     ];
     expect(departmentOptions(rows)).toEqual(['Engineering', 'Housekeeping']);
+  });
+});
+
+describe("stuckBelowMe — the super admin fallback's own list (067)", () => {
+  const RAISED = '2026-08-19T04:50:00Z';
+  const HOUR = 3600_000;
+  const LATE = Date.parse(RAISED) + 60 * HOUR;
+
+  /** A pass sitting on level 1, which 061 hides from level 3 entirely. */
+  const held = () => ({
+    p: pass({ id: 'p1', created_at: RAISED }),
+    rows: [
+      approval({ gate_pass_id: 'p1', role_key: 'security_head', level_no: 1 }),
+      approval({ gate_pass_id: 'p1', role_key: 'coo', level_no: 3 }),
+      approval({ gate_pass_id: 'p1', role_key: 'ceo', level_no: 3 }),
+    ],
+  });
+
+  it('gives the COO and the CEO a pass nobody has approved in time', () => {
+    const { p, rows } = held();
+    expect(stuckBelowMe([p], rows, 'coo', 48, LATE)).toEqual([p]);
+    expect(stuckBelowMe([p], rows, 'ceo', 48, LATE)).toEqual([p]);
+  });
+
+  it('is empty for every office that does not carry the fallback', () => {
+    const { p, rows } = held();
+    expect(stuckBelowMe([p], rows, 'security_head', 48, LATE)).toEqual([]);
+    expect(stuckBelowMe([p], rows, 'finance_head', 48, LATE)).toEqual([]);
+    expect(stuckBelowMe([p], rows, null, 48, LATE)).toEqual([]);
+  });
+
+  it('is empty until the window has actually elapsed', () => {
+    const { p, rows } = held();
+    expect(stuckBelowMe([p], rows, 'coo', 48, Date.parse(RAISED) + 47 * HOUR)).toEqual([]);
+  });
+
+  it("never lists a pass that is the office's OWN to sign", () => {
+    // It belongs in the first card, where signing it properly is the offer.
+    // Releasing your own rung past yourself is not a fallback, it is a bypass.
+    const p = pass({ id: 'p2', created_at: RAISED });
+    const rows = [
+      approval({
+        gate_pass_id: 'p2', role_key: 'security_head', level_no: 1,
+        status: 'approved', decided_by: 'u9', decided_at: RAISED,
+      }),
+      approval({ gate_pass_id: 'p2', role_key: 'coo', level_no: 3 }),
+    ];
+    expect(stuckBelowMe([p], rows, 'coo', 48, LATE)).toEqual([]);
   });
 });

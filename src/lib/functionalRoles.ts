@@ -119,6 +119,7 @@ export const FUNCTIONAL_ROLES: FunctionalRole[] = [
     can: [
       'See and decide a pass only after Finance has approved it',
       'Sign the last level first — it escalates to the CEO only if this office has not decided it in time',
+      'Carry the super admin fallback, and delegate this office to the CEO alone (067)',
     ],
     grantedBy: 'approval_ladder',
   },
@@ -131,6 +132,7 @@ export const FUNCTIONAL_ROLES: FunctionalRole[] = [
       'See a pass on the last level, and decide it once the COO has not approved it in the escalation window',
       'Reject it at any time it is on that level, escalation or not',
       'Decide whitelist requests for blacklisted vendors (migration 053)',
+      'Carry the super admin fallback, and delegate this office to the COO alone (067)',
     ],
     grantedBy: 'approval_ladder',
   },
@@ -148,15 +150,21 @@ export const FUNCTIONAL_ROLES: FunctionalRole[] = [
     grantedBy: 'not_from_portal',
   },
   {
+    // SINCE 067 THIS IS NOT A PERSON, IT IS THE TOP TWO SEATS. The client
+    // removed the standing super admin account and gave the fallback to the COO
+    // and the CEO, alongside their office rather than instead of it: "in the
+    // case where nobody is able to approve, in those scenarios the Superadmin
+    // can take charge and get it approved." The VMS role still exists and still
+    // works — this app does not own that column — but nobody holds it.
     key: 'super_admin',
     title: 'Super Administrator',
     kind: 'VMS role',
-    purpose: 'Everything an administrator can do, plus the one door nobody else has: releasing a stuck pass past its approval ladder in writing.',
+    purpose: 'A fallback, held by the COO and the CEO alongside their own office: the one door that gets a stuck gate pass past an approval ladder nobody is answering. It opens no admin screen.',
     can: [
-      'Emergency-release a pass past every unsigned office, with a written reason (migration 055)',
-      'Designate the CEO who decides blacklist whitelist requests',
+      'Release a pass past every unsigned office once it has waited longer than the escalation window, with a written reason an admin reviews afterwards (migrations 055, 067)',
+      'See a pass that is stuck on a level below their own, which the ladder otherwise hides from them (061, 067)',
     ],
-    grantedBy: 'not_from_portal',
+    grantedBy: 'approval_ladder',
   },
   {
     key: 'staff',
