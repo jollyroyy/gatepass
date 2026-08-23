@@ -10,8 +10,15 @@
 // The provider's text is printed VERBATIM, not summarised: it names the
 // address it will accept and what to do about it, which is more than any
 // sentence written here could.
+//
+// The provider's text is printed verbatim AND, when this app recognises it, a
+// sentence above it saying which of the two 403s this is: a refused SENDER
+// (nobody gets mail, fix the field below) or a refused RECIPIENT (the sender
+// is fine, the account is unverified). They read almost the same and mean
+// opposite things — `explainSendError` owns that distinction.
 import React from 'react';
 import { formatDateTime } from '../../lib/formatDate';
+import { explainSendError } from '../../lib/mailSettings';
 
 export interface SendAttempt {
   recipient: string;
@@ -30,6 +37,8 @@ export default function LastSendNote({ attempt }: Props): React.ReactElement | n
   // approval letter yet, and an empty box saying so would be noise.
   if (!attempt) return null;
 
+  const explanation = explainSendError(attempt.error);
+
   return (
     <div className={attempt.ok ? 'alert-info' : 'alert-warning'}>
       <p className="font-semibold">
@@ -38,6 +47,7 @@ export default function LastSendNote({ attempt }: Props): React.ReactElement | n
       </p>
       {!attempt.ok && <p className="text-sm mt-1">Aimed at {attempt.recipient}.</p>}
       <p className="text-xs mt-1">{formatDateTime(attempt.created_at)}</p>
+      {explanation && <p className="text-sm mt-2">{explanation}</p>}
       {attempt.error && (
         <p className="text-xs mt-1 break-words font-mono">{attempt.error}</p>
       )}

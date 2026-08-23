@@ -11,6 +11,12 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  validateMailSettings,
+  explainSendError,
+  senderNote,
+  type MailSettingsForm,
+} from '../../src/lib/mailSettings';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function thenable(result: { data: unknown; error: unknown }) {
@@ -131,5 +137,85 @@ describe('the approval mail settings card', () => {
         : thenable({ data: stored, error: null }));
     fireEvent.click(screen.getByRole('button', { name: /save/i }));
     await screen.findByText(/only an admin can change the mail settings/i);
+  });
+});
+
+// ═══ THE 2026-08-22 OUTAGE, PINNED ═══
+//
+// A gmail.com address was saved as the SENDER and every approval letter since
+// was refused with "The gmail.com domain is not verified". Nothing in the form
+// objected, and the only symptom was an empty inbox. These are the regression.
+describe('the sender address cannot be one nobody is allowed to send from', () => {
+  const blank: MailSettingsForm = {
+    overrideTo: '', fromEmail: '', fromName: '', smtpHost: '',
+    smtpPort: '', smtpUsername: '', smtpSecurity: '', smtpPassword: '',
+  };
+
+  it('refuses a consumer mailbox as the sender, naming the domain', () => {
+    const errors = validateMailSettings({ ...blank, fromEmail: 'jitubhi89@gmail.com' });
+    expect(errors.fromEmail).toBeTruthy();
+    expect(errors.fromEmail).toContain('gmail.com');
+  });
+
+  it('refuses the other common ones too', () => {
+    for (const addr of ['a@outlook.com', 'b@yahoo.com', 'c@hotmail.com', 'd@icloud.com']) {
+      expect(validateMailSettings({ ...blank, fromEmail: addr }).fromEmail).toBeTruthy();
+    }
+  });
+
+  it('allows a corporate address — this app cannot know which domains are verified', () => {
+    expect(validateMailSettings({ ...blank, fromEmail: 'gatepass@questmall.in' }).fromEmail)
+      .toBeUndefined();
+  });
+
+  it('allows a blank sender — blank falls back to the provider shared sender', () => {
+    expect(validateMailSettings(blank).fromEmail).toBeUndefined();
+  });
+
+  it('says "not an address" before "cannot send" for a malformed gmail entry', () => {
+    expect(validateMailSettings({ ...blank, fromEmail: 'not-an-address' }).fromEmail)
+      .toBe('Enter one email address.');
+  });
+
+  // A RECIPIENT may be a gmail address. Only the sender is constrained, and
+  // confusing the two is the whole reason this bug took a day to find.
+  it('leaves a consumer address alone as the redirect recipient', () => {
+    expect(validateMailSettings({ ...blank, overrideTo: 'sohampatra866@gmail.com' }).overrideTo)
+      .toBeUndefined();
+  });
+});
+
+describe('explainSendError tells the two 403s apart', () => {
+  it('reads a refused sender as a sender problem', () => {
+    const msg = explainSendError(
+      '403 {"statusCode":403,"message":"The gmail.com domain is not verified."}'
+    );
+    expect(msg).toContain('Sender address');
+  });
+
+  it('reads a refused recipient as an unverified-account problem', () => {
+    const msg = explainSendError(
+      '403 You can only send testing emails to your own email address.'
+    );
+    expect(msg).toContain('resend.com/domains');
+    expect(msg).toContain('sender is fine');
+  });
+
+  it('adds nothing it does not recognise, and nothing to a success', () => {
+    expect(explainSendError('500 upstream exploded')).toBeNull();
+    expect(explainSendError(null)).toBeNull();
+  });
+});
+
+describe('senderNote names what is actually sending', () => {
+  it('names a configured sender', () => {
+    expect(senderNote({ from_email: 'gatepass@questmall.in' } as never))
+      .toContain('gatepass@questmall.in');
+  });
+
+  it('explains that blank is the shared sender, not "no mail"', () => {
+    const note = senderNote(null);
+    expect(note).toContain('shared address');
+    expect(note).toContain('owns the account');
   });
 });

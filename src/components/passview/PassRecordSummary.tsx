@@ -23,7 +23,6 @@ import React, { useState } from 'react';
 import type { GatePassView } from '../../types';
 import { formatDateTime, formatDateOnly } from '../../lib/formatDate';
 import { parseCompanyInfo } from '../../lib/companyInfo';
-import { relativeSince } from '../../lib/passRecordView';
 import { formatCurrency } from '../../lib/formatCurrency';
 import QrPass from '../QrPass';
 import { TypeChip } from '../Badge';
@@ -175,11 +174,14 @@ export default function PassRecordSummary({ pass, gateName }: Props): React.Reac
           {gateName && <Fact icon={GATE} label="Gate Exit" value={gateName} />}
           {pass.vehicle_number && <Fact icon={TRUCK} label="Vehicle No." value={pass.vehicle_number} />}
           {company.phone && <Fact icon={PHONE} label="Contact No." value={company.phone} />}
-          {/* The mock's fifth column ends in a Status box. This app's badge for
-              that fact is in the title row a few pixels above, and repeating a
-              live badge is how two of them end up disagreeing — so the slot
-              carries the moment it last moved instead. */}
-          <Fact icon={CLOCK} label="Last Movement" value={formatDateTime(pass.updated_at)} />
+          {/* NO "LAST MOVEMENT" HERE (client, 2026-08-23: "remove Last Movement
+              from all pass details in every view"). It was `updated_at` — the
+              moment the ROW last changed, which is not the same thing as the
+              moment the material last moved, and every actual movement already
+              has its own dated rung on the timeline beside this card. A field
+              that looks like a gate event and is really a database timestamp
+              is worse than no field. The "Last updated" line that repeated it
+              under the QR code went with it. */}
         </div>
 
         <div className="flex flex-col items-center gap-2">
@@ -187,10 +189,6 @@ export default function PassRecordSummary({ pass, gateName }: Props): React.Reac
             <QrPass value={pass.qr_token} size={116} />
           </div>
           <p className="text-xs text-navy-500">Scan to view pass</p>
-          <p className="text-xs text-navy-500 flex items-center gap-1.5">
-            {CLOCK}
-            <span>Last updated {relativeSince(pass.updated_at)}</span>
-          </p>
         </div>
       </div>
     </div>

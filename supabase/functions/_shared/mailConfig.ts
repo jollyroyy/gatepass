@@ -7,12 +7,22 @@
 //
 // ═══ PRECEDENCE, AND WHY IT IS THIS WAY ROUND ═══
 //
-//   a non-null value in the table  >  the environment variable
+//   a non-null value in the table  >  the environment variable  >  a built-in
 //
 // An EMPTY table therefore changes nothing: this function behaves exactly as
 // it did before 052. That is the safe direction — a migration must not be able
 // to silently redirect or stop live mail, and a deployment whose admin has
 // never opened the Settings tab must keep working.
+//
+// THE THIRD TIER IS NEW (2026-08-23) AND APPLIES TO THE SENDER ONLY. If
+// neither the table nor MAIL_FROM names a sender, the From line falls back to
+// `onboarding@resend.dev` — the shared address Resend grants every account
+// before it has verified a domain of its own. Without this tier, clearing a
+// bad sender address left the field null and `sendMail` refused to send at
+// all ("No mail sender is configured"), which turns "undo my mistake" into a
+// second outage. There is deliberately NO equivalent tier for the recipient:
+// guessing who a letter is for is not a safe default, and a null override
+// already has a correct meaning (write to the office holder named on it).
 //
 // `mail_config()` is granted to `service_role` alone: it returns the stored
 // SMTP password, which no signed-in role may read. It is read with the SERVICE
@@ -49,12 +59,20 @@ const text = (v: unknown): string | null => {
   return s ? s : null;
 };
 
+/** Resend's shared sender, available to every account with no DNS setup at
+ *  all. It is the last resort, never a preference: mail from it is far more
+ *  likely to be filtered than mail from a verified corporate domain, and while
+ *  an account is unverified Resend will only DELIVER it to the address that
+ *  owns the account. It exists here so that "no sender configured" is never a
+ *  state this function can be left in. */
+export const FALLBACK_FROM = 'Quest GatePass <onboarding@resend.dev>';
+
 /** `Name <address>` when a sender name is stored, the bare address otherwise.
  *  A stored sender wins over MAIL_FROM whole — mixing the table's name with
  *  the environment's address would produce a From line nobody configured. */
 function fromLine(row: Record<string, unknown>, envFrom: string | null): string | null {
   const email = text(row.from_email);
-  if (!email) return envFrom;
+  if (!email) return envFrom ?? FALLBACK_FROM;
   const name = text(row.from_name);
   // Same stripping rule as `addressOf`: a display name carrying a quote or an
   // angle bracket gets the whole message rejected by the provider.

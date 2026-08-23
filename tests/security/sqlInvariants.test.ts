@@ -1005,33 +1005,17 @@ describe('042 — the pass number drops the direction', () => {
   const sql = migrations.find((m) => m.name.startsWith('042'))!.sql;
   const bare = stripSqlComments(sql);
 
-  /** The final deployed body of a gatepass function, across all migrations. */
-  function finalBody(fn: string): string {
-    const all = extractFunctions(allMigrationsText()).filter((f) => f.name === `gatepass.${fn}`);
-    expect(all.length, `${fn} is not defined in any migration`).toBeGreaterThan(0);
-    return all[all.length - 1].body;
-  }
-
-  it('the deployed generator builds TYPE-YYYYMMDD, with no direction in it', () => {
-    const body = finalBody('set_pass_number');
-    expect(body).toMatch(/prefix\s*:=\s*new\.type::text \|\| '-' \|\| date_str/i);
-    expect(/upper\(new\.direction/i.test(body), 'the direction is out of the label').toBe(false);
+  // 042's OWN body is what this block asserts on, not the deployed generator.
+  // 064 redefined `set_pass_number` again (the label now carries the
+  // department instead of the date), so "what ships" is 064's question and is
+  // asked in 064's block below. What stays true of 042 forever is what it did
+  // to the file it introduced.
+  it('drops the direction from the label it builds', () => {
+    expect(bare).toMatch(/prefix\s*:=\s*new\.type::text \|\| '-' \|\| date_str/i);
+    expect(/upper\(new\.direction/i.test(bare), 'the direction is out of the label').toBe(false);
   });
 
-  it('keeps the advisory lock — a plain max()+1 collides under concurrency', () => {
-    const body = finalBody('set_pass_number');
-    expect(body).toMatch(/pg_advisory_xact_lock/i);
-    expect(body).toMatch(/pass_number like prefix \|\| '-%'/i);
-  });
-
-  it('still owns the columns a client must never choose', () => {
-    const body = finalBody('set_pass_number');
-    for (const col of ['created_at', 'updated_at', 'qr_token', 'expires_at']) {
-      expect(body).toContain(`new.${col}`);
-    }
-  });
-
-  it('renames no existing row — a pass number is an audit anchor', () => {
+  it('renames no existing row — 042 declined the renumber', () => {
     expect(/update\s+gatepass\.gate_passes/i.test(bare)).toBe(false);
   });
 
@@ -1044,6 +1028,109 @@ describe('042 — the pass number drops the direction', () => {
     expect(bare).toMatch(/security definer/i);
     expect(bare).toMatch(/set search_path = ''/i);
     expect(/^\s*grant\b/im.test(bare)).toBe(false);
+  });
+});
+
+describe('064 — the pass number carries the department', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('064'))!.sql;
+  const bare = stripSqlComments(sql);
+
+  /** The final deployed body of a gatepass function, across all migrations. */
+  function finalBody(fn: string): string {
+    const all = extractFunctions(allMigrationsText()).filter((f) => f.name === `gatepass.${fn}`);
+    expect(all.length, `${fn} is not defined in any migration`).toBeGreaterThan(0);
+    return all[all.length - 1].body;
+  }
+
+  it('the deployed generator builds TYPE-DEPTCODE, with no date in it', () => {
+    const body = finalBody('set_pass_number');
+    expect(body).toMatch(/prefix\s*:=\s*new\.type::text \|\| '-' \|\| dept/i);
+    expect(/date_str/i.test(body), 'the date is out of the label').toBe(false);
+    expect(/to_char\([^)]*YYYYMMDD/i.test(body), 'the date is out of the label').toBe(false);
+  });
+
+  // THE POINT OF THE WHOLE MIGRATION: one derivation, two callers. A second
+  // copy of "take the code, else the name, cap it" would let a backfilled IT
+  // pass and one raised tomorrow disagree about what IT is called.
+  it('the generator and the backfill both derive the code through dept_code()', () => {
+    expect(finalBody('set_pass_number')).toMatch(/gatepass\.dept_code\(new\.department_id\)/i);
+    expect(bare).toMatch(/gatepass\.dept_code\(g\.department_id\)/i);
+  });
+
+  it('dept_code can never return an empty string — RGP--0001 is not a number', () => {
+    const body = finalBody('dept_code');
+    expect(body).toMatch(/'GEN'/);
+    expect(body).toMatch(/nullif/i);
+  });
+
+  // A `from public.departments where id = $1` returns NO ROW for an unknown id,
+  // and a sql function with no row returns NULL — so coalesce(..., 'GEN') never
+  // runs and the prefix becomes 'RGP-' || NULL = NULL. Verified live: with the
+  // left join, dept_code(null) and dept_code('0000...') both return 'GEN'.
+  // A fallback that cannot fire is the landmine this repo names by hand.
+  it("dept_code's fallback can actually fire — it left-joins a one-row source", () => {
+    const body = finalBody('dept_code');
+    expect(body).toMatch(/left join public\.departments/i);
+    expect(
+      /from\s+public\.departments\s+d\s+where/i.test(body),
+      'a bare from/where returns no row for an unknown id, so GEN never fires'
+    ).toBe(false);
+  });
+
+  it('dept_code is SECURITY DEFINER, pins search_path, and is not exposed to PostgREST', () => {
+    // It reads public.departments, which belongs to VMS — so it must be
+    // DEFINER; and nothing in src/ calls it, so no signed-in role may execute
+    // it. An unused SECURITY DEFINER function is a PostgREST endpoint.
+    expect(bare).toMatch(/create or replace function gatepass\.dept_code\(p_department_id uuid\)/i);
+    expect(bare).toMatch(/security definer/i);
+    expect(bare).toMatch(/set search_path = ''/i);
+    expect(bare).toMatch(/revoke all on function gatepass\.dept_code\(uuid\) from public/i);
+    expect(/grant\s+execute[^;]*dept_code/i.test(bare)).toBe(false);
+  });
+
+  it('keeps the advisory lock and the prefix scan — a plain max()+1 collides', () => {
+    const body = finalBody('set_pass_number');
+    expect(body).toMatch(/pg_advisory_xact_lock/i);
+    expect(body).toMatch(/pass_number like prefix \|\| '-%'/i);
+  });
+
+  it('still owns the columns a client must never choose', () => {
+    const body = finalBody('set_pass_number');
+    for (const col of ['created_at', 'updated_at', 'qr_token', 'expires_at']) {
+      expect(body).toContain(`new.${col}`);
+    }
+  });
+
+  // 042 refused to renumber; the client asked for the opposite on 2026-08-23.
+  // This asserts the reversal is REAL, so a future edit that quietly drops the
+  // backfill leaves old and new passes in two different formats and is caught.
+  it('renumbers every earlier pass, oldest first within its department', () => {
+    expect(bare).toMatch(/update gatepass\.gate_passes/i);
+    expect(bare).toMatch(/partition by g\.type, g\.department_id/i);
+    expect(bare).toMatch(/order by g\.created_at/i);
+  });
+
+  // `touch_updated_at` would stamp updated_at := now() on all 76 rows and fire
+  // 76 realtime events for a change to one text column. See the CLAUDE.md
+  // landmine — the triggers must be off and back on in the same transaction.
+  it('disables and re-enables the row triggers around the backfill', () => {
+    expect(bare).toMatch(/alter table gatepass\.gate_passes disable trigger user/i);
+    expect(bare).toMatch(/alter table gatepass\.gate_passes enable trigger user/i);
+  });
+
+  it('fails loudly rather than leaving a duplicate or a stale number behind', () => {
+    expect(bare).toMatch(/raise exception '064 backfill produced/i);
+    expect(bare).toMatch(/raise exception '064 backfill left/i);
+  });
+
+  it('adds no UPDATE or DELETE grant — the state machine stays RPC-only', () => {
+    expect(/grant\s+[^;]*\b(update|delete)\b[^;]*on\s+gatepass\.gate_passes/i.test(bare)).toBe(false);
+  });
+
+  it('touches nothing in `public` — the two-schema rule', () => {
+    expect(/create\s+(table|view|function|type)\s+public\./i.test(bare)).toBe(false);
+    expect(/alter\s+table\s+public\./i.test(bare)).toBe(false);
   });
 });
 

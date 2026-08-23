@@ -68,6 +68,57 @@ export function isOneEmailAddress(value: string): boolean {
   return ONE_ADDRESS.test(value.trim());
 }
 
+// ═══ THE SENDER ADDRESS IS THE ONE THAT STOPS ALL MAIL ═══
+//
+// On 2026-08-22 somebody set the sender address to a gmail.com address, and
+// every approval letter since was refused by the provider with
+//
+//   403 The gmail.com domain is not verified. Please, add and verify your
+//       domain on https://resend.com/domains
+//
+// That reads like a problem with the RECIPIENT and is not: a mail provider
+// will only send FROM a domain whose DNS you control and have proved you
+// control. Nobody can send from gmail.com through Resend — not the owner of
+// the gmail account, not anyone. The field was accepted, saved, and silently
+// broke every letter, and the only symptom was an inbox that stayed empty.
+//
+// So the check lives here, in front of the person typing, and NOT in a
+// database CHECK: "is one address" is a permanent truth about the field and
+// belongs in both places, but "is not gmail.com" is PROVIDER POLICY. It
+// changes, and a constraint would need a migration to undo on the day this
+// deployment verifies a real domain.
+const PUBLIC_MAILBOX_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com', 'yahoo.com', 'yahoo.co.in', 'ymail.com',
+  'hotmail.com', 'outlook.com', 'live.com', 'msn.com',
+  'icloud.com', 'me.com', 'aol.com', 'proton.me', 'protonmail.com',
+  'rediffmail.com', 'zoho.com', 'mail.com', 'gmx.com', 'yandex.com',
+]);
+
+export function domainOf(email: string): string {
+  return email.trim().split('@')[1]?.toLowerCase() ?? '';
+}
+
+/**
+ * Why this address cannot be a sender, or null if it can be.
+ *
+ * Only free consumer mailboxes are refused, and only as SENDERS. They are the
+ * whole of the mistake this guards against — an address somebody owns and
+ * reasonably assumes they may therefore send from. A corporate domain is
+ * allowed through even when it is unverified, because this app cannot know
+ * which domains the account has verified and refusing one it has would be the
+ * worse error.
+ */
+export function senderDomainProblem(email: string): string | null {
+  const domain = domainOf(email);
+  if (!domain || !PUBLIC_MAILBOX_DOMAINS.has(domain)) return null;
+  return (
+    `Mail cannot be sent FROM ${domain} — a provider only sends from a domain ` +
+    `you have verified, so this address is refused for everybody. Use an address ` +
+    `at your own verified domain, or leave this blank to use the provider's ` +
+    `shared sender.`
+  );
+}
+
 export function formFromSettings(s: MailSettings | null): MailSettingsForm {
   return {
     overrideTo: s?.override_to ?? '',
@@ -94,6 +145,12 @@ export function validateMailSettings(f: MailSettingsForm): MailSettingsErrors {
   }
   if (f.fromEmail.trim() && !isOneEmailAddress(f.fromEmail)) {
     errors.fromEmail = 'Enter one email address.';
+  } else if (f.fromEmail.trim()) {
+    // Only reached when the address is well-formed: "that is not an address"
+    // and "that address cannot send" are different sentences and the first
+    // one has to come first.
+    const problem = senderDomainProblem(f.fromEmail);
+    if (problem) errors.fromEmail = problem;
   }
 
   const port = f.smtpPort.trim();
@@ -152,6 +209,54 @@ export function deliveryNote(s: MailSettings | null): string {
   return to
     ? `Every approval letter is sent to ${to}, whichever approver it names.`
     : 'Each approval letter is sent to the office holder it names.';
+}
+
+/** Which sender is actually in force, named. Blank does not mean "no mail" —
+ *  it means the provider's shared sender — and a field that reads empty while
+ *  something is quietly working is exactly how the 2026-08-22 outage was
+ *  mistaken for a recipient problem. */
+export function senderNote(s: MailSettings | null): string {
+  const from = s?.from_email?.trim();
+  return from
+    ? `Letters are sent from ${from}. Its domain must be verified with the mail provider.`
+    : 'Letters are sent from the provider\'s shared address. While the mail account is unverified, ' +
+      'that address can only DELIVER to the address that owns the account — verify a domain to ' +
+      'reach anyone else.';
+}
+
+/**
+ * The provider's refusal, translated — without hiding it.
+ *
+ * The two 403s this system can produce look almost identical and mean opposite
+ * things, and telling them apart is the entire diagnosis:
+ *
+ *   "domain is not verified"          → the SENDER address is wrong. Nobody
+ *                                       gets mail. Fix the sender field.
+ *   "can only send testing emails to" → the sender is fine; the account is
+ *                                       unverified, so the RECIPIENT must be
+ *                                       the account owner. Verify a domain.
+ *
+ * Returns null when there is nothing to add, in which case the caller shows
+ * the provider's own text alone.
+ */
+export function explainSendError(error: string | null): string | null {
+  if (!error) return null;
+  const e = error.toLowerCase();
+  if (e.includes('not verified') && e.includes('domain')) {
+    return (
+      'The Sender address below is on a domain the mail provider has not verified, so it ' +
+      'refuses every letter — whoever they are addressed to. Clear the Sender address to fall ' +
+      'back to the provider\'s shared sender, or set one at a domain you have verified.'
+    );
+  }
+  if (e.includes('can only send testing emails') || e.includes('own email address')) {
+    return (
+      'The sender is fine — the mail account is unverified, so the provider will only deliver ' +
+      'to the address that owns it. Verify a domain at resend.com/domains and set a Sender ' +
+      'address at that domain to reach any other recipient.'
+    );
+  }
+  return null;
 }
 
 /** What the stored SMTP server is doing, which is nothing yet — and says so. */

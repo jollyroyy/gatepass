@@ -18,6 +18,7 @@ import {
   validateMailSettings,
   mailSettingsPayload,
   deliveryNote,
+  senderNote,
   smtpNote,
   SMTP_SECURITY_LABELS,
   type MailSettings,
@@ -128,6 +129,7 @@ export default function MailSettingsCard(): React.ReactElement {
       <div>
         <h2 className="section-title mb-1">Approval email</h2>
         <p className="text-sm text-navy-600">{deliveryNote(settings)}</p>
+        <p className="text-sm text-navy-600 mt-1">{senderNote(settings)}</p>
         {settings?.updated_at && (
           <p className="text-xs text-navy-500 mt-1">
             Last changed {formatDateTime(settings.updated_at)}
@@ -169,7 +171,11 @@ export default function MailSettingsCard(): React.ReactElement {
           error={errors.fromEmail}
           type="email"
           placeholder="gatepass@company.com"
-          hint="Must belong to a domain verified with the mail provider."
+          // A gmail/outlook address here refuses EVERY letter, which is not
+          // what "must belong to a verified domain" told anybody on the day it
+          // happened. The hint now says what to do instead, and
+          // `senderDomainProblem` refuses to save one at all.
+          hint="A domain you have verified with the mail provider — never a Gmail or Outlook address. Leave blank to use the provider's shared sender."
         />
       </div>
 
