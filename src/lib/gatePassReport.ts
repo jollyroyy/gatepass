@@ -45,7 +45,7 @@ import { IS_OPEN_RETURN } from './boardDrills';
 import { isWaitingAtGate } from './gateQueue';
 import { isExpiredPending } from './statusStyles';
 import { passStageStyle } from './passStage';
-import { csvCategory, csvDateTime, csvText } from './csvCells';
+import { csvCategory, csvDate, csvText } from './csvCells';
 import type { CsvColumn } from './exportUtils';
 import { formatCurrency } from './formatCurrency';
 
@@ -246,8 +246,10 @@ export interface ReportKpi {
 }
 
 /**
- * The mock's cards, in its own order — SEVEN since the `pending` bucket was
- * split out of Partially Returned (2026-08-22).
+ * The mock's cards, in its own order. Cancelled was pulled from the dashboard
+ * (client, 2026-08-23) — `reportStatusOf`/`REPORT_STATUS_LABELS` keep the
+ * bucket for the table's row pill and the Status filter; only this card list
+ * dropped it.
  *
  * NO CARD CARRIES A SECOND LINE (client, 2026-08-23: "remove the subtext like
  * 'vs yesterday' from all the dashboard cards ... vs last 30 days"). The
@@ -269,7 +271,6 @@ export function buildReportKpis(rows: GatePassView[]): ReportKpi[] {
     { key: 'completed', label: 'Completed', glyph: 'check', tone: 'purple', value: count(rows, 'completed') },
     { key: 'pending', label: REPORT_STATUS_LABELS.pending, glyph: 'clock', tone: 'orange', value: count(rows, 'pending') },
     { key: 'in_progress', label: REPORT_STATUS_LABELS.in_progress, glyph: 'exchange', tone: 'blue', value: count(rows, 'in_progress') },
-    { key: 'cancelled', label: 'Cancelled', glyph: 'alert', tone: 'red', value: count(rows, 'cancelled') },
   ];
 }
 
@@ -298,7 +299,7 @@ export function valueText(total: number | null | undefined): string {
  *  dash the screen shows — a dash breaks SUM on the value column. */
 export const REPORT_CSV_COLUMNS: CsvColumn<GatePassView>[] = [
   { key: 'pass_number', header: 'Pass Number' },
-  { key: 'created_at', header: 'Date & Time', format: (p) => csvDateTime(p.created_at) },
+  { key: 'created_at', header: 'Creation Date', format: (p) => csvDate(p.created_at) },
   { key: 'type', header: 'Pass Type', format: csvCategory },
   { key: 'purpose', header: 'Purpose / Description', format: (p) => csvText(p.purpose ?? p.material_summary) },
   { key: 'item_count', header: 'Total Number of Items' },

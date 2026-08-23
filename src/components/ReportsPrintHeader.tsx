@@ -16,21 +16,25 @@ export default function ReportsPrintHeader({ title, rangeLabel, entryCount }: Pr
   const generatedAt = new Date();
 
   return (
-    <div className="report-print-header">
-      <div className="report-print-header-left">
-        <QuestLockup tone="light" size="sm" subtitle="Gate Pass" />
-        <div className="report-print-header-text">
-          <h1 className="report-print-title">{title}</h1>
-          <p className="report-print-subtitle">{rangeLabel}</p>
+    <div>
+      {/* Centered at the top of the sheet on its own (client, 2026-08-23) —
+          the report's name, not tucked beside the logo. */}
+      <h1 className="report-print-title report-print-title-center">{title}</h1>
+      <div className="report-print-header">
+        <div className="report-print-header-left">
+          <QuestLockup tone="light" size="sm" subtitle="Gate Pass" />
+          <div className="report-print-header-text">
+            <p className="report-print-subtitle">{rangeLabel}</p>
+          </div>
         </div>
-      </div>
-      <div className="report-print-header-right">
-        <p className="report-print-meta">
-          Generated {generatedAt.toLocaleDateString('en-IN')} {generatedAt.toLocaleTimeString('en-IN')}
-        </p>
-        <p className="report-print-meta">
-          {entryCount} {entryCount === 1 ? 'pass' : 'passes'}
-        </p>
+        <div className="report-print-header-right">
+          <p className="report-print-meta">
+            Generated {generatedAt.toLocaleDateString('en-IN')} {generatedAt.toLocaleTimeString('en-IN')}
+          </p>
+          <p className="report-print-meta">
+            {entryCount} {entryCount === 1 ? 'pass' : 'passes'}
+          </p>
+        </div>
       </div>
     </div>
   );

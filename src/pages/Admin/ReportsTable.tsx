@@ -1,6 +1,6 @@
 // The register itself, drawn to the client's mock-up (2026-08-20).
 //
-// The mock's columns are Pass Number · Date & Time · Pass Type · Purpose /
+// The mock's columns are Pass Number · Creation Date · Pass Type · Purpose /
 // Description · Total Number of Items · Status · Created By, plus a per-row
 // menu. TWO MORE ARE HERE ON THE CLIENT'S OWN INSTRUCTION: **Total Value of
 // Items** — the view's `total_value`, the sum of the pass's priced lines — and
@@ -18,7 +18,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { GatePassView } from '../../types';
-import { formatDateTime } from '../../lib/formatDate';
+import { formatDateOnly } from '../../lib/formatDate';
 import { PASS_TYPES } from '../../lib/passTypes';
 import {
   itemsLabel,
@@ -99,7 +99,7 @@ export default function ReportsTable({ rows, showPeople = true }: Props): React.
       <thead>
         <tr>
           <th>Pass Number</th>
-          <th>Date &amp; Time</th>
+          <th>Creation Date</th>
           <th>Pass Type</th>
           <th>Purpose / Description</th>
           <th>Total Number of Items</th>
@@ -114,7 +114,7 @@ export default function ReportsTable({ rows, showPeople = true }: Props): React.
         {rows.map((p) => (
           <tr key={p.id} className="cursor-pointer" onClick={() => navigate(`/pass/${p.id}`)}>
             <td className="gb-rep-gp">{p.pass_number}</td>
-            <td className="whitespace-nowrap">{formatDateTime(p.created_at)}</td>
+            <td className="whitespace-nowrap">{formatDateOnly(p.created_at)}</td>
             <td>
               <span className={`gb-pill ${TYPE_PILL[p.type]}`}>{PASS_TYPES[p.type].code}</span>
             </td>

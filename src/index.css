@@ -407,6 +407,10 @@
     color: #111;
     margin: 0;
   }
+  .report-print-title-center {
+    text-align: center;
+    margin-bottom: 8pt;
+  }
   .report-print-subtitle {
     font-size: 11pt;
     font-weight: 500;
