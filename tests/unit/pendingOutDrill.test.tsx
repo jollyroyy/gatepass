@@ -1,18 +1,19 @@
-// Pending OUT (Needs Approval) - the gate queue, drilled open ON THE GUARD'S
-// DASHBOARD by the figure that counts it (client, 2026-08-22).
+// Pending OUT (Needs Approval) - the gate queue, drilled open on its OWN PAGE
+// at `/guard-dashboard/RGP` / `/guard-dashboard/NRGP` (client, 2026-08-23:
+// "don't show the table on the same page. Show it on a different page, like
+// you are showing the overdue details").
 //
-// REWRITTEN 2026-08-22, and the list itself is all that is left of what this
-// file used to hold. It used to render the same rows as a PAGE of its own at
-// `/pending-out`, reached from a sidebar tab and from a `<Link>` figure. The
-// client removed the route and the tab - "there is no need to keep a separate
-// tab ... that would only show when the KPI cards have been drilled down from
-// the guard's dashboard" - so every case below presses the figure first, and
-// the list it opens is `PendingOutPanel`, on the board.
+// REWRITTEN 2026-08-23. For one day (2026-08-22) this list opened in place,
+// under the figure that counts it, on the guard's dashboard. The client took
+// that back: a KPI card's table belongs on a page of its own, the way Overdue
+// already worked. `GuardDrill` (`src/pages/Security/GuardDrill.tsx`) is that
+// page; `PendingOutPanel` — unchanged by this move — is what it renders for
+// `key === 'RGP' | 'NRGP'`.
 //
 // What these cases exist to hold:
 //   * THE FIGURE IS THE WAY IN, and the list it opens is the array it counted:
 //     one `useGuardQueues` read, `pendingOutOf` once, handed straight to the
-//     panel. Pressing the open figure again closes the list.
+//     panel — now via a route rather than in-place state.
 //   * THE RGP AND NRGP FIGURES EACH OPEN THEIR OWN TAB, so the drill lands on
 //     the rows behind the number rather than on a list to be narrowed again.
 //   * The ACTION IS "APPROVE OUT" - the client's own word, replacing "Verify at
@@ -22,14 +23,11 @@
 //   * The tab counts, the filter options and the rows are three readings of ONE
 //     loaded array, so a count can never disagree with the list under it.
 //   * A row opens its own material lines in place, loaded on demand.
-//   * THE SEARCH IS GLOBAL, and it now sits on the dashboard rather than on a
-//     page: a pass number goes through `lookup_pass` over the whole register,
-//     and a mobile number through an unfiltered query. Both reach passes that
-//     are not in the queue.
-//   * OPENING THE SCANNER CLEARS THE BOARD (client, 2026-08-19): the figures,
-//     the drilled list and the quick actions all go, because whatever the scan
-//     resolves to appears under the viewfinder and the rest would only push it
-//     away.
+//   * THE SEARCH IS GLOBAL AND LIVES ON THE DASHBOARD, NOT ON THIS PAGE — a
+//     pass number goes through `lookup_pass` over the whole register, and a
+//     mobile number through an unfiltered query, both reaching passes that are
+//     not in the queue. `GuardDrill` renders neither the bar nor the scanner;
+//     those cases render `GuardDashboard` instead, which still carries both.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -131,15 +129,46 @@ vi.mock('../../src/supabaseClient', () => ({
 }));
 
 import GuardDashboard from '../../src/pages/Security/GuardDashboard';
+import GuardDrill from '../../src/pages/Security/GuardDrill';
 
-/** The drillable figure inside a summary card. */
+/** The drillable figure inside a summary card, on the dashboard. */
 function figure(label: string): HTMLElement {
   return screen.getByTestId('guard-figure-' + label).querySelector('.gb-figure-value') as HTMLElement;
 }
 
-/** Rendered inside a router that also serves `/pass/:id`, because a resolved
- *  search NAVIGATES to the record rather than drawing it in this screen's
- *  fixed-light skin. */
+/** `GuardDrill` at `/guard-dashboard/:key` — the page a Pending OUT figure
+ *  opens since 2026-08-23. Rendered inside a router that also serves
+ *  `/guard-dashboard` (the back link) and `/pass/:id` (every row's action). */
+async function renderDrillPage(key: 'RGP' | 'NRGP' = 'RGP') {
+  render(
+    <MemoryRouter initialEntries={[`/guard-dashboard/${key}`]}>
+      <Routes>
+        <Route path="/guard-dashboard" element={<div>DASHBOARD</div>} />
+        <Route path="/guard-dashboard/:key" element={<GuardDrill />} />
+        <Route path="/pass/:id" element={<div>RECORD PAGE</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+/** Land on the drill page for `press`, then optionally switch to `tab` —
+ *  most cases below are about the whole queue, so the default puts the RGP
+ *  figure's page on the All tab. */
+async function renderDrill(press: 'RGP' | 'NRGP' = 'RGP', tab: string | null = 'All') {
+  await renderDrillPage(press);
+  await waitFor(() => expect(screen.getByRole('tablist', { name: 'Pass type' })).toBeInTheDocument());
+  if (tab && tab !== press) {
+    fireEvent.click(screen.getByRole('tab', { name: new RegExp('^' + tab + ' ') }));
+  }
+}
+
+async function renderPage() {
+  await renderDrill();
+  await waitFor(() => expect(screen.getByText('RGP-00057')).toBeInTheDocument());
+}
+
+/** The dashboard itself, for the cases that are about its search bar and
+ *  scanner rather than about the drilled list. */
 async function renderBoard() {
   render(
     <MemoryRouter initialEntries={['/guard-dashboard']}>
@@ -150,22 +179,6 @@ async function renderBoard() {
     </MemoryRouter>,
   );
   await waitFor(() => expect(figure('RGP').textContent).not.toBe('-'));
-}
-
-/** Press a Pending OUT figure and land on the list it opens. `tab` is which
- *  type tab to read the list under - the RGP figure opens on RGP, and most of
- *  these cases are about the whole queue. */
-async function renderDrill(press: 'RGP' | 'NRGP' = 'RGP', tab: string | null = 'All') {
-  await renderBoard();
-  fireEvent.click(figure(press));
-  if (tab && tab !== press) {
-    fireEvent.click(screen.getByRole('tab', { name: new RegExp('^' + tab + ' ') }));
-  }
-}
-
-async function renderPage() {
-  await renderDrill();
-  await waitFor(() => expect(screen.getByText('RGP-00057')).toBeInTheDocument());
 }
 
 beforeEach(() => {
@@ -223,9 +236,9 @@ describe('The type tabs and the filters', () => {
     expect(screen.getByRole('tab', { name: 'NRGP (2)' })).toBeInTheDocument();
   });
 
-  // REWRITTEN 2026-08-22: this used to open `/pending-out?type=NRGP` as a URL,
-  // because the figure was a link to a page. The figure opens the list in place
-  // now, and the type it counted is what the list opens on.
+  // REWRITTEN 2026-08-23: this is now the page the NRGP figure links to,
+  // `/guard-dashboard/NRGP`, and it lands already narrowed to the type the
+  // figure counted.
   it('opens already narrowed to the type the pressed figure counted', async () => {
     await renderDrill('NRGP', null);
     await waitFor(() => expect(screen.getByText('NRGP-00081')).toBeInTheDocument());
@@ -233,23 +246,35 @@ describe('The type tabs and the filters', () => {
     expect(screen.getByRole('tab', { name: 'NRGP (2)' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('opens the RGP figure on the RGP tab, and closes the list when it is pressed again', async () => {
+  // REWRITTEN 2026-08-23: closing the list by pressing the figure again only
+  // made sense while the list opened in place. The figure is a `<Link>` to
+  // this page now (see `guardDashboard.test.tsx`), and this page's own way
+  // back is the "Back to dashboard" link `DrillPageShell` draws.
+  it('opens the RGP figure on the RGP tab, and offers a way back to the dashboard', async () => {
     await renderDrill('RGP', null);
     await waitFor(() => expect(screen.getByText('RGP-00057')).toBeInTheDocument());
     expect(screen.queryByText('NRGP-00081')).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'RGP (1)' })).toHaveAttribute('aria-selected', 'true');
-    expect(figure('RGP')).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.click(figure('RGP'));
-    expect(screen.queryByRole('table')).not.toBeInTheDocument();
-    expect(figure('RGP')).toHaveAttribute('aria-pressed', 'false');
+    const back = screen.getByRole('link', { name: /Back to dashboard/i });
+    expect(back).toHaveAttribute('href', '/guard-dashboard');
   });
 
-  it('draws no list at all until a figure is pressed', async () => {
-    await renderBoard();
+  // REWRITTEN 2026-08-23: there is no "press to reveal" state on this page any
+  // more — the route itself is what a figure opens, and it always shows its
+  // list. An unrecognised key is the one case this page refuses, sending the
+  // reader back to the board rather than at a blank drill.
+  it('sends an unrecognised key back to the dashboard rather than drawing a list', async () => {
+    render(
+      <MemoryRouter initialEntries={['/guard-dashboard/bogus']}>
+        <Routes>
+          <Route path="/guard-dashboard" element={<div>DASHBOARD</div>} />
+          <Route path="/guard-dashboard/:key" element={<GuardDrill />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText('DASHBOARD')).toBeInTheDocument());
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
-    expect(screen.queryByRole('tablist', { name: 'Pass type' })).not.toBeInTheDocument();
-    expect(screen.queryByText('RGP-00057')).not.toBeInTheDocument();
   });
 
   it('narrows by department and puts it all back on Reset', async () => {
@@ -310,9 +335,9 @@ describe('A row opens its own material lines', () => {
   });
 });
 
-describe('The search is global, and is not this list', () => {
+describe('The search is global, and lives on the dashboard, not this page', () => {
   it('sends an exact pass number through lookup_pass and opens that record', async () => {
-    await renderPage();
+    await renderBoard();
     fireEvent.change(screen.getByLabelText(/Search any pass/i), { target: { value: 'RGP-00999' } });
     fireEvent.submit(screen.getByLabelText(/Search any pass/i).closest('form')!);
     // `far1` is not in the queue at all — the search reached past this page.
@@ -326,7 +351,7 @@ describe('The search is global, and is not this list', () => {
       pass({ id: 'far2', pass_number: 'RGP-00002', status: 'matched',
              visitor_company: '{"n":"Old Party","a":"","v":"9876543210"}' }),
     ];
-    await renderPage();
+    await renderBoard();
     fireEvent.change(screen.getByLabelText(/Search any pass/i), { target: { value: '9876543210' } });
     fireEvent.submit(screen.getByLabelText(/Search any pass/i).closest('form')!);
 
@@ -335,6 +360,11 @@ describe('The search is global, and is not this list', () => {
     expect(screen.getByText('RGP-00002')).toBeInTheDocument();
     // Neither is in the gate queue, and a matched pass gets no Approve OUT.
     expect(screen.queryByRole('link', { name: 'Approve OUT' })).not.toBeInTheDocument();
+  });
+
+  it('this page itself draws no search bar of its own', async () => {
+    await renderPage();
+    expect(screen.queryByLabelText(/Search any pass/i)).not.toBeInTheDocument();
   });
 });
 
@@ -350,27 +380,33 @@ describe('The pager', () => {
   });
 });
 
-describe('Opening the scanner clears the board', () => {
-  it('drops the figures, the drilled list and the filter bar while the viewfinder is up', async () => {
-    await renderPage();
-    // Present before the press.
-    expect(screen.getByRole('tablist', { name: 'Pass type' })).toBeInTheDocument();
-    expect(screen.getByRole('table')).toBeInTheDocument();
+describe('Opening the scanner clears the dashboard, not this page', () => {
+  // REWRITTEN 2026-08-23: the scanner lives on `GuardDashboard`, which no
+  // longer draws any list to clear — its figures and quick actions are what
+  // stand down while the viewfinder is up. This page (`GuardDrill`) has no
+  // scanner and no search of its own, so its list and filter bar are simply
+  // always there.
+  it('drops the figures and quick actions on the dashboard while the viewfinder is up', async () => {
+    await renderBoard();
+    expect(screen.getByTestId('guard-figure-RGP')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Scan QR/i }));
 
     expect(screen.getByTestId('qr-viewfinder')).toBeInTheDocument();
-    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
-    expect(screen.queryByRole('table')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Vendor')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('guard-figure-RGP')).not.toBeInTheDocument();
     // The search bar itself stays — a damaged code is typed in, not scanned.
     expect(screen.getByLabelText(/Search any pass/i)).toBeInTheDocument();
   });
 
-  it('puts the page back when the scanner is closed', async () => {
-    await renderPage();
+  it('puts the dashboard back when the scanner is closed', async () => {
+    await renderBoard();
     fireEvent.click(screen.getByRole('button', { name: /Scan QR/i }));
     fireEvent.click(screen.getByRole('button', { name: /Close Scanner/i }));
+    expect(screen.getByTestId('guard-figure-RGP')).toBeInTheDocument();
+  });
+
+  it('this page keeps its tab strip and table regardless — it has no scanner', async () => {
+    await renderPage();
     expect(screen.getByRole('tablist', { name: 'Pass type' })).toBeInTheDocument();
     expect(screen.getByRole('table')).toBeInTheDocument();
   });

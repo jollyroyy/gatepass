@@ -5,7 +5,7 @@ import type { GatePassView, GatePassItemView } from '../../types';
 import { formatDateOnly } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
 import { parseCompanyInfo } from '../../lib/companyInfo';
-import { quantityCell, quantityHeading } from '../../lib/units';
+import { quantityCell } from '../../lib/units';
 import { buildApprovalSteps } from '../../lib/approvalLadder';
 import { useApprovalRoles } from '../../lib/useApprovalRoles';
 import { usePassApprovals } from '../../lib/usePassApprovals';
@@ -106,10 +106,6 @@ export default function PassPrint(): React.ReactElement {
   // sheet that would have carried it is circular.
   const steps = buildApprovalSteps(pass, roles, null, approvals);
   const companyInfo = parseCompanyInfo(pass.visitor_company);
-  // One shared unit is printed in the Qty heading instead of its own column —
-  // an A5 slip has no width to spare, and "3 / Kg" over two cells said nothing
-  // "Qty (Kg) 3" does not.
-  const itemUnits = items.map((i) => i.unit);
 
   return (
     <div>
@@ -181,7 +177,7 @@ export default function PassPrint(): React.ReactElement {
                   <th className="border border-black px-2 py-1 font-semibold text-black text-left">Description</th>
                   <th className="border border-black px-2 py-1 font-semibold text-black text-left">Purpose</th>
                   <th className="border border-black px-2 py-1 font-semibold text-black text-right w-16">
-                    {quantityHeading('Qty', itemUnits)}
+                    Qty
                   </th>
                   <th className="border border-black px-2 py-1 font-semibold text-black text-right w-16">Value (₹)</th>
                   {isRgp && (
@@ -216,7 +212,7 @@ export default function PassPrint(): React.ReactElement {
                       {item.remarks && <span className="block text-gray-700">Note: {item.remarks}</span>}
                     </td>
                     <td className="border border-black px-2 py-1 text-black text-right">
-                      {quantityCell(item.quantity, item.unit, itemUnits)}
+                      {quantityCell(item.quantity, item.unit)}
                     </td>
                     <td className="border border-black px-2 py-1 text-black text-right">{formatCurrency(item.approx_value)}</td>
                     {isRgp && (

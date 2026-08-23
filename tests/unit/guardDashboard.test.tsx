@@ -6,19 +6,23 @@
 //     return figure counts due-today and overdue material only — NOT everything
 //     still outside, because /returns and /overdue are the only two pages that
 //     can record a return and neither would take an October date today.
-//   * EVERY FIGURE DRILLS, AND IT DRILLS IN PLACE. Until 2026-08-22 each was a
-//     `<Link>` to a page of its own; the client removed both pages and both
-//     sidebar tabs, so a figure now opens the very rows it counted directly
-//     underneath and closes them when it is pressed again.
-//   * NOTHING IS LISTED UNTIL A FIGURE IS PRESSED. The two five-row previews
+//   * EVERY FIGURE DRILLS, AND SINCE 2026-08-23 ITS LIST IS A PAGE (client:
+//     "don't show the table on the same page. Show it on a different page,
+//     like you are showing the overdue details"). The figures drilled in place
+//     for a day; before that, and again now, each is a `<Link>` — RGP and NRGP
+//     to `/guard-dashboard/RGP` / `/guard-dashboard/NRGP`, the return figure to
+//     `/guard-dashboard/returns`. `GuardDashboard` itself renders neither panel
+//     any more; `GuardDrill` (tested in `pendingOutDrill.test.tsx` and
+//     `pendingReturnsDrill.test.tsx`) is what a figure opens.
+//   * NOTHING IS LISTED ON THIS PAGE, PRESSED OR NOT. The two five-row previews
 //     that used to sit under the cards were deleted on 2026-08-19 and have not
-//     come back: a preview above a list holding the same rows is a second,
-//     shorter answer to the same question.
+//     come back, and the in-place drill that briefly replaced them is also
+//     gone: this page shows figures and quick actions only.
 //   * Nothing from the old seven-drill board survives — no KPI drill, no pass
 //     cards, no "Today's Summary".
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ALL_LINKS } from '../../src/components/layout/Sidebar';
 import { ROLE_ROUTES } from '../../src/lib/roleRoutes';
@@ -158,8 +162,9 @@ vi.mock('../../src/supabaseClient', () => ({
 
 import GuardDashboard from '../../src/pages/Security/GuardDashboard';
 
-/** The figure inside a summary card — the control the client asked to be
- *  clickable. `label` is 'RGP' / 'NRGP' / 'Due back'. */
+/** The figure inside a summary card — since 2026-08-23 this is the `<a>` the
+ *  client asked the figure to be, not a button. `label` is 'RGP' / 'NRGP' /
+ *  'Due back'. */
 function figure(label: string): HTMLElement {
   return screen.getByTestId(`guard-figure-${label}`).querySelector('.gb-figure-value') as HTMLElement;
 }
@@ -194,34 +199,16 @@ describe('Pending OUT (Needs Approval)', () => {
     expect(figure('NRGP').textContent).toBe('2');
   });
 
-  // REWRITTEN 2026-08-22. It used to hold that the two figures were links to
-  // `/pending-out?type=RGP` and `?type=NRGP`. That page and its sidebar tab are
-  // gone — the list opens here, on the type the pressed figure counted.
-  it('opens the list it counted, on that type, right here', async () => {
+  // REWRITTEN 2026-08-23 (client: "don't show the table on the same page …
+  // show it on a different page"). It used to hold that pressing a figure
+  // opened its list in place, on this page. A figure is a `<Link>` now, to
+  // `/guard-dashboard/RGP` or `/guard-dashboard/NRGP` — `pendingOutDrill.test.tsx`
+  // covers what that page shows and how it is counted; this only pins where
+  // each figure points.
+  it('is a link to the drill page for its own type', async () => {
     await renderBoard();
-    fireEvent.click(figure('RGP'));
-
-    expect(figure('RGP')).toHaveAttribute('aria-pressed', 'true');
-    const list = screen.getByRole('region', { name: 'Pending OUT (Needs Approval)' });
-    expect(within(list).getByRole('tab', { name: 'RGP (1)' })).toHaveAttribute('aria-selected', 'true');
-    expect(within(list).getByText('RGP-20260819-0057')).toBeInTheDocument();
-    expect(within(list).queryByText('NRGP-20260819-0081')).not.toBeInTheDocument();
-
-    // The other figure of the same card swaps the list over rather than
-    // opening a second one.
-    fireEvent.click(figure('NRGP'));
-    expect(screen.getAllByRole('region', { name: 'Pending OUT (Needs Approval)' })).toHaveLength(1);
-    expect(screen.getByRole('tab', { name: 'NRGP (2)' })).toHaveAttribute('aria-selected', 'true');
-  });
-
-  it('closes the list when the open figure is pressed again', async () => {
-    await renderBoard();
-    fireEvent.click(figure('RGP'));
-    expect(screen.getByRole('region', { name: 'Pending OUT (Needs Approval)' })).toBeInTheDocument();
-
-    fireEvent.click(figure('RGP'));
-    expect(screen.queryByRole('region', { name: 'Pending OUT (Needs Approval)' })).not.toBeInTheDocument();
-    expect(figure('RGP')).toHaveAttribute('aria-pressed', 'false');
+    expect(figure('RGP')).toHaveAttribute('href', '/guard-dashboard/RGP');
+    expect(figure('NRGP')).toHaveAttribute('href', '/guard-dashboard/NRGP');
   });
 });
 
@@ -232,27 +219,21 @@ describe('Pending RGP Return (Needs Verification)', () => {
     expect(figure('Due back').textContent).toBe('2');
   });
 
-  // REWRITTEN 2026-08-22: this used to be a link to `/pending-returns`.
-  it('opens the return queue here, and only what it counted is in it', async () => {
+  // REWRITTEN 2026-08-23: this used to open the return queue in place. It is a
+  // link to `/guard-dashboard/returns` now, the page `GuardDrill` renders for
+  // that key.
+  it('is a link to the return drill page', async () => {
     await renderBoard();
-    fireEvent.click(figure('Due back'));
-
-    const list = screen.getByRole('region', { name: 'Pending RGP Return (Needs Verification)' });
-    expect(within(list).getByText('RGP-20260518-0056')).toBeInTheDocument();
-    expect(within(list).getByText('RGP-20260517-0055')).toBeInTheDocument();
-    // Due in October: counted by no figure, so listed under none either.
-    expect(within(list).queryByText('RGP-20261001-0099')).not.toBeInTheDocument();
-    // And the Pending OUT card's own list is not opened alongside it.
-    expect(screen.queryByRole('region', { name: 'Pending OUT (Needs Approval)' })).not.toBeInTheDocument();
+    expect(figure('Due back')).toHaveAttribute('href', '/guard-dashboard/returns');
   });
 });
 
-describe('Nothing is listed until a figure is pressed', () => {
+describe('Nothing is listed on this page, pressed or not', () => {
   // Client, 2026-08-19: "remove those pending out and all those return
   // verifications from the guard's view... put the card numbers drillable".
-  // A preview above the list holding the same rows is a second, shorter answer
-  // to the same question — which is how the two start disagreeing.
-  it('renders no pass rows, no table and no View All control until then', async () => {
+  // Since 2026-08-23 a figure drills to its own page rather than revealing a
+  // list here at all, so this board never draws a table, pressed or not.
+  it('renders no pass rows, no table and no View All control', async () => {
     await renderBoard();
     expect(document.querySelector('table')).toBeNull();
     expect(screen.queryByText('RGP-20260819-0057')).not.toBeInTheDocument();
@@ -260,7 +241,7 @@ describe('Nothing is listed until a figure is pressed', () => {
     expect(screen.queryByText(/View All/i)).not.toBeInTheDocument();
   });
 
-  it('offers neither Approve OUT nor Record Return until then', async () => {
+  it('offers neither Approve OUT nor Record Return on this page', async () => {
     await renderBoard();
     expect(screen.queryByRole('link', { name: /Approve OUT/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Record Return/i })).not.toBeInTheDocument();
@@ -333,9 +314,9 @@ describe('The old drill board is gone, not hidden', () => {
   // REWRITTEN 2026-08-22, and again 2026-08-23 when Overdue Items came off
   // every sidebar. It used to hold that the guard's tabs were Dashboard ·
   // Pending OUT · Pending RGP Return · Overdue Items. The two list tabs went
-  // with their routes — both lists open on this board when their figure is
-  // pressed — and the Overdue tab went on its own: `/overdue` is still a guard
-  // route, opened from the Overdue Returns quick action on this board.
+  // with their routes — both lists are now pages a figure links to, never a
+  // sidebar tab — and the Overdue tab went on its own: `/overdue` is still a
+  // guard route, opened from the Overdue Returns quick action on this board.
   it('gives the guard a Dashboard and no other tab', () => {
     const guardTabs = ALL_LINKS.filter((l) => l.roles.includes('guard'));
     expect(guardTabs.map((l) => l.to)).toEqual(['/guard-dashboard']);

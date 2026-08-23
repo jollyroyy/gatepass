@@ -1,16 +1,20 @@
-// THE TWO PENDING DESKS: TWO CARDS ON THE ADMIN'S BOARD, ONE ON THE HOD'S.
+// THE TWO PENDING DESKS: SUB-LINES OF THE PASS-TYPE CARDS, ON EVERY BOARD.
 //
-// They were one card with the split under it until 2026-08-22, when the client
-// separated them ("in the dashboard make sure you separate the pending at gate
-// review and pending for approvals, and remove those subtext"), and on
-// 2026-08-23 the HOD's board took the opposite instruction ("merge both the
-// pending gate approval and pending approval into one total card. Below the
-// card you put it in two subtexts"). The admin's board was not named and keeps
-// its two cards.
+// They have moved three times and this is the fourth shape. One card with the
+// split under it → a card each (client, 2026-08-22: "separate the pending at
+// gate review and pending for approvals") → back to one card with the split
+// under it, on the HOD board only (2026-08-23 morning) → and now, on the same
+// day: "instead of making it as a separate pending card, make the similar type
+// of pending gate approval and pending approval under each NRGP and RGP …
+// remove all those two pending cards completely. Do this across all the views."
+//
+// So NO board carries a pending card of any kind, and each pass-type card
+// carries the two desks OF ITS OWN TYPE.
 //
 // WHAT THE SPLIT COUNTS HAS NOT MOVED ACROSS ANY OF THAT: `pendingSplit` is
-// unchanged, so one card plus its two notes and two cards side by side are the
-// same three numbers, and both boards still read the same function.
+// unchanged, and `pendingNotes` is that function applied to one type's rows —
+// so the two lines under a card sum to that type's waiting set by construction,
+// and the two cards' lines together sum to the board's whole waiting set.
 import { describe, it, expect } from 'vitest';
 import { buildOverviewCards } from '../../src/lib/adminOverview';
 import { buildHodKpis } from '../../src/lib/hodBoard';
@@ -39,61 +43,75 @@ function pass(over: Partial<GatePassView> = {}): GatePassView {
   } as any;
 }
 
-// Two at the gate, three still climbing the ladder.
+// Two RGP at the gate, three RGP still climbing the ladder — and one NRGP on
+// each desk, so a card that counted the whole board rather than its own type
+// would read 3 and 4 instead of 2 and 3.
 const ROWS: GatePassView[] = [
   pass(), pass(),
   pass({ awaits_approval: true }), pass({ awaits_approval: true }), pass({ awaits_approval: true }),
+  pass({ type: 'NRGP', pass_number: 'NRGP-1', return_status: 'not_applicable' }),
+  pass({ type: 'NRGP', pass_number: 'NRGP-2', return_status: 'not_applicable', awaits_approval: true }),
 ];
+
+const desks = (notes?: { label: string; value: number }[]) =>
+  (notes ?? []).map((n) => [n.label, n.value]);
 
 describe('the admin Overview', () => {
   const cards = buildOverviewCards(ROWS, 7, NOW);
-  const gate = cards.find((c) => c.key === 'pendingGate');
-  const approval = cards.find((c) => c.key === 'pendingApproval');
+  const rgp = cards.find((c) => c.key === 'rgp');
+  const nrgp = cards.find((c) => c.key === 'nrgp');
 
-  it('draws a card per desk, each over its own rows', () => {
-    expect(gate?.label).toBe('Pending Gate Review');
-    expect(gate?.value).toBe(2);
-    expect(gate?.drill.rows).toHaveLength(2);
-    expect(approval?.label).toBe('Pending Approval');
-    expect(approval?.value).toBe(3);
-    expect(approval?.drill.rows).toHaveLength(3);
+  it('carries no pending card of any kind', () => {
+    expect(cards.map((c) => c.key)).toEqual(['rgp', 'nrgp', 'overdue']);
   });
 
-  it('no longer carries the combined card, nor any note property under a figure', () => {
-    // REWRITTEN 2026-08-22: it used to assert `c.notes.length === 0`. The
-    // client's instruction that day ("remove running and all kinds of
-    // subtext from kpi card from all dashboards ... across all views")
-    // deleted OverviewCard.note/notes outright, so there is no `notes`
-    // array left to be empty — the property itself is gone.
-    expect(cards.some((c) => c.key === 'pending')).toBe(false);
-    expect(cards.every((c) => !('notes' in c) && !('note' in c))).toBe(true);
+  it('prints the two desks under each pass type, counting only that type', () => {
+    expect(desks(rgp?.notes)).toEqual([
+      ['Pending gate approval', 2],
+      ['Pending approval', 3],
+    ]);
+    expect(desks(nrgp?.notes)).toEqual([
+      ['Pending gate approval', 1],
+      ['Pending approval', 1],
+    ]);
   });
 
-  it('still sums to what the one card counted', () => {
-    const split = pendingSplit(ROWS);
-    expect((gate?.value ?? 0) + (approval?.value ?? 0)).toBe(split.waiting.length);
+  it('still sums to what the removed pending cards counted', () => {
+    const total = [rgp, nrgp].flatMap((c) => c?.notes ?? []).reduce((t, n) => t + n.value, 0);
+    expect(total).toBe(pendingSplit(ROWS).waiting.length);
+  });
+
+  it('leaves Overdue Returns a navigation, with no rows and no desks of its own', () => {
+    const overdue = cards.find((c) => c.key === 'overdue');
+    expect(overdue?.to).toBe('/overdue');
+    expect(overdue?.drill).toBeUndefined();
+    expect(overdue?.notes).toBeUndefined();
   });
 });
 
 describe('the HOD board', () => {
   const cards = buildHodKpis(ROWS, NOW);
-  const pending = cards.find((c) => c.key === 'pendingApprovals');
+  const nrgp = cards.find((c) => c.key === 'nrgpIssued');
+  const rgp = cards.find((c) => c.key === 'rgpIssued');
 
-  it('draws ONE card over both desks, with the HOD wording of the empty list', () => {
-    expect(pending?.label).toBe('Pending Approvals');
-    expect(pending?.value).toBe(5);
-    expect(pending?.drill?.rows).toHaveLength(5);
-    expect(pending?.drill?.empty).toBe('Nothing of yours is waiting.');
-    expect(cards.some((c) => c.key === 'pendingGate' || c.key === 'pendingApproval')).toBe(false);
+  it('carries no pending card of any kind', () => {
+    expect(cards.map((c) => c.key)).toEqual(['nrgpIssued', 'rgpIssued', 'pendingReturn', 'overdue']);
   });
 
-  it('prints the two desks under it, and they sum to the figure above', () => {
-    expect(pending?.notes?.map((n) => [n.label, n.value])).toEqual([
+  it('prints the same two desks under each pass type, at the HOD scope it was handed', () => {
+    expect(desks(rgp?.notes)).toEqual([
       ['Pending gate approval', 2],
       ['Pending approval', 3],
     ]);
-    const split = pendingSplit(ROWS);
-    expect((pending?.notes ?? []).reduce((t, n) => t + n.value, 0)).toBe(split.waiting.length);
+    expect(desks(nrgp?.notes)).toEqual([
+      ['Pending gate approval', 1],
+      ['Pending approval', 1],
+    ]);
+  });
+
+  it('sums to the same waiting set the admin board reads', () => {
+    const total = [rgp, nrgp].flatMap((c) => c?.notes ?? []).reduce((t, n) => t + n.value, 0);
+    expect(total).toBe(pendingSplit(ROWS).waiting.length);
   });
 
   it('has no Rejected card, and its Overdue card navigates rather than drilling', () => {
@@ -103,10 +121,10 @@ describe('the HOD board', () => {
     expect(overdue?.drill).toBeUndefined();
   });
 
-  it('leaves every other card a drill and no notes', () => {
-    for (const c of cards.filter((c) => c.key !== 'pendingApprovals' && c.key !== 'overdue')) {
+  it('gives every other card a drill AND the page that opens it', () => {
+    for (const c of cards.filter((c) => c.key !== 'overdue')) {
       expect(c.drill, c.key).toBeDefined();
-      expect(c.notes, c.key).toBeUndefined();
+      expect(c.to, c.key).toBe(`/dashboard/${c.key}`);
     }
   });
 });

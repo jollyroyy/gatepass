@@ -39,7 +39,10 @@ export function unitLabel(unit: string | null | undefined): string {
   return UNIT_LABELS[unit] ?? unit;
 }
 
-/** The unit every line shares, or null when the lines disagree (or there are none). */
+/** The unit every line shares, or null when the lines disagree (or there are
+ *  none). It no longer decides how a CELL reads — every cell names its own unit
+ *  now — and its one caller sums a column, which only means anything when the
+ *  lines are in one unit. */
 export function sharedUnit(units: (string | null | undefined)[]): string | null {
   const first = units[0];
   if (!first) return null;
@@ -47,35 +50,22 @@ export function sharedUnit(units: (string | null | undefined)[]): string | null 
 }
 
 /**
- * The unit that belongs in a quantity COLUMN HEADING rather than in every cell
- * under it (client, 2026-08-18: "if it is kg, just mention kg in the heading").
+ * What one quantity cell reads: the figure and ITS OWN UNIT, always.
  *
- * Null when the lines disagree — the cells must then carry their own unit or
- * the numbers stop meaning anything — and null for `nos`, which is a plain
- * count and reads as one without being named.
+ * NO HEADING EVER CARRIES THE UNIT ANY MORE, and no unit is ever suppressed —
+ * client, 2026-08-23: "whatever unit has been selected, you need to show all of
+ * them, no matter what, no deviation across all the views". `nos` used to print
+ * bare (a count of 3 reading "3"), and a column whose lines all shared one unit
+ * printed it in the heading instead of the cells; both are gone, so the same
+ * line reads the same way on the board, in the record, on the CSV and on the
+ * printed slip. `sharedUnit` / `headingUnit` / `quantityHeading` are DELETED
+ * with the rule they served — a stale reference is a build error.
+ *
+ * A line with no unit at all (nothing in the column) still prints the bare
+ * figure: inventing "Numbers" for it would state a unit nobody chose.
  */
-export function headingUnit(units: (string | null | undefined)[]): string | null {
-  const shared = sharedUnit(units);
-  return !shared || shared === 'nos' ? null : shared;
-}
-
-/** "Quantity" or "Quantity (Kg)". */
-export function quantityHeading(base: string, units: (string | null | undefined)[]): string {
-  const unit = headingUnit(units);
-  return unit ? `${base} (${unitLabel(unit)})` : base;
-}
-
-/**
- * What one quantity cell reads. Bare when the heading already names the unit,
- * and bare for `nos` — a count of 3 is "3", never "3 Numbers".
- */
-export function quantityCell(
-  quantity: number,
-  unit: string | null | undefined,
-  units: (string | null | undefined)[]
-): string {
-  if (headingUnit(units)) return String(quantity);
-  return !unit || unit === 'nos' ? String(quantity) : `${quantity} ${unitLabel(unit)}`;
+export function quantityCell(quantity: number, unit: string | null | undefined): string {
+  return unit ? `${quantity} ${unitLabel(unit)}` : String(quantity);
 }
 
 /**

@@ -1556,6 +1556,32 @@
     padding-right: 76px;
   }
 
+  /* THE DRILL PAGE'S BACK LINK (client, 2026-08-23: a KPI's list is a page of
+   * its own now, "like you are showing the overdue details"). It sits above the
+   * title, not beside it, so the heading keeps the same baseline it has on the
+   * board the reader just came from. */
+  .gb-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gb-blue);
+  }
+  .gb-back svg { width: 15px; height: 15px; }
+  .gb-back:hover { text-decoration: underline; }
+  /* The count beside a drill page's title — the same figure that was pressed to
+   * get here, in the muted body weight so it reads as a caption, not a second
+   * heading. */
+  .gb-head-count {
+    margin-left: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--gb-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
   /* Inter bold near-black — NOT the house `.page-title`, which is the gold
    * display serif. In the mock-up the heading face is the body face. */
   .gb-hello {
@@ -1667,6 +1693,33 @@
     width: 1px;
     align-self: stretch;
     background: var(--gb-line);
+  }
+
+  /* THE TWO DESK LINES UNDER A PASS-TYPE FIGURE (client, 2026-08-23: the
+   * pending cards became sub-lines of RGP and NRGP). Stacked rather than side
+   * by side: a figure column is half a card wide, and two labels this long
+   * across it would wrap into each other. */
+  .gb-figure-notes {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--gb-line);
+    width: 100%;
+    text-align: center;
+  }
+  .gb-figure-note {
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--gb-muted);
+  }
+  .gb-figure-note-value {
+    margin-right: 4px;
+    font-weight: 700;
+    color: var(--gb-ink);
+    font-variant-numeric: tabular-nums;
   }
 
   /* Circular tint plate — the summary cards' glyph. */
@@ -2812,16 +2865,12 @@
   @media (min-width: 640px) {
     .gb-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
-  /* FIVE cards since 2026-08-23: the two pending desks merged back into one
-   * card and Rejected became Overdue. Five tracks crush a 32px figure at 1280,
-   * so the row breaks there and goes flat only when there is width for it. A
-   * track count that outruns the cards leaves a hole on the right of the row,
-   * which is why this moves whenever a card does. */
+  /* FOUR cards since 2026-08-23 evening: the pending card went altogether and
+   * its two desks became sub-lines of the NRGP and RGP cards. A track count
+   * that outruns the cards leaves a hole on the right of the row, which is why
+   * this moves whenever a card does. */
   @media (min-width: 1280px) {
-    .gb-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  }
-  @media (min-width: 1536px) {
-    .gb-kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .gb-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   }
 
   /* The WHOLE CARD is the drill control, not the number: a figure this size
@@ -3150,12 +3199,10 @@
   @media (min-width: 1024px) {
     .gb-ov-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
-  /* FIVE across since 2026-08-23, when Total Gate Passes came off the board.
-   * The track count follows the card count exactly: too many leaves a hole,
-   * too few orphans a card on a second row. */
-  @media (min-width: 1280px) {
-    .gb-ov-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  }
+  /* THREE across since 2026-08-23 evening: Total went first, then both pending
+   * desks became sub-lines of the RGP and NRGP cards. The track count follows
+   * the card count exactly: too many leaves a hole, too few orphans a card on a
+   * second row — so the 1024px rule already fits all three. */
 
   /* The WHOLE CARD is the drill control, not the number: a figure this size with
    * a hit area of two characters is a control nobody can press. */

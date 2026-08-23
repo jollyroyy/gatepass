@@ -2,17 +2,15 @@
 // for figure, with the admin's counts inside them (client, 2026-08-20: "follow
 // the same dashboard look and feel of guard except the functionalities").
 //
-// ONE DIFFERENCE FROM THE GUARD'S, AND IT IS THE FUNCTIONALITY HALF. The
-// guard's figures are `<Link>`s, because each one has a PAGE that lists exactly
-// what it counted (`/pending-out`, `/pending-returns`). The admin has no such
-// pages — its figures have always opened a stacked list in place, underneath —
-// so these are `<button>`s that raise a `BoardDrill` instead. Making them links
-// would mean inventing five admin list pages, or worse, sending a reader to a
-// page that filters differently from the number they pressed.
+// EVERY FIGURE IS A LINK, exactly as the guard's are (client, 2026-08-23: "show
+// it on a new page for all the KPI cards"). They were buttons that opened a
+// stacked list under the card; `/admin-dashboard/<key>` is that list as a page,
+// and `/overdue` is the item-level board the Overdue figure always opened.
 //
-// THE BOARD INVARIANT IS UNTOUCHED. Each figure hands back the very `BoardDrill`
-// `buildOverviewCards` built for it, so the stack the press opens is the array
-// the figure counted. Nothing here filters, and nothing here counts.
+// THE BOARD INVARIANT IS UNTOUCHED. The page rebuilds the row from the same one
+// read of `v_gate_passes`, over the same window (which rides on the URL), and
+// renders the very array the figure counted. Nothing here filters, and nothing
+// here counts.
 //
 // EVERY CLASS IS A `.gb-*`. This is the same scoped, fixed-light island the
 // guard's board is drawn in, so no colour is introduced and `themeAudit` stays
@@ -38,13 +36,13 @@ const INK: Record<SuperGroupKey, string> = {
 
 type Props = {
   groups: SuperGroup[];
-  /** The figure whose list is open, so the pressed one can say so. */
-  openKey: string | null;
-  onDrill: (group: SuperGroup, figureIndex: number) => void;
+  /** The window the board is showing, carried into the drill page's URL so the
+   *  page counts the same days the figure did. */
+  days: number;
   loading: boolean;
 };
 
-export default function SuperSummaryCards({ groups, openKey, onDrill, loading }: Props): React.ReactElement {
+export default function SuperSummaryCards({ groups, days, loading }: Props): React.ReactElement {
   return (
     <div className="gb-grid-2">
       {groups.map((g) => (
@@ -58,26 +56,32 @@ export default function SuperSummaryCards({ groups, openKey, onDrill, loading }:
                   {i > 0 && <span className="gb-figure-rule" aria-hidden="true" />}
                   <span className="gb-figure">
                     <span className={`gb-figure-label ${INK[g.key]}`}>{f.label}</span>
-                    {/* A figure with a destination is a LINK, not a button that
-                        navigates: Overdue Returns opens `/overdue`, a page of
-                        its own, so it must be middle-clickable and say where it
-                        goes. Every other figure drills in place.
+                    {/* A LINK, never a button that navigates: the list is a
+                        page of its own, so a figure must be middle-clickable
+                        and must say where it goes. The window rides on the URL
+                        for the windowed figures; `/overdue` is running and
+                        would be lying if it claimed a range.
                         A figure that flashes a spinner on every silent refresh
                         is worse than one that shows a placeholder — the rule
                         every KPI in this app follows. */}
-                    {f.to ? (
-                      <Link to={f.to} className="gb-figure-value gb-figure-button">
-                        {loading ? '—' : f.value.toLocaleString('en-IN')}
-                      </Link>
-                    ) : (
-                      <button
-                        type="button"
-                        className="gb-figure-value gb-figure-button"
-                        aria-pressed={openKey === f.key}
-                        onClick={() => onDrill(g, i)}
-                      >
-                        {loading ? '—' : f.value.toLocaleString('en-IN')}
-                      </button>
+                    <Link
+                      to={f.drill ? `${f.to}?days=${days}` : f.to}
+                      className="gb-figure-value gb-figure-button"
+                    >
+                      {loading ? '—' : f.value.toLocaleString('en-IN')}
+                    </Link>
+                    {/* The two desks under a pass-type figure (client,
+                        2026-08-23) — readings, not controls: an anchor inside
+                        an anchor is not valid HTML. */}
+                    {f.notes && f.notes.length > 0 && (
+                      <span className="gb-figure-notes">
+                        {f.notes.map((n) => (
+                          <span key={n.key} className="gb-figure-note">
+                            <span className="gb-figure-note-value">{loading ? '—' : n.value}</span>
+                            {n.label}
+                          </span>
+                        ))}
+                      </span>
                     )}
                   </span>
                 </React.Fragment>

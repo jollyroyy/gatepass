@@ -3635,3 +3635,99 @@ Gate: **2065 tests across 158 files green** (`npm run check`). New coverage in
 guard not first, name-less fallback, NRGP never) and `tests/unit/passPrintSignatures.test.tsx`
 (the rendered sheet ticks and names the guard; a partial return still says "Signature & Stamp").
 No migration, no schema change — every fact printed was already in the database.
+
+
+## 2026-08-23 — a KPI's list is a page, every unit is printed, and the pending cards are gone
+
+Three client instructions in one message, and all three are "do it on every board".
+
+**Index** — F1 `src/components/DrillPageShell.tsx` · F2 `src/pages/HOD/DashboardDrill.tsx` ·
+F3 `src/pages/Security/GuardDrill.tsx` · F4 `src/pages/Admin/DashboardDrill.tsx` ·
+F5 `src/lib/units.ts` · F6 `src/lib/pendingSplit.ts` · F7 `src/lib/hodBoard.ts` ·
+F8 `src/lib/adminOverview.ts` · F9 `src/lib/superAdminBoard.ts`
+
+### 1. Drilling a KPI opens a PAGE, not a panel under the row
+
+*"Whenever we are drilling down on any of the KPI cards in HOD or in the guards view, don't show
+the table on the same page. Show it on a different page, like you are showing the overdue
+details… do the same thing for all the KPI cards."*
+
+Every figure on every board is a `<Link>` now. **F1** is the shared frame — a "Back to dashboard"
+link, the drill's own heading as the `h1`, the count beside it — and three pages fill it:
+
+| Route | Page | Reads |
+|---|---|---|
+| `/dashboard/:key` | **F2** | `useHodBoardData` → `buildHodKpis`, the board's own hook |
+| `/guard-dashboard/:key` | **F3** | `useGuardQueues('both')` → `pendingOutOf` / `pendingReturnsOf` |
+| `/admin-dashboard/:key?days=N` | **F4** | one `v_gate_passes` read → `buildOverviewCards` |
+
+**A DRILL PAGE RE-DERIVES; IT IS NEVER HANDED THE ROWS.** Nothing rides in router state — a
+refresh or a shared link would lose it — so each page runs the same hook and the same builder and
+renders that card's own `drill.rows`. The board invariant is therefore still structural: the
+number pressed and the list that opens come out of one derivation, not two.
+
+Details that are decisions, not defaults:
+
+* **The window rides on the URL** for the admin pages (`?days=`), graded against `OVERVIEW_WINDOWS`
+  rather than `Number(param)` — otherwise `?days=3650` draws a window no figure on the board can
+  produce. Absent or junk falls back to the board's own default of 7.
+* **`/overdue` is unchanged** and is still where the Overdue card goes: it is item-level and
+  carries its own filters, which a stacked pass list cannot be.
+* **The admin trend and status ring still drill IN PLACE.** They are not KPI cards, and a bar or an
+  arc has no stable key to put in a URL.
+* **An unknown `:key` redirects to the board.** The segment is user-typed and untrusted; an empty
+  page reads as a failed load.
+* **No new sidebar tab, and no new route access.** Each page is a sub-path of the board it belongs
+  to, and `isForbidden` already admits `${route}/…` — so the HOD's page is HOD-only and the
+  guard's is guard-only for free. This is the point the client made on 2026-08-22 when they removed
+  `/pending-out` and `/pending-returns`: the objection was to the TABS, not to the pages.
+* `SuperAdminDashboard` loses its `DrillList` and drill state entirely; `GuardDashboard` loses both
+  panels; the HOD board loses its stack.
+
+### 2. Every quantity names its unit — `nos` included
+
+*"Under the quantity I can see I chose numbers as a unit for one item. Why is that number not
+showing as a unit? … whatever unit has been selected, you need to show all of them, no matter what,
+no deviation across all the views."*
+
+Two older rules were hiding a unit the HOD had deliberately chosen: `nos` printed bare (a count of
+3 read "3"), and a column whose lines all shared one unit printed it in the HEADING
+("Quantity (Kg)") with bare cells. **F5** now has one formatter — `quantityCell(qty, unit)`, always
+`"3 Numbers"` / `"12 Kg"` — and `headingUnit` / `quantityHeading` are **deleted**, so a stale
+caller is a build error. `sharedUnit` survives for the one place a shared unit still means
+something: the guard's Total row, which can only sum lines in one unit. Headings are plain words
+everywhere (`Quantity`, `Qty`, `Expected Qty`, `Returned Qty`). `PassRecordItems` and
+`whatsappShare` stopped special-casing `nos` in the same edit. A line with NO unit still prints a
+bare figure — inventing "Numbers" for it would state a unit nobody chose.
+
+### 3. The two pending desks are sub-lines of RGP and NRGP, on every board
+
+*"Instead of making it as a separate pending card, make the similar type of pending gate approval
+and pending approval under each NRGP and RGP… remove all those two pending cards completely. Do
+this across all the views."*
+
+**F6** gains `pendingNotes(rows)` — `pendingSplit` applied to ONE pass type's rows — and every
+board calls it twice. The pending card is gone from all four boards: **F7** drops
+`pendingApprovals` (HOD is four cards now), **F8** drops `pendingGate` and `pendingApproval`
+(admin is three: RGP · NRGP · Overdue Returns), **F9**'s `PLACEMENT` follows, and the grid track
+counts in `index.css` follow the card counts as they always must.
+
+**THE FIGURE IS WINDOWED AND THE DESK LINES ARE RUNNING**, deliberately, on both boards: an
+obligation does not close because the window rolled past the day it started in. The lines sum to
+that TYPE's waiting set by construction, and the four lines across the two cards sum to the whole
+waiting set — which is the number the removed card used to print. The HOD board's Approval Pending
+strip agrees with them for the same reason it agreed with the card.
+
+### Gate
+
+`npm run check` — typecheck clean. Tests rewritten to the new surface: `hodDashboardBoard`,
+`pendingDeskCards`, `pendingSplit`, `adminOverview`, `adminDashboardOverview`,
+`superAdminDashboard`, `guardDashboard`, `pendingOutDrill`, `pendingReturnsDrill`,
+`hodReviewGateFlow`, `itemLevelReturns`, `quantityUnitHeading`, `passPrintUnit`,
+`passRecordItemsTable`.
+
+**Pre-existing failures on `main`, untouched by this work and still red**: the report-KPI trio —
+`gatePassReport.test.ts` ("counts the report's seven figures"), `noNrgpPartialReturn.test.ts`
+("adds the pending card to the figures") and `reportsFilters.test.tsx` ("renders the six figures")
+— all of which describe a report card set that no longer matches `buildReportKpis`. They fail at
+`HEAD` with this branch's changes stashed; they belong to the report workstream, not to this one.

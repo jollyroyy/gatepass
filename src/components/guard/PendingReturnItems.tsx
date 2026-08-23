@@ -36,7 +36,7 @@ import {
   LINE_STATE_PILL,
   type ReturnDraft,
 } from '../../lib/returnDraft';
-import { headingUnit, quantityCell, quantityHeading, unitLabel } from '../../lib/units';
+import { quantityCell, sharedUnit, unitLabel } from '../../lib/units';
 
 const TickGlyph = (
   <svg
@@ -60,8 +60,7 @@ type Props = {
 };
 
 export default function PendingReturnItems({ items, draft, onAdd }: Props): React.ReactElement {
-  const units = items.map((i) => i.unit);
-  const shared = headingUnit(units);
+  const shared = sharedUnit(items.map((i) => i.unit));
   const totalExpected = items.reduce((n, i) => n + i.quantity, 0);
   const totalBack = items.reduce((n, i) => n + effectiveReturned(i, draft), 0);
 
@@ -75,8 +74,8 @@ export default function PendingReturnItems({ items, draft, onAdd }: Props): Reac
           {/* WHAT THE LINE IS WORTH (client, 2026-08-21) — the material coming
               back through the barrier, priced line by line. */}
           <th>Value</th>
-          <th>{quantityHeading('Expected Qty', units)}</th>
-          <th>{quantityHeading('Returned Qty', units)}</th>
+          <th>Expected Qty</th>
+          <th>Returned Qty</th>
           <th>Return Now</th>
           <th>Status</th>
         </tr>
@@ -95,8 +94,8 @@ export default function PendingReturnItems({ items, draft, onAdd }: Props): Reac
               {/* An unpriced line is a dash, never ₹0 — `approx_value` is
                 * optional, and "nothing declared" is not "declared zero". */}
               <td>{item.approx_value == null ? '—' : formatCurrency(item.approx_value)}</td>
-              <td>{quantityCell(item.quantity, item.unit, units)}</td>
-              <td>{quantityCell(effectiveReturned(item, draft), item.unit, units)}</td>
+              <td>{quantityCell(item.quantity, item.unit)}</td>
+              <td>{quantityCell(effectiveReturned(item, draft), item.unit)}</td>
               <td>
                 {state === 'returned' && !staged ? (
                   <span className="gb-pill gb-pill-green">
@@ -117,7 +116,7 @@ export default function PendingReturnItems({ items, draft, onAdd }: Props): Reac
               </td>
               <td>
                 <span className={`gb-pill ${LINE_STATE_PILL[state]}`}>
-                  {lineStateLabel(item, draft, shared ? '' : unitLabel(item.unit))}
+                  {lineStateLabel(item, draft, unitLabel(item.unit))}
                 </span>
                 {/* A staged line says so even when the quantity CLOSES it: a
                   * green "Returned" with nothing beside it would read as
@@ -141,8 +140,8 @@ export default function PendingReturnItems({ items, draft, onAdd }: Props): Reac
         <tfoot>
           <tr>
             <td colSpan={4}>Total</td>
-            <td>{formatQty(totalExpected)}</td>
-            <td>{formatQty(totalBack)}</td>
+            <td>{formatQty(totalExpected)} {unitLabel(shared)}</td>
+            <td>{formatQty(totalBack)} {unitLabel(shared)}</td>
             <td colSpan={2}>
               {totalExpected === 0
                 ? '0% Returned'

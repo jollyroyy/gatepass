@@ -7,21 +7,27 @@
 //      `page-title`), on `.gb-board`, with the guard's two `gb-sum` cards and a
 //      Quick Actions row of tiles. This is the client's actual instruction, and
 //      the thing a future restyle would silently undo.
-//   2. IT CARRIES THE ADMIN'S FIVE FIGURES, NOT THE GUARD'S TWO — total, RGP,
-//      NRGP, pending approvals, overdue returns — grouped windowed-vs-running.
-//   3. THE BOARD INVARIANT SURVIVES THE RESTYLE. Press a figure, count the
-//      stack underneath: it is the very array the figure counted. Press it
-//      again and it closes. That is the whole reason `superAdminGroups` is
+//   2. IT CARRIES THREE OF THE ADMIN'S FIGURES, NOT FIVE — RGP, NRGP and
+//      Overdue Returns, grouped windowed-vs-running. Total Gate Passes and the
+//      two separate pending-desk cards are gone (client, 2026-08-23); the two
+//      desks now print as running lines UNDER the RGP and NRGP figures instead.
+//   3. EVERY FIGURE IS A LINK TO ITS OWN PAGE, NOT A DRILL IN PLACE (client,
+//      2026-08-23: "show it on a new page for all the KPI cards"). RGP and
+//      NRGP link to `/admin-dashboard/<key>?days=N` — the very page
+//      `AdminDashboard`'s own cards open, rebuilt from the same
+//      `buildOverviewCards`; Overdue Returns links to `/overdue`. Nothing
+//      reveals a stack under a card any more, and `superAdminGroups` is still
 //      forbidden to count anything itself.
-//   4. THE TWO RUNNING FIGURES IGNORE THE WINDOW. An obligation does not close
-//      because the window rolled past the day it started in, so a pass waiting
-//      at the gate since 40 days ago is still counted under a 7-day window.
+//   4. THE RUNNING FIGURES AND DESK LINES IGNORE THE WINDOW. An obligation does
+//      not close because the window rolled past the day it started in, so a
+//      pass waiting at the gate since 40 days ago is still counted under a
+//      7-day window.
 //   5. ONE QUERY FOR THE FIGURES. `v_gate_passes` and nothing else; the only
 //      other read is the emergency-release queue behind the fourth tile.
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import type { GatePassView } from '../../src/types';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -111,6 +117,7 @@ vi.mock('../../src/lib/profiles', () => ({
 }));
 
 import SuperAdminDashboard from '../../src/pages/Admin/SuperAdminDashboard';
+import DashboardDrill from '../../src/pages/Admin/DashboardDrill';
 
 async function renderBoard(): Promise<void> {
   tables.length = 0;
@@ -123,19 +130,26 @@ async function renderBoard(): Promise<void> {
   await waitFor(() => expect(figure('RGP')).not.toBe('—'));
 }
 
-/** The control a named figure is printed on — a button for every figure that
- *  drills in place, and a `<Link>` for Overdue Returns, which opens `/overdue`
- *  instead (client, 2026-08-23). */
+/** The `<Link>` a named figure is printed on — every figure navigates since
+ *  2026-08-23, RGP/NRGP to `/admin-dashboard/<key>?days=N`, Overdue Returns to
+ *  `/overdue`. */
 function figureButton(label: string): HTMLElement {
   const wrap = screen.getByText(label, { selector: '.gb-figure-label' }).parentElement as HTMLElement;
-  return within(wrap).getByRole(label === 'Overdue Returns' ? 'link' : 'button');
+  return within(wrap).getByRole('link');
 }
 function figure(label: string): string {
   return figureButton(label).textContent ?? '';
 }
-function stack(): HTMLElement[] {
-  const region = screen.queryByRole('region', { name: 'Selected passes' });
-  return region ? Array.from(region.querySelectorAll('a[href^="/pass/"]')) : [];
+/** The value on one of a pass-type figure's two running desk lines. Each
+ *  `.gb-figure-note` reads as "1Pending gate approval" (value then label, no
+ *  separating text node), so it is found by substring rather than an exact
+ *  `getByText` match. */
+function note(figureLabel: string, noteLabel: string): string {
+  const wrap = screen.getByText(figureLabel, { selector: '.gb-figure-label' }).parentElement as HTMLElement;
+  const notes = within(wrap).getAllByText(/./, { selector: '.gb-figure-note' });
+  const noteEl = notes.find((el) => el.textContent?.includes(noteLabel));
+  if (!noteEl) throw new Error(`no "${noteLabel}" desk line under ${figureLabel}`);
+  return within(noteEl).getByText(/^[\d,—]+$/, { selector: '.gb-figure-note-value' }).textContent ?? '';
 }
 
 describe('The super admin dashboard is the guard\'s board with the admin\'s figures', () => {
@@ -151,73 +165,76 @@ describe('The super admin dashboard is the guard\'s board with the admin\'s figu
     expect(document.querySelectorAll('.gb-sum').length).toBe(2);
   });
 
-  // REWRITTEN 2026-08-22: the admin's Pending Approvals figure became two, one
-  // per desk (client), so Needs Attention carries three.
-  it('shows the ADMIN’s five figures, grouped windowed against running', async () => {
+  // REWRITTEN 2026-08-23: Total Gate Passes came off every dashboard, and the
+  // two separate pending-desk cards became running lines under RGP and NRGP —
+  // so this board carries three figures across its two cards, not five.
+  it('shows THREE of the admin\'s figures, grouped windowed against running', async () => {
     await renderBoard();
     // Windowed: 4 raised in the last 7 days (3 RGP + 1 NRGP). The 20-day-old
     // one is outside it.
     expect(screen.queryByText('Total')).toBeNull();
     expect(figure('RGP')).toBe('3');
     expect(figure('NRGP')).toBe('1');
-    // Running, and NOT scoped to the window — both rows are 40 days old.
-    expect(figure('Pending Gate Review')).toBe('1');
-    expect(figure('Pending Approval')).toBe('0');
+    // Running, and NOT scoped to the window — the waiting pass is 40 days old.
     expect(figure('Overdue Returns')).toBe('1');
     // The two cards say which is which, so no reader has to guess.
     expect(screen.getByText('Gate Passes Raised')).toBeInTheDocument();
     expect(screen.getByText('Needs Attention')).toBeInTheDocument();
-    // REWRITTEN 2026-08-22: it used to also assert a 'Running totals' note
-    // rendered under the Needs Attention heading. The client's instruction
-    // that day ("remove running and all kinds of subtext from kpi card from
-    // all dashboards ... across all views") deleted `SuperGroup.note` and
-    // `superAdminGroups` now takes one argument, so neither group prints a
-    // note any more — the heading and the figures underneath are the whole
-    // card.
+    // The client's instruction that day ("remove running and all kinds of
+    // subtext from kpi card from all dashboards ... across all views") deleted
+    // `SuperGroup.note`, and `superAdminGroups` takes one argument, so neither
+    // group heading prints a note any more.
     expect(screen.queryByText(/Running totals/)).toBeNull();
 
     // AND EACH FIGURE IS ON THE RIGHT CARD. Asserting the values alone would
     // not catch a windowed figure being grouped under the running heading —
-    // which is exactly the mistake the grouping exists to prevent, since the
-    // card's own note would then be false for one of the figures under it.
+    // which is exactly the mistake the grouping exists to prevent.
     const raised = within(screen.getByTestId('super-card-raised'));
     const attention = within(screen.getByTestId('super-card-attention'));
-    // TWO FIGURES ON THE RAISED CARD, NOT THREE (client, 2026-08-23): the Total
-    // figure came off every dashboard, and the two type figures under it are
-    // what it was the sum of.
-    expect(raised.getAllByRole('button').map((b) => b.textContent)).toEqual(['3', '1']);
-    // TWO BUTTONS AND A LINK on the attention card (client, 2026-08-23):
-    // Overdue Returns opens `/overdue` rather than drilling in place.
-    expect(attention.getAllByRole('button').map((b) => b.textContent)).toEqual(['1', '0']);
+    // TWO FIGURES ON THE RAISED CARD (client, 2026-08-23): the Total figure
+    // came off every dashboard, and the two type figures under it are what it
+    // was the sum of.
+    expect(raised.getAllByRole('link').map((b) => b.textContent)).toEqual(['3', '1']);
+    // ONE FIGURE ON THE ATTENTION CARD NOW (client, 2026-08-23): the two
+    // pending-desk figures came off it entirely, leaving Overdue Returns alone.
     expect(attention.getAllByRole('link').map((b) => b.textContent)).toEqual(['1']);
-    expect(raised.queryByText('Pending Gate Review')).toBeNull();
-    expect(attention.getByText('Pending Gate Review')).toBeInTheDocument();
-    expect(attention.getByText('Pending Approval')).toBeInTheDocument();
     expect(attention.getByText('Overdue Returns')).toBeInTheDocument();
+    expect(attention.queryByText('Pending Gate Review')).toBeNull();
+    expect(attention.queryByText('Pending Approval')).toBeNull();
   });
 
-  it('drills a figure into the very rows it counted, and closes on a second press', async () => {
+  // The two desks that used to be their own cards are now RUNNING lines under
+  // RGP and NRGP, scoped to that ONE type — the waiting RGP ("wait", 40 days
+  // old) counts under RGP only; NRGP's own lines are both zero.
+  it('prints the two running desk lines under RGP and NRGP, scoped to that type', async () => {
     await renderBoard();
-    expect(stack()).toHaveLength(0);
-
-    fireEvent.click(figureButton('RGP'));
-    await waitFor(() => expect(stack()).toHaveLength(3));
-
-    fireEvent.click(figureButton('RGP'));
-    await waitFor(() => expect(stack()).toHaveLength(0));
+    expect(note('RGP', 'Pending gate approval')).toBe('1');
+    expect(note('RGP', 'Pending approval')).toBe('0');
+    expect(note('NRGP', 'Pending gate approval')).toBe('0');
+    expect(note('NRGP', 'Pending approval')).toBe('0');
   });
 
-  // REWRITTEN 2026-08-23. It used to press Overdue Returns and assert the one
-  // 40-day-old row it counted appeared in the stack. That figure opens
-  // `/overdue` now ("once anybody clicks on the overdue card, it should open up
-  // the new page"), so the RUNNING scope is pinned on Pending Gate Review — the
-  // other figure on the attention card whose row is outside every window — and
-  // the destination is pinned here.
-  it('drills a RUNNING figure to the one old row it counted, window notwithstanding', async () => {
+  it('carries the window on the RGP and NRGP links, and opens nothing in place on click', async () => {
     await renderBoard();
-    fireEvent.click(figureButton('Pending Gate Review'));
-    await waitFor(() => expect(stack()).toHaveLength(1));
-    expect(screen.getByRole('region', { name: 'Selected passes' }).textContent).toContain('RGP-20260701-0001');
+    expect(figureButton('RGP')).toHaveAttribute('href', '/admin-dashboard/rgp?days=7');
+    expect(figureButton('NRGP')).toHaveAttribute('href', '/admin-dashboard/nrgp?days=7');
+    fireEvent.click(figureButton('RGP'));
+    expect(screen.queryByRole('region', { name: 'Selected passes' })).toBeNull();
+  });
+
+  // The href a super admin's RGP figure carries opens the very page the admin
+  // Overview's own RGP card opens — same key, same window, same rows.
+  it('/admin-dashboard/rgp?days=7 lists exactly the rows the RGP figure counted', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin-dashboard/rgp?days=7']}>
+        <Routes>
+          <Route path="/admin-dashboard/:key" element={<DashboardDrill />} />
+          <Route path="/admin-dashboard" element={<div>back on the board</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText('3 passes')).toBeInTheDocument());
+    expect(screen.getAllByTestId('pass-stack-card')).toHaveLength(3);
   });
 
   it('sends Overdue Returns to /overdue rather than opening a stack', async () => {
@@ -225,7 +242,7 @@ describe('The super admin dashboard is the guard\'s board with the admin\'s figu
     const overdue = figureButton('Overdue Returns');
     expect(overdue).toHaveAttribute('href', '/overdue');
     fireEvent.click(overdue);
-    expect(stack()).toHaveLength(0);
+    expect(screen.queryByRole('region', { name: 'Selected passes' })).toBeNull();
   });
 
   it('widening the window changes the windowed figures and leaves the running ones alone', async () => {
@@ -233,8 +250,10 @@ describe('The super admin dashboard is the guard\'s board with the admin\'s figu
     fireEvent.change(screen.getByLabelText('Window'), { target: { value: '30' } });
     await waitFor(() => expect(figure('RGP')).toBe('4'));
     expect(figure('RGP')).toBe('4');
-    expect(figure('Pending Gate Review')).toBe('1');
     expect(figure('Overdue Returns')).toBe('1');
+    expect(note('RGP', 'Pending gate approval')).toBe('1');
+    // And the window rides into the widened href too.
+    expect(figureButton('RGP')).toHaveAttribute('href', '/admin-dashboard/rgp?days=30');
   });
 
   it('carries the guard’s Quick Action tiles, four of them, each a route this reader has', async () => {

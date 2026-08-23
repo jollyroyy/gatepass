@@ -21,13 +21,13 @@
 // expects. `invoice_no` is deliberately absent: it is an accounts fact, the same
 // call the guard's Verify table makes.
 //
-// The unit is named beside the QUANTITY COLUMN when every line shares one and
-// it is not `nos` — `quantityHeading` / `quantityCell`, the rule every quantity
-// table in this app follows, so a count of 3 reads "3" and never "3 Numbers".
+// EVERY QUANTITY CARRIES ITS OWN UNIT — `quantityCell`, the rule every quantity
+// table in this app follows since 2026-08-23: a count of 3 reads "3 Numbers",
+// and no unit is ever moved into the column heading or dropped.
 import React from 'react';
 import type { GatePassView } from '../types';
 import { formatCurrency } from '../lib/formatCurrency';
-import { quantityCell, quantityHeading } from '../lib/units';
+import { quantityCell } from '../lib/units';
 import { usePassItems } from '../lib/usePassItems';
 import { itemLineView } from '../lib/passRecordView';
 import { itemPillClass } from '../lib/passStackCard';
@@ -41,8 +41,6 @@ export default function PassStackItems({ pass }: { pass: GatePassView }): React.
     return <div className="gpo-items gpo-items-note">No material lines on this pass.</div>;
   }
 
-  const units = items.map((i) => i.unit);
-
   return (
     <div className="gpo-items" data-testid="pass-stack-items">
       <div className="gb-scroll">
@@ -55,7 +53,7 @@ export default function PassStackItems({ pass }: { pass: GatePassView }): React.
               <th scope="col">Make / Model</th>
               <th scope="col">Serial / ID</th>
               <th scope="col">Purpose</th>
-              <th scope="col">{quantityHeading('Quantity', units)}</th>
+              <th scope="col">Quantity</th>
               <th scope="col">Value</th>
               {/* THE LINE'S OWN STATUS — the PASS's badge repeated word for
                   word (client, 2026-08-21: "show the exact same status for the
@@ -77,7 +75,7 @@ export default function PassStackItems({ pass }: { pass: GatePassView }): React.
                 <td>{line.make_model || '—'}</td>
                 <td>{line.serial_no || '—'}</td>
                 <td>{line.purpose || '—'}</td>
-                <td>{quantityCell(line.quantity, line.unit, units)}</td>
+                <td>{quantityCell(line.quantity, line.unit)}</td>
                 {/* An unpriced line is a dash, never ₹0 — `approx_value` is
                     optional, and "nothing declared" is not "declared zero". */}
                 <td>{line.approx_value === null ? '—' : formatCurrency(line.approx_value)}</td>

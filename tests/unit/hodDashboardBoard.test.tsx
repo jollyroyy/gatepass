@@ -10,11 +10,17 @@
 //      a query was built with and hands a colleague's pass to any read that did
 //      NOT ask for one — so forgetting the filter shows up as a stranger's pass
 //      on the board, not as a silent widening nobody notices.
-//   2. THE FIGURE/DRILL AGREEMENT. Read what a card prints, press it, count the
-//      stack underneath. Pressing again closes it.
-//   3. THE TWO SCOPES ON ONE ROW. Cards 1–3 are TODAY; card 4 and the "pending
-//      at the gate" note are RUNNING. A five-day-old overdue pass must be in the
-//      Pending Return figure and in NO today figure.
+//   2. THE FIGURE/DRILL AGREEMENT. Read what a card prints, then open the page
+//      it links to and count the stack there. Since 2026-08-23 a KPI's list is
+//      a PAGE, not a panel under the row (client: "don't show the table on the
+//      same page. Show it on a different page, like you are showing the overdue
+//      details"), so the card is a link and `/dashboard/<key>` rebuilds the same
+//      row from the same read — which is exactly what could drift, and what the
+//      cases below re-derive rather than assume.
+//   3. THE TWO SCOPES ON ONE ROW. The two type FIGURES are TODAY; Pending
+//      Return, Overdue and the two pending desk lines under each type card are
+//      RUNNING. A five-day-old overdue pass must be in the Pending Return figure
+//      and in NO today figure.
 //   4. WHAT THE CLIENT ASKED TO GO: the Alerts card, and with the old board the
 //      trend, the status ring, the return watch, the top-items ring and the
 //      flagged-review queue.
@@ -28,8 +34,8 @@
 //      replaced on 2026-08-21.
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { GatePassView } from '../../src/types';
 
 const ME = 'hod-1';
@@ -196,6 +202,7 @@ vi.mock('../../src/supabaseClient', () => ({
 }));
 
 import Dashboard from '../../src/pages/HOD/Dashboard';
+import DashboardDrill from '../../src/pages/HOD/DashboardDrill';
 
 function renderBoard() {
   render(
@@ -205,25 +212,39 @@ function renderBoard() {
   );
 }
 
-/** The card whose label starts with `label`. Every one of the four is a button —
- *  the WHOLE card is the drill control, not just the number. */
+/** The page a card links to. It reads the SAME hook the board does, so what it
+ *  lists is the array the pressed figure counted — rebuilt, never carried. */
+function renderDrill(key: string) {
+  render(
+    <MemoryRouter initialEntries={[`/dashboard/${key}`]}>
+      <Routes>
+        <Route path="/dashboard/:key" element={<DashboardDrill />} />
+        <Route path="/dashboard" element={<div>the board</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+/** The card whose name is `label`. Every one of the four is a LINK — the WHOLE
+ *  card is the control, and what it opens is a page. */
 function card(label: string): HTMLElement {
   const group = screen.getByRole('group', { name: 'Dashboard figures' });
   // Matched on the NAME element, not the card's whole text: "RGP Issued" is a
   // substring of "NRGP Issued", and a loose `includes` picks the wrong card.
   const found = within(group)
-    .getAllByRole('button')
+    .getAllByRole('link')
     .find((b) => b.querySelector('.gb-kpi-name')?.textContent === label);
   if (!found) throw new Error(`no "${label}" card`);
   return found;
 }
 
-/** The figure printed on the sub-line named `label`, under a card's hairline. */
-function noteValue(label: string): string | undefined {
-  const group = screen.getByRole('group', { name: 'Dashboard figures' });
-  const note = [...group.querySelectorAll('.gb-kpi-note')]
+/** The figure on the sub-line named `label`, under the hairline of the card
+ *  named `cardLabel`. Each pass type carries its OWN pair of desks since
+ *  2026-08-23, so a note only means something with its card named. */
+function noteValue(cardLabel: string, label: string): string | undefined {
+  const note = [...card(cardLabel).querySelectorAll('.gb-kpi-note')]
     .find((n) => n.querySelector('.gb-kpi-note-label')?.textContent === label);
-  if (!note) throw new Error(`no "${label}" sub-line`);
+  if (!note) throw new Error(`no "${label}" sub-line on ${cardLabel}`);
   return note.querySelector('.gb-kpi-note-value')?.textContent ?? undefined;
 }
 
@@ -232,8 +253,9 @@ function expectFigure(label: string, value: number): void {
   expect(el.querySelector('.gb-kpi-figure')?.textContent).toBe(String(value));
 }
 
+/** The pass stack on a drill page. */
 function stack(): HTMLElement {
-  return screen.getByRole('region', { name: 'Selected passes' });
+  return screen.getByTestId('pass-stack');
 }
 
 async function loaded(): Promise<void> {
@@ -246,7 +268,7 @@ async function loaded(): Promise<void> {
  *  sum is a number nobody reads and one more thing to disagree. */
 function noCard(label: string): void {
   const found = screen
-    .getAllByRole('button')
+    .getAllByRole('link')
     .some((b) => b.querySelector('.gb-kpi-name')?.textContent === label);
   expect(found).toBe(false);
 }
@@ -264,25 +286,28 @@ describe('the HOD dashboard is scoped to this HOD', () => {
     // that card became TWO — one per desk — so the figure that used to read 4
     // is now those two, summing to 4.
     expectFigure('RGP Issued', 3);
-    // REWRITTEN AGAIN 2026-08-23: the two desks merged back into ONE card, with
-    // the split printed under it as two sub-lines ("merge both the pending gate
-    // approval and pending approval into one total card"). The notes sum to the
-    // figure, which is the same 4 the RGP note once carried.
-    expectFigure('Pending Approvals', 4);
-    expect(noteValue('Pending gate approval')).toBe('2');
-    expect(noteValue('Pending approval')).toBe('2');
+    // REWRITTEN AGAIN 2026-08-23 (evening): the pending card is gone altogether
+    // and each pass type carries its own two desks ("make the similar type of
+    // pending gate approval and pending approval under each NRGP and RGP …
+    // remove all those two pending cards completely"). The four lines still sum
+    // to the 4 the single figure showed: t1 at the gate on RGP, t4 at the gate
+    // and p1/p2 climbing the ladder on NRGP.
+    noCard('Pending Approvals');
+    expect(noteValue('RGP Issued', 'Pending gate approval')).toBe('1');
+    expect(noteValue('RGP Issued', 'Pending approval')).toBe('0');
+    expect(noteValue('NRGP Issued', 'Pending gate approval')).toBe('1');
+    expect(noteValue('NRGP Issued', 'Pending approval')).toBe('2');
     expect(screen.queryByText('RGP-20260819-0099')).not.toBeInTheDocument();
   });
 
-  it("never lists a colleague's pass in a drill", async () => {
-    renderBoard();
-    await loaded();
+  it("never lists a colleague's pass on a drill page", async () => {
+    renderDrill('rgpIssued');
+    await waitFor(() => expect(screen.getByTestId('pass-stack')).toBeInTheDocument());
 
-    fireEvent.click(card('RGP Issued'));
     expect(within(stack()).getByText('Alice')).toBeInTheDocument();
     expect(within(stack()).queryByText('Zara')).not.toBeInTheDocument();
-    // The drill draws no `N passes` count any more (see the case below); the
-    // scope is proved by the cards it lists, which is what it always meant.
+    // The page re-reads with the same `.eq('raised_by', …)` the board uses, so
+    // the scope holds on a URL somebody typed rather than only on a click.
     expect(within(stack()).getAllByTestId('pass-ordinal').length).toBe(3);
   });
 
@@ -306,13 +331,14 @@ describe("the four figures, and the two scopes they mix", () => {
   });
 
   it('the five-day-old overdue pass is in no today figure but is still counted', async () => {
-    renderBoard();
-    await loaded();
-
-    fireEvent.click(card('RGP Issued'));
+    renderDrill('rgpIssued');
+    await waitFor(() => expect(screen.getByTestId('pass-stack')).toBeInTheDocument());
     expect(within(stack()).queryByText('Gus')).not.toBeInTheDocument();
+  });
 
-    fireEvent.click(card('Pending Return'));
+  it('the Pending Return page lists that same overdue pass', async () => {
+    renderDrill('pendingReturn');
+    await waitFor(() => expect(screen.getByTestId('pass-stack')).toBeInTheDocument());
     expect(within(stack()).getByText('Gus')).toBeInTheDocument();
   });
 
@@ -321,34 +347,48 @@ describe("the four figures, and the two scopes they mix", () => {
   // its return date / 0 passes". A figure that is already drawn once in
   // 32px type does not need restating in a note under it, or again as a
   // heading over the list it opens.
-  it('states each figure ONCE — no repeated note, no drill heading', async () => {
+  it('states each figure ONCE on the board — no repeated note', async () => {
     renderBoard();
     await loaded();
 
     expect(screen.queryByText('All types')).not.toBeInTheDocument();
     expect(screen.queryByText(/\d+ overdue/)).not.toBeInTheDocument();
-
-    fireEvent.click(card('Pending Return'));
     expect(screen.queryByText('Material past its return date')).not.toBeInTheDocument();
-    expect(within(stack()).queryByText(/\d+ passe?s?$/)).not.toBeInTheDocument();
   });
 
-  it('pressing the open card again closes the stack', async () => {
+  it('every card is a link to its own page, and nothing opens under the row', async () => {
     renderBoard();
     await loaded();
 
-    fireEvent.click(card('NRGP Issued'));
-    expect(within(stack()).getByText('Nina')).toBeInTheDocument();
-    expect(card('NRGP Issued')).toHaveAttribute('aria-pressed', 'true');
+    expect(card('NRGP Issued')).toHaveAttribute('href', '/dashboard/nrgpIssued');
+    expect(card('RGP Issued')).toHaveAttribute('href', '/dashboard/rgpIssued');
+    expect(card('Pending Return')).toHaveAttribute('href', '/dashboard/pendingReturn');
+    // No pressed state left to leak: a link is not a toggle.
+    for (const c of ['NRGP Issued', 'RGP Issued', 'Pending Return']) {
+      expect(card(c)).not.toHaveAttribute('aria-pressed');
+    }
+    expect(screen.queryByTestId('pass-stack')).not.toBeInTheDocument();
+  });
 
-    fireEvent.click(card('NRGP Issued'));
-    expect(screen.queryByRole('region', { name: 'Selected passes' })).not.toBeInTheDocument();
+  it('the page a card opens lists that card\'s own passes, under its own heading', async () => {
+    renderDrill('nrgpIssued');
+    await waitFor(() => expect(screen.getByTestId('pass-stack')).toBeInTheDocument());
+
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('NRGP raised today');
+    expect(within(stack()).getByText('Nina')).toBeInTheDocument();
+    // And a way back to the board it was opened from.
+    expect(screen.getByRole('link', { name: /Back to dashboard/ }))
+      .toHaveAttribute('href', '/dashboard');
+  });
+
+  it('sends an unknown key back to the board rather than drawing an empty page', async () => {
+    renderDrill('nonsense');
+    await waitFor(() => expect(screen.getByText('the board')).toBeInTheDocument());
   });
 
   it("a drill row does not repeat the reader's own name back at them", async () => {
-    renderBoard();
-    await loaded();
-    fireEvent.click(card('RGP Issued'));
+    renderDrill('rgpIssued');
+    await waitFor(() => expect(screen.getByTestId('pass-stack')).toBeInTheDocument());
     expect(within(stack()).queryByText(/P M Sharma/)).not.toBeInTheDocument();
   });
 });
@@ -367,19 +407,17 @@ describe('the Overdue card', () => {
   });
 
   // "Once anybody clicks on the overdue card, it should open up the new page as
-  // the current overdue page is showing" — so it is a LINK, not a drill: the
-  // page it opens is item-level and carries its own filters, which a stacked
-  // pass list under a card cannot be. It is also the HOD's only door to
-  // `/overdue` now that the sidebar tab is gone.
-  it('is a link to /overdue, not a card that drills in place', async () => {
+  // the current overdue page is showing" — and on 2026-08-23 every other card
+  // was told to behave the same way. This one is still the odd one out in WHERE
+  // it goes: `/overdue` is item-level and carries its own filters, so it is not
+  // a `/dashboard/<key>` pass stack.
+  it('is a link to /overdue, not to a pass stack', async () => {
     renderBoard();
     await loaded();
-    const overdue = screen.getByRole('link', { name: /Overdue/ });
+    const overdue = card('Overdue');
     expect(overdue).toHaveAttribute('href', '/overdue');
-    // r1 is this HOD's overdue RGP.
+    // o1 is this HOD's overdue RGP.
     expect(overdue.querySelector('.gb-kpi-figure')?.textContent).toBe('1');
-    fireEvent.click(overdue);
-    expect(screen.queryByRole('region', { name: 'Selected passes' })).not.toBeInTheDocument();
   });
 });
 
@@ -433,20 +471,16 @@ describe('Quick Actions and the Approval Pending strip', () => {
     // Pending Approvals card ("2 passes pending approval"). The desks are a
     // card each now and the sub-lines are gone, so the card's own FIGURE is
     // what has to agree with the strip.
-    // REWRITTEN AGAIN 2026-08-23: the desks are one card again, so what has to
-    // agree with the strip is that card's "Pending approval" sub-line — the
-    // half of its total that is still climbing the ladder.
-    expect(noteValue('Pending approval')).toBe('2');
-    expect(card('Pending Approvals').textContent).not.toContain('passes pending');
-
-    // REWRITTEN 2026-08-20: the NRGP Issued and RGP Issued cards used to repeat
-    // this strip's roll-up ("3 pending approval") as a note each. They carry no
-    // note at all now — the Pending Approvals card counts PASSES, which is a
-    // different question from how many SIGNATURES are owed, and printing the
-    // signature figure on three cards was the repetition the client asked to
-    // stop. The strip is the one place that question is answered.
-    expect(card('NRGP Issued').textContent).not.toContain('pending approval');
-    expect(card('RGP Issued').textContent).not.toContain('pending approval');
+    // REWRITTEN AGAIN 2026-08-23 (evening): the desks are sub-lines of the pass
+    // type cards, so what has to agree with the strip is the "Pending approval"
+    // line of the card whose type those two passes are — both p1 and p2 are
+    // NRGP, and the RGP card's own line is 0 for exactly that reason.
+    expect(noteValue('NRGP Issued', 'Pending approval')).toBe('2');
+    expect(noteValue('RGP Issued', 'Pending approval')).toBe('0');
+    // A COUNT, not a sentence: the roll-up phrasing the client removed on
+    // 2026-08-20 must not creep back in beside the figures.
+    expect(card('NRGP Issued').textContent).not.toContain('passes pending');
+    expect(card('RGP Issued').textContent).not.toContain('passes pending');
 
     // No "View all" — this page's own drillable KPI cards already open the
     // very passes an office is waiting on.
@@ -471,7 +505,7 @@ describe('Quick Actions and the Approval Pending strip', () => {
     expect(screen.getByRole('heading', { name: 'Approval Pending' })).toBeInTheDocument();
   });
 
-  it('an approved row never counts, on either the strip or the note', async () => {
+  it('an approved row never counts, on the strip or on a desk line', async () => {
     renderBoard();
     await loaded();
     // p4's finance_head row is `approved`, not `pending` — Finance stays at the

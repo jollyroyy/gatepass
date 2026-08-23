@@ -4,7 +4,10 @@
 // Four client instructions are pinned here:
 //   * "The column heading should be Quantity and under that the values would be
 //     3 L or 3 kg as per the item" — one column, the unit in the cell, and the
-//     second number (what actually came back) under the first.
+//     second number (what actually came back) under the first. Since
+//     2026-08-23 that also covers `nos`: "whatever unit has been selected, you
+//     need to show all of them, no matter what, no deviation across all the
+//     views" — a count of 12 reads "12 Numbers", not a bare "12".
 //   * "Put the serial number against all the items, in both the passes."
 //   * the return status carries the date and time the system stamped, never a
 //     typed one, and it is final.
@@ -57,8 +60,10 @@ describe('the Quantity column', () => {
     expect(heads).not.toContain('Pending Qty');
 
     expect(screen.getByText('3 Litre')).toBeInTheDocument();
-    // `nos` is still never spelled out — a count of 12 is "12".
-    expect(screen.getByText('12')).toBeInTheDocument();
+    // `nos` is spelled out now too (client, 2026-08-23: "whatever unit has
+    // been selected, you need to show all of them, no matter what") — a
+    // count of 12 reads "12 Numbers", not a bare "12".
+    expect(screen.getByText('12 Numbers')).toBeInTheDocument();
   });
 
   it('prints the second number — what actually came back — under the first', () => {

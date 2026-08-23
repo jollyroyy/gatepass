@@ -1,10 +1,13 @@
-// Pending RGP Return (Needs Verification) - the return queue, drilled open ON
-// THE GUARD'S DASHBOARD by the figure that counts it (client, 2026-08-22).
+// Pending RGP Return (Needs Verification) - the return queue, drilled open on
+// its OWN PAGE at `/guard-dashboard/returns` (client, 2026-08-23: "don't show
+// the table on the same page. Show it on a different page, like you are
+// showing the overdue details").
 //
-// REWRITTEN 2026-08-22. It used to render this list as a PAGE of its own at
-// `/pending-returns`, reached from a sidebar tab and from a `<Link>` figure;
-// the client removed the route and the tab, so the list opens in place on the
-// board and closes when its figure is pressed again.
+// REWRITTEN 2026-08-23. For one day (2026-08-22) this list opened in place,
+// under the figure that counts it, on the guard's dashboard; the client took
+// that back the same way as Pending OUT — see that file's header. `GuardDrill`
+// is now the page the return figure links to for `key === 'returns'`;
+// `PendingReturnsPanel` — unchanged by this move — is what it renders.
 //
 // What these cases exist to hold:
 //   * It lists what is DUE TODAY or ALREADY LATE, and deliberately not every
@@ -21,7 +24,8 @@
 //   * The list carries NO status tab strip and NO search bar of its own
 //     (client, 2026-08-19). Both were removed the same day; these cases are
 //     what stops either coming back by accident. The board's ONE global search
-//     sits above the figures and belongs to the whole screen.
+//     sits above the figures on the dashboard, and this page has neither a
+//     figure nor a search box of its own.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -99,13 +103,31 @@ vi.mock('../../src/supabaseClient', () => ({
 }));
 
 import GuardDashboard from '../../src/pages/Security/GuardDashboard';
+import GuardDrill from '../../src/pages/Security/GuardDrill';
 
-/** The drillable figure inside a summary card. The return card's is unlabelled
- *  on the mock-up, so its test id is 'Due back'. */
+/** The drillable figure inside a summary card, on the dashboard. The return
+ *  card's is unlabelled on the mock-up, so its test id is 'Due back'. */
 function figure(label = 'Due back'): HTMLElement {
   return screen.getByTestId('guard-figure-' + label).querySelector('.gb-figure-value') as HTMLElement;
 }
 
+/** `GuardDrill` at `/guard-dashboard/returns` — the page the return figure
+ *  opens since 2026-08-23. */
+async function renderPage() {
+  render(
+    <MemoryRouter initialEntries={['/guard-dashboard/returns']}>
+      <Routes>
+        <Route path="/guard-dashboard" element={<div>DASHBOARD</div>} />
+        <Route path="/guard-dashboard/:key" element={<GuardDrill />} />
+        <Route path="/pass/:id" element={<div>RECORD PAGE</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(screen.getByText('RGP-00056')).toBeInTheDocument());
+}
+
+/** The dashboard itself, for the cases about its own search bar rather than
+ *  about the drilled list. */
 async function renderBoard() {
   render(
     <MemoryRouter initialEntries={['/guard-dashboard']}>
@@ -116,13 +138,6 @@ async function renderBoard() {
     </MemoryRouter>,
   );
   await waitFor(() => expect(figure().textContent).not.toBe('-'));
-}
-
-/** Press the return figure and land on the list it opens. */
-async function renderPage() {
-  await renderBoard();
-  fireEvent.click(figure());
-  await waitFor(() => expect(screen.getByText('RGP-00056')).toBeInTheDocument());
 }
 
 beforeEach(() => {
@@ -190,8 +205,14 @@ describe('What is on the page', () => {
 
   it('says so plainly when nothing is due', async () => {
     OPEN_RETURNS = [];
-    await renderBoard();
-    fireEvent.click(figure());
+    render(
+      <MemoryRouter initialEntries={['/guard-dashboard/returns']}>
+        <Routes>
+          <Route path="/guard-dashboard" element={<div>DASHBOARD</div>} />
+          <Route path="/guard-dashboard/:key" element={<GuardDrill />} />
+        </Routes>
+      </MemoryRouter>,
+    );
     await waitFor(() =>
       expect(screen.getByText(/Nothing is due back today, and nothing is late/)).toBeInTheDocument());
   });
@@ -200,8 +221,8 @@ describe('What is on the page', () => {
 describe('The list carries neither tabs nor a search bar of its own', () => {
   // Client, 2026-08-19. The four status counts said in a strip what the Status
   // column and the filter bar already say per row, and the global search
-  // belongs where a guard goes looking for a pass they cannot see — Pending OUT
-  // and the dashboard's Scan QR both still carry it.
+  // belongs where a guard goes looking for a pass they cannot see — that is
+  // the dashboard's, above its figures, and this drill page carries neither.
   it('has no status tab strip', async () => {
     await renderPage();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
@@ -210,29 +231,33 @@ describe('The list carries neither tabs nor a search bar of its own', () => {
     }
   });
 
-  // REWRITTEN 2026-08-22. It used to hold that this screen had no search bar
-  // at all, because Pending OUT was a different page and carried the only one.
-  // The two lists share one board now, so the search is drawn ONCE for the
-  // whole screen, above the figures - and never inside the list a figure opens.
-  it('draws the global search once, on the board, and none of its own', async () => {
-    await renderPage();
+  // REWRITTEN 2026-08-23. It used to hold that the global search was drawn
+  // once, on the dashboard, above the figures a guard pressed to drill in
+  // place. The figures moved to `<Link>`s and this list is a route of its own
+  // now, so the search lives only where it always did — on the dashboard —
+  // and this page draws none of its own.
+  it('draws the global search on the dashboard', async () => {
+    await renderBoard();
     expect(screen.getAllByLabelText(/Search any pass/i)).toHaveLength(1);
     expect(screen.getAllByRole('button', { name: /Scan QR/ })).toHaveLength(1);
+  });
+
+  it('draws none of its own on this drill page', async () => {
+    await renderPage();
+    expect(screen.queryByLabelText(/Search any pass/i)).not.toBeInTheDocument();
     const list = screen.getByRole('region', { name: /Pending RGP Return/ });
     expect(within(list).queryByLabelText(/Search any pass/i)).not.toBeInTheDocument();
   });
 
-  it('draws no list at all until the figure is pressed, and closes it on a second press', async () => {
-    await renderBoard();
-    expect(screen.queryByRole('table')).not.toBeInTheDocument();
-    expect(screen.queryByText('RGP-00056')).not.toBeInTheDocument();
-
-    fireEvent.click(figure());
-    await waitFor(() => expect(screen.getByText('RGP-00056')).toBeInTheDocument());
-    expect(figure()).toHaveAttribute('aria-pressed', 'true');
-
-    fireEvent.click(figure());
-    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  // REWRITTEN 2026-08-23: there is no "press to reveal, press again to hide"
+  // state on this page any more. The figure that used to toggle it is now a
+  // `<Link>` on the dashboard (`guardDashboard.test.tsx`); the way back off
+  // this page is the "Back to dashboard" link `DrillPageShell` draws.
+  it('always shows its list, and offers a way back to the dashboard', async () => {
+    await renderPage();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Back to dashboard/i })).toHaveAttribute(
+      'href', '/guard-dashboard');
   });
 
   it('still narrows through the filter bar, which is what replaced them', async () => {

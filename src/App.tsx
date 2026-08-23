@@ -16,6 +16,7 @@ import ResetPassword from './pages/ResetPassword';
 import ForcePasswordChange from './pages/ForcePasswordChange';
 import NoAccess from './pages/NoAccess';
 import HodDashboard from './pages/HOD/Dashboard';
+import HodDashboardDrill from './pages/HOD/DashboardDrill';
 import RaisePass from './pages/HOD/RaisePass';
 import MismatchReview from './pages/HOD/MismatchReview';
 import ExpiredReview from './pages/HOD/ExpiredReview';
@@ -23,8 +24,10 @@ import HodReports from './pages/HOD/HodReports';
 import GateConsole from './pages/Security/GateConsole';
 import Verify from './pages/Security/Verify';
 import GuardDashboard from './pages/Security/GuardDashboard';
+import GuardDrill from './pages/Security/GuardDrill';
 import AdminPanel from './pages/Admin/AdminPanel';
 import AdminDashboard from './pages/Admin/AdminDashboard';
+import AdminDashboardDrill from './pages/Admin/DashboardDrill';
 import SuperAdminDashboard from './pages/Admin/SuperAdminDashboard';
 import ReportsPage from './pages/Admin/ReportsPage';
 import ActivityLogPage from './pages/Admin/ActivityLogPage';
@@ -266,6 +269,14 @@ export default function App(): React.ReactElement {
 
           {/* HOD */}
           <Route path="/dashboard" element={<HodDashboard />} />
+          {/* A KPI card's list is a PAGE, on every board (client, 2026-08-23:
+              "show it on a new page for all the KPI cards"). Each of these
+              rebuilds its board's own row from the same read and renders the
+              array the pressed figure counted — see the three DashboardDrill /
+              GuardDrill pages. They are sub-paths of the board they belong to,
+              so `ROLE_ROUTES` already admits exactly the right role and no
+              sidebar tab appears for them. */}
+          <Route path="/dashboard/:key" element={<HodDashboardDrill />} />
           <Route path="/raise" element={<RaisePass />} />
           <Route path="/mismatch/:id" element={<MismatchReview />} />
           <Route path="/expired/:id" element={<ExpiredReview />} />
@@ -273,6 +284,7 @@ export default function App(): React.ReactElement {
 
           {/* Security */}
           <Route path="/guard-dashboard" element={<GuardDashboard />} />
+          <Route path="/guard-dashboard/:key" element={<GuardDrill />} />
           <Route path="/console" element={<GateConsole role={role} />} />
           <Route path="/verify/:id" element={<Verify />} />
 
@@ -290,6 +302,10 @@ export default function App(): React.ReactElement {
             path="/admin-dashboard"
             element={role === 'super_admin' ? <SuperAdminDashboard /> : <AdminDashboard />}
           />
+          {/* ONE DRILL PAGE FOR BOTH ADMIN BOARDS — the Overview and the super
+              admin's guard-styled board are one derivation (`buildOverviewCards`),
+              so their figures open the same page. */}
+          <Route path="/admin-dashboard/:key" element={<AdminDashboardDrill />} />
           <Route path="/all-passes" element={<ReportsPage />} />
           <Route path="/activity" element={<ActivityLogPage />} />
 
@@ -311,7 +327,7 @@ export default function App(): React.ReactElement {
 
           {/* Shared */}
           <Route path="/pass/:id" element={<PassDetail role={role} office={office} />} />
-          <Route path="/profile" element={<ProfilePage session={session} role={role} />} />
+          <Route path="/profile" element={<ProfilePage session={session} role={role} office={office} />} />
 
           <Route path="*" element={<Navigate to={homeFor(role, office !== null)} replace />} />
         </Routes>

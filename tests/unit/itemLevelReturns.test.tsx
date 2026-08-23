@@ -48,11 +48,13 @@ function item(over: Partial<GatePassItemView>): GatePassItemView {
 }
 
 // The client's own example: a partly-returned, overdue RGP with two lines
-// whose units DISAGREE (litre vs kg), which is what exercises the per-cell
-// unit path in `src/lib/units.ts` rather than the shared-heading one. A third,
-// fully-returned line ("Cement Bags") is included for the "already back"
-// case — its unit disagrees with both too, so `headingUnit` stays null and
-// every row must carry its own unit label.
+// whose units DISAGREE (litre vs kg). Client, 2026-08-23: "whatever unit has
+// been selected, you need to show all of them, no matter what, no deviation
+// across all the views" — every quantity cell always carries its own unit
+// now, mixed or not, so the disagreement here is incidental rather than the
+// thing under test. A third, fully-returned line ("Cement Bags") is included
+// for the "already back" case, in `nos`, which prints "Numbers" like any
+// other unit.
 let OPEN_RETURNS: GatePassView[] = [];
 let ITEMS: GatePassItemView[] = [];
 let PHONE_ROWS: GatePassView[] = [];
@@ -125,14 +127,18 @@ vi.mock('../../src/supabaseClient', () => ({
 }));
 
 import GuardDashboard from '../../src/pages/Security/GuardDashboard';
+import GuardDrill from '../../src/pages/Security/GuardDrill';
 
-/** The return queue is not a page any more (client, 2026-08-22): it opens on
- *  the guard's dashboard when the figure that counts it is pressed. */
+/** The return queue is its own page again (client, 2026-08-23: drilling into
+ *  any KPI card opens a new page, not an inline panel) — reached only by
+ *  pressing the figure that counts it, which is a `Link` to
+ *  `/guard-dashboard/returns` now, not a button. */
 async function renderPage() {
   render(
     <MemoryRouter initialEntries={['/guard-dashboard']}>
       <Routes>
         <Route path="/guard-dashboard" element={<GuardDashboard />} />
+        <Route path="/guard-dashboard/:key" element={<GuardDrill />} />
         <Route path="/pass/:id" element={<div>RECORD PAGE</div>} />
       </Routes>
     </MemoryRouter>,

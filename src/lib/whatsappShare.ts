@@ -23,7 +23,7 @@
 import type { GatePassItemView, GatePassView } from '../types';
 import { parseCompanyInfo } from './companyInfo';
 import { formatDateOnly } from './formatDate';
-import { unitLabel } from './units';
+import { quantityCell } from './units';
 
 /** India, because every department, gate and vendor on this deployment is
  *  here and a bare 10-digit mobile is what people type. A number already
@@ -52,7 +52,7 @@ export function vendorWhatsappNumber(
 
 /** One material line, as it reads in a chat message: "1. Headset — 8 Numbers". */
 function itemLine(item: GatePassItemView, index: number): string {
-  const qty = `${item.quantity}${item.unit && item.unit !== 'nos' ? ` ${unitLabel(item.unit)}` : ''}`;
+  const qty = quantityCell(item.quantity, item.unit);
   return `${index + 1}. ${item.name} — ${qty}`;
 }
 

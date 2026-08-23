@@ -107,7 +107,6 @@ export default function ScheduledReturns({
         <>
           <ScheduledReturnsTable
             page={view}
-            units={rows.map((r) => r.item.unit)}
             picked={picked}
             onToggle={toggle}
             onPage={setPage}

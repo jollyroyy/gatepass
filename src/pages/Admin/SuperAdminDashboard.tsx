@@ -10,21 +10,15 @@
 //
 // WHAT IS THE ADMIN'S: the numbers. This reads `v_gate_passes` ONCE, exactly as
 // `AdminDashboard` does, and hands the rows to the SAME `buildOverviewCards` —
-// so the five figures here and the five on `/admin-dashboard` are the same five
-// counts and cannot drift. `superAdminGroups` only decides which card each one
+// so the figures here and those on `/admin-dashboard` are the same counts and
+// cannot drift. `superAdminGroups` only decides which card each one
 // sits on; it counts nothing.
 //
 // THE BOARD INVARIANT SURVIVES THE RESTYLE. Pressing a figure opens the very
-// rows it counted, in the stacked list underneath — no aggregate, no
-// `count: 'exact'`, no predicate re-applied against a second array. The guard's
-// figures are links to pages; these are buttons that drill in place, because
-// the admin has no per-figure list pages and inventing five would be five more
-// places for a filter to disagree with a count. See `SuperSummaryCards`.
-//
-// `gb-main` RIDES ALONGSIDE `gb-board`, exactly as it does on the admin
-// Overview: `DrillList` and the pass cards under it are HOUSE components, and
-// without it a dark card would land on this white ground for every reader on
-// the shipped dark default.
+// rows it counted — on `/admin-dashboard/<key>` since 2026-08-23, the same page
+// the Overview's own cards open, rebuilt from the same `buildOverviewCards` over
+// the same window. No aggregate, no `count: 'exact'`, no predicate re-applied
+// against a second array. See `SuperSummaryCards`.
 //
 // THE SECOND QUERY IS THE ONE THING THIS PAGE HAS THAT THE OVERVIEW DOES NOT —
 // `fetchEmergencyReleases`, for the Quick Action tile's count. It is a super
@@ -34,13 +28,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { gp } from '../../supabaseClient';
 import type { GatePassView } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
-import DrillList from '../../components/DrillList';
 import SuperSummaryCards from '../../components/superadmin/SuperSummaryCards';
 import SuperQuickActions from '../../components/superadmin/SuperQuickActions';
-import { superAdminGroups, type SuperGroup } from '../../lib/superAdminBoard';
+import { superAdminGroups } from '../../lib/superAdminBoard';
 import { buildOverviewCards, OVERVIEW_WINDOWS, type OverviewWindow } from '../../lib/adminOverview';
-import { drillDefOf, type BoardDrill } from '../../lib/boardDrills';
-import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 import { fetchEmergencyReleases } from '../../lib/emergencyRelease';
 import { fetchMyProfile } from '../../lib/profiles';
 import { firstNameOf } from '../../lib/guardBoard';
@@ -52,7 +43,6 @@ export default function SuperAdminDashboard(): React.ReactElement {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [window, setWindow] = useState<OverviewWindow>('7');
-  const [drill, setDrill] = useState<(BoardDrill & { figureKey: string }) | null>(null);
   const [name, setName] = useState<string | null>(null);
   // Stamped ONCE, at mount. A ticking clock would re-render two cards and a
   // stack every second for a boundary that moves at midnight.
@@ -118,19 +108,6 @@ export default function SuperAdminDashboard(): React.ReactElement {
     () => superAdminGroups(cards),
     [cards],
   );
-  const drillRef = useScrollIntoViewOnChange<HTMLDivElement>(drill?.figureKey ?? null);
-
-  const onDrill = (group: SuperGroup, index: number): void => {
-    const figure = group.figures[index];
-    // The Overdue figure has no list of its own — it is a `<Link>` to
-    // `/overdue` and never reaches this handler.
-    if (!figure.drill) return;
-    const def = figure.drill;
-    // Pressing the open figure closes it — the same toggle every drillable
-    // board in this app uses.
-    setDrill((cur) => (cur?.figureKey === figure.key ? null : { ...def, figureKey: figure.key }));
-  };
-
   return (
     <div className="gb-board gb-main">
       <div className="gb-head-row">
@@ -151,12 +128,7 @@ export default function SuperAdminDashboard(): React.ReactElement {
             id="super-window"
             className="gb-select"
             value={window}
-            onChange={(e) => {
-              setWindow(e.target.value as OverviewWindow);
-              // The open list was built from the old window and would go on
-              // saying so under a figure that had changed underneath it.
-              setDrill(null);
-            }}
+            onChange={(e) => setWindow(e.target.value as OverviewWindow)}
           >
             {OVERVIEW_WINDOWS.map((w) => (
               <option key={w.value} value={w.value}>{w.label}</option>
@@ -167,21 +139,10 @@ export default function SuperAdminDashboard(): React.ReactElement {
 
       {error && <div className="gb-alert">{error}</div>}
 
-      <SuperSummaryCards
-        groups={groups}
-        openKey={drill?.figureKey ?? null}
-        onDrill={onDrill}
-        loading={loading}
-      />
-
-      {/* The list a pressed figure opens, brought into view: a reader who
-          pressed a figure should not have to hunt for where the answer
-          appeared. */}
-      {drill && (
-        <div ref={drillRef} className="mt-6" role="region" aria-label="Selected passes">
-          <DrillList def={drillDefOf(drill)} rows={drill.rows} loading={loading} />
-        </div>
-      )}
+      {/* EVERY FIGURE IS A LINK — `/admin-dashboard/<key>?days=N`, the same
+          page the Overview's own cards open, or `/overdue` (client,
+          2026-08-23). Nothing opens under the cards any more. */}
+      <SuperSummaryCards groups={groups} days={days} loading={loading} />
 
       <SuperQuickActions unreviewed={unreviewed} loading={loading} />
     </div>

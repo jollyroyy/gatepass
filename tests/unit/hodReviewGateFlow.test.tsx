@@ -11,19 +11,22 @@
 // Verify offers a working Approve for it, and the board lists it with the action
 // that clears it.
 //
-// THE QUEUE HAS MOVED THREE TIMES. Search Pass became search-only on
+// THE QUEUE HAS MOVED FOUR TIMES. Search Pass became search-only on
 // 2026-08-18 and the list became the guard dashboard's "Pending for Gate
 // Approval" figure; on 2026-08-19 the dashboard's two preview tables were
 // deleted in favour of two drillable summary cards and the list became its own
-// page, `/pending-out`; and on 2026-08-22 the client took that page and its
-// sidebar tab away again, so the list opens IN PLACE on the dashboard when the
-// figure that counts it is pressed. Its query is unchanged through all three -
-// still its own read, deliberately not day-scoped - so this is still where the
-// test looks for the approved pass, because it is the only list a guard picks
-// one from.
+// page, `/pending-out`; on 2026-08-22 the client took that page and its
+// sidebar tab away again, so the list opened IN PLACE on the dashboard when the
+// figure that counts it was pressed; and on 2026-08-23 the client reversed
+// that too — "don't show the table on the same page ... show it on a
+// different page, like you are showing the overdue details" — so the RGP
+// figure is a `<Link>` again, to `/guard-dashboard/RGP`, which `GuardDrill`
+// renders. Its query is unchanged through all four - still its own read,
+// deliberately not day-scoped - so this is still where the test looks for the
+// approved pass, because it is the only list a guard picks one from.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { GatePassView } from '../../src/types';
 
@@ -92,20 +95,20 @@ vi.mock('../../src/supabaseClient', () => {
   };
 });
 
-/** The guard's board with the Pending OUT list drilled open, which is the only
- *  way that list exists since 2026-08-22. The RGP figure opens it on the RGP
- *  tab, which is what every pass in this spec is. */
+/** `GuardDrill` at `/guard-dashboard/RGP`, which is what the RGP figure links
+ *  to since 2026-08-23 and the only place that list exists. Every pass in this
+ *  spec is an RGP, so the RGP figure's own page is where it must show up. */
 async function renderQueue() {
-  const GuardDashboard = (await import('../../src/pages/Security/GuardDashboard')).default;
+  const GuardDrill = (await import('../../src/pages/Security/GuardDrill')).default;
+  const { Routes, Route } = await import('react-router-dom');
   render(
-    <MemoryRouter>
-      <GuardDashboard />
+    <MemoryRouter initialEntries={['/guard-dashboard/RGP']}>
+      <Routes>
+        <Route path="/guard-dashboard/:key" element={<GuardDrill />} />
+      </Routes>
     </MemoryRouter>
   );
-  const figure = () =>
-    screen.getByTestId('guard-figure-RGP').querySelector('.gb-figure-value') as HTMLElement;
-  await waitFor(() => expect(figure().textContent).not.toBe('-'));
-  fireEvent.click(figure());
+  await waitFor(() => expect(screen.getByRole('tablist', { name: 'Pass type' })).toBeInTheDocument());
 }
 
 describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', () => {
@@ -116,7 +119,7 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
     vi.clearAllMocks();
   });
 
-  describe('the gate queue, drilled open on the dashboard', () => {
+  describe('the gate queue, drilled open on its own page', () => {
     it('includes hod_reviewed passes in the queue, not just pending', async () => {
       queueRows = [APPROVED];
       await renderQueue();
@@ -173,11 +176,11 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
   });
 
   // The RGP figure's number is the only way into this list, and since
-  // 2026-08-22 it opens the list on the dashboard itself. The chain this whole
-  // spec exists to protect is NOT broken by that move, and this case is what
-  // proves it: an HOD-approved pass sits in the list the figure opens, carrying
-  // the action that clears it (renamed "Approve OUT"; the Verify screen still
-  // accepts it, asserted above).
+  // 2026-08-23 it opens the list on a page of its own again. The chain this
+  // whole spec exists to protect is NOT broken by that move, and this case is
+  // what proves it: an HOD-approved pass sits in the list the figure opens,
+  // carrying the action that clears it (renamed "Approve OUT"; the Verify
+  // screen still accepts it, asserted above).
   describe('the Pending OUT list', () => {
     it('lists an HOD-approved pass with a working Approve OUT action', async () => {
       queueRows = [APPROVED, pass({ id: 'p2', pass_number: 'PEND-0001', status: 'pending' })];

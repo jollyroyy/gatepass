@@ -11,9 +11,9 @@
 //   2. THE WINDOW IS LOCAL CALENDAR DAYS, ending with today. A UTC cut would put
 //      a pass raised at 09:00 IST in the previous day on a board that says
 //      "Last 7 Days".
-//   3. TWO FIGURES ARE OUTSIDE THE WINDOW ON PURPOSE — Pending Approvals and
-//      Overdue Returns are RUNNING queues. A window-scoped Overdue figure would
-//      print 0 while material sat off site.
+//   3. SOME FIGURES ARE OUTSIDE THE WINDOW ON PURPOSE — Overdue Returns, and
+//      the two pending desk lines under each type card, are RUNNING queues. A
+//      window-scoped Overdue figure would print 0 while material sat off site.
 //   4. NO FIGURE COMPARES ITSELF TO ANYTHING. The client removed the mock's
 //      "vs last week" line outright (2026-08-19), so `deltaOf`, the `Delta` type
 //      and `WindowBounds.prevStart` are gone and every card's second line is its
@@ -91,12 +91,12 @@ describe('the window', () => {
     expect(rangeLabel(windowBounds(7, NOW))).toBe('13 Aug – 19 Aug 2026');
   });
 
-  it('offers the three windows the header and the trend card share', () => {
-    expect(OVERVIEW_WINDOWS.map((w) => w.value)).toEqual(['7', '30', '90']);
+  it('offers the windows the header and the trend card share', () => {
+    expect(OVERVIEW_WINDOWS.map((w) => w.value)).toEqual(['1', '7', '30', '90']);
   });
 });
 
-describe('the six figures', () => {
+describe('the three figures', () => {
   // Inside the 7-day window: three RGP and one NRGP. Outside it: one RGP raised
   // 10 days ago, which must move no windowed figure.
   const ROWS = [
@@ -107,22 +107,21 @@ describe('the six figures', () => {
     pass({ id: 'old', created_at: daysAgo(10, NOW) }),
   ];
 
-  // REWRITTEN 2026-08-22. It used to hold five cards with `pending` fourth —
-  // one Pending Approvals figure standing over BOTH desks, with the split
-  // printed under it as two sub-lines. The client separated the desks.
-  it('is the mock cards, in its own order, with a card per pending desk', () => {
+  // REWRITTEN 2026-08-23. The board has held, in order: six cards; five, when
+  // Total went; and three, now that neither pending desk is a card at all
+  // (client: "remove all those two pending cards completely. Do this across all
+  // the views"). The desks are sub-lines of the two type cards — see
+  // `pendingDeskCards.test.ts`.
+  it('is the mock cards, in its own order, with no pending card left', () => {
     expect(buildOverviewCards(ROWS, 7, NOW).map((c) => c.key))
-      .toEqual(['rgp', 'nrgp', 'pendingGate', 'pendingApproval', 'overdue']);
+      .toEqual(['rgp', 'nrgp', 'overdue']);
   });
 
   it('labels the third card NRGP — the mock says "Energy Pay Pass", which this app has no such thing as', () => {
     const labels = buildOverviewCards(ROWS, 7, NOW).map((c) => c.label);
     // TOTAL GATE PASSES IS GONE (client, 2026-08-23): "remove total passes from
     // all the dashboard views ... we already have the count of RGP and NRGP".
-    expect(labels).toEqual([
-      'RGP', 'NRGP', 'Pending Gate Review', 'Pending Approval',
-      'Overdue Returns',
-    ]);
+    expect(labels).toEqual(['RGP', 'NRGP', 'Overdue Returns']);
     expect(labels).not.toContain('Total Gate Passes');
     expect(labels.join(' ')).not.toMatch(/Energy/i);
   });
@@ -137,15 +136,17 @@ describe('the six figures', () => {
 
   it('carries the very rows it counted, so a figure and its list cannot disagree', () => {
     for (const card of buildOverviewCards(ROWS, 7, NOW)) {
-      // Overdue Returns carries a DESTINATION rather than rows since
-      // 2026-08-23: it opens `/overdue`, which counts the same backlog at item
-      // level. Every other figure still carries the array it counted.
-      if (card.to) {
-        expect(card.key).toBe('overdue');
+      // EVERY CARD NAVIGATES since 2026-08-23 ("show it on a new page for all
+      // the KPI cards"), so `to` no longer distinguishes them: Overdue Returns
+      // is the one card with no rows, because `/overdue` counts the same
+      // backlog at item level. Every other figure carries the array it counted,
+      // for the page that lists it.
+      if (card.key === 'overdue') {
         expect(card.to).toBe('/overdue');
         expect(card.drill).toBeUndefined();
         continue;
       }
+      expect(card.to).toBe('/admin-dashboard/' + card.key);
       expect(card.drill?.rows).toHaveLength(card.value);
     }
     expect(cardOf(ROWS, 'nrgp').drill?.rows.map((r) => r.id)).toEqual(['d']);
@@ -169,19 +170,21 @@ describe('the six figures', () => {
     for (const card of buildOverviewCards(rows, 7, NOW)) {
       expect(card).not.toHaveProperty('delta');
       expect(card).not.toHaveProperty('note');
-      expect(card).not.toHaveProperty('notes');
     }
   });
 
-  it('carries no subtext of any kind under a windowed figure', () => {
-    // REWRITTEN 2026-08-22: it used to assert the card's note read
-    // 'Raised in the last 7 days'. The client's instruction that day ("remove
-    // running and all kinds of subtext from kpi card from all dashboards ...
-    // across all views") deleted OverviewCard.note/notes outright, so a card
-    // now carries no scope line at all.
+  it('carries no scope line under a windowed figure — only the two desks', () => {
+    // REWRITTEN 2026-08-22: it used to assert the card's note read 'Raised in
+    // the last 7 days'; the client's instruction that day ("remove running and
+    // all kinds of subtext from kpi card from all dashboards") deleted the
+    // scope line outright. REWRITTEN AGAIN 2026-08-23: `notes` came back, but
+    // as the two PENDING DESKS of this card's own pass type — counts, not a
+    // sentence — so what is pinned is that it is exactly those two and nothing
+    // else. Their arithmetic is `pendingDeskCards.test.ts`.
     const card = cardOf([pass({ id: 'n1', created_at: daysAgo(1, NOW) })], 'rgp');
     expect(card).not.toHaveProperty('note');
-    expect(card).not.toHaveProperty('notes');
+    expect(card.notes?.map((n) => n.label))
+      .toEqual(['Pending gate approval', 'Pending approval']);
   });
 
   describe('the two RUNNING queues', () => {
@@ -193,22 +196,21 @@ describe('the six figures', () => {
     });
 
     it('counts a pass older than the window — an obligation does not close because the window rolled', () => {
-      // The waiting pass owes no signature, so it is at the GATE desk.
-      expect(cardOf([WAITING, LATE], 'pendingGate').value).toBe(1);
-      expect(cardOf([WAITING, LATE], 'pendingApproval').value).toBe(0);
+      // The waiting pass owes no signature, so it is at the GATE desk — read
+      // now on the RGP card's own two lines rather than on a card of its own.
+      expect(cardOf([WAITING, LATE], 'rgp').notes?.map((n) => n.value)).toEqual([1, 0]);
       expect(cardOf([WAITING, LATE], 'overdue').value).toBe(1);
       // …and neither is in a windowed figure.
       expect(cardOf([WAITING, LATE], 'rgp').value).toBe(0);
       expect(cardOf([WAITING, LATE], 'nrgp').value).toBe(0);
     });
 
-    it('excludes an EXPIRED pass from Pending Approvals — nothing can clear it', () => {
+    it('excludes an EXPIRED pass from both desks — nothing can clear it', () => {
       const dead = pass({ id: 'e', created_at: daysAgo(40, NOW), status: 'pending', is_expired: true });
-      expect(cardOf([dead], 'pendingGate').value).toBe(0);
-      expect(cardOf([dead], 'pendingApproval').value).toBe(0);
+      expect(cardOf([dead], 'rgp').notes?.map((n) => n.value)).toEqual([0, 0]);
     });
 
-    it('carries no subtext at all — not even which desk it is', () => {
+    it('carries no explanatory sentence — the running figure states itself', () => {
       // REWRITTEN 2026-08-20. It used to read 'Waiting at the gate now', which
       // became false the day 046 stopped the gate seeing a pass still climbing
       // the ladder: most of this figure is not at the gate at all. The card
@@ -217,9 +219,9 @@ describe('the six figures', () => {
       // running and all kinds of subtext from kpi card from all dashboards ...
       // across all views") deleted OverviewCard.note/notes outright — a running
       // queue's card now carries no explanatory line of any kind.
-      expect(cardOf([WAITING, LATE], 'pendingGate')).not.toHaveProperty('note');
-      expect(cardOf([WAITING, LATE], 'pendingApproval')).not.toHaveProperty('note');
       expect(cardOf([WAITING, LATE], 'overdue')).not.toHaveProperty('note');
+      expect(cardOf([WAITING, LATE], 'overdue')).not.toHaveProperty('notes');
+      expect(cardOf([WAITING, LATE], 'rgp')).not.toHaveProperty('note');
     });
   });
 });

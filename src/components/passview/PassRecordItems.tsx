@@ -13,9 +13,9 @@
 // 3 kg as per the item" — so the separate Unit, Qty Returned and Pending Qty
 // columns are gone, and the cell carries the issued figure with its unit and,
 // under it, the SECOND number the client asked for: how much has actually come
-// back. This is a deliberate exception to the `quantityHeading`/`quantityCell`
-// rule the rest of the app follows: lines on one pass can be in different units,
-// and a heading cannot govern a column of mixed ones.
+// back. The unit is named on every line — lines on one pass can be in different
+// units, and since 2026-08-23 no screen in this app moves a unit into a column
+// heading or drops it for being a plain count.
 //
 // SERIAL / ID IS A REAL COLUMN NOW, on BOTH pass types (client: "put the serial
 // number against all the items, in both the passes"). `gate_pass_items.serial_no`
@@ -55,10 +55,12 @@ type Props = {
   onDiscard?: (itemId: string) => void;
 };
 
-/** "3 Kg" — the figure and the line's own unit, never `nos` spelled out. */
+/** "3 Kg", "3 Numbers" — the figure and the line's own unit, ALWAYS (client,
+ *  2026-08-23: "whatever unit has been selected, you need to show all of them,
+ *  no matter what"). `nos` used to print bare here; it no longer does anywhere. */
 function qtyWithUnit(qty: number, unit: string | null | undefined): string {
   const n = formatQty(qty);
-  return !unit || unit === 'nos' ? n : `${n} ${unitLabel(unit)}`;
+  return unit ? `${n} ${unitLabel(unit)}` : n;
 }
 
 export default function PassRecordItems({

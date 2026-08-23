@@ -54,9 +54,40 @@ export function pendingSplit(rows: GatePassView[]): PendingSplit {
   return { waiting, atGate, awaitingApproval };
 }
 
-// `pendingSplitNotes` — the two sentences a single Pending Approvals card
-// printed under its figure ("3 passes pending gate review") — is DELETED with
-// its last caller (client, 2026-08-22: "separate the pending at gate review and
-// pending for approvals, and remove those subtext"). Each desk is its own card
-// on both boards now, so the words are the card's own label and there is
-// nothing left for a sub-line to say.
+/** One line under a KPI figure — a desk, and how many passes sit on it. */
+export interface PendingNote {
+  key: string;
+  label: string;
+  value: number;
+}
+
+/**
+ * THE TWO DESKS, AS THE SUB-LINES OF A PASS-TYPE CARD (client, 2026-08-23:
+ * "instead of making it as a separate pending card, make the similar type of
+ * pending gate approval and pending approval under each NRGP and RGP … remove
+ * all those two pending cards completely. Do this across all the views").
+ *
+ * Both boards call this with the rows of ONE pass type, so the NRGP card's two
+ * lines are the NRGP passes waiting and the RGP card's are the RGP ones — the
+ * split is per type now, not one figure for the site. `pendingSplit` is
+ * unchanged underneath, so the two lines still sum to the waiting set of that
+ * type by construction rather than by a second predicate.
+ *
+ * THE NOTES ARE RUNNING, THE FIGURE ABOVE THEM IS WINDOWED, and that is
+ * deliberate on both boards: an obligation does not stop being open because the
+ * window rolled past the day it started in. They are a reading of what is
+ * waiting, not a breakdown of the figure.
+ */
+export function pendingNotes(rows: GatePassView[]): PendingNote[] {
+  const split = pendingSplit(rows);
+  return [
+    { key: 'pendingGate', label: 'Pending gate approval', value: split.atGate.length },
+    { key: 'pendingApproval', label: 'Pending approval', value: split.awaitingApproval.length },
+  ];
+}
+
+// NEITHER DESK IS A CARD ANY MORE. They were sub-lines of one Pending
+// Approvals card (2026-08-20), then a card each (2026-08-22), then one card
+// with the split under it (2026-08-23 morning); since 2026-08-23 they are two
+// lines under EACH pass-type card and no card of their own exists on any board
+// — `pendingNotes` above is the whole of what draws them.

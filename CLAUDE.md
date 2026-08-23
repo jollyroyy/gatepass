@@ -120,6 +120,21 @@ its landing page. UX defence in depth — **RLS is the security boundary**.
 opens, and every aggregate (`Slice`) carries the rows it counted. Never re-derive a chart's
 rows from a predicate at the call site; never add a `count: 'exact'` query.
 
+**A KPI card is a LINK, and its list is a page** (client, 2026-08-23). Every figure on every
+board navigates: `/dashboard/<key>` (HOD), `/guard-dashboard/<key>` (guard),
+`/admin-dashboard/<key>?days=N` (admin AND super admin — one page, because both boards are
+`buildOverviewCards`), or `/overdue` for the item-level board. Nothing opens under the row
+except the admin trend's bars and the status ring's arcs, which have no stable key for a URL.
+A drill page RE-DERIVES its board's row from the same hook/read and renders that card's own
+`drill.rows` — never router state, which a refresh or a shared link would lose. They are
+sub-paths of the board they belong to, so `ROLE_ROUTES` already admits the right role and no
+sidebar tab exists for them; `DrillPageShell` is the shared frame.
+
+**Neither pending desk is a card** (client, 2026-08-23). `pendingNotes(rows)` prints
+"Pending gate approval" / "Pending approval" as two sub-lines under EACH pass-type card, over
+that type's rows only, on every board. The figure above them is windowed; the desk lines are
+running.
+
 ## The pass model — two types, one direction (migration 010)
 
 ```
@@ -227,6 +242,10 @@ Display   Antic Didone (serif, ONE weight) — headings, wordmark
 
 - **Max 300 lines per file**, no exceptions — extract sub-components instead.
 - **No fuzzy string matching on enums** — a `Record<Enum, T>` lookup map, never `includes()`.
+- **A quantity always names its unit**, `nos` included — `quantityCell(qty, unit)` in
+  `src/lib/units.ts` is the one formatter, and no column heading ever carries a unit (client,
+  2026-08-23: "whatever unit has been selected, you need to show all of them, no matter what").
+  `sharedUnit` survives only for a Total row, which can sum one unit alone.
 - **Never `window.alert`/`confirm`/`prompt`** — blocks the page, breaks automation. Use inline
   panels or `.modal-overlay`/`.modal-content`. (`window.print()` in `PassPrint` is fine and
   must stay click-triggered.)
@@ -314,10 +333,11 @@ department heads (Housekeeping, Engineering/MEP, Facilities, Marketing, Retail O
 `visitor_company` is the tenant/brand/contractor firm. Keep that vocabulary — no
 "factory"/"plant"/"manufacturing".
 
-`src/pages/` is grouped by who uses it: `HOD/` (Dashboard, RaisePass, MyPasses,
-MismatchReview, ExpiredReview), `Security/` (GateConsole, GateLookup, Verify, GuardDashboard),
-`Approver/` (ApprovalQueue, ApprovalDelegation), `Shared/` (PassDetail, PassPrint, Profile, the
-role-scoped return pages), `Admin/` (AdminPanel and its tabs, AdminDashboard, ReportsPage).
+`src/pages/` is grouped by who uses it: `HOD/` (Dashboard, DashboardDrill, RaisePass,
+MismatchReview, ExpiredReview), `Security/` (GateConsole, GateLookup, Verify, GuardDashboard,
+GuardDrill), `Approver/` (ApprovalQueue, ApprovalDelegation), `Shared/` (PassDetail, PassPrint,
+Profile, the role-scoped return pages), `Admin/` (AdminPanel and its tabs, AdminDashboard,
+DashboardDrill, ReportsPage).
 `src/components/passview/` is the Gate Pass Details record, rendered both by Search Pass and
 `/pass/:id`. `src/components/overdue/` and `src/components/returns/` serve all three roles.
 `src/components/guard/` is the guard's one screen (summary cards, quick actions, drilled list

@@ -1,8 +1,10 @@
-// The printed slip has no Unit column: one shared unit is named in the Qty
-// heading ("Qty (Kg)") and `nos` is never named at all — a count reads as a
-// count (client, 2026-08-18). Lines that disagree keep their unit in the cell,
-// because otherwise the numbers stop meaning anything. `src/lib/units.ts` is
-// the single source; this renders a real PassPrint to pin the printed cells.
+// The printed slip has no Unit column. Every quantity cell carries its own
+// unit label now, mixed or shared, `nos` included (client, 2026-08-23:
+// "whatever unit has been selected, you need to show all of them, no matter
+// what, no deviation across all the views") — the old rule, where one shared
+// unit moved into the Qty heading and `nos` printed bare, is gone with
+// `headingUnit`/`quantityHeading`. `src/lib/units.ts` is the single source;
+// this renders a real PassPrint to pin the printed cells.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -47,7 +49,7 @@ beforeEach(() => {
 });
 
 describe('PassPrint material unit', () => {
-  it('names one shared unit in the Qty heading and never names nos', async () => {
+  it('names every unit in its own cell, nos included, and the heading stays plain', async () => {
     current.pass = {
       id: 'p1', pass_number: 'RGP-OUT-20260811-0001', type: 'RGP', direction: 'out',
       status: 'pending', return_status: 'not_applicable',
@@ -67,15 +69,19 @@ describe('PassPrint material unit', () => {
       </MemoryRouter>,
     );
     await waitFor(() => expect(screen.getByText('RGP-OUT-20260811-0001')).toBeInTheDocument());
-    // Mixed units: the heading cannot carry one, so the kg line keeps its own.
+    // Mixed units: the heading names none of them — it never does any more —
+    // and each line keeps its own.
     expect(screen.getByRole('columnheader', { name: 'Qty' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Unit' })).toBeNull();
+    expect(screen.queryByRole('columnheader', { name: 'Qty (Kg)' })).toBeNull();
     expect(screen.getByText('3 Kg')).toBeInTheDocument();
-    expect(screen.queryByText('Numbers')).toBeNull();
+    // `nos` is spelled out now, same as every other unit — it no longer
+    // prints bare.
+    expect(screen.getByText('2 Numbers')).toBeInTheDocument();
     expect(screen.queryByText('nos')).toBeNull();
   });
 
-  it('moves a single shared unit into the heading and leaves the cells bare', async () => {
+  it('still names each line even when every line shares one unit', async () => {
     current.items = current.items.map((i) => ({ ...i, unit: 'kg' }));
     render(
       <MemoryRouter>
@@ -83,7 +89,11 @@ describe('PassPrint material unit', () => {
       </MemoryRouter>,
     );
     await waitFor(() => expect(screen.getByText('RGP-OUT-20260811-0001')).toBeInTheDocument());
-    expect(screen.getByRole('columnheader', { name: 'Qty (Kg)' })).toBeInTheDocument();
-    expect(screen.queryByText('3 Kg')).toBeNull();
+    // A shared unit no longer moves into the heading — the heading is plain
+    // and every cell still names its own unit.
+    expect(screen.getByRole('columnheader', { name: 'Qty' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Qty (Kg)' })).toBeNull();
+    expect(screen.getByText('2 Kg')).toBeInTheDocument();
+    expect(screen.getByText('3 Kg')).toBeInTheDocument();
   });
 });

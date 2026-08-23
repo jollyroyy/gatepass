@@ -80,53 +80,51 @@ describe('the two desks a waiting pass can be sitting on', () => {
 describe('both boards read the same split', () => {
   const ROWS = [CLIMBING, AT_GATE, NO_LADDER, EXPIRED, CLEARED];
 
-  // REWRITTEN 2026-08-22. These three cases used to hold that ONE card,
-  // "Pending Approvals", stood over both desks and printed the split under it
-  // as two sub-lines ("2 passes pending gate review"). The client separated the
-  // desks into a card each and asked for the sub-lines to go, so what is pinned
-  // now is that the two cards carry the split's own two arrays and still sum to
-  // what the single figure showed.
-  it("the admin's two cards are the split, and they sum to what was waiting", () => {
+  // REWRITTEN 2026-08-23. The desks have been one card with sub-lines, then a
+  // card each, and are now two sub-lines under EACH pass-type card, counting
+  // only that type (client: "make the similar type of pending gate approval and
+  // pending approval under each NRGP and RGP … remove all those two pending
+  // cards completely. Do this across all the views"). Every row in this file is
+  // an RGP, so the RGP card carries the whole split and the NRGP card is zeros —
+  // which is itself the thing worth pinning: a card that counted the board
+  // rather than its own type would read the same on both.
+  it("the admin's pass-type cards carry the split, and it sums to what was waiting", () => {
     const cards = buildOverviewCards(ROWS, 30);
-    const gate = cards.find((c) => c.key === 'pendingGate');
-    const approval = cards.find((c) => c.key === 'pendingApproval');
-    expect(gate?.value).toBe(2);
-    expect(approval?.value).toBe(1);
-    expect((gate?.value ?? 0) + (approval?.value ?? 0)).toBe(pendingSplit(ROWS).waiting.length);
-    // REWRITTEN 2026-08-22: it used to assert `c.notes.length === 0`. The
-    // client's instruction that day ("remove running and all kinds of
-    // subtext from kpi card from all dashboards ... across all views")
-    // deleted OverviewCard.note/notes outright, so there is no `notes`
-    // property left to be empty.
-    expect(cards.every((c) => !('notes' in c) && !('note' in c))).toBe(true);
+    expect(cards.some((c) => c.key === 'pendingGate' || c.key === 'pendingApproval')).toBe(false);
+    const rgp = cards.find((c) => c.key === 'rgp');
+    const nrgp = cards.find((c) => c.key === 'nrgp');
+    expect(rgp?.notes?.map((n) => n.value)).toEqual([2, 1]);
+    expect(nrgp?.notes?.map((n) => n.value)).toEqual([0, 0]);
+    const total = [rgp, nrgp].flatMap((c) => c?.notes ?? []).reduce((t, n) => t + n.value, 0);
+    expect(total).toBe(pendingSplit(ROWS).waiting.length);
   });
 
-  it("the HOD's one card is the same figures, over whatever rows the HOD was served", () => {
+  it("the HOD's cards are the same figures, over whatever rows the HOD was served", () => {
     // SCOPE IS NOT THIS MODULE'S. The HOD board is narrowed by RLS to their
     // department and by `.eq('raised_by', …)` to their own passes, both
     // server-side, and this function simply counts what it is handed — which is
     // what makes the same code correct on both boards.
     const cards = buildHodKpis(ROWS, Date.now());
-    //
-    // REWRITTEN 2026-08-23: the HOD's two cards became one card with the split
-    // under it. The three numbers are the same three numbers.
-    const pending = cards.find((c) => c.key === 'pendingApprovals');
-    expect(pending?.value).toBe(3);
-    expect(pending?.notes?.map((n) => n.value)).toEqual([2, 1]);
+    expect(cards.some((c) => c.key === 'pendingApprovals')).toBe(false);
+    expect(cards.find((c) => c.key === 'rgpIssued')?.notes?.map((n) => n.value)).toEqual([2, 1]);
+    expect(cards.find((c) => c.key === 'nrgpIssued')?.notes?.map((n) => n.value)).toEqual([0, 0]);
   });
 
   it('a card and its own drill list can never disagree', () => {
     for (const rows of [[], [CLIMBING], ROWS]) {
-      for (const key of ['pendingGate', 'pendingApproval'] as const) {
-        const admin = buildOverviewCards(rows, 30).find((c) => c.key === key);
-        expect(admin?.value).toBe(admin?.drill?.rows.length);
+      for (const card of buildOverviewCards(rows, 30)) {
+        if (card.drill) expect(card.value, card.key).toBe(card.drill.rows.length);
       }
-      // The HOD's one card, over both desks: its figure is the length of the
-      // list it opens, and its two notes sum to that figure.
-      const hod = buildHodKpis(rows, Date.now()).find((c) => c.key === 'pendingApprovals');
-      expect(hod?.value).toBe(hod?.drill?.rows.length);
-      expect((hod?.notes ?? []).reduce((t, n) => t + n.value, 0)).toBe(hod?.value);
-      expect(hod?.value).toBe(pendingSplit(rows).waiting.length);
+      for (const card of buildHodKpis(rows, Date.now())) {
+        if (card.drill) expect(card.value, card.key).toBe(card.drill.rows.length);
+      }
+    }
+  });
+
+  it('the desks under the two type cards still sum to the whole waiting set', () => {
+    for (const rows of [[], [CLIMBING], ROWS]) {
+      const notes = buildOverviewCards(rows, 30).flatMap((c) => c.notes ?? []);
+      expect(notes.reduce((t, n) => t + n.value, 0)).toBe(pendingSplit(rows).waiting.length);
     }
   });
 });

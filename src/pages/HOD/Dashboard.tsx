@@ -2,6 +2,11 @@
 // a greeting and a date chip, four drillable figures, Quick Actions, and the
 // Approval Pending strip.
 //
+// A FIGURE'S LIST IS A PAGE, NOT A PANEL (client, 2026-08-23: "don't show the
+// table on the same page … show it on a new page for all the KPI cards"). Every
+// card is a link: `/dashboard/<key>` (see `DashboardDrill.tsx`) for the three
+// that list passes, `/overdue` for the item-level board.
+//
 // IT IS NO LONGER `GateBoard`. That component is the ADMIN's board and stays
 // exactly as it is; an HOD used to get it narrowed to one person — two KPI rows,
 // a movement trend, a status ring, a return watch, a top-items ring and the
@@ -14,13 +19,13 @@
 //     Passes itself was removed on 2026-08-23 (client: "remove my passes").
 //   * THE ALERTS CARD is not drawn at all (client: "remove the alert part"). Its
 //     three lines restated the three cards beside it, each with a "View" link
-//     to the list the card's own drill now opens in place.
+//     to the list the card's own press now opens on `/dashboard/<key>`.
 //   * THE "WAITING WITH" STRIP, which named the desk every still-waiting pass
 //     was sitting with, is off this board (client, 2026-08-21: "remove Waiting
 //     With ... from hod dashboard bottom"). The ADMIN's board still carries it.
 //     The Approval Pending strip stays — only the other one was named — and
 //     since 2026-08-21 it counts the same way, one pass against one desk, so
-//     that it agrees with the Pending Approvals card above it. What it does NOT
+//     that it agrees with the two pending desk lines on the cards above it. What it does NOT
 //     have is a gate row: it names approvers, and the passes waiting at the
 //     barrier are the card's other sub-line.
 //   * THE FLAGGED-REVIEW QUEUE ("Mismatches needing review") is off the page
@@ -32,9 +37,9 @@
 //
 // THE SKIN IS THE MOCK-UP'S, NOT THE HOUSE THEME. Same island the guard's board
 // is: `.gb-board` paints its own white ground, Inter, near-black ink, and the
-// mock's blue / green / purple / orange. `gb-main` rides alongside it so the two
-// HOUSE components this page still renders — `DrillList` and the pass cards
-// under it — render in their light halves instead of the shipped dark default;
+// mock's blue / green / purple / orange. `gb-main` rides alongside it for the
+// HOUSE components the drill page renders (`DrillList` and the pass cards under
+// it), which take their light halves instead of the shipped dark default;
 // without it a dark pass card would sit on a white ground. Neither class has
 // any effect outside this subtree, and every other HOD screen is untouched.
 //
@@ -44,23 +49,19 @@
 //   Person     — `.eq('raised_by', userId)`, in useHodBoardData.ts, on every
 //                read. SERVER-side on purpose: filtering client-side would
 //                download a colleague's passes in order to hide them.
-import React, { useCallback, useMemo, useState } from 'react';
-import DrillList from '../../components/DrillList';
+import React, { useMemo, useState } from 'react';
 import HodApprovalPending from '../../components/hod/HodApprovalPending';
 import HodKpiCards from '../../components/hod/HodKpiCards';
 import HodQuickActions from '../../components/hod/HodQuickActions';
 import DepartmentDeleteRequests from '../../components/hod/DepartmentDeleteRequests';
-import { drillDefOf, type BoardDrill } from '../../lib/boardDrills';
 import { formatDateOnly } from '../../lib/formatDate';
-import { buildHodKpis, greetingFor, hodGreetingName, type HodKpiCard } from '../../lib/hodBoard';
+import { buildHodKpis, greetingFor, hodGreetingName } from '../../lib/hodBoard';
 import { approvalWaiting } from '../../lib/hodApprovals';
-import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 import { useDepartmentDeleteRequests } from '../../lib/useDepartmentDeleteRequests';
 import { useHodBoardData } from './useHodBoardData';
 
 export default function Dashboard(): React.ReactElement {
   const { rows, approvals, name, loading, error } = useHodBoardData();
-  const [drill, setDrill] = useState<BoardDrill | null>(null);
   // Stamped ONCE, at mount. A ticking clock would re-render four cards every
   // second for a greeting that changes twice a day and a date that changes once.
   const [stamp] = useState(() => Date.now());
@@ -77,20 +78,6 @@ export default function Dashboard(): React.ReactElement {
   // which is why it sits above the figures rather than beside them: when it IS
   // there, it is the most consequential thing on the page.
   const { requests: deleteRequests, reload: reloadDeleteRequests } = useDepartmentDeleteRequests();
-
-  // Toggling: pressing the card already open closes it. Compared by `key`, not
-  // by object identity — every render builds fresh drill objects.
-  const select = useCallback((card: HodKpiCard) => {
-    // The Overdue card has no list of its own — it is a `<Link>` to `/overdue`
-    // and never reaches this handler. The guard keeps that a fact rather than a
-    // promise two files apart.
-    if (!card.drill) return;
-    const next = card.drill;
-    setDrill((cur) => (cur?.key === next.key ? null : next));
-  }, []);
-
-  const activeKey = drill?.key ?? null;
-  const resultsRef = useScrollIntoViewOnChange<HTMLDivElement>(activeKey);
 
   return (
     <div className="gb-board gb-main">
@@ -117,22 +104,10 @@ export default function Dashboard(): React.ReactElement {
 
       <DepartmentDeleteRequests requests={deleteRequests} onDecided={reloadDeleteRequests} />
 
-      <HodKpiCards cards={cards} activeKey={activeKey} onSelect={select} loading={loading} />
-
-      {/* The stacked list a figure opens, directly under the row it was clicked
-          in. `showRaisedBy={false}`: the reader raised every pass on this board,
-          so their own name back at them is noise. */}
-      {drill && (
-        <div ref={resultsRef} className="mt-6" role="region" aria-label="Selected passes">
-          <DrillList
-            def={drillDefOf(drill)}
-            rows={drill.rows}
-            loading={loading}
-            showRaisedBy={false}
-            showHeading={false}
-          />
-        </div>
-      )}
+      {/* EVERY CARD IS A LINK, and its list is a page of its own —
+          `/dashboard/<key>`, or `/overdue` for the item-level board (client,
+          2026-08-23). Nothing opens under the row any more. */}
+      <HodKpiCards cards={cards} loading={loading} />
 
       <div className="gb-stack">
         <HodQuickActions />

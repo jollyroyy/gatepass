@@ -18,13 +18,12 @@
 // THE SPLIT IS BY SCOPE, NOT BY SUBJECT, and that is the whole reason there are
 // exactly two cards rather than five tiles in a row:
 //
-//   RAISED IN THE WINDOW — total, RGP, NRGP. Three cuts of one array, so they
-//                          sum: RGP + NRGP = Total, by construction.
-//   RUNNING RIGHT NOW    — pending approvals, overdue returns. Neither resets
-//                          at the window boundary, because an obligation does
-//                          not close because the window rolled past the day it
-//                          started in (the admin Overview's own rule, and the
-//                          reason those two cards carry no comparison).
+//   RAISED IN THE WINDOW — the RGP and NRGP FIGURES. Two cuts of one array.
+//   RUNNING RIGHT NOW    — overdue returns, and the two desk lines under each
+//                          pass-type figure. None of them resets at the window
+//                          boundary, because an obligation does not close
+//                          because the window rolled past the day it started in
+//                          (the admin Overview's own rule).
 //
 // Putting a windowed figure beside a running one inside a single card is what
 // this grouping exists to prevent: the guard's card shape states one heading
@@ -36,7 +35,7 @@
 // because which plate a card wears is a fact about the drawing and lives in
 // `SuperSummaryCards.tsx`. A lib that picked the colour would be a lib the
 // designer has to edit.
-import type { OverviewCard, OverviewKey } from './adminOverview';
+import type { OverviewCard, OverviewKey, OverviewNote } from './adminOverview';
 
 export type SuperGroupKey = 'raised' | 'attention';
 
@@ -49,11 +48,14 @@ export interface SuperFigure {
    *  cut of it this is — exactly how the guard's RGP / NRGP split reads. */
   label: string;
   value: number;
-  /** The rows the figure counted. Absent on a figure that navigates. */
+  /** The rows the figure counted, for the page its press opens. */
   drill: OverviewCard['drill'];
-  /** Where the figure goes when pressed, INSTEAD of opening a list under the
-   *  card — Overdue Returns opens `/overdue` (client, 2026-08-23). */
-  to?: string;
+  /** Where the figure goes when pressed. Every figure navigates (client,
+   *  2026-08-23): `/admin-dashboard/<key>` for the two pass types, `/overdue`
+   *  for the item-level page. */
+  to: string;
+  /** The two desk lines under a pass-type figure. */
+  notes?: OverviewNote[];
 }
 
 export interface SuperGroup {
@@ -71,8 +73,6 @@ export interface SuperGroup {
 const PLACEMENT: Record<OverviewKey, { group: SuperGroupKey; label: string }> = {
   rgp: { group: 'raised', label: 'RGP' },
   nrgp: { group: 'raised', label: 'NRGP' },
-  pendingGate: { group: 'attention', label: 'Pending Gate Review' },
-  pendingApproval: { group: 'attention', label: 'Pending Approval' },
   overdue: { group: 'attention', label: 'Overdue Returns' },
 };
 
@@ -110,6 +110,7 @@ export function superAdminGroups(cards: OverviewCard[]): SuperGroup[] {
         value: c.value,
         drill: c.drill,
         to: c.to,
+        notes: c.notes,
       })),
   })).filter((g) => g.figures.length > 0);
 }

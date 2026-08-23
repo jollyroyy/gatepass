@@ -1,6 +1,8 @@
 // THE ADMIN DASHBOARD — the client's "Overview" mock-up, box for box
-// (2026-08-19): a title and a date-range chip, five figures with their change
-// against the previous window, a Gate Pass Trend, and a Passes by Status ring.
+// (2026-08-19): a title and a date-range chip, the figures, a Gate Pass Trend,
+// and a Passes by Status ring. Three cards are left of the mock's six — Total
+// went on 2026-08-23, and both pending desks became sub-lines of RGP and NRGP
+// the same day.
 //
 // IT IS NO LONGER `GateBoard`. The client asked for the whole page to be
 // replaced ("remove whatever is there in the admin dashboard currently and
@@ -23,8 +25,10 @@
 //
 // THE BOARD INVARIANT SURVIVES. Every clickable figure — a card, an arc, a day
 // on the trend — carries the very rows it counted on a `BoardDrill`, and the
-// stacked list below renders exactly that array. No aggregate query, no
-// `count: 'exact'`, no predicate re-applied against a second array.
+// stacked list renders exactly that array: on `/admin-dashboard/<key>` for the
+// three cards since 2026-08-23, and in place below for the trend and the ring.
+// No aggregate query, no `count: 'exact'`, no predicate re-applied against a
+// second array.
 //
 // THE SKIN IS THE MOCK-UP'S, NOT THE HOUSE THEME — the same `.gb-board`
 // /`gb-main` island the guard's and the HOD's boards are. `gb-main` rides
@@ -94,7 +98,7 @@ export default function AdminDashboard(): React.ReactElement {
   // today, but all the passes which are pending for all those approvals
   // accordingly"). It reads the SAME `rows` every figure above it does and
   // narrows them to the ones still waiting — so the window chip cannot move it,
-  // and it agrees with the running Pending Approvals card above.
+  // and it agrees with the running pending desk lines on the cards above.
   const { waiting } = useWaitingWith(rows);
 
   // Toggling: pressing the thing already open closes it. Compared by `key`, not
@@ -135,7 +139,11 @@ export default function AdminDashboard(): React.ReactElement {
 
       {error && <div className="gb-alert">{error}</div>}
 
-      <OverviewCards cards={cards} activeKey={activeKey} onSelect={(c) => c.drill && select(c.drill)} loading={loading} />
+      {/* EVERY CARD IS A LINK now — `/admin-dashboard/<key>?days=N`, or
+          `/overdue` (client, 2026-08-23). The trend and the ring below still
+          drill IN PLACE: they are not KPI cards, and a bar or an arc has no
+          stable key to put in a URL. */}
+      <OverviewCards cards={cards} days={days} loading={loading} />
 
       {/* The drill panel sits directly under the figures rather than at the foot
           of the page: it is opened from anywhere on the board, and a reader who

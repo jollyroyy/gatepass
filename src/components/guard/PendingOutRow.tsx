@@ -12,11 +12,12 @@
 //
 // THE MOCK-UP'S UOM COLUMN IS HERE, on every line (client, 2026-08-19: "put
 // unit beside the quantity so guard can verify the exact quantity being taken
-// out"). It is a deliberate EXCEPTION to `quantityHeading`/`quantityCell`, the
-// rule the record view and the printed slip follow — there a shared unit is
-// named once above the column and `nos` is never named. At the barrier the
-// guard counts a physical load against one line at a time, so the unit belongs
-// in the row being read, a plain count included.
+// out"). It is a column of its own rather than the `quantityCell` string the
+// record view and the printed slip use — at the barrier the guard counts a
+// physical load against one line at a time, and the mock gives that fact its
+// own column. Since 2026-08-23 every one of those screens names the unit on
+// every line too, `nos` included, so nothing here is an exception to the rule
+// any more; only the layout differs.
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { GatePassView } from '../../types';

@@ -8,22 +8,18 @@
 // would read as data loss. "Employee" is the person who carried the material
 // out (`visitor_name`), which is what the gate actually records.
 //
-// The unit rides in the QUANTITY heading when every line shares one, and `nos`
-// is never named — see src/lib/units.ts.
+// EVERY QUANTITY CELL NAMES ITS OWN UNIT, `nos` included — see src/lib/units.ts.
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { ReturnsPage, ScheduledReturnRow } from '../../lib/scheduledReturns';
 import { ITEM_RETURN_STYLES } from '../../lib/passRecordView';
 import { formatDateOnly } from '../../lib/formatDate';
-import { quantityCell, quantityHeading } from '../../lib/units';
+import { quantityCell } from '../../lib/units';
 import Badge from '../Badge';
 import TablePager from '../TablePager';
 
 type Props = {
   page: ReturnsPage<ScheduledReturnRow>;
-  /** Units of EVERY row, not just this page — a heading that changed as the
-   *  reader paged would be a different table on every page. */
-  units: (string | null | undefined)[];
   picked: Set<string>;
   onToggle: (itemId: string) => void;
   onPage: (page: number) => void;
@@ -35,7 +31,7 @@ type Props = {
 };
 
 export default function ScheduledReturnsTable({
-  page, units, picked, onToggle, onPage, busy, readOnly = false,
+  page, picked, onToggle, onPage, busy, readOnly = false,
 }: Props): React.ReactElement {
   return (
     <div className="card overflow-hidden" data-testid="scheduled-returns-table">
@@ -48,7 +44,7 @@ export default function ScheduledReturnsTable({
               <th>Carried By</th>
               <th>Department</th>
               <th>Expected Return</th>
-              <th>{quantityHeading('Quantity', units)}</th>
+              <th>Quantity</th>
               <th>Return Status</th>
               <th>Action</th>
             </tr>
@@ -82,7 +78,7 @@ export default function ScheduledReturnsTable({
                   </td>
                   <td>
                     <span className="inline-flex items-center justify-center min-w-[1.75rem] px-2 py-0.5 rounded-md bg-surface-200 text-navy-800 text-xs font-semibold">
-                      {quantityCell(item.quantity, item.unit, units)}
+                      {quantityCell(item.quantity, item.unit)}
                     </span>
                   </td>
                   <td>

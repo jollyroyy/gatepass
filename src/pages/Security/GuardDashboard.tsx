@@ -1,31 +1,28 @@
-// The guard's Dashboard — and since 2026-08-22 it is the guard's ONLY list
-// screen: a greeting, the global search, two drillable figures, the list a
-// pressed figure opens IN PLACE, and three quick actions.
+// The guard's Dashboard: a greeting, the global search, two drillable figures
+// and three quick actions.
 //
-// THE TWO LISTS ARE NOT PAGES ANY MORE. `/pending-out` and `/pending-returns`
-// were routes with sidebar tabs of their own; the client removed both
-// (2026-08-22): "make sure you don't keep any separate pending out or [RGP]
-// tab — all those things are already there in the dashboard. All you have to do
-// is just keep the entire page so that whenever somebody is clicking on the
-// drill down on the KPI number, it would open up on the same page. There is no
-// need to keep a separate tab on the right-hand side page. That would only show
-// when the KPI cards have been drilled down from the guard's dashboard."
-// `PendingOutPage.tsx` and `PendingReturnsPage.tsx` are DELETED, so a stale
-// reference is a build error, and their bodies live on as
+// A FIGURE'S LIST IS A PAGE AGAIN — WITHOUT A TAB (client, 2026-08-23: "don't
+// show the table on the same page. Show it on a different page, like you are
+// showing the overdue details"). It opened in place here for a day; before that
+// `/pending-out` and `/pending-returns` were routes with SIDEBAR TABS, and the
+// tabs are what the client removed on 2026-08-22 ("there is no need to keep a
+// separate tab on the right-hand side page. That would only show when the KPI
+// cards have been drilled down from the guard's dashboard"). `/guard-dashboard/
+// <key>` honours both: it is a page, and pressing its figure is the only way in.
+// See `GuardDrill.tsx`; the panels themselves are
 // `components/guard/PendingOutPanel` / `PendingReturnsPanel`.
 //
-// THE FIGURE AND ITS LIST ARE NOW ONE ARRAY. `useGuardQueues` is read once
-// here; `pendingOutOf` / `pendingReturnsOf` derive the rows; the figure is
-// `rows.length` and the panel is handed that very array. The board's oldest
-// invariant used to be a promise two files kept separately — it is structural
-// now.
+// THE FIGURE AND ITS LIST ARE STILL ONE DERIVATION. Both screens read
+// `useGuardQueues` once and cut it with the same `pendingOutOf` /
+// `pendingReturnsOf` / `typeSplit`, so there is no second predicate that could
+// make a count disagree with the table it opens.
 //
 // THE SEARCH MOVED UP HERE, and it is the guard's one search surface besides
 // the `/console` route the Scan QR tile opens. It never narrowed either list —
 // `useGateSearch` looks up a pass number over the WHOLE register and a mobile
 // number over an unfiltered query — so drawing it once, above everything, is
 // what it always wanted to be. While the viewfinder is open, or while a
-// multi-pass mobile result is showing, the cards and the drilled list stand
+// multi-pass mobile result is showing, the two summary cards stand
 // down: a guard holding a slip up to a camera is not reading a queue, and the
 // answer must not be pushed off screen by one.
 //
@@ -33,12 +30,10 @@
 // screens to match their mock-up exactly — Inter headings in near-black, orange
 // for the OUT queue, blue for the return queue, on a white ground — so every
 // class here is a `.gb-*` from the scoped, fixed-light skin at the foot of
-// src/index.css.
+// src/index.css, and so is the drill page's.
 import React, { useEffect, useState } from 'react';
-import GuardSummaryCards, { type GuardDrillKey } from '../../components/guard/GuardSummaryCards';
+import GuardSummaryCards from '../../components/guard/GuardSummaryCards';
 import GuardToolbar from '../../components/guard/GuardToolbar';
-import PendingOutPanel from '../../components/guard/PendingOutPanel';
-import PendingReturnsPanel from '../../components/guard/PendingReturnsPanel';
 import QuickActions from '../../components/guard/QuickActions';
 import { useGuardSearch } from '../../components/guard/useGuardSearch';
 import { formatDateTime } from '../../lib/formatDate';
@@ -46,19 +41,16 @@ import { firstNameOf, pendingOutOf, pendingReturnsOf, typeSplit } from '../../li
 import { buildOverdueRows } from '../../lib/overdueItems';
 import { fetchMyProfile } from '../../lib/profiles';
 import { buildScheduledReturns } from '../../lib/scheduledReturns';
-import { useScrollIntoViewOnChange } from '../../lib/useScrollIntoViewOnChange';
 import { useGuardQueues } from '../../lib/useGuardQueues';
 
 export default function GuardDashboard(): React.ReactElement {
-  const { queue, openReturns, openItems, loading, error, reload } = useGuardQueues('both');
+  const { queue, openReturns, openItems, loading, error } = useGuardQueues('both');
   const [name, setName] = useState<string | null>(null);
-  const [drill, setDrill] = useState<GuardDrillKey | null>(null);
   // Stamped once, at mount: a clock that ticks on a board nobody is watching
   // re-renders the page every second for a fact that changes by the minute.
   const [stamp] = useState(() => new Date().toISOString());
 
   const search = useGuardSearch('Search by Pass No., Vendor, Mobile No.…');
-  const drillRef = useScrollIntoViewOnChange<HTMLDivElement>(drill);
 
   // The greeting only. A profile that never resolves leaves "Hello, Guard",
   // which is what the board said before anyone was named — so this read has no
@@ -90,11 +82,6 @@ export default function GuardDashboard(): React.ReactElement {
   ).length;
   const overdueLines = buildOverdueRows(openReturns, openItems).length;
 
-  // Pressing the open figure closes it — the same toggle every drillable board
-  // in this app uses.
-  const onDrill = (key: GuardDrillKey): void =>
-    setDrill((cur) => (cur === key ? null : key));
-
   return (
     <div className="gb-board">
       <div className="gb-head-row">
@@ -125,23 +112,7 @@ export default function GuardDashboard(): React.ReactElement {
             split={typeSplit(pendingOut)}
             returnsDue={pendingReturns.length}
             loading={loading}
-            openKey={drill}
-            onDrill={onDrill}
           />
-
-          {/* The list a pressed figure opens, brought into view: a reader who
-              pressed a figure should not have to hunt for where the answer
-              appeared. Keyed on the drill, so moving from RGP to NRGP is a new
-              question and starts with fresh filters and a fresh page. */}
-          {drill && (
-            <div ref={drillRef}>
-              {drill === 'returns' ? (
-                <PendingReturnsPanel rows={pendingReturns} loading={loading} onRecorded={reload} />
-              ) : (
-                <PendingOutPanel key={drill} rows={pendingOut} loading={loading} initialTab={drill} />
-              )}
-            </div>
-          )}
 
           <QuickActions dueToday={dueTodayLines} overdue={overdueLines} loading={loading} />
         </>

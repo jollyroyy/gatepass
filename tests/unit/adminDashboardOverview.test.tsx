@@ -1,29 +1,37 @@
-// THE ADMIN DASHBOARD IS THE CLIENT'S "Overview" MOCK-UP (2026-08-19, twelfth
+// THE ADMIN DASHBOARD IS THE CLIENT'S "Overview" MOCK-UP (2026-08-23, latest
 // pass) — `src/pages/Admin/AdminDashboard.tsx`.
 //
 // FIVE THINGS THIS FILE EXISTS TO PIN:
 //
-//   1. THE PAGE IS THE MOCK, BOX FOR BOX: a title and a date-range chip, five
-//      figures, "Gate Pass Trend", "Passes by Status".
+//   1. THE PAGE IS THE MOCK, BOX FOR BOX: a title and a date-range chip, three
+//      figures (RGP, NRGP, Overdue Returns), "Gate Pass Trend", "Passes by
+//      Status".
 //   2. `GateBoard` IS GONE, and with it the two KPI bands, the Daily Movement
 //      Trend, the RGP Status Breakdown, the Return Watch table, Top Items Today,
 //      the mismatch attention strip and the department column chart. Deleted
 //      rather than flagged off — the client asked for the page to be replaced.
 //      A grep would not catch a board quietly rendered again from a copy, so
 //      this asserts on what the SCREEN says.
-//   3. THE BOARD INVARIANT SURVIVES THE REWRITE. Press a figure, count the
-//      stack underneath: it is the very array the figure counted. Press it
-//      again and it closes. An arc and a day on the trend drill the same way.
-//   4. ONE QUERY. This page reads `v_gate_passes` and nothing else — the old
-//      board also read `v_gate_pass_items` for Top Items, which no longer
-//      exists. No aggregate, no `count: 'exact'`.
-//   5. THE WINDOW GOVERNS THE WHOLE PAGE, and the header chip and the trend
-//      card's chip are ONE control bound to ONE piece of state, so they cannot
-//      disagree about what is on screen.
+//   3. EVERY CARD IS A LINK TO ITS OWN PAGE (client, 2026-08-23: "instead of
+//      showing it on the same page in the dashboard, show it on a new page for
+//      all the KPI cards"). RGP and NRGP link to `/admin-dashboard/<key>
+//      ?days=N`; Overdue Returns links to `/overdue`. Nothing reveals a stack
+//      under a card any more — `/admin-dashboard/:key` (`DashboardDrill`)
+//      rebuilds the same row and renders the very array the pressed figure
+//      counted. The trend bars and the status ring's arcs still drill IN PLACE
+//      — they are not KPI cards.
+//   4. THE TWO PENDING DESKS ARE GONE AS CARDS (client, 2026-08-23: "instead of
+//      making it as a separate pending card, make the similar type of pending
+//      gate approval and pending approval under each NRGP and RGP … remove all
+//      those two pending cards completely"). They are now two RUNNING desk
+//      lines under each pass-type card (`.gb-kpi-note`), scoped to that type.
+//   5. ONE QUERY. This page reads `v_gate_passes` and `pass_approvals` (for the
+//      Waiting With strip) and nothing else — no `v_gate_pass_items`, no
+//      aggregate, no `count: 'exact'`.
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import type { GatePassView } from '../../src/types';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -56,7 +64,7 @@ function pass(over: Partial<GatePassView>): GatePassView {
 // Three RGP and one NRGP inside the last 7 days; one RGP raised 20 days ago,
 // which only a wider window may take in; one pass waiting at the gate and one
 // still out and late, both old enough that no window contains them — they exist
-// to prove the two RUNNING figures ignore the window.
+// to prove the two RUNNING desk lines (and Overdue Returns) ignore the window.
 const ROWS: GatePassView[] = [
   pass({ id: 'a', pass_number: 'RGP-20260819-0001', created_at: daysAgo(0), visitor_name: 'Alice' }),
   pass({ id: 'b', pass_number: 'RGP-20260817-0002', created_at: daysAgo(2), visitor_name: 'Bob' }),
@@ -106,6 +114,7 @@ vi.mock('../../src/supabaseClient', () => ({
 }));
 
 import AdminDashboard from '../../src/pages/Admin/AdminDashboard';
+import DashboardDrill from '../../src/pages/Admin/DashboardDrill';
 
 async function renderBoard(): Promise<void> {
   tables.length = 0;
@@ -119,19 +128,22 @@ async function renderBoard(): Promise<void> {
   await waitFor(() => expect(figure('RGP')).not.toBe('—'));
 }
 
-/** The number printed on a named card. */
-/** A figure's card. Every one is a button EXCEPT Overdue Returns, which is a
- *  `<Link>` to `/overdue` since 2026-08-23 — the client asked that card to open
- *  the page rather than drill in place. */
+/** A figure's card. Every card is a `<Link>` since 2026-08-23 — none of the
+ *  three drills in place any more. */
 function card(label: string): HTMLElement {
-  return screen.getByRole(label === 'Overdue Returns' ? 'link' : 'button', {
-    name: new RegExp(`^${label}`),
-  });
+  return screen.getByRole('link', { name: new RegExp(`^${label}`) });
 }
 function figure(label: string): string {
-  return within(card(label)).getByText(/^[\d,—]+$/).textContent ?? '';
+  return within(card(label)).getByText(/^[\d,—]+$/, { selector: '.gb-ov-figure' }).textContent ?? '';
 }
-/** The open drill's stacked pass cards. */
+/** The value on one of a pass-type card's two running desk lines. */
+function note(cardLabel: string, noteLabel: string): string {
+  const labelEl = within(card(cardLabel)).getByText(noteLabel, { selector: '.gb-kpi-note-label' });
+  const wrap = labelEl.closest('.gb-kpi-note') as HTMLElement;
+  return within(wrap).getByText(/^[\d,—]+$/, { selector: '.gb-kpi-note-value' }).textContent ?? '';
+}
+/** The open drill's stacked pass cards — still used by the trend and the ring,
+ *  which drill IN PLACE (they are not KPI cards). */
 function stack(): HTMLElement[] {
   const region = screen.getByRole('region', { name: 'Selected passes' });
   return within(region).getAllByTestId('pass-stack-card');
@@ -146,34 +158,40 @@ describe('the admin dashboard is the Overview mock-up', () => {
     expect(screen.getByRole('heading', { name: 'Passes by Status' })).toBeInTheDocument();
   });
 
-  // REWRITTEN 2026-08-22: the one Pending Approvals card became one card per
-  // desk (client), so the row was six figures. REWRITTEN AGAIN 2026-08-23: Total
-  // Gate Passes came off ("remove total passes from all the dashboard views ...
-  // we already have the count of rgp and nrgp"), so it is five.
-  it('renders the five figures, in the mock order', async () => {
+  // REWRITTEN 2026-08-23: the two pending-desk cards came off entirely (client:
+  // "remove all those two pending cards completely"), folded into a pair of
+  // running desk lines under each of RGP and NRGP; Total Gate Passes had
+  // already come off. Three cards remain.
+  it('renders the three figures, in the mock order', async () => {
     await renderBoard();
-    const labels = [
-      'RGP', 'NRGP', 'Pending Gate Review', 'Pending Approval',
-      'Overdue Returns',
-    ];
+    const labels = ['RGP', 'NRGP', 'Overdue Returns'];
     for (const l of labels) expect(card(l)).toBeInTheDocument();
     expect(screen.queryByText('Total Gate Passes')).toBeNull();
+    expect(screen.queryByRole('link', { name: /^Pending Gate Review/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /^Pending Approval/ })).toBeNull();
     // NRGP, never the mock's "Energy Pay Pass" — the client corrected that
     // phrase on sight the first time it appeared, on the raise form.
     expect(screen.queryByText(/Energy Pay/i)).toBeNull();
   });
 
-  it('counts the window for three figures and ignores it for the running queues', async () => {
+  it('counts the window for the two type figures, and Overdue Returns runs unwindowed', async () => {
     await renderBoard();
     expect(figure('RGP')).toBe('3');
     expect(figure('NRGP')).toBe('1');
-    // Both raised 40 days ago — outside every window, and still counted.
-    // The waiting pass owes no signature, so it is on the GATE desk. Neither
-    // card prints a sub-line any more (client, 2026-08-22).
-    expect(figure('Pending Gate Review')).toBe('1');
-    expect(figure('Pending Approval')).toBe('0');
     expect(figure('Overdue Returns')).toBe('1');
-    expect(card('Pending Gate Review').textContent).not.toMatch(/pending gate review$/);
+  });
+
+  // The two desk lines under a pass-type card are RUNNING (never scoped by the
+  // window) and scoped to that ONE type — the waiting RGP ("wait", 40 days old)
+  // counts under RGP only; the NRGP card's own lines are both zero.
+  it('prints the two running desk lines under each pass-type card, scoped to that type', async () => {
+    await renderBoard();
+    expect(note('RGP', 'Pending gate approval')).toBe('1');
+    expect(note('RGP', 'Pending approval')).toBe('0');
+    expect(note('NRGP', 'Pending gate approval')).toBe('0');
+    expect(note('NRGP', 'Pending approval')).toBe('0');
+    // Overdue Returns carries no desk lines — it is the running queue itself.
+    expect(within(card('Overdue Returns')).queryByText('Pending gate approval')).toBeNull();
   });
 
   it('renders NONE of the old GateBoard — it was replaced, not hidden', async () => {
@@ -191,8 +209,8 @@ describe('the admin dashboard is the Overview mock-up', () => {
   // therefore absent from it. The client removed that cut ("it should not be
   // only the passes which were raised today, but all the passes which are
   // pending for all those approvals accordingly … remove the today word from
-  // the bottom from the admin view"), so the strip now agrees with the Pending
-  // Approvals card above it, which has always counted that same pass as 1.
+  // the bottom from the admin view"), so the strip now agrees with the running
+  // desk lines under the cards above it, which count that same pass as 1.
   it('carries a Waiting With strip at the foot, counting every pending pass whatever the window says', async () => {
     await renderBoard();
     const strip = screen.getByRole('heading', { name: 'Waiting With' }).closest('.gb-approvals');
@@ -221,36 +239,21 @@ describe('the admin dashboard is the Overview mock-up', () => {
   });
 });
 
-describe('every figure drills into the very rows it counted', () => {
-  it('opens the stacked list, and pressing the open card closes it', async () => {
+// REWRITTEN 2026-08-23. Every KPI card used to reveal a stack of pass cards
+// under itself in place; the client asked that each one open its own page
+// instead ("instead of showing it on the same page in the dashboard, show it
+// on a new page for all the KPI cards"). The trend bars and the status ring's
+// arcs are unaffected — they are not KPI cards, and still drill in place below.
+describe('every KPI card links to its own drill page instead of opening in place', () => {
+  it('carries the window on its href for RGP and NRGP, and no board region opens on click', async () => {
     await renderBoard();
+    expect(card('RGP')).toHaveAttribute('href', '/admin-dashboard/rgp?days=7');
+    expect(card('NRGP')).toHaveAttribute('href', '/admin-dashboard/nrgp?days=7');
+    fireEvent.click(card('NRGP'));
     expect(screen.queryByRole('region', { name: 'Selected passes' })).toBeNull();
-
-    fireEvent.click(card('NRGP'));
-    await waitFor(() => expect(stack()).toHaveLength(1));
-    expect(within(screen.getByRole('region', { name: 'Selected passes' }))
-      .getByText('NRGP-20260818-0001')).toBeInTheDocument();
-    expect(card('NRGP')).toHaveAttribute('aria-pressed', 'true');
-
-    fireEvent.click(card('NRGP'));
-    await waitFor(() => expect(screen.queryByRole('region', { name: 'Selected passes' })).toBeNull());
   });
 
-  it('lists exactly what each figure printed', async () => {
-    await renderBoard();
-    // Overdue Returns is not in this list any more: it opens `/overdue` rather
-    // than a stack under the row (client, 2026-08-23), and the case below pins
-    // that instead.
-    for (const label of ['NRGP', 'RGP', 'Pending Gate Review']) {
-      fireEvent.click(card(label));
-      const expected = Number(figure(label));
-      await waitFor(() => expect(stack()).toHaveLength(expected));
-      fireEvent.click(card(label));
-      await waitFor(() => expect(screen.queryByRole('region', { name: 'Selected passes' })).toBeNull());
-    }
-  });
-
-  it('sends Overdue Returns to /overdue instead of drilling', async () => {
+  it('sends Overdue Returns to /overdue, unwindowed', async () => {
     await renderBoard();
     const overdue = card('Overdue Returns');
     expect(overdue).toHaveAttribute('href', '/overdue');
@@ -258,6 +261,44 @@ describe('every figure drills into the very rows it counted', () => {
     expect(screen.queryByRole('region', { name: 'Selected passes' })).toBeNull();
   });
 
+  // `DashboardDrill` is what a card's href actually opens: it re-reads
+  // `v_gate_passes` itself and rebuilds the very row the card counted, so the
+  // rows listed here are the rows RGP printed above, not a second predicate.
+  it('/admin-dashboard/rgp?days=7 lists exactly the rows the RGP card counted', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin-dashboard/rgp?days=7']}>
+        <Routes>
+          <Route path="/admin-dashboard/:key" element={<DashboardDrill />} />
+          <Route path="/admin-dashboard" element={<div>back on the board</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText('3 passes')).toBeInTheDocument());
+    const cards = screen.getAllByTestId('pass-stack-card');
+    expect(cards).toHaveLength(3);
+    expect(screen.getByText('RGP-20260819-0001')).toBeInTheDocument();
+    expect(screen.getByText('RGP-20260817-0002')).toBeInTheDocument();
+    expect(screen.getByText('RGP-20260814-0003')).toBeInTheDocument();
+    // "Omar"'s pass is 20 days old — outside the 7-day window this URL asked
+    // for — so it is not on this page either.
+    expect(screen.queryByText('RGP-20260730-0009')).toBeNull();
+    expect(screen.getByText('Back to dashboard')).toHaveAttribute('href', '/admin-dashboard');
+  });
+
+  it('sends an unknown :key back to the dashboard rather than rendering a dead page', async () => {
+    render(
+      <MemoryRouter initialEntries={['/admin-dashboard/bogus?days=7']}>
+        <Routes>
+          <Route path="/admin-dashboard/:key" element={<DashboardDrill />} />
+          <Route path="/admin-dashboard" element={<div>back on the board</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText('back on the board')).toBeInTheDocument());
+  });
+});
+
+describe('the trend and the status ring still drill in place', () => {
   it('drills a status arc from the ring\'s legend', async () => {
     await renderBoard();
     // Four passes in the window, all `matched` with no return leg: one arc.
@@ -297,6 +338,8 @@ describe('the window control', () => {
     await waitFor(() => expect(header.value).toBe('30'));
     // The 20-day-old pass is inside a 30-day window and was outside a 7-day one.
     await waitFor(() => expect(figure('RGP')).toBe('4'));
+    // The window rides into the card's own href too.
+    expect(card('RGP')).toHaveAttribute('href', '/admin-dashboard/rgp?days=30');
   });
 
   it('names the span in words, so the chip is readable without opening it', async () => {

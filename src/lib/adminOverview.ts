@@ -33,18 +33,22 @@
 import type { GatePassView } from '../types';
 import type { BoardDrill } from './boardDrills';
 import { IS_OPEN_RETURN } from './boardDrills';
-import { pendingSplit } from './pendingSplit';
+import { pendingNotes, type PendingNote } from './pendingSplit';
 import { DAY_MS, dayStart } from './localDay';
 import type { HodGlyph, HodTone } from '../components/hod/hodIconTypes';
 
 // ─── The window ──────────────────────────────────────────────────────────────
 
-export type OverviewWindow = '7' | '30' | '90';
+export type OverviewWindow = '1' | '7' | '30' | '90';
 
 /** The header chip and the trend card's chip are the SAME control bound to the
  *  same state, which is why they can never disagree about what the board is
- *  showing. The mock draws both. */
+ *  showing. The mock draws both. `'1'` is TODAY (client, 2026-08-23: "put
+ *  today's filter also in the dashboard page … so he can see today's data as
+ *  well in admin") — `windowBounds(1, now)` already lands on exactly today's
+ *  local midnight-to-midnight span, so no new bounds logic was needed. */
 export const OVERVIEW_WINDOWS: readonly { value: OverviewWindow; label: string }[] = [
+  { value: '1', label: 'Today' },
   { value: '7', label: 'Last 7 Days' },
   { value: '30', label: 'Last 30 Days' },
   { value: '90', label: 'Last 90 Days' },
@@ -84,30 +88,30 @@ function raisedBetween(rows: GatePassView[], from: number, to: number): GatePass
 
 // ─── The five figures ────────────────────────────────────────────────────────
 
-// THE TWO PENDING DESKS ARE TWO KEYS (client, 2026-08-22: "separate the
-// pending at gate review and pending for approvals"). `pending` — the single
-// card that carried both as sub-lines — is GONE, so a stale reference is a type
-// error rather than a card that silently never renders.
+// NEITHER PENDING DESK IS A CARD ANY MORE (client, 2026-08-23: "instead of
+// making it as a separate pending card, make the similar type of pending gate
+// approval and pending approval under each NRGP and RGP … remove all those two
+// pending cards completely. Do this across all the views"). They were one card
+// with two sub-lines, then a card each (2026-08-22), and are now two lines under
+// EACH pass-type card, counting only that type. The keys are gone with the
+// cards, so a stale reference is a type error rather than a card that silently
+// never renders.
 export type OverviewKey =
   // NO `total`. The Total Gate Passes card went on 2026-08-23 (client: "remove
   // total passes from all the dashboard views ... we already have the count of
   // rgp and nrgp") — RGP + NRGP is that figure by construction. The RING still
   // sums to the windowed row count; that is the ring's own arithmetic and is
   // unaffected.
-  | 'rgp' | 'nrgp' | 'pendingGate' | 'pendingApproval' | 'overdue';
+  | 'rgp' | 'nrgp' | 'overdue';
 
-/** One line under a figure — the mock has no such thing, and exactly one card
- *  carries them: Pending Approvals, which the client asked to be broken into
- *  the two desks a waiting pass can actually be sitting on (2026-08-20).
+/** One line under a figure — the mock has no such thing, and the two pass-type
+ *  cards carry a pair each: the desks their own waiting passes are sitting on
+ *  (`pendingNotes`).
  *
- *  THEY ARE READINGS, NOT CONTROLS. The whole card is already the drill button
- *  and a button inside a button is not valid HTML, so a sub-figure states
- *  itself and the card's own list is what opens. */
-export interface OverviewNote {
-  key: string;
-  text: string;
-  tone: HodTone;
-}
+ *  THEY ARE READINGS, NOT CONTROLS. The whole card is already the link, and an
+ *  anchor inside an anchor is not valid HTML, so a sub-figure states itself and
+ *  the card's own page is what opens. */
+export type OverviewNote = PendingNote;
 
 export interface OverviewCard {
   key: OverviewKey;
@@ -118,13 +122,19 @@ export interface OverviewCard {
   /** The rows the figure counted, and the heading the stacked list gets.
    *  Absent on a card that navigates instead of drilling. */
   drill?: BoardDrill;
-  /** Where the card goes when pressed, INSTEAD of opening a list under itself.
-   *  Exactly one of `drill` / `to` is set on every card. */
-  to?: string;
+  /** WHERE THE CARD GOES WHEN PRESSED — every card navigates now (client,
+   *  2026-08-23: "show it on a new page for all the KPI cards"). A card with a
+   *  `drill` opens `/admin-dashboard/<key>`, which rebuilds this very row and
+   *  renders `drill.rows`; Overdue Returns opens `/overdue`, the item-level page
+   *  it always did. */
+  to: string;
+  /** The two desk lines under the hairline, on the pass-type cards. */
+  notes?: OverviewNote[];
 }
 
 /**
- * The mock's five cards, in its own order, each carrying the rows it counted.
+ * The mock's three surviving cards, in its own order, each carrying the rows it
+ * counted.
  *
  * THE THIRD CARD IS NRGP. The mock-up's own label is "Energy Pay Pass"; the
  * client corrected that phrase on sight the first time it appeared (on the raise
@@ -140,11 +150,11 @@ export function buildOverviewCards(
   const win = raisedBetween(rows, b.start, b.end);
   const rgp = win.filter((p) => p.type === 'RGP');
   const nrgp = win.filter((p) => p.type === 'NRGP');
-  // RUNNING, and unscoped by the window on purpose — see the file header.
-  // `split.waiting` IS the old `rows.filter(isWaitingAtGate)`; the two
-  // sub-figures under the card are that same array cut in half by
-  // `awaits_approval`, so they sum to the figure by construction.
-  const split = pendingSplit(rows);
+  // RUNNING, and unscoped by the window on purpose — see the file header. Each
+  // pass type's two desk lines are that type's whole waiting set cut in half by
+  // `awaits_approval`, so they sum to it by construction.
+  const rgpAll = rows.filter((p) => p.type === 'RGP');
+  const nrgpAll = rows.filter((p) => p.type === 'NRGP');
   const overdue = rows.filter((p) => IS_OPEN_RETURN[p.return_status] && p.is_overdue);
 
   return [
@@ -154,6 +164,9 @@ export function buildOverviewCards(
       glyph: 'exchange',
       tone: 'green',
       value: rgp.length,
+      // THE TWO DESKS, RGP's OWN (client, 2026-08-23) — running, not windowed.
+      notes: pendingNotes(rgpAll),
+      to: '/admin-dashboard/rgp',
       drill: {
         key: 'rgp',
         heading: 'RGP raised in this window',
@@ -167,6 +180,9 @@ export function buildOverviewCards(
       glyph: 'send',
       tone: 'purple',
       value: nrgp.length,
+      // The same two desks, narrowed to NRGP.
+      notes: pendingNotes(nrgpAll),
+      to: '/admin-dashboard/nrgp',
       drill: {
         key: 'nrgp',
         heading: 'NRGP raised in this window',
@@ -175,40 +191,11 @@ export function buildOverviewCards(
       },
     },
     {
-      // TWO DESKS, TWO CARDS. They used to be one figure with the split printed
-      // under it; a card whose drill opens two different queues is a card that
-      // cannot say what it counts. `pendingSplit` is unchanged, so the two
-      // still sum to what the one showed.
-      key: 'pendingGate',
-      label: 'Pending Gate Review',
-      glyph: 'clock',
-      tone: 'orange',
-      value: split.atGate.length,
-      drill: {
-        key: 'pendingGate',
-        heading: 'Passes waiting at the gate',
-        empty: 'Nothing is waiting at the gate.',
-        rows: split.atGate,
-      },
-    },
-    {
-      key: 'pendingApproval',
-      label: 'Pending Approval',
-      glyph: 'hourglass',
-      tone: 'purple',
-      value: split.awaitingApproval.length,
-      drill: {
-        key: 'pendingApproval',
-        heading: 'Passes still owing an approval',
-        empty: 'Nothing is waiting on an approver.',
-        rows: split.awaitingApproval,
-      },
-    },
-    {
-      // IT NAVIGATES RATHER THAN DRILLING (client, 2026-08-23: "once anybody
-      // clicks on the overdue card, it should open up the new page as the
-      // current overdue page is showing"), and it is now the admin's only route
-      // to `/overdue`: the sidebar tab came off in the same message. That page
+      // IT OPENS THE ITEM-LEVEL PAGE, not a stacked pass list (client,
+      // 2026-08-23: "once anybody clicks on the overdue card, it should open up
+      // the new page as the current overdue page is showing"). Every card
+      // navigates now; this is the one that does not go to `/admin-dashboard/
+      // <key>`, and it is the admin's only route to `/overdue`: the sidebar tab came off in the same message. That page
       // is item-level and carries its own filters, which a stacked pass list
       // under a card cannot be.
       key: 'overdue',
