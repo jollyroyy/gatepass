@@ -5,12 +5,13 @@
 // `match_pass` enforces server-side, so a button that would always fail is
 // never drawn.
 //
-// IT OPENS THE PASS RECORD, NOT THE VERIFY SCREEN (client, 2026-08-19: pressing
-// Approve or Verify Return from a guard list "would come up like this", the
-// full Gate Pass Details record). The record carries its own Approve OUT
-// button through to `/verify/:id`, which is still where Approve and Reject
-// are offered — so nothing is unreachable, and a guard reads the whole pass,
-// its approval ladder and its material lines before deciding.
+// IT OPENS THE DECISION, NOT THE RECORD ABOVE IT (client, 2026-08-23: pressing
+// Approve in the guard's queue "should directly take him to the green-coloured
+// Approve or Reject button"). It opened `/pass/:id` between 2026-08-19 and
+// today, and that record carried its own Approve OUT on to `/verify/:id` — two
+// presses to reach the one screen the guard came for, with a vehicle waiting at
+// the barrier. `/verify/:id` draws the whole pass and its material lines above
+// the two buttons, so nothing that was read on the way is lost.
 //
 // It lives in its own file because three surfaces render it — the Pending OUT
 // page, the mobile-number search results, and any future queue — and a label
@@ -34,7 +35,7 @@ const ArrowGlyph = (
 
 export default function ApproveOutAction({ id }: { id: string }): React.ReactElement {
   return (
-    <Link to={`/pass/${id}`} className="gb-action gb-action-orange">
+    <Link to={`/verify/${id}`} className="gb-action gb-action-orange">
       {ArrowGlyph}
       Approve OUT
     </Link>

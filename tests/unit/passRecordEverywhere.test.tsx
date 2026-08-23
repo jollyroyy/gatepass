@@ -151,7 +151,9 @@ describe('/pass/:id renders the Search Pass record, not a second format', () => 
     // Twice on purpose: the override panel above the record states it, and the
     // approval ladder's gate rung carries it as the reason that rung is blocked.
     expect(screen.getAllByText('Count did not match').length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
+    // "Send Back to the Gate" since 2026-08-23 — the requester's answer that
+    // returns the pass to the guard who flagged it, and to nobody else.
+    expect(screen.getByRole('button', { name: 'Send Back to the Gate' })).toBeInTheDocument();
   });
 });
 

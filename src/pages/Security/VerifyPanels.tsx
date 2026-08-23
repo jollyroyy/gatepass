@@ -5,8 +5,16 @@
 // (`match_pass` and `flag_pass`), so a rejection still returns the pass to the
 // raising HOD for review; only the words the guard reads changed. The reason
 // on a rejection is MANDATORY, and the 500-character box is the same one the
-// approval ladder's RejectApprovalModal uses, so the two rejections in this app
-// are written into the same shape of field.
+// approval ladder's RejectApprovalModal uses, so every written refusal in this
+// app is the same shape of field.
+//
+// AND ON 2026-08-23 THE SECOND ANSWER BECAME "FLAG TO REQUESTER" (client:
+// "replace the reject with flag to requestor button"). The transition is the
+// same one it always was -- `flag_pass`, status `flagged`, straight to the
+// raising HOD -- and the new wording is the honest description of it: the pass
+// is NOT closed, it is handed back to the person who raised it, who either
+// upholds the flag or sends it back to this gate. Calling that a rejection told
+// the guard the material had been refused when it had only been stopped.
 import React, { useState } from 'react';
 import type { GatePassItemView, GatePassView } from '../../types';
 import ModalShell from '../../components/ModalShell';
@@ -124,14 +132,14 @@ export function ApprovePanel({ pass, items, submitting, error, onCancel, onConfi
   );
 }
 
-interface RejectPanelProps {
+interface FlagPanelProps {
   submitting: boolean;
   error: string | null;
   onCancel: () => void;
   onConfirm: (reason: string) => void;
 }
 
-export function RejectPanel({ submitting, error, onCancel, onConfirm }: RejectPanelProps): React.ReactElement {
+export function FlagPanel({ submitting, error, onCancel, onConfirm }: FlagPanelProps): React.ReactElement {
   const [reason, setReason] = useState('');
   // MANDATORY, and mandatory on the trimmed string: a box of spaces is not a
   // reason. The button is dead until one is typed, so the guard is never told
@@ -139,16 +147,18 @@ export function RejectPanel({ submitting, error, onCancel, onConfirm }: RejectPa
   const valid = reason.trim().length > 0;
 
   return (
-    <ModalShell onClose={onCancel} labelledBy="reject-panel-title">
-        <h2 id="reject-panel-title" className="modal-title mb-1">Reject Gate Pass</h2>
+    <ModalShell onClose={onCancel} labelledBy="flag-panel-title">
+        <h2 id="flag-panel-title" className="modal-title mb-1">Flag to Requester</h2>
         <p className="text-sm text-navy-500 mb-5">
-          A rejection goes back to the raising department for review. Say why — this is required.
+          This goes straight to the department that raised the pass — not to the approvers. They are
+          notified at once, and either uphold the flag or send the pass back to this gate. Say why —
+          this is required.
         </p>
 
         <div className="mb-1">
-          <label className="label" htmlFor="gate-reject-reason">Reason for Rejection *</label>
+          <label className="label" htmlFor="gate-flag-reason">Reason for flagging *</label>
           <textarea
-            id="gate-reject-reason"
+            id="gate-flag-reason"
             className="input"
             rows={4}
             autoFocus
@@ -174,7 +184,7 @@ export function RejectPanel({ submitting, error, onCancel, onConfirm }: RejectPa
             disabled={submitting || !valid}
             onClick={() => onConfirm(reason.trim())}
           >
-            {submitting ? 'Submitting…' : 'Confirm Rejection'}
+            {submitting ? 'Sending…' : 'Send to Requester'}
           </button>
         </div>
     </ModalShell>

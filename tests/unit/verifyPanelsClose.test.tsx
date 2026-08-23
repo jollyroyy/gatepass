@@ -1,4 +1,4 @@
-// ApprovePanel / RejectPanel (src/pages/Security/VerifyPanels.tsx) are the
+// ApprovePanel / FlagPanel (src/pages/Security/VerifyPanels.tsx) are the
 // confirm popups a guard sees at the gate. Closing them must always mean
 // Cancel — never silently confirm an approval or a rejection.
 //
@@ -8,7 +8,7 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ApprovePanel, RejectPanel } from '../../src/pages/Security/VerifyPanels';
+import { ApprovePanel, FlagPanel } from '../../src/pages/Security/VerifyPanels';
 import type { GatePassItemView, GatePassView } from '../../src/types';
 
 const PASS = {
@@ -56,11 +56,11 @@ describe('ApprovePanel close behaviour', () => {
   });
 });
 
-describe('RejectPanel close behaviour', () => {
+describe('FlagPanel close behaviour', () => {
   it('has a Close button that calls onCancel, never onConfirm', () => {
     const onCancel = vi.fn();
     const onConfirm = vi.fn();
-    render(<RejectPanel submitting={false} error={null} onCancel={onCancel} onConfirm={onConfirm} />);
+    render(<FlagPanel submitting={false} error={null} onCancel={onCancel} onConfirm={onConfirm} />);
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onConfirm).not.toHaveBeenCalled();
@@ -69,7 +69,7 @@ describe('RejectPanel close behaviour', () => {
   it('calls onCancel on Escape without confirming', () => {
     const onCancel = vi.fn();
     const onConfirm = vi.fn();
-    render(<RejectPanel submitting={false} error={null} onCancel={onCancel} onConfirm={onConfirm} />);
+    render(<FlagPanel submitting={false} error={null} onCancel={onCancel} onConfirm={onConfirm} />);
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onConfirm).not.toHaveBeenCalled();

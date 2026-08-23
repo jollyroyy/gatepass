@@ -42,10 +42,13 @@ export const ACTION_DOT: Record<VerifyAction, string> = {
 
 export const ACTION_TITLE: Record<VerifyAction, string> = {
   matched: 'Cleared out at the gate',
-  flagged: 'Rejected at the security gate',
+  // A FLAG IS NOT A REJECTION (client, 2026-08-23). The rail carries the
+  // moment, the guard's name and their written reason underneath this line,
+  // which is the whole of "what time he flagged it and who flagged it".
+  flagged: 'Flagged to the requester at the gate',
   returned: 'Material marked returned',
   held: 'Held at the gate',
-  hod_reviewed: 'HOD approved the override',
+  hod_reviewed: 'Requester cleared the flag — back to the gate',
   cancelled: 'Voided by the HOD',
 };
 

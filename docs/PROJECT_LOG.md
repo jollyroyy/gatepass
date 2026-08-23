@@ -6,6 +6,60 @@ For current rules and architecture, see CLAUDE.md.
 
 ## Current state (session-by-session history)
 
+## 2026-08-23 — the gate flags to the requester; make / model everywhere; an office reads as its office
+
+**`065_requester_answers_a_flag_in_writing.sql` IS APPLIED** (psql as `postgres`, single
+transaction: `CREATE FUNCTION` / `REVOKE` / `GRANT`). It is a `create or replace` of
+`hod_review_flagged_pass` and nothing else: the APPROVE branch now writes the HOD's own note into
+its `verifications` row instead of the fixed sentence `'HOD approved override of security flag'`.
+`p_reason` stays OPTIONAL at the RPC boundary on purpose — `voidSupersededPass` calls the same
+function with a generated reason when a corrected pass supersedes a flagged one, and a required
+argument there would turn an automatic step into a prompt nobody can answer. Everything else about
+the function is byte-for-byte 035's: raising-HOD only, `flagged` only, same-day `expires_at`
+refresh on approve. **Its RLS half is NOT re-probed** — `postgres` bypasses every policy, and the
+guard it relies on (`raised_by <> auth.uid()`) is unchanged from 035, which was probed then.
+
+**THE GUARD'S SECOND ANSWER IS "FLAG TO REQUESTER", NOT "REJECT"** (client, 2026-08-23:
+"replace the reject with flag to requestor button"). The client's first message asked for the flag
+to sit BESIDE Reject; asked which one Reject would then be, they chose to replace it. The
+transition is unchanged and always was this: `flag_pass` → `flagged` → straight to the raising HOD,
+who either upholds it (pass `cancelled`) or clears it (`hod_reviewed`, fresh same-day expiry, back
+to the gate). **It never re-enters the approval ladder** — nothing in the loop touches
+`pass_approvals`, whose rungs were signed before the pass reached the barrier.
+
+Both the guard's reason and the requester's answer are now MANDATORY in the portal, trimmed:
+`FlagPanel` (renamed from `RejectPanel`) and `FlaggedReviewActions`, whose two buttons are now
+**Send Back to the Gate** and **Uphold the Flag**, each behind its own required note.
+
+**The guard's Approve OUT lands on `/verify/:id`, not `/pass/:id`** (client: it "should directly
+take him to the green-coloured Approve or Reject button"). This REVERSES the 2026-08-19 decision
+that sent it to the record first; `/verify/:id` draws the whole pass and its lines above the
+buttons, so nothing read on the way is lost.
+
+The rail says so too: `ACTION_TITLE.flagged` is now "Flagged to the requester at the gate" and
+`hod_reviewed` is "Requester cleared the flag — back to the gate". Who flagged it and when were
+already on the rail (`v_verifications` + `security_name`); only the wording was wrong.
+
+**`make_model` is a column on every list of material lines** (client: "put the make, model and
+brand name against each item across all the views … like in the expandable card") — the pass
+record (where it had been small print under the item name), Pending OUT's disclosure, the guard's
+return panel, Scheduled Returns, and a line in the Add Return box. A line raised before `045`
+carries none: the guard's `gb-table` screens dash it, the pass record leaves the cell empty, which
+is that table's own rule (Serial / ID, `csvCells.ts`).
+
+**An approval office reads as its office in the sidebar too.** An office holder's VMS role is
+`staff` (046); `ProfileDetails` already replaced it with the office title, but the profile block at
+the foot of the sidebar still printed "Staff" beside a COO. `office` now runs
+AppShell → Sidebar → SidebarProfile. Sidebar's link table moved to `sidebarLinks.tsx` for the
+300-line cap, re-exported so no importer changed.
+
+Full gate at the end of the session: **2092 tests across 161 files**, green.
+
+**Concurrent session, NOT this one:** the guard's pending-return queue (`pendingReturnFilters.ts`,
+`guardBoard.ts`, `PendingReturn*`, `ReturnLegend`) was being changed in the same working tree at
+the same time — "Due Today"/"Overdue" dropped from the return tabs. Those files were left
+uncommitted here and are somebody else's to finish.
+
 ## Current state — 2026-08-22
 
 Full gate: **2051 tests across 159 files** (`npm run check`), green, and **`npm run build` is

@@ -85,18 +85,22 @@ async function renderVerify() {
   await waitFor(() => expect(screen.getByText('RGP-20260820-0001')).toBeInTheDocument());
 }
 
-describe("the guard's decision screen says Approve and Reject", () => {
+describe("the guard's decision screen says Approve and Flag to Requester", () => {
   beforeEach(() => {
     rpcCalls.length = 0;
   });
 
-  it('offers exactly Approve and Reject, and never Match, Mismatch or Hold', async () => {
+  // The second answer was called Reject until 2026-08-23, when the client
+  // renamed it to what it has always DONE: "replace the reject with flag to
+  // requestor button". Match, Mismatch and Hold stay banned — they are the
+  // database's words, not the barrier's.
+  it('offers exactly Approve and Flag to Requester, and never Match, Mismatch or Hold', async () => {
     await renderVerify();
 
     expect(screen.getByRole('button', { name: /^approve$/i })).toBeEnabled();
-    expect(screen.getByRole('button', { name: /^reject$/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^flag to requester$/i })).toBeEnabled();
 
-    for (const banned of [/match/i, /mismatch/i, /flag/i, /\bhold\b/i]) {
+    for (const banned of [/match/i, /mismatch/i, /\bhold\b/i, /^reject$/i]) {
       expect(screen.queryAllByRole('button', { name: banned })).toHaveLength(0);
     }
   });
@@ -110,12 +114,12 @@ describe("the guard's decision screen says Approve and Reject", () => {
     await waitFor(() => expect(rpcCalls.map((c) => c.fn)).toContain('match_pass'));
   });
 
-  it('will not submit a rejection without a reason, and sends the typed one', async () => {
+  it('will not flag a pass without a reason, and sends the typed one', async () => {
     await renderVerify();
 
-    fireEvent.click(screen.getByRole('button', { name: /^reject$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^flag to requester$/i }));
 
-    const confirm = screen.getByRole('button', { name: /confirm rejection/i });
+    const confirm = screen.getByRole('button', { name: /send to requester/i });
     // Mandatory: the control is dead until a reason is typed, and pressing it
     // in that state must not reach the database.
     expect(confirm).toBeDisabled();
@@ -123,8 +127,8 @@ describe("the guard's decision screen says Approve and Reject", () => {
     expect(rpcCalls).toHaveLength(0);
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '  Only 1 drill of 2 present.  ' } });
-    expect(screen.getByRole('button', { name: /confirm rejection/i })).toBeEnabled();
-    fireEvent.click(screen.getByRole('button', { name: /confirm rejection/i }));
+    expect(screen.getByRole('button', { name: /send to requester/i })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: /send to requester/i }));
 
     await waitFor(() => expect(rpcCalls).toHaveLength(1));
     expect(rpcCalls[0].fn).toBe('flag_pass');
@@ -134,11 +138,11 @@ describe("the guard's decision screen says Approve and Reject", () => {
   it('whitespace alone is not a reason', async () => {
     await renderVerify();
 
-    fireEvent.click(screen.getByRole('button', { name: /^reject$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^flag to requester$/i }));
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '     ' } });
 
-    expect(screen.getByRole('button', { name: /confirm rejection/i })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: /confirm rejection/i }));
+    expect(screen.getByRole('button', { name: /send to requester/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /send to requester/i }));
     expect(rpcCalls).toHaveLength(0);
   });
 });

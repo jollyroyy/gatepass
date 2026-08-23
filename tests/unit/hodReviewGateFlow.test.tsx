@@ -130,9 +130,8 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
       expect(statusIn!.values).toEqual(expect.arrayContaining(['pending', 'hod_reviewed']));
       // And the row reaches the pass, which is what makes it clearable —
       // otherwise it is visible and stuck, the original bug in a new place.
-      // Approve OUT opens the RECORD (2026-08-19), whose own Approve OUT button
-      // goes on to /verify/:id.
-      expect(screen.getByRole('link', { name: /approve out/i })).toHaveAttribute('href', '/pass/h1');
+      // Approve OUT opens the DECISION since 2026-08-23, not the record above it.
+      expect(screen.getByRole('link', { name: /approve out/i })).toHaveAttribute('href', '/verify/h1');
     });
   });
 
@@ -149,20 +148,21 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
       );
     }
 
-    it('offers both Approve and Reject for a hod_reviewed pass', async () => {
+    it('offers both Approve and Flag to Requester for a hod_reviewed pass', async () => {
       verifyRow = APPROVED;
       await renderVerify();
 
       await waitFor(() => expect(screen.getByText(/APPROVED-0001/)).toBeInTheDocument());
-      // Approve / Reject since 2026-08-20 (client). The RPCs are unchanged —
-      // this is still match_pass and flag_pass underneath.
+      // Approve / Reject since 2026-08-20, and Approve / Flag to Requester
+      // since 2026-08-23 (client). The RPCs are unchanged throughout — this is
+      // still match_pass and flag_pass underneath.
       const matchBtn = screen.getByRole('button', { name: 'Approve' });
       expect(matchBtn).toBeInTheDocument();
       expect(matchBtn).toBeEnabled();
       // 035: an override approval is not a fact about the material — the guard
       // at the barrier must still be able to re-flag a fresh pass whose
       // mismatch was not actually fixed. flag_pass admits hod_reviewed now.
-      const flagBtn = screen.getByRole('button', { name: 'Reject' });
+      const flagBtn = screen.getByRole('button', { name: 'Flag to Requester' });
       expect(flagBtn).toBeInTheDocument();
       expect(flagBtn).toBeEnabled();
     });
@@ -189,7 +189,7 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
       await waitFor(() => expect(screen.getByText('APPROVED-0001')).toBeInTheDocument());
 
       const row = screen.getByText('APPROVED-0001').closest('tr')!;
-      expect(within(row).getByRole('link', { name: 'Approve OUT' })).toHaveAttribute('href', '/pass/h1');
+      expect(within(row).getByRole('link', { name: 'Approve OUT' })).toHaveAttribute('href', '/verify/h1');
 
       // And it asked the database for BOTH states the gate can still act on —
       // narrowing this back to 'pending' alone is the original bug.

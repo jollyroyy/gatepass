@@ -2,9 +2,12 @@
 //
 // Client, 2026-08-20: "for the guard's view … put it as approve and reject.
 // Don't put mismatched or something … if rejects, make the rejection reason
-// mandatory." That is a WORDING change and nothing else — Approve is still
-// `match_pass`, Reject is still `flag_pass`, and a rejected pass still goes
-// back to the raising HOD for review exactly as the old "Flag Mismatch" did.
+// mandatory." And 2026-08-23: "replace the reject with flag to requestor
+// button." Both are WORDING and nothing else — Approve is still `match_pass`,
+// the second answer is still `flag_pass`, and it still goes straight back to
+// the raising HOD exactly as the old "Flag Mismatch" did. THE REQUESTER
+// ANSWERS IT, NEVER THE THREE APPROVAL OFFICES: their rungs were signed before
+// the pass reached the barrier and nothing in this loop reopens them.
 // The statuses (`matched` / `flagged`), the HOD's review screen and every
 // report keep their own vocabulary; this is what the person at the barrier
 // reads.
@@ -18,10 +21,10 @@ import { TypeChip } from '../../components/Badge';
 import { formatDateOnly, formatDateTime } from '../../lib/formatDate';
 import { safeErrorMessage } from '../../lib/errors';
 import { parseCompanyInfo } from '../../lib/companyInfo';
-import { ApprovePanel, RejectPanel } from './VerifyPanels';
+import { ApprovePanel, FlagPanel } from './VerifyPanels';
 import VerifyItemsTable from './VerifyItemsTable';
 
-type Panel = 'none' | 'approve' | 'reject';
+type Panel = 'none' | 'approve' | 'flag';
 
 /** What a settled pass reads as to the GUARD. The database's own words
  *  ('matched' / 'flagged') are the two the client asked never to appear on this
@@ -137,7 +140,7 @@ export default function Verify(): React.ReactElement {
     }
   }
 
-  async function handleRejectConfirm(reason: string) {
+  async function handleFlagConfirm(reason: string) {
     if (!pass) return;
     setSubmitting(true);
     setActionError(null);
@@ -249,14 +252,14 @@ export default function Verify(): React.ReactElement {
 
       {!alreadyActioned && (
         <div className="flex flex-col md:flex-row gap-4">
-          {/* Approve is withheld once expired; Reject deliberately is not.
+          {/* Approve is withheld once expired; the flag deliberately is not.
               Refusing to record a real problem because the paperwork went stale
               is exactly backwards — the same split match_pass enforces
-              server-side. Since 035 the Reject is offered for a hod_reviewed
-              pass too: an HOD override is a judgement about the paper, not a
+              server-side. Since 035 it is offered for a hod_reviewed pass too:
+              the requester's clearance is a judgement about the paper, not a
               fact about the material, so the guard at the barrier must still be
-              able to refuse it — flag_pass admits hod_reviewed and the pass
-              returns to the HOD for another round. */}
+              able to stop it — flag_pass admits hod_reviewed and the pass goes
+              back to the requester for another round. */}
           <button
             type="button"
             className="btn-match"
@@ -266,8 +269,8 @@ export default function Verify(): React.ReactElement {
             Approve
           </button>
           {pass.status !== 'matched' && (
-            <button type="button" className="btn-flag" disabled={submitting} onClick={() => setPanel('reject')}>
-              Reject
+            <button type="button" className="btn-flag" disabled={submitting} onClick={() => setPanel('flag')}>
+              Flag to Requester
             </button>
           )}
         </div>
@@ -283,8 +286,8 @@ export default function Verify(): React.ReactElement {
           onConfirm={handleApproveConfirm}
         />
       )}
-      {panel === 'reject' && (
-        <RejectPanel submitting={submitting} error={actionError} onCancel={closePanel} onConfirm={handleRejectConfirm} />
+      {panel === 'flag' && (
+        <FlagPanel submitting={submitting} error={actionError} onCancel={closePanel} onConfirm={handleFlagConfirm} />
       )}
     </div>
   );
