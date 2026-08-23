@@ -28,10 +28,21 @@
 // the desk cannot name a different office, person or moment. Change the ladder
 // and the paper follows for free.
 //
-// THE RECEIVER'S BOX IS THE ONE BOX THAT IS STILL BLANK BY DESIGN. Nobody
-// receives material in this system — there is no receipt RPC, no column and no
-// screen — so it is the one signature the paper still collects, and printing it
-// with a tick would be a receipt nobody gave.
+// THE RECEIVER'S BOX IS BLANK UNTIL THE MATERIAL IS ACTUALLY BACK. Client,
+// 2026-08-23: "put the receiver signature as a box, same as the other
+// approvals. Once the pass is fully returned — all the items fully returned —
+// you make it tick with the date, with the security guard's name who did the
+// return."
+//
+// So it is the same four-state box as the rest, and the state comes from a
+// record this system really keeps: an RGP whose `return_status` is `returned`
+// has had every line counted back in over the gate by `apply_item_returns`,
+// which stamps `actual_return_date` and writes a `verifications` row naming the
+// guard. THAT is the receipt, and `returnReceipt` below is the only place it is
+// read. Until then the box prints empty and is signed by hand — a tick before
+// the last line is back would be a receipt nobody gave, and an NRGP never earns
+// one at all because nothing on it is coming back.
+import type { GatePassView } from '../types';
 import type { ApprovalStep } from './passLadderLegs';
 import { APPROVAL_ROLE_TITLES, type ApprovalRoleKey } from './approvalLadder';
 
@@ -61,6 +72,10 @@ const CAPTION: Record<BoxState, string> = {
   awaiting: 'Awaiting approval',
   blank: 'Signature & Stamp',
 };
+
+/** The receiver's box says RECEIVED, never APPROVED — it is the material coming
+ *  back over the gate, not an office signing off on it leaving. */
+const RECEIPT_CAPTION = 'Return received in Quest GatePass';
 
 /** How a rung's state reads as a box. `unset` — an office nobody holds — is
  *  awaiting rather than a state of its own: on paper, "nobody has been
@@ -100,13 +115,61 @@ function labelOf(step: ApprovalStep): string {
   return step.label;
 }
 
+/** Who took the material back in, and when — or null while the paper still has
+ *  to collect that signature by hand. */
+export interface ReturnReceipt {
+  who: string | null;
+  at: string | null;
+}
+
+/** The pass facts the receipt is graded on. Narrow on purpose: any surface
+ *  holding a row can ask. */
+export type ReceiptPass = Pick<GatePassView, 'type' | 'return_status' | 'actual_return_date'>;
+
+/** The `v_verifications` rows this reads. Same subset `activityLog.ts` takes. */
+export interface ReceiptEvent {
+  action: string;
+  security_name?: string | null;
+  created_at: string;
+}
+
 /**
- * Every box the slip prints, in ladder order, with the receiver's blank one
- * last.
+ * The return receipt, or null when the paper still has to collect one.
+ *
+ * FULLY RETURNED IS THE ONLY TRIGGER — `return_status === 'returned'`, which
+ * `apply_item_returns` sets only when NO line has `returned_qty < quantity`.
+ * A partially returned pass gets a blank box: some of the material is still
+ * out, and a tick would say it is all back.
+ *
+ * The moment is the pass's own `actual_return_date` — the stamp that closed it
+ * — and the name comes from the LAST `returned` verification, which is the
+ * movement that brought the final line in. A row whose name did not resolve out
+ * of VMS, or no visible rows at all, still ticks: the material is back either
+ * way, and the box degrades to a missing name rather than to a missing fact.
+ */
+export function returnReceipt(
+  pass: ReceiptPass,
+  events: ReceiptEvent[],
+): ReturnReceipt | null {
+  if (pass.type !== 'RGP' || pass.return_status !== 'returned') return null;
+  // No `.at(-1)`: the app's TS lib target is below es2022.
+  const closed = events.filter((e) => e.action === 'returned');
+  const closing = closed.length ? closed[closed.length - 1] : undefined;
+  return {
+    who: closing?.security_name?.trim() || null,
+    at: pass.actual_return_date ?? closing?.created_at ?? null,
+  };
+}
+
+/**
+ * Every box the slip prints, in ladder order, with the receiver's one last.
  *
  * The return leg is dropped: it is the only step on the rail that nobody signs.
  */
-export function buildSignatureBoxes(steps: ApprovalStep[]): SignatureBoxView[] {
+export function buildSignatureBoxes(
+  steps: ApprovalStep[],
+  receipt: ReturnReceipt | null = null,
+): SignatureBoxView[] {
   const boxes: SignatureBoxView[] = steps
     .filter((s) => s.key !== RETURN_KEY)
     .map((step) => {
@@ -127,10 +190,10 @@ export function buildSignatureBoxes(steps: ApprovalStep[]): SignatureBoxView[] {
   boxes.push({
     key: 'receiver',
     label: 'Receiver Signature',
-    signer: null,
-    at: null,
-    state: 'blank',
-    caption: CAPTION.blank,
+    signer: receipt?.who ?? null,
+    at: receipt?.at ?? null,
+    state: receipt ? 'signed' : 'blank',
+    caption: receipt ? RECEIPT_CAPTION : CAPTION.blank,
   });
 
   return boxes;

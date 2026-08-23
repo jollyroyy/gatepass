@@ -13,7 +13,9 @@ import QrPass from '../../components/QrPass';
 import { QuestLockup } from '../../components/QuestMark';
 
 import PrintSignatureBoxes from './PrintSignatureBoxes';
-import { buildSignatureBoxes } from '../../lib/printSignatureBoxes';
+import {
+  buildSignatureBoxes, returnReceipt, type ReceiptEvent,
+} from '../../lib/printSignatureBoxes';
 
 // THE BOXES ARE BACK, WITH THE APPROVAL INSIDE THEM (client, 2026-08-22: "go
 // back to the boxes that were there before … if the approval has been given,
@@ -40,6 +42,10 @@ export default function PassPrint(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const [pass, setPass] = useState<GatePassView | null | undefined>(undefined);
   const [items, setItems] = useState<GatePassItemView[]>([]);
+  // The gate's own log, for ONE fact: which guard took the last line back in
+  // (client, 2026-08-23). Empty is a fine answer — a receiver's box that cannot
+  // name a guard still ticks off the pass's own `actual_return_date`.
+  const [events, setEvents] = useState<ReceiptEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   // Both are the record's own hooks, and both degrade to an EMPTY list rather
   // than to an error: a slip that refuses to print because an org-chart lookup
@@ -52,15 +58,18 @@ export default function PassPrint(): React.ReactElement {
     let cancelled = false;
     async function load() {
       try {
-        const [passResult, itemsResult] = await Promise.all([
+        const [passResult, itemsResult, eventsResult] = await Promise.all([
           gp().from('v_gate_passes').select('*').eq('id', id).maybeSingle(),
           gp().from('v_gate_pass_items').select('*').eq('gate_pass_id', id).order('line_no'),
+          gp().from('v_verifications').select('*').eq('gate_pass_id', id).order('created_at'),
         ]);
         if (passResult.error) throw passResult.error;
         if (itemsResult.error) throw itemsResult.error;
+        if (eventsResult.error) throw eventsResult.error;
         if (!cancelled) {
           setPass((passResult.data as GatePassView | null) ?? null);
           setItems((itemsResult.data as GatePassItemView[]) ?? []);
+          setEvents((eventsResult.data as ReceiptEvent[]) ?? []);
         }
       } catch (e) {
         if (!cancelled) setError(safeErrorMessage(e));
@@ -235,11 +244,12 @@ export default function PassPrint(): React.ReactElement {
             </p>
           )}
 
-          {/* One box per office, ticked and dated where the office has signed.
+          {/* One box per office, ticked and dated where the office has signed,
+              and the receiver's ticked once every line is back over the gate.
               Built from the record's OWN ladder — the same `buildApprovalSteps`
               the pass record's timeline renders — so the paper and the screen
               cannot name a different office, person or moment. */}
-          <PrintSignatureBoxes boxes={buildSignatureBoxes(steps)} />
+          <PrintSignatureBoxes boxes={buildSignatureBoxes(steps, returnReceipt(pass, events))} />
         </div>
       </div>
     </div>

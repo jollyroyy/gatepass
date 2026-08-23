@@ -15,9 +15,11 @@ import { formatDateTime } from '../../lib/formatDate';
 
 /** The mark inside the box. An empty square for a box nobody has signed —
  *  drawn, not omitted, because an absent square reads as a printing fault where
- *  an empty one reads as "nothing yet". */
-function Mark({ state }: { state: SignatureBoxView['state'] }): React.ReactElement | null {
-  if (state === 'blank') return null;
+ *  an empty one reads as "nothing yet". THE RECEIVER'S BOX GETS ONE TOO
+ *  (client, 2026-08-23: "put the receiver signature as a box, same as the other
+ *  approvals"): it is the same box as the rest, empty until the material is
+ *  back and ticked when it is. */
+function Mark({ state }: { state: SignatureBoxView['state'] }): React.ReactElement {
   const glyph = state === 'signed' ? '✓' : state === 'rejected' ? '✗' : state === 'not_required' ? '—' : '';
   return (
     <span
@@ -58,6 +60,10 @@ function Box({ box }: { box: SignatureBoxView }): React.ReactElement {
 export default function PrintSignatureBoxes(
   { boxes }: { boxes: SignatureBoxView[] },
 ): React.ReactElement {
+  // Once the material is back the receiver's box is ticked like any other, so
+  // there is nothing left on this sheet for a pen — and a sentence promising
+  // otherwise would send the reader looking for a signature nobody owes.
+  const byHand = boxes.some((b) => b.state === 'blank');
   return (
     <div className="pt-2">
       <p className="text-[11px] font-bold text-black uppercase tracking-wider mb-1">
@@ -68,7 +74,7 @@ export default function PrintSignatureBoxes(
           know that cannot tell the two apart on paper. */}
       <p className="text-[9px] text-black mb-2 leading-tight">
         A ticked box is an approval recorded in Quest GatePass by the office named, at the date
-        and time shown. Only the receiver's box is signed by hand.
+        and time shown.{byHand && " Only the receiver's box is signed by hand."}
       </p>
       <div className="grid grid-cols-3 gap-2">
         {boxes.map((box) => (

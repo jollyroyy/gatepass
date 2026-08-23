@@ -9,7 +9,9 @@
 // file pins is the translation: which rung becomes which kind of box, what the
 // box is headed by, and the two rungs that get no box at all.
 import { describe, it, expect } from 'vitest';
-import { buildSignatureBoxes, signerName } from '../../src/lib/printSignatureBoxes';
+import {
+  buildSignatureBoxes, returnReceipt, signerName, type ReturnReceipt,
+} from '../../src/lib/printSignatureBoxes';
 import type { ApprovalStep } from '../../src/lib/passLadderLegs';
 
 function step(over: Partial<ApprovalStep> = {}): ApprovalStep {
@@ -102,5 +104,57 @@ describe('the boxes the slip does and does not draw', () => {
       step({ key: 'return', office: undefined, label: 'To Be Returned', state: 'pending' }),
     ]);
     expect(boxes.map((b) => b.key)).toEqual(['level-coo', 'receiver']);
+  });
+});
+
+// ─── The receiver's box, once the material is actually back ─────────────────
+// Client, 2026-08-23: "make sure you also put the receiver signature as a box,
+// same as the other approvals. Once the pass is fully returned — all the items
+// fully returned — you make it tick with the date, with the security guard's
+// name who did the return."
+describe("the receiver's box", () => {
+  const RETURNED = { type: 'RGP', return_status: 'returned', actual_return_date: '2026-08-23T11:00:00Z' } as const;
+  const EVENT = { action: 'returned', security_name: 'Guard Sam', created_at: '2026-08-23T10:59:00Z' } as const;
+
+  function receiverOf(steps: ApprovalStep[], receipt: ReturnReceipt | null) {
+    const boxes = buildSignatureBoxes(steps, receipt);
+    return boxes[boxes.length - 1];
+  }
+
+  it('is ticked, dated and named once every line is back', () => {
+    const receipt = returnReceipt(RETURNED, [EVENT]);
+    expect(receipt).toEqual({ who: 'Guard Sam', at: '2026-08-23T11:00:00Z' });
+    const box = receiverOf([step()], receipt);
+    expect(box.state).toBe('signed');
+    expect(box.signer).toBe('Guard Sam');
+    expect(box.at).toBe('2026-08-23T11:00:00Z');
+    expect(box.caption).toBe('Return received in Quest GatePass');
+  });
+
+  it('names the guard who recorded the LAST movement, not the first', () => {
+    expect(returnReceipt(RETURNED, [
+      { ...EVENT, security_name: 'Guard One', created_at: '2026-08-20T08:00:00Z' },
+      { action: 'matched', security_name: 'Guard Two', created_at: '2026-08-21T08:00:00Z' },
+      { ...EVENT, security_name: 'Guard Three' },
+    ])?.who).toBe('Guard Three');
+  });
+
+  // A LEFT JOIN into VMS degrades to a missing name, never to a missing fact:
+  // the material is back either way, and the tick states that.
+  it('still ticks when no name resolved, and falls back to the pass moment', () => {
+    expect(returnReceipt(RETURNED, [])).toEqual({ who: null, at: '2026-08-23T11:00:00Z' });
+    expect(returnReceipt(RETURNED, [{ ...EVENT, security_name: null }])).toEqual({
+      who: null, at: '2026-08-23T11:00:00Z',
+    });
+  });
+
+  it('stays blank while anything is still out, and on a pass that never comes back', () => {
+    expect(returnReceipt({ ...RETURNED, return_status: 'partially_returned' }, [EVENT])).toBeNull();
+    expect(returnReceipt({ ...RETURNED, return_status: 'awaiting_return' }, [])).toBeNull();
+    expect(returnReceipt({ ...RETURNED, type: 'NRGP' }, [EVENT])).toBeNull();
+    const box = receiverOf([step()], null);
+    expect(box.state).toBe('blank');
+    expect(box.caption).toBe('Signature & Stamp');
+    expect(box.signer).toBeNull();
   });
 });

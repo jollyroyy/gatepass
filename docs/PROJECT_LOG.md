@@ -3596,3 +3596,42 @@ survived; the admin Overview had dropped its on 2026-08-19.
 `hodReports`, `inProgressReturnLabel`, `noNrgpPartialReturn`, `sidebarOrder`, `hodNav`,
 `guardDashboard`, `approverTabsOnly`, `navLinksResolve` rewritten to the new surface;
 `rejectionSplit.test.ts` deleted with its module. `npm run check`: 2059 passed, 158 files.
+
+
+## 2026-08-23 — the receiver's box is a box like the others, and it ticks when the material is back
+
+Client: *"In the print pass make sure you also put the receiver signature as a box, same as the
+other approvals. Once the pass is fully returned — all the items fully returned — you make it tick
+with the date, with the security guard's name who did the return."*
+
+**F1 `src/lib/printSignatureBoxes.ts`** · **F2 `src/pages/Shared/PrintSignatureBoxes.tsx`** ·
+**F3 `src/pages/Shared/PassPrint.tsx`**
+
+Yesterday the receiver's box was the ONE box blank by design, on the argument that nothing in this
+system records a receipt. That argument was wrong for an RGP: `apply_item_returns` (013/029) rolls
+every line up into the parent, and when no line has `returned_qty < quantity` it sets
+`return_status = 'returned'`, stamps `actual_return_date` and writes a `verifications` row carrying
+`auth.uid()` — which `v_verifications` resolves to `security_name`. That IS the receipt, and it is
+the guard who took the last line back in.
+
+* **F1** gains `returnReceipt(pass, events)`: null unless `type === 'RGP'` **and**
+  `return_status === 'returned'` — a partially returned pass keeps a blank box, because a tick
+  would say all the material is back. The moment is the pass's own `actual_return_date` (never
+  recomputed here); the name is the LAST `returned` verification. No name resolved, or no rows
+  visible at all, still ticks — the box degrades to a missing name, never to a missing fact, the
+  same way every join into VMS does. `buildSignatureBoxes(steps, receipt)` takes it as an optional
+  second argument, so every existing caller reads unchanged.
+* **F2** now draws the empty square on a `blank` box too — that is the client's "same as the other
+  approvals" — and drops the "Only the receiver's box is signed by hand" sentence once no blank box
+  is left on the sheet.
+* **F3** fetches `v_verifications` alongside the pass and its items (one extra leg on the existing
+  `Promise.all`) and passes the receipt through. 257 lines, under the cap.
+
+Caption is **"Return received in Quest GatePass"**, not "Approved" — material coming back over the
+gate is not an office signing off on it leaving.
+
+Gate: **2065 tests across 158 files green** (`npm run check`). New coverage in
+`tests/unit/printSignatureBoxes.test.ts` (7 assertions on the receipt: full return only, last
+guard not first, name-less fallback, NRGP never) and `tests/unit/passPrintSignatures.test.tsx`
+(the rendered sheet ticks and names the guard; a partial return still says "Signature & Stamp").
+No migration, no schema change — every fact printed was already in the database.

@@ -46,6 +46,7 @@ const { current } = vi.hoisted(() => ({
     pass: {} as Record<string, unknown>,
     approvals: [] as Record<string, unknown>[],
     roles: [] as Record<string, unknown>[],
+    verifications: [] as Record<string, unknown>[],
   },
 }));
 
@@ -63,7 +64,9 @@ vi.mock('../../src/supabaseClient', () => ({
     from: (table: string) =>
       table === 'v_gate_pass_items'
         ? thenable([])
-        : thenable(current.pass),
+        : table === 'v_verifications'
+          ? thenable(current.verifications)
+          : thenable(current.pass),
     rpc: (name: string) =>
       thenable(
         name === 'get_pass_approvals'
@@ -88,6 +91,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   current.approvals = [];
   current.roles = [];
+  current.verifications = [];
 });
 
 async function renderFor(over: Record<string, unknown>) {
@@ -200,5 +204,41 @@ describe('a box carries the decision that was made in the portal', () => {
     await renderFor({});
     expect(screen.getByText('Issuing HOD')).toBeInTheDocument();
     expect(screen.getAllByText('HOD One').length).toBeGreaterThan(0);
+  });
+});
+
+// ─── The receiver's box, once the material is actually back ─────────────────
+// Client, 2026-08-23: "put the receiver signature as a box, same as the other
+// approvals. Once the pass is fully returned … make it tick with the date,
+// with the security guard's name who did the return."
+describe("the receiver's box on the sheet", () => {
+  const RETURNED = {
+    type: 'RGP', status: 'matched', verified_by_name: 'Guard Sam',
+    verified_at: '2026-08-04T09:00:00Z', return_status: 'returned',
+    expected_return_date: '2026-08-20', actual_return_date: '2026-08-23T11:00:00Z',
+  };
+
+  it('ticks, dates and names the guard who took the last line back in', async () => {
+    current.verifications = [
+      { action: 'matched', security_name: 'Guard Sam', created_at: '2026-08-04T09:00:00Z' },
+      { action: 'returned', security_name: 'Guard Rina', created_at: '2026-08-23T10:59:00Z' },
+    ];
+    await renderFor(RETURNED);
+    expect(screen.getByText('Receiver Signature')).toBeInTheDocument();
+    expect(screen.getByText('Return received in Quest GatePass')).toBeInTheDocument();
+    expect(screen.getByText('Guard Rina')).toBeInTheDocument();
+    // Nothing is left for a pen, so the sheet stops telling the reader there is.
+    expect(screen.queryByText('Signature & Stamp')).toBeNull();
+    expect(screen.queryByText(/receiver's box is signed by hand/i)).toBeNull();
+  });
+
+  it('leaves it blank, and says so, while a line is still out', async () => {
+    current.verifications = [
+      { action: 'returned', security_name: 'Guard Rina', created_at: '2026-08-21T10:00:00Z' },
+    ];
+    await renderFor({ ...RETURNED, return_status: 'partially_returned', actual_return_date: null });
+    expect(screen.getByText('Signature & Stamp')).toBeInTheDocument();
+    expect(screen.getByText(/receiver's box is signed by hand/i)).toBeInTheDocument();
+    expect(screen.queryByText('Guard Rina')).toBeNull();
   });
 });
