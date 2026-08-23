@@ -339,12 +339,20 @@ describe('A row opens its own material lines', () => {
 describe('The search is global, and lives on the dashboard, not this page', () => {
   it('sends an exact pass number through lookup_pass and opens that record', async () => {
     await renderBoard();
-    fireEvent.change(screen.getByLabelText(/Search any pass/i), { target: { value: 'RGP-00999' } });
+    // Shaped like a WHOLE pass number (`isPassCodeQuery`) so it runs through
+    // `lookup_pass`, not the free-text search added 2026-08-24 for a partial
+    // number, a name, a vendor or a make/model.
+    fireEvent.change(screen.getByLabelText(/Search any pass/i), { target: { value: 'RGP-20260819-9999' } });
     fireEvent.submit(screen.getByLabelText(/Search any pass/i).closest('form')!);
     // `far1` is not in the queue at all — the search reached past this page.
     await waitFor(() => expect(screen.getByText('RECORD PAGE')).toBeInTheDocument());
   });
 
+  // REWRITTEN 2026-08-24: a multi-pass answer is drawn by `SearchMatches`
+  // now, in the same stacked `PassStack` card format the guard's boards use
+  // everywhere else ("the same vendor can have multiple passes … maybe five
+  // passes in for Dell" — client, 2026-08-24) — not the old inline table,
+  // whose `guard-phone-results` testid is gone with it.
   it('lists every pass a mobile number carries, queue or not', async () => {
     PHONE_ROWS = [
       pass({ id: 'far1', pass_number: 'RGP-00001', status: 'matched',
@@ -356,7 +364,8 @@ describe('The search is global, and lives on the dashboard, not this page', () =
     fireEvent.change(screen.getByLabelText(/Search any pass/i), { target: { value: '9876543210' } });
     fireEvent.submit(screen.getByLabelText(/Search any pass/i).closest('form')!);
 
-    await waitFor(() => expect(screen.getByTestId('guard-phone-results')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('guard-search-results')).toBeInTheDocument());
+    expect(within(screen.getByTestId('guard-search-results')).getAllByTestId('pass-stack')).toHaveLength(1);
     expect(screen.getByText('RGP-00001')).toBeInTheDocument();
     expect(screen.getByText('RGP-00002')).toBeInTheDocument();
     // Neither is in the gate queue, and a matched pass gets no Approve OUT.

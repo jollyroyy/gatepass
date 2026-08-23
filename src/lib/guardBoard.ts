@@ -21,8 +21,9 @@
 // `gatepass.v_gate_passes` against `site_tz()` (Asia/Kolkata) and read, never
 // recomputed — comparing `expected_return_date` to the browser clock would make
 // the guard's screen disagree with the database for every pass after 18:30 IST.
-import type { GatePassView, PassType } from '../types';
+import type { GatePassItemView, GatePassView, PassType } from '../types';
 import { parseCompanyInfo } from './companyInfo';
+import { buildScheduledReturns, type ScheduledReturnRow } from './scheduledReturns';
 
 /** Waiting on the gate and nobody else. `hod_reviewed` rides along with
  *  `pending` and that is load-bearing: an HOD override-approved pass is waiting
@@ -72,6 +73,36 @@ export function pendingReturnsOf(rows: GatePassView[]): GatePassView[] {
     if (!y) return -1;
     return x.localeCompare(y);
   });
+}
+
+/**
+ * THE RETURN QUEUE COUNTS ITEMS, NOT PASSES (client, 2026-08-24: "returns for
+ * today I do see four items but in the pending awaiting verification of return
+ * card there are only two … all of those four items should be in the Pending
+ * RGP Return card also").
+ *
+ * The two figures never disagreed about WHICH passes were due back — both cut
+ * on `due_state = 'due_today'`. They disagreed about the UNIT: the Returns Due
+ * Today tile counted material LINES and this card counted PASSES, so four lines
+ * across two RGPs read as "4" beside "2" and looked like two different queues.
+ * They were one queue, and it is now counted once, in the unit a guard is
+ * actually handed things in. The Returns Due Today tile is gone with it — one
+ * obligation, one figure, one list.
+ *
+ * A PARTIALLY-RETURNED PASS BRINGS ITS LINES WITH IT. `pendingReturnsOf` admits
+ * `partially_returned`, so a pass with two of three lines back still contributes
+ * every one of its lines here — which is what the reader is comparing against
+ * the load at the barrier, and what `/returns` has always listed.
+ *
+ * `buildScheduledReturns` is the same function the list under this figure
+ * renders, over the same two arrays, so the board's oldest invariant holds
+ * exactly: the number IS `rows.length` of what pressing it opens.
+ */
+export function returnLinesOf(
+  openReturns: GatePassView[],
+  items: GatePassItemView[]
+): ScheduledReturnRow[] {
+  return buildScheduledReturns(pendingReturnsOf(openReturns), items);
 }
 
 export interface TypeSplit {

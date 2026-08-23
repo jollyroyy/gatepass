@@ -29,7 +29,6 @@ vi.mock('../../src/lib/usePassItems', () => ({
 
 import PendingOutRow from '../../src/components/guard/PendingOutRow';
 import PendingReturnItems from '../../src/components/guard/PendingReturnItems';
-import ReturnRowMeta from '../../src/components/guard/ReturnRowMeta';
 import OverduePassCard from '../../src/components/overdue/OverduePassCard';
 import { buildOverduePasses } from '../../src/lib/overduePasses';
 import { EMPTY_DRAFT } from '../../src/lib/returnDraft';
@@ -100,7 +99,13 @@ describe('Pending OUT — the panel a guard unfolds', () => {
   });
 });
 
-describe('Pending RGP Return — the panel a guard records a return in', () => {
+// `ReturnRowMeta` — the block that carried the pass's total beside this table —
+// went with `PendingReturnRow` on 2026-08-24, when the return queue became a
+// LIST OF MATERIAL LINES rather than a table of passes. The pass's own total is
+// still stated on the record (`PassRecordItems`' Total row) and on the overdue
+// stacked card below, which is what the client asked for; there is no longer a
+// pass-level block on this screen for it to sit in.
+describe("The unfolded item panel — still the guard's, on Verify at Gate", () => {
   it('prices every material line, and dashes an unpriced one', () => {
     render(
       <PendingReturnItems
@@ -119,11 +124,6 @@ describe('Pending RGP Return — the panel a guard records a return in', () => {
     expect(within(rows[2]).getAllByRole('cell')[valueAt].textContent).toBe('—');
   });
 
-  it('states the pass total in the block beside it', () => {
-    render(<ReturnRowMeta pass={pass()} />);
-    expect(screen.getByText('Total Value')).toBeTruthy();
-    expect(screen.getByText('₹41,200')).toBeTruthy();
-  });
 });
 
 describe('the overdue stacked card', () => {

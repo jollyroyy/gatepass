@@ -7,6 +7,16 @@
 //     the future. A pass past its date is counted by Overdue Returns and by
 //     nothing else (client, 2026-08-23), and an October date is on neither
 //     page because neither would take its return today.
+//   * THE RETURN FIGURE COUNTS LINES, NOT PASSES (client, 2026-08-24: "returns
+//     for today I see four items but in the pending awaiting verification of
+//     return card there are only two … all of those four items should be in
+//     the Pending RGP Return card also"). A due-today pass with more than one
+//     material line must move the figure by its LINE count, not by one — the
+//     fixture below gives the due-today pass two lines so a lingering pass
+//     count would be caught rather than pass by coincidence. The "Returns Due
+//     Today" Quick Action tile that used to carry this same number in the same
+//     unit is gone with it (client: "you can remove the Returns Due Today card
+//     itself from the guard's dashboard") — one obligation, one figure now.
 //   * EVERY FIGURE DRILLS, AND SINCE 2026-08-23 ITS LIST IS A PAGE (client:
 //     "don't show the table on the same page. Show it on a different page,
 //     like you are showing the overdue details"). The figures drilled in place
@@ -216,10 +226,13 @@ describe('Pending OUT (Needs Approval)', () => {
 describe('Pending RGP Return (Needs Verification)', () => {
   it('counts due-today material only — a late pass belongs to Overdue Returns', async () => {
     await renderBoard();
-    // Three rows are still out: one due today, one late since May, one due in
-    // October. Only the first is this figure's, and the late one is counted by
-    // the Overdue Returns tile below — once, not twice.
-    expect(figure('Due back').textContent).toBe('1');
+    // Three passes are still out: one due today (r1, TWO lines), one late
+    // since May, one due in October. Only r1 is this figure's, and it is
+    // counted in LINES — 2, not 1 — because a pass count beside a line-level
+    // drill page is exactly the drift the client called out (2026-08-24). The
+    // late pass is counted by the Overdue Returns tile below — once, not
+    // twice, and never here.
+    expect(figure('Due back').textContent).toBe('2');
   });
 
   // REWRITTEN 2026-08-23: this used to open the return queue in place. It is a
@@ -275,26 +288,31 @@ describe('The mock-up skin', () => {
 });
 
 describe('Quick actions', () => {
-  it('offers only routes this role can actually open', async () => {
+  // REWRITTEN 2026-08-24: "Returns Due Today" is gone (client: "you can
+  // remove the Returns Due Today card itself from the guard's dashboard") —
+  // it duplicated the Pending RGP Return card above in a different unit. Only
+  // two tiles remain, and the assertion that the old one is gone is what
+  // stops it quietly coming back.
+  it('offers only routes this role can actually open, and Returns Due Today is gone', async () => {
     await renderBoard();
     for (const [name, href] of [
       ['Scan QR / Pass No.', '/console'],
-      ['Returns Due Today', '/returns'],
       ['Overdue Returns', '/overdue'],
     ] as const) {
       const link = screen.getByText(name).closest('a')!;
       expect(link).toHaveAttribute('href', href);
       expect(ROLE_ROUTES.guard).toContain(href);
     }
+    expect(screen.queryByText(/Returns Due Today/i)).not.toBeInTheDocument();
   });
 
-  it('counts the LINES each tile opens, not the passes', async () => {
+  it('counts the LINES the Overdue Returns tile opens, not the passes', async () => {
     await renderBoard();
-    // /returns lists the lines of every pass the database grades due_today —
-    // r1's two. A pass count would say "1".
-    expect(screen.getByText('Returns Due Today').closest('a')).toHaveTextContent('2 items');
     // /overdue lists every line past its date and still owing — r2's first
-    // line alone. Its second line is fully back; r3 is not late yet.
+    // line alone. Its second line is fully back; r3 is not late yet. (The
+    // due-today line count — r1's two — is now asserted on the summary
+    // card's own figure, in the "Pending RGP Return" describe above, since
+    // that is where the number lives since 2026-08-24.)
     expect(screen.getByText('Overdue Returns').closest('a')).toHaveTextContent('1 item');
   });
 

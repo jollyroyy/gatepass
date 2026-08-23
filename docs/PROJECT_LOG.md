@@ -3928,3 +3928,121 @@ pins the fix in the client's own shape (a Today window holding one unsigned pass
 ones, plus yesterday's unsigned pass which the desk MUST still list). Helpers in
 `adminDashboardOverview`, `hodDashboardBoard` and `superAdminDashboard` were split into
 `cardLink` (the head) and `card` (the whole card), which is the structural change stated as a test.
+
+## 2026-08-24 — the gate searches by what people know, and the return queue is counted in items
+
+### Index
+
+| # | Name |
+|---|---|
+| F1 | `src/lib/passTextSearch.ts` (new) |
+| F2 | `src/lib/searchPasses.ts` (new) |
+| F3 | `src/lib/useGateSearch.ts` |
+| F4 | `src/components/guard/SearchMatches.tsx` (new) |
+| F5 | `src/components/guard/useGuardSearch.tsx` |
+| F6 | `src/pages/Security/GateConsole.tsx` · `GateLookup.tsx` |
+| F7 | `src/lib/guardBoard.ts` — `returnLinesOf` |
+| F8 | `src/pages/Security/GuardDashboard.tsx` · `GuardDrill.tsx` |
+| F9 | `src/components/guard/QuickActions.tsx` · `GuardSummaryCards.tsx` · `DrillPageShell.tsx` |
+
+### What the client asked for
+
+Two instructions, one session:
+
+> "Make sure that the search is the search option for any passes. We can search with the pass
+> number, phone number, name, the vendor name, the person who took the item out … whatever results
+> may be out, there may be more than one because the same vendor can have multiple passes. In the
+> search results if there is more than one, it should be shown in the stacked format as we are
+> showing in the dashboard for the guard … put all those action buttons exactly the same as in the
+> dashboard's stat card for the guard's view." — and, a moment later, "we should be able to search
+> with any order number or a laptop make and model … maybe five passes in for Dell."
+
+> "In the guard's dashboard, Returns for today I do see four items but in the pending awaiting
+> verification of return card there are only two — all of those four items should be in the Pending
+> RGP Return card also … even if it is a partially returned, still a couple of the items are waiting
+> … and I think you can remove the Returns Due Today, that card itself, from the guard's dashboard."
+
+### 1. Search had two shapes, and the code branch swallowed both
+
+`useGateSearch` (F3) decided "is this a code?" by asking **does the query contain a letter**.
+Everything that did went to `gatepass.lookup_pass` — an RPC that logs a `scan_attempts` row, fires
+the blacklist alert and answers with exactly one row or `not_found`. All three are right for a
+scanned code and wrong for a typed word, so a guard who typed `Dell` was told *"No pass matches
+that code"* while five Dell passes sat in the register.
+
+**`isPassCodeQuery` (F1) is a SHAPE test now**: a whole pass number (`RGP-OUT-20260727-0001`, and
+the pre-010 `RGP-20260819-0001`), a pass id, or the URL a QR carries. A PARTIAL number falls
+through to the text branch, which matches `pass_number` with an ilike — so half a number still
+finds the pass, as a list.
+
+**The text branch reads TWO tables (F2), because the answer lives in both.** The party, the
+carrier, the requester (`raised_by_name`) and the vehicle are columns of `v_gate_passes`; the
+**make / model**, the **invoice number** — the client's "order number" — and the serial are columns
+of a MATERIAL LINE (migration 045) and are **not** rolled into `material_summary`, which is
+`string_agg(i.name)` and nothing more. A search for "Latitude 5440" that read only the pass row
+would find nothing. So: both `.or(…)` queries run in parallel, the item read yields pass ids, those
+are fetched with `.in('id', …)`, and `mergeMatches` unions them by id, newest first — a pass matched
+on its own column AND on one of its lines appears once.
+
+**`sanitizeTerm` is load-bearing, not hygiene.** A comma or a bracket is PostgREST `or=()` grammar:
+unstripped, the ordinary vendor name `Dell (India), Pvt` is parsed as three more filters and the
+request 400s. `*` and `%` are ilike wildcards and must not be smuggled in from the box.
+
+**The lines read is allowed to fail quietly.** If `v_gate_pass_items` errors, the pass-level answer
+is still a true answer and is returned — taking the whole search down because half of it failed
+would leave the guard with nothing when they had something.
+
+### 2. A multi-pass answer is stacked cards with the gate's own actions
+
+F4 replaces the two tables that used to draw this (`PhoneSearchResults`, deleted, and the inline
+`PhoneMatches` inside F5). It is `PassStack` — the one stacked card format — with `expandable` on,
+because half these queries are about the material rather than the pass.
+
+Each card carries **one** action, and it is the one that pass's own drilled KPI list would offer:
+
+| state | action | why |
+|---|---|---|
+| `canVerifyAtGate` | **Approve OUT** → `/verify/:id` | the Pending OUT list's own `ApproveOutAction`; the rule is `match_pass`'s, so a button that could only fail is never drawn |
+| still owes material | **Record Return** → `/pass/:id` | the drilled return list holds only what is due TODAY; a search can surface a pass due next month, and the record will take its return |
+| anything else | **View pass** | |
+
+### 3. Four items, two passes — one queue counted twice, in two units
+
+The two figures never disagreed about WHICH passes were due back: both cut on the database's own
+`due_state = 'due_today'`. They disagreed about the **unit**. The Quick Action tile counted material
+LINES (`buildScheduledReturns`) and the summary card counted PASSES, so four lines across two RGPs
+read as "4" beside "2" and looked like two different queues.
+
+`returnLinesOf` (F7) is `buildScheduledReturns(pendingReturnsOf(openReturns), items)` — the same
+function the list under the figure renders, over the same two arrays. So the board's oldest
+invariant holds exactly: **the number IS `rows.length` of what pressing it opens.** The
+`Pending RGP Return` drill (F8) is now `ScheduledReturns`, one row per line, with the gate's own
+tick-and-Record control on it; `DrillPageShell` gained `countNoun` so its head reads "4 items", not
+"4 passes", and the card gained a `gb-figure-unit` sub-line for the same reason.
+
+Scope did NOT widen with the unit: an OVERDUE pass is still absent, and belongs to Overdue Returns
+alone (client, 2026-08-23). A `partially_returned` pass still contributes its lines — one line back
+out of three is not closure and the other two are standing at the barrier.
+
+**Returns Due Today is gone from Quick Actions**, as asked. `/returns` survives as a ROUTE: the HOD
+and the admin reach their own scope of it from their boards.
+
+### Retired
+
+`PendingReturnsPanel`, `PendingReturnTable`, `PendingReturnRow`, `PendingReturnFilterBar`,
+`ReturnLegend`, `ReturnRowMeta`, `src/lib/pendingReturnFilters.ts` and
+`src/pages/Security/PhoneSearchResults.tsx` — all deleted, with their tests. The pass-level return
+table was the drill's old body; the line-level list replaced it whole. `PendingReturnItems` stays:
+`VerifyItemsTable` still renders it.
+
+`tests/unit/itemLevelReturns.test.tsx` was RETARGETED rather than deleted — the two-press staged
+flow it pins (a tap stages, only Record commits, and it commits exactly once, because
+`apply_item_returns` has no undo) still lives on the pass record, which is where "Record Return"
+now sends a guard.
+
+### Gate
+
+`npm run check`. New: `tests/unit/passTextSearch.test.ts` (the routing decision itself),
+`tests/unit/gateTextSearch.test.tsx` (both tables asked, the union rendered, the three actions),
+`tests/unit/guardReturnQueueItems.test.tsx` (four lines over two passes reads 4, opens four rows,
+excludes the late pass, and Returns Due Today is gone).

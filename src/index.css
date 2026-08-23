@@ -1693,6 +1693,15 @@
     font-weight: 600;
     letter-spacing: 0.01em;
   }
+  /* The unit under the return figure. It counts MATERIAL LINES, not passes
+     (client, 2026-08-24), and a bare "4" beside a card headed "Pending RGP
+     Return" reads as four passes unless it says otherwise. */
+  .gb-figure-unit {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--gb-muted);
+  }
   .gb-figure-value {
     font-size: 32px;
     line-height: 38px;

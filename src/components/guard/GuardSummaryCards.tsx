@@ -29,6 +29,9 @@ export type GuardDrillKey = 'RGP' | 'NRGP' | 'returns';
 
 type Props = {
   split: TypeSplit;
+  /** MATERIAL LINES due back today, not passes (client, 2026-08-24) — see
+   *  `returnLinesOf`. Four lines across two RGPs is "4" here and four rows on
+   *  the page it opens. */
   returnsDue: number;
   loading: boolean;
 };
@@ -73,6 +76,9 @@ export default function GuardSummaryCards({ split, returnsDue, loading }: Props)
           <h2 className="gb-sum-title gb-ink-blue">Pending RGP Return (Needs Verification)</h2>
           <div className="gb-figures">
             <Figure value={returnsDue} loading={loading} drill="returns" />
+            <span className="gb-figure-unit">
+              {returnsDue === 1 ? 'item' : 'items'}
+            </span>
           </div>
         </div>
       </div>

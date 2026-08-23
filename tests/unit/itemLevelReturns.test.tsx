@@ -1,220 +1,177 @@
-// Item-level, micro-quantity returns on the Pending RGP Return page
-// (client mock-up, 2026-08-19) — staging a return line by line inside
-// `AddReturnBox` / `PendingReturnItems` / `PendingReturnRow`, and committing
-// every staged line in ONE `apply_item_returns` call from the Record bar.
+// Item-level, micro-quantity returns — staged line by line, committed once.
 //
-// Mocking pattern copied from `tests/unit/pendingReturnsPage.test.tsx`
-// (the `builder(table)` thenable, the `gp()`/`pub()`/`supabase` mock, the
-// `ch` channel stub, the `pass()` factory) and extended so `v_gate_pass_items`
-// answers with real rows and `rpc` records every call it receives.
+// MOVED HERE (client, 2026-08-24). This file used to drive the Pending RGP
+// Return queue's own row (`GuardDashboard` → `GuardDrill` → the now-deleted
+// `PendingReturnRow`). That queue counts and opens MATERIAL LINES now, through
+// `ScheduledReturns`, and the staged-then-committed return entry it used to
+// own was never unique to it — client, 2026-08-19, put that entry on the ONE
+// gate pass record instead (`/pass/:id`, `PassRecordView`), which is where a
+// guard records a return on a pass of ANY date, reached from Search Pass, a
+// KPI drill, or the notification bell alike. So this file now drives
+// `PassRecordReturns` — the record's own material table plus the box and the
+// Record bar underneath it — directly, the same component `PassRecordView`
+// renders in its left column. Nothing about the RULE moved: it is still
+// `AddReturnBox` (`PassReturnBox` here, its house-themed twin) staging into
+// `returnDraft.ts`, and `recordDraftedReturns` sending the whole staged set as
+// ONE `apply_item_returns` call.
+//
+// THIS HALF holds the staging-and-commit path — a line shows, a partial return
+// stages without reaching the database, and the Record press commits it (one
+// line, then two). See `itemLevelReturnsGuards.test.tsx` for the ceiling, the
+// blank/zero refusal, Cancel/Discard, and the fully-returned/date cases, split
+// out to keep both files under the repo's 300-line cap.
+//
+// THE LOAD-BEARING INVARIANT, UNCHANGED: `apply_item_returns` has NO undo —
+// `returned_qty` only ever increases — so a tap must never be the commit. A
+// guard stages every line with a quantity and a remark; only the Record press
+// sends it, as one RPC call carrying every staged line in item order plus a
+// remark naming each one.
+//
+// Mocking pattern: only `gp()` needs a mock, and only for the one RPC this
+// component ever calls (`apply_item_returns`) — `PassRecordReturns` holds no
+// query of its own, unlike the deleted queue page this file used to render.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { GatePassItemView, GatePassView } from '../../src/types';
+import { EMPTY_DRAFT, type ReturnDraft } from '../../src/lib/returnDraft';
+import PassRecordReturns from '../../src/components/passview/PassRecordReturns';
 
-function pass(over: Partial<GatePassView>): GatePassView {
+function pass(over: Partial<GatePassView> = {}): GatePassView {
   return {
-    id: 'x', pass_number: 'RGP-20260819-0001', type: 'RGP', direction: 'out',
-    status: 'matched', return_status: 'awaiting_return',
+    id: 'p1', pass_number: 'RGP-20260810-0007', type: 'RGP', direction: 'out',
+    status: 'matched', return_status: 'partially_returned',
     department_id: 'd1', department_name: 'Engineering', department_code: 'ENG',
     raised_by: 'u1', raised_by_name: 'HOD One',
     visitor_name: 'Ravi', visitor_company: '{"n":"LMN Contractors","a":"","v":"9876543210"}',
     vehicle_number: 'KA01AB1234',
-    purpose: 'Repair', expected_return_date: '2026-08-19', actual_return_date: null,
+    purpose: 'Repair', expected_return_date: '2026-08-10', actual_return_date: null,
     verified_by: null, verified_by_name: null, verified_at: null, flag_reason: null,
-    qr_token: 't', expires_at: '2026-08-20T18:30:00Z', created_at: '2026-08-18T04:50:00Z',
-    is_overdue: false, is_expired: false, due_state: 'due_today',
-    item_count: 1, total_quantity: 200, returned_quantity: 0,
-    material_summary: 'Steel Props',
+    qr_token: 't', expires_at: '2026-08-11T18:30:00Z', created_at: '2026-08-09T04:50:00Z',
+    is_overdue: false, is_expired: false, awaits_approval: false, due_state: 'overdue',
+    item_count: 2, total_quantity: 2250, returned_quantity: 1000,
+    material_summary: 'Diesel, Steel Rods',
     ...over,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 }
 
-function item(over: Partial<GatePassItemView>): GatePassItemView {
-  const quantity = over.quantity ?? 1;
-  const returned_qty = over.returned_qty ?? 0;
+function item(over: Record<string, unknown>): GatePassItemView {
+  const quantity = (over.quantity as number) ?? 1;
+  const returned_qty = (over.returned_qty as number) ?? 0;
   return {
     id: 'i0', gate_pass_id: 'p1', line_no: 1, name: 'Item', description: '', purpose: '',
     expected_return_date: null, quantity, unit: 'nos', serial_no: null, approx_value: null,
     returned_qty, returned_at: null, department_id: 'd1', is_open: true,
     created_at: '2026-08-01T00:00:00Z',
     outstanding_qty: quantity - returned_qty,
-    pass_number: 'RGP-20260810-0007', pass_status: 'matched', return_status: 'partially_returned',
     ...over,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 }
 
-// The client's own example: a partly-returned RGP, due back TODAY, with two
-// lines
-// whose units DISAGREE (litre vs kg). Client, 2026-08-23: "whatever unit has
-// been selected, you need to show all of them, no matter what, no deviation
-// across all the views" — every quantity cell always carries its own unit
-// now, mixed or not, so the disagreement here is incidental rather than the
-// thing under test. A third, fully-returned line ("Cement Bags") is included
-// for the "already back" case, in `nos`, which prints "Numbers" like any
-// other unit.
-let OPEN_RETURNS: GatePassView[] = [];
-let ITEMS: GatePassItemView[] = [];
-let PHONE_ROWS: GatePassView[] = [];
+// The client's own example: a partly-returned RGP with two lines whose units
+// DISAGREE (litre vs kg). The third, fully-returned line ("Cement Bags")
+// belongs to the guard-rules cases and lives in the sibling file instead.
+const PASS = pass();
+const ITEMS: GatePassItemView[] = [
+  item({
+    id: 'diesel', gate_pass_id: 'p1', line_no: 1, name: 'Diesel', description: 'Fuel',
+    quantity: 1000, unit: 'litre', returned_qty: 0,
+  }),
+  item({
+    id: 'steel', gate_pass_id: 'p1', line_no: 2, name: 'Steel Rods', description: 'MS rods',
+    quantity: 1250, unit: 'kg', returned_qty: 1000,
+  }),
+];
+
 let RPC_CALLS: { name: string; args: unknown }[] = [];
-
-function resetRows(): void {
-  PHONE_ROWS = [];
-  RPC_CALLS = [];
-  OPEN_RETURNS = [
-    pass({
-      id: 'p1', pass_number: 'RGP-20260810-0007',
-      // DUE TODAY, not late: since 2026-08-23 a pass past its date leaves this
-      // queue for Overdue Returns, so an overdue fixture would render no row at
-      // all and every case below would fail for the wrong reason.
-      return_status: 'partially_returned', due_state: 'due_today',
-      expected_return_date: '2026-08-10', material_summary: 'Diesel, Steel Rods',
-      item_count: 2, total_quantity: 2250, returned_quantity: 1000,
-    }),
-  ];
-  ITEMS = [
-    item({
-      id: 'diesel', gate_pass_id: 'p1', line_no: 1, name: 'Diesel', description: 'Fuel',
-      quantity: 1000, unit: 'litre', returned_qty: 0,
-    }),
-    item({
-      id: 'steel', gate_pass_id: 'p1', line_no: 2, name: 'Steel Rods', description: 'MS rods',
-      quantity: 1250, unit: 'kg', returned_qty: 1000,
-    }),
-    item({
-      id: 'cement', gate_pass_id: 'p1', line_no: 3, name: 'Cement Bags', description: 'OPC 43',
-      quantity: 500, unit: 'nos', returned_qty: 500,
-      returned_at: '2026-08-17T09:15:00Z',
-    }),
-  ];
-}
-
-function builder(table: string) {
-  let phone = false;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const obj: any = {};
-  for (const m of ['select', 'order', 'limit', 'lte', 'lt', 'gte', 'eq', 'in']) obj[m] = () => obj;
-  obj.ilike = () => { phone = true; return obj; };
-  obj.then = (onOk: (v: unknown) => unknown, onErr?: (e: unknown) => unknown) => {
-    const data = table === 'v_gate_pass_items' ? ITEMS : phone ? PHONE_ROWS : OPEN_RETURNS;
-    return Promise.resolve({ data, error: null, count: data.length }).then(onOk, onErr);
-  };
-  return obj;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ch: any = {};
-ch.on = () => ch;
-ch.subscribe = () => ch;
 
 vi.mock('../../src/supabaseClient', () => ({
   gp: () => ({
-    from: (t: string) => builder(t),
     rpc: (name: string, args: unknown) => {
-      // The dashboard this list now opens on greets the guard by name, so
-      // `my_profile` is on every render. It is not what this spec counts:
-      // every assertion below is about the ONE `apply_item_returns` call a
-      // staged set of returns makes, and a greeting must not read as one.
-      if (name !== 'my_profile') RPC_CALLS.push({ name, args });
-      return Promise.resolve({ data: [{ outcome: 'ok', pass_id: 'far1', blacklist_match: null }], error: null });
+      RPC_CALLS.push({ name, args });
+      return Promise.resolve({ data: null, error: null });
     },
   }),
-  pub: () => ({ from: (t: string) => builder(t) }),
-  supabase: {
-    auth: { getUser: () => Promise.resolve({ data: { user: { id: 'u1' } } }) },
-    channel: () => ch,
-    removeChannel: () => undefined,
-  },
 }));
 
-import GuardDashboard from '../../src/pages/Security/GuardDashboard';
-import GuardDrill from '../../src/pages/Security/GuardDrill';
-
-/** The return queue is its own page again (client, 2026-08-23: drilling into
- *  any KPI card opens a new page, not an inline panel) — reached only by
- *  pressing the figure that counts it, which is a `Link` to
- *  `/guard-dashboard/returns` now, not a button. */
-async function renderPage() {
-  render(
-    <MemoryRouter initialEntries={['/guard-dashboard']}>
-      <Routes>
-        <Route path="/guard-dashboard" element={<GuardDashboard />} />
-        <Route path="/guard-dashboard/:key" element={<GuardDrill />} />
-        <Route path="/pass/:id" element={<div>RECORD PAGE</div>} />
-      </Routes>
-    </MemoryRouter>,
+function Harness(): React.ReactElement {
+  const [draft, setDraft] = React.useState<ReturnDraft>(EMPTY_DRAFT);
+  return (
+    <PassRecordReturns
+      pass={PASS}
+      items={ITEMS}
+      canRecord
+      draft={draft}
+      onDraftChange={setDraft}
+      onRecorded={() => undefined}
+    />
   );
-  const figure = () =>
-    screen.getByTestId('guard-figure-Due back').querySelector('.gb-figure-value') as HTMLElement;
-  await waitFor(() => expect(figure().textContent).not.toBe('-'));
-  fireEvent.click(figure());
-  await waitFor(() => expect(screen.getByText('RGP-20260810-0007')).toBeInTheDocument());
 }
 
-async function openRow(): Promise<void> {
-  // The row's own chevron. The Action button beside it is a LINK to the pass
-  // record now (client, 2026-08-19) — the panel is opened in place.
-  fireEvent.click(screen.getByRole('button', { name: /Show items in RGP-20260810-0007/ }));
-  await waitFor(() => expect(screen.getByText(/Items in this Pass/)).toBeInTheDocument());
-  await waitFor(() => expect(screen.getByText('Diesel')).toBeInTheDocument());
+function rowFor(itemName: string): HTMLElement {
+  return screen.getByText(itemName).closest('tr')!;
 }
 
+/** The row's own "Mark return" (first visit) or "Edit return" (re-opening a
+ *  staged line) — `PassRecordItems` carries no per-item accessible name, so
+ *  the press is scoped to the material line's own row. */
 function openBoxOn(itemName: string): void {
-  fireEvent.click(screen.getByRole('button', { name: `Add return for ${itemName}` }));
+  const row = rowFor(itemName);
+  const btn = within(row).queryByRole('button', { name: 'Mark return' })
+    ?? within(row).getByRole('button', { name: 'Edit return' });
+  fireEvent.click(btn);
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resetRows();
+  RPC_CALLS = [];
 });
 
-describe('Item-level returns', () => {
-  it('opening the row shows the material lines and an Add Return button per line still owed', async () => {
-    // Catches: the row's disclosure not wiring `usePassItems`, or the panel
-    // rendering something other than the pass's own lines.
-    await renderPage();
-    await openRow();
+describe('Item-level returns on the pass record', () => {
+  it('renders every material line, each with an Add Return control while it is still owed', async () => {
+    // Catches: the record's table not wiring `onAdd`, or a fully-settled or
+    // read-only render swallowing the control on a line that still owes.
+    render(<Harness />);
     expect(screen.getByText('Diesel')).toBeInTheDocument();
     expect(screen.getByText('Steel Rods')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Add return for Diesel' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Add return for Steel Rods' })).toBeInTheDocument();
+    expect(within(rowFor('Diesel')).getByRole('button', { name: 'Mark return' })).toBeInTheDocument();
+    expect(within(rowFor('Steel Rods')).getByRole('button', { name: 'Mark return' })).toBeInTheDocument();
   });
 
   it('a micro, partial return is staged but not sent — no rpc call yet, and the line reads partial', async () => {
-    // Catches: `AddReturnBox` committing on Confirm instead of only staging
-    // via `stageLine`, and `effectiveReturned`/`lineStateLabel` not folding
+    // Catches: `PassReturnBox` committing on Confirm instead of only staging
+    // via `stageLine`, and `effectiveReturned`/`itemReturnStage` not folding
     // the staged quantity into the line's own state.
-    await renderPage();
-    await openRow();
+    render(<Harness />);
     openBoxOn('Diesel');
     fireEvent.change(screen.getByLabelText('Return Now*'), { target: { value: '800' } });
     fireEvent.change(screen.getByLabelText('Remarks (optional)'), { target: { value: 'partial load' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirm Return' }));
 
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Edit return for Diesel' })).toBeInTheDocument());
+    const row = rowFor('Diesel');
+    await waitFor(() => expect(within(row).getByRole('button', { name: 'Edit return' })).toBeInTheDocument());
     expect(RPC_CALLS).toHaveLength(0);
-    expect(screen.getByText('Staged 800')).toBeInTheDocument();
-    expect(screen.getByText('Partially Returned (200 Litre Pending)')).toBeInTheDocument();
+    expect(within(row).getByText('Partially Returned')).toBeInTheDocument();
+    expect(within(row).getByText('Returned 800 Litre')).toBeInTheDocument();
+    expect(within(row).getByText('Pending 200 Litre')).toBeInTheDocument();
+    expect(within(row).getByText('Not recorded yet')).toBeInTheDocument();
   });
 
   it('the Record press commits exactly one call carrying the staged line and a remark naming it', async () => {
     // Catches: `recordDraftedReturns` sending more than one RPC call, or
     // `draftPayload`/`draftRemarks` losing the item id, quantity or the
     // guard's own remark text.
-    await renderPage();
-    await openRow();
+    render(<Harness />);
     openBoxOn('Diesel');
     fireEvent.change(screen.getByLabelText('Return Now*'), { target: { value: '800' } });
     fireEvent.change(screen.getByLabelText('Remarks (optional)'), { target: { value: 'returned by driver' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirm Return' }));
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Record 1 Return' })).toBeInTheDocument());
+      expect(screen.getByTestId('record-pass-returns')).toHaveTextContent('Record 1 return'));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Record 1 Return' }));
+    fireEvent.click(screen.getByTestId('record-pass-returns'));
 
     await waitFor(() => expect(RPC_CALLS).toHaveLength(1));
     const call = RPC_CALLS[0];
@@ -231,22 +188,21 @@ describe('Item-level returns', () => {
   it('two staged lines commit in one call, in item order', async () => {
     // Catches: the Record bar firing one RPC call per staged line instead of
     // batching, or `draftPayload` not preserving the lines' own order.
-    await renderPage();
-    await openRow();
+    render(<Harness />);
 
     openBoxOn('Diesel');
     fireEvent.change(screen.getByLabelText('Return Now*'), { target: { value: '800' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirm Return' }));
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Add return for Steel Rods' })).toBeInTheDocument());
+      expect(within(rowFor('Steel Rods')).getByRole('button', { name: 'Mark return' })).toBeInTheDocument());
 
     openBoxOn('Steel Rods');
     fireEvent.change(screen.getByLabelText('Return Now*'), { target: { value: '250' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirm Return' }));
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Record 2 Returns' })).toBeInTheDocument());
+      expect(screen.getByTestId('record-pass-returns')).toHaveTextContent('Record 2 returns'));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Record 2 Returns' }));
+    fireEvent.click(screen.getByTestId('record-pass-returns'));
 
     await waitFor(() => expect(RPC_CALLS).toHaveLength(1));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -255,105 +211,5 @@ describe('Item-level returns', () => {
       { item_id: 'diesel', qty: 800 },
       { item_id: 'steel', qty: 250 },
     ]);
-  });
-
-  it('the ceiling is the line’s own outstanding quantity, not its total', async () => {
-    // Catches: `checkReturnQty` capping against `quantity` instead of
-    // `outstanding_qty` — Steel Rods has 1250 ordered but only 250 left after
-    // 1000 already came back.
-    await renderPage();
-    await openRow();
-    openBoxOn('Steel Rods');
-
-    fireEvent.change(screen.getByLabelText('Return Now*'), { target: { value: '500' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm Return' }));
-
-    expect(await screen.findByText(/Only 250 is still outstanding on this line\./)).toBeInTheDocument();
-    // Stages nothing, and the box is still open.
-    expect(screen.getByLabelText('Return Now*')).toBeInTheDocument();
-    expect(screen.queryByText(/staged and not yet recorded/)).not.toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText('Return Now*'), { target: { value: '250' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm Return' }));
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Edit return for Steel Rods' })).toBeInTheDocument());
-  });
-
-  it('zero and a blank quantity are both refused and stage nothing', async () => {
-    // Catches: `checkReturnQty` treating `Number('')` as 0 and letting a
-    // zero-quantity return through, per its own comment.
-    await renderPage();
-    await openRow();
-    openBoxOn('Diesel');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm Return' }));
-    expect(await screen.findByText('Enter the quantity that came back.')).toBeInTheDocument();
-    expect(screen.getByLabelText('Return Now*')).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText('Return Now*'), { target: { value: '0' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm Return' }));
-    expect(await screen.findByText('A return must be more than zero.')).toBeInTheDocument();
-
-    expect(screen.getByRole('button', { name: 'Add return for Diesel' })).toBeInTheDocument();
-    expect(RPC_CALLS).toHaveLength(0);
-  });
-
-  it('Cancel throws the entry away — the box closes and nothing is staged', async () => {
-    // Catches: `onCancel` accidentally staging the line, or the Record bar
-    // appearing for a cancelled entry.
-    await renderPage();
-    await openRow();
-    openBoxOn('Diesel');
-    fireEvent.change(screen.getByLabelText('Return Now*'), { target: { value: '800' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-
-    await waitFor(() => expect(screen.queryByLabelText('Return Now*')).not.toBeInTheDocument());
-    expect(screen.getByRole('button', { name: 'Add return for Diesel' })).toBeInTheDocument();
-    expect(screen.queryByText(/staged and not yet recorded/)).not.toBeInTheDocument();
-  });
-
-  it('Discard on the Record bar clears every staged line without ever calling the rpc', async () => {
-    // Catches: Discard leaving stale entries in `draft`, or silently touching
-    // the database instead of only clearing local state.
-    await renderPage();
-    await openRow();
-    openBoxOn('Diesel');
-    fireEvent.change(screen.getByLabelText('Return Now*'), { target: { value: '800' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm Return' }));
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Discard' })).toBeInTheDocument());
-
-    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
-
-    await waitFor(() => expect(screen.queryByText(/staged and not yet recorded/)).not.toBeInTheDocument());
-    expect(screen.getByRole('button', { name: 'Add return for Diesel' })).toBeInTheDocument();
-    expect(RPC_CALLS).toHaveLength(0);
-  });
-
-  it('a fully-returned line offers no Add Return button and reads Returned', async () => {
-    // Catches: `lineState` grading a fully-back line as anything but
-    // `returned`, which would offer a button `apply_item_returns` refuses.
-    await renderPage();
-    await openRow();
-    expect(screen.getByText('Cement Bags')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /return for Cement Bags/ })).not.toBeInTheDocument();
-    // Scoped to the line's own row: the legend under the table names the same
-    // four states, which is what a legend is for.
-    const row = screen.getByText('Cement Bags').closest('tr')!;
-    expect(within(row).getAllByText('Returned').length).toBeGreaterThan(0);
-  });
-
-  it('names the DATE a line came back, on the line itself', async () => {
-    // Client, 2026-08-19: "whichever item has returned, mention returned on
-    // this date". `returned_at` is stamped only once a line is fully back
-    // (029), so a line still owing material must carry no date at all rather
-    // than borrow the pass's.
-    await renderPage();
-    await openRow();
-    const done = screen.getByText('Cement Bags').closest('tr')!;
-    expect(within(done).getByText(/Returned 17 Aug 2026/)).toBeInTheDocument();
-
-    const owing = screen.getByText('Diesel').closest('tr')!;
-    expect(within(owing).queryByText(/^Returned \d/)).not.toBeInTheDocument();
   });
 });

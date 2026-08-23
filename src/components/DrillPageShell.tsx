@@ -27,12 +27,18 @@ type Props = {
   /** Drawn beside the title once the rows are in. Omitted while loading, so a
    *  reader is never shown a count that is about to change. */
   count?: number;
+  /** What `count` counts. Passes on every board but the guard's return queue,
+   *  which counts MATERIAL LINES — and a figure of 4 headed "4 passes" over a
+   *  list of four ITEMS is exactly the mismatch the client read as two
+   *  different queues (2026-08-24). */
+  countNoun?: { one: string; many: string };
   error?: string | null;
   children: React.ReactNode;
 };
 
 export default function DrillPageShell({
-  backTo, backLabel, title, subtitle, count, error, children,
+  backTo, backLabel, title, subtitle, count, countNoun = { one: 'pass', many: 'passes' },
+  error, children,
 }: Props): React.ReactElement {
   return (
     <div className="gb-board gb-main">
@@ -48,7 +54,7 @@ export default function DrillPageShell({
             {title}
             {count !== undefined && (
               <span className="gb-head-count">
-                {count} {count === 1 ? 'pass' : 'passes'}
+                {count} {count === 1 ? countNoun.one : countNoun.many}
               </span>
             )}
           </h1>

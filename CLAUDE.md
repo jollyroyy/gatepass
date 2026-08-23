@@ -146,6 +146,25 @@ A drill page RE-DERIVES its board's row from the same hook/read and renders that
 sub-paths of the board they belong to, so `ROLE_ROUTES` already admits the right role and no
 sidebar tab exists for them; `DrillPageShell` is the shared frame.
 
+**The guard's return queue is counted in ITEMS** (client, 2026-08-24). "Pending RGP Return
+(Needs Verification)" is `returnLinesOf(openReturns, items).length` — the MATERIAL LINES of the
+passes the database grades `due_today`, `partially_returned` ones included — and drilling it
+opens `ScheduledReturns`, the line-level list those very rows build. It counted PASSES while the
+"Returns Due Today" Quick Action counted the LINES of the same passes, so one queue read as "4"
+beside "2". That tile is gone; `/returns` survives as a route for the HOD and the admin only.
+The pass-level return panel (`PendingReturnsPanel` and its row/filter/legend files) went with it.
+
+**Search is three branches, not two** (client, 2026-08-24). `isPassCodeQuery` is a SHAPE test —
+a whole pass number, a pass id, a QR URL — and only those reach `lookup_pass`. Digits alone are
+a phone. EVERYTHING ELSE IS FREE TEXT (`searchPassesByText`): pass number, visitor, vendor blob,
+`raised_by_name`, material summary, vehicle and purpose on `v_gate_passes`, UNIONED with name,
+description, `make_model`, `invoice_no` (the "order number") and `serial_no` on
+`v_gate_pass_items` — the line columns are NOT in `material_summary`, which is
+`string_agg(i.name)`. Sanitize every term (`sanitizeTerm`): a comma or a bracket in a vendor name
+is PostgREST `or=()` grammar and 400s the request. A multi-pass answer is `SearchMatches` — the
+one stacked `PassStack` format — and each card carries the action the guard's drilled KPI list
+would offer it: Approve OUT (`canVerifyAtGate`), else Record Return, else View pass.
+
 **Neither pending desk is a card** (client, 2026-08-23). `pendingNotes(rows)` prints
 "Pending gate approval" / "Pending approval" as two sub-lines under EACH pass-type card, over
 that type's rows only, on every board. The figure above them is windowed; the desk lines are
@@ -356,8 +375,9 @@ Profile, the role-scoped return pages), `Admin/` (AdminPanel and its tabs, Admin
 DashboardDrill, ReportsPage).
 `src/components/passview/` is the Gate Pass Details record, rendered both by Search Pass and
 `/pass/:id`. `src/components/overdue/` and `src/components/returns/` serve all three roles.
-`src/components/guard/` is the guard's one screen (summary cards, quick actions, drilled list
-panels, shared toolbar/filter/pager). `src/components/PassStackCard.tsx` + `PassStack.tsx` is
+`src/components/guard/` is the guard's one screen (summary cards, quick actions, the Pending OUT
+drill panel, the shared toolbar/filter/pager, and `SearchMatches` — the stacked answer to any
+query several passes match). `src/components/PassStackCard.tsx` + `PassStack.tsx` is
 the one stacked pass card used everywhere. `src/components/hod/` is the HOD dashboard;
 `src/components/admin/` is the admin dashboard (over `src/lib/adminOverview.ts`). `src/lib/`
 holds lookup maps, derivations and formatters. `supabase/migrations/` — `005` is an optional

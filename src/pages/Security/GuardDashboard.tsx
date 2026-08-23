@@ -37,10 +37,9 @@ import GuardToolbar from '../../components/guard/GuardToolbar';
 import QuickActions from '../../components/guard/QuickActions';
 import { useGuardSearch } from '../../components/guard/useGuardSearch';
 import { formatDateTime } from '../../lib/formatDate';
-import { firstNameOf, pendingOutOf, pendingReturnsOf, typeSplit } from '../../lib/guardBoard';
+import { firstNameOf, pendingOutOf, returnLinesOf, typeSplit } from '../../lib/guardBoard';
 import { buildOverdueRows } from '../../lib/overdueItems';
 import { fetchMyProfile } from '../../lib/profiles';
-import { buildScheduledReturns } from '../../lib/scheduledReturns';
 import { useGuardQueues } from '../../lib/useGuardQueues';
 
 export default function GuardDashboard(): React.ReactElement {
@@ -50,7 +49,9 @@ export default function GuardDashboard(): React.ReactElement {
   // re-renders the page every second for a fact that changes by the minute.
   const [stamp] = useState(() => new Date().toISOString());
 
-  const search = useGuardSearch('Search by Pass No., Vendor, Mobile No.…');
+  const search = useGuardSearch(
+    'Search by Pass No., Name, Vendor, Mobile No., Order No., Make / Model…'
+  );
 
   // The greeting only. A profile that never resolves leaves "Hello, Guard",
   // which is what the board said before anyone was named — so this read has no
@@ -70,16 +71,14 @@ export default function GuardDashboard(): React.ReactElement {
   }, []);
 
   const pendingOut = pendingOutOf(queue);
-  const pendingReturns = pendingReturnsOf(openReturns);
+  // MATERIAL LINES, not passes (client, 2026-08-24). `returnLinesOf` is the
+  // same derivation `GuardDrill` renders, so the figure is `rows.length` of the
+  // very list pressing it opens.
+  const returnLines = returnLinesOf(openReturns, openItems).length;
 
-  // The two Quick Action figures, each built the way the page behind it builds
-  // its rows: `/returns` is `buildScheduledReturns` over the passes the
-  // database grades `due_today`, `/overdue` is `buildOverdueRows` over every
-  // open return. Same functions, same arrays — no second predicate to drift.
-  const dueTodayLines = buildScheduledReturns(
-    openReturns.filter((p) => p.due_state === 'due_today'),
-    openItems
-  ).length;
+  // The one remaining Quick Action figure, built the way the page behind it
+  // builds its rows: `/overdue` is `buildOverdueRows` over every open return.
+  // Same function, same array — no second predicate to drift.
   const overdueLines = buildOverdueRows(openReturns, openItems).length;
 
   return (
@@ -110,11 +109,11 @@ export default function GuardDashboard(): React.ReactElement {
         <>
           <GuardSummaryCards
             split={typeSplit(pendingOut)}
-            returnsDue={pendingReturns.length}
+            returnsDue={returnLines}
             loading={loading}
           />
 
-          <QuickActions dueToday={dueTodayLines} overdue={overdueLines} loading={loading} />
+          <QuickActions overdue={overdueLines} loading={loading} />
         </>
       )}
     </div>
