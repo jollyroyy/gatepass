@@ -2337,8 +2337,11 @@ describe('062 — approval delegation', () => {
     expect(cands).toMatch(/from gatepass\.approval_roles r where r\.user_id = auth\.uid\(\)/i);
     expect(cands).toMatch(/You do not hold a gate pass approval office/i);
     // It hands back no email and no role — this is not the admin directory.
-    expect(cands).not.toMatch(/p\.email/i);
-    expect(cands).not.toMatch(/p\.role/i);
+    // (066 FILTERS on `p.role`; the assertion is about what is SELECTED, so it
+    // reads the select list rather than the whole body.)
+    const selected = cands.match(/select p\.id[\s\S]*?from public\.profiles p/i)![0];
+    expect(selected).not.toMatch(/p\.email/i);
+    expect(selected).not.toMatch(/p\.role/i);
   });
 
   it('every new definer function pins an empty search_path and is off `public`', () => {
@@ -2512,5 +2515,56 @@ describe('063 — the last rung is the COO or the CEO, and the CEO inherits it o
 
   it('leaves `pass_awaits_approval` alone — a not_required rung stops blocking at once', () => {
     expect(bare).not.toMatch(/function gatepass\.pass_awaits_approval/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 066 — an approver delegates DOWNWARD TO AN HOD, never sideways to the gate or
+// to a member of staff.
+//
+// The dropdown is not the control. `list_delegation_candidates` narrows what an
+// office holder is offered; `create_approval_delegation` is what actually
+// refuses, because a candidate list is a convenience and a POST is not.
+//
+// A "peer-level approver" is already unreachable as a delegate and stays that
+// way: one person holds one approval seat (049/054/062), so anybody currently
+// sitting on another office is refused by the seat checks above regardless of
+// their VMS role.
+// ──────────────────────────────────────────────────────────────────────────────
+describe('066 — a delegate is an HOD', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('066'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(migrations);
+  const fnBody = (name: string) => fns.filter((f) => f.name === name).slice(-1)[0].body;
+
+  it('offers only active HODs in the candidate list', () => {
+    const body = fnBody('gatepass.list_delegation_candidates');
+    expect(body).toMatch(/p\.role::text = 'hod'/i);
+    expect(body).toMatch(/gatepass\.is_user_active\(p\.id\)/i);
+  });
+
+  it('keeps every one-seat exclusion the candidate list already had', () => {
+    const body = fnBody('gatepass.list_delegation_candidates');
+    expect(body).toMatch(/from gatepass\.approval_roles r[\s\S]*r\.user_id = p\.id or r\.deputy_id = p\.id/i);
+    expect(body).toMatch(/from gatepass\.approval_delegations dl/i);
+  });
+
+  it('refuses a non-HOD delegate in the RPC, not only in the dropdown', () => {
+    const body = fnBody('gatepass.create_approval_delegation');
+    expect(body).toMatch(/from public\.profiles p[\s\S]*where p\.id = p_delegate_id/i);
+    expect(body).toMatch(/v_role\s+(is distinct from|<>)\s+'hod'/i);
+    expect(body).toMatch(/raise exception '[^']*department head/i);
+  });
+
+  it('still refuses a delegate who holds an office, a deputy seat or an overlapping window', () => {
+    const body = fnBody('gatepass.create_approval_delegation');
+    expect(body).toMatch(/from gatepass\.approval_roles r\s*\n\s*where r\.user_id = p_delegate_id/i);
+    expect(body).toMatch(/from gatepass\.approval_roles r\s*\n\s*where r\.deputy_id = p_delegate_id/i);
+    expect(body).toMatch(/d\.starts_at < p_ends_at/i);
+  });
+
+  it('reloads PostgREST so the narrowed list is the one the portal calls', () => {
+    expect(bare).toMatch(/notify pgrst, 'reload schema';/i);
   });
 });

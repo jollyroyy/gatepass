@@ -86,11 +86,14 @@ export default function DelegationForm({
             ))}
           </select>
           {/* WHY SOMEBODY MAY BE MISSING FROM THIS LIST, said where they would
-              have looked for them. The list is narrowed server-side to people
-              who hold no other approval seat, and a name silently absent reads
-              as a broken query. */}
+              have looked for them. The list is narrowed server-side (066) to
+              active DEPARTMENT HEADS holding no other approval seat — never
+              staff and never the gate — and a name silently absent reads as a
+              broken query. The database refuses the rest on the write too, so
+              this sentence describes a rule and not a convenience. */}
           <p className="gbd-hint">
-            Anyone active who does not already hold an approval office, deputy seat or delegation.
+            Department heads only. Anyone active who does not already hold an approval office,
+            deputy seat or delegation.
           </p>
           {errors.delegateId && <p className="gb-field-error">{errors.delegateId}</p>}
         </div>
