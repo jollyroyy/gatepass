@@ -156,9 +156,9 @@ export default function PendingReturnRow({
         </td>
         <td>
           {formatDateOnly(pass.expected_return_date)}
-          {note && (
-            <span className={pass.due_state === 'overdue' ? 'gb-late' : 'gb-subline'}>{note}</span>
-          )}
+          {/* Every row here is due TODAY — a late pass has left for Overdue
+              Returns — so the note is never the red lateness line. */}
+          {note && <span className="gb-subline">{note}</span>}
         </td>
         <td>
           <span className={`gb-pill ${PASS_RETURN_PILL[state]}`}>{PASS_RETURN_LABELS[state]}</span>

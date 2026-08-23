@@ -2,9 +2,10 @@
 // 2026-08-19). Each case is written to fail for the right reason: the
 // dashboard invariant is that a count and the list under it are two readings
 // of the SAME array, so `returnTabCounts` must not read a filtered list, and
-// `applyReturnFilters` must not mutate its input. `partial` is deliberately
-// NOT disjoint from `dueToday`/`overdue` — a case pins that on purpose, so a
-// "fix" that makes the four tabs sum to `all` would fail loudly here.
+// `applyReturnFilters` must not mutate its input. Since 2026-08-23 the queue
+// itself is due-today material only, so the Due Today and Overdue statuses are
+// gone — one would have been a synonym for All and the other could never match
+// a row. A case pins that Overdue is no longer an option.
 import { describe, it, expect } from 'vitest';
 import type { GatePassView } from '../../src/types';
 import {
@@ -32,39 +33,26 @@ function pass(over: Partial<GatePassView>): GatePassView {
 }
 
 describe('returnTabCounts — over the whole list, not the filtered one', () => {
-  it('counts every row under all, and dueToday/overdue are disjoint (due_state is one value)', () => {
+  it('counts every row under all, and partial is a subset of it', () => {
     const rows = [
       pass({ id: 'a', due_state: 'due_today', return_status: 'awaiting_return' }),
-      pass({ id: 'b', due_state: 'overdue', return_status: 'awaiting_return' }),
+      pass({ id: 'b', due_state: 'due_today', return_status: 'partially_returned' }),
       pass({ id: 'c', due_state: 'due_today', return_status: 'awaiting_return' }),
     ];
     const counts = returnTabCounts(rows);
     expect(counts.all).toBe(3);
-    expect(counts.dueToday).toBe(2);
-    expect(counts.overdue).toBe(1);
-    expect(counts.dueToday + counts.overdue).toBe(counts.all);
+    expect(counts.partial).toBe(1);
   });
 
-  it('partial cuts across dueToday and overdue — a partly-returned overdue pass counts under BOTH', () => {
-    const rows = [
-      pass({ id: 'a', due_state: 'overdue', return_status: 'partially_returned' }),
-      pass({ id: 'b', due_state: 'due_today', return_status: 'awaiting_return' }),
-    ];
-    const counts = returnTabCounts(rows);
-    // Row 'a' is counted by overdue AND partial simultaneously — this is the
-    // case that would fail if someone "fixed" the tabs into disjoint buckets.
-    expect(counts.overdue).toBe(1);
-    expect(counts.partial).toBe(1);
-    expect(counts.all).toBe(2);
-    // The three narrow counts need NOT sum to all: overdue(1) + dueToday(1) +
-    // partial(1) = 3, which is more than the 2 actual rows.
-    expect(counts.overdue + counts.dueToday + counts.partial).toBeGreaterThan(counts.all);
+  it('offers no Overdue status — a late pass belongs to Overdue Returns, not here', () => {
+    expect(RETURN_TABS).toEqual(['all', 'partial']);
+    expect(Object.keys(RETURN_TAB_LABELS)).not.toContain('overdue');
   });
 
   it('is not filter-aware — the same array in gives the same counts out regardless of caller narrowing', () => {
     const rows = [
-      pass({ id: 'a', due_state: 'due_today' }),
-      pass({ id: 'b', due_state: 'overdue' }),
+      pass({ id: 'a', return_status: 'awaiting_return' }),
+      pass({ id: 'b', return_status: 'partially_returned' }),
     ];
     expect(returnTabCounts(rows)).toEqual(returnTabCounts(rows.slice()));
   });
@@ -77,7 +65,7 @@ describe('applyReturnFilters — narrows by tab, party and department', () => {
       department_name: 'Engineering', visitor_name: 'Ravi', visitor_company: null,
     }),
     pass({
-      id: 'b', due_state: 'overdue', return_status: 'partially_returned',
+      id: 'b', due_state: 'due_today', return_status: 'partially_returned',
       department_name: 'Engineering',
       visitor_name: 'Sunita',
       visitor_company: JSON.stringify({ n: 'Zenith Traders', a: 'x', v: '1' }),
@@ -89,7 +77,7 @@ describe('applyReturnFilters — narrows by tab, party and department', () => {
   ];
 
   it('narrows by tab alone', () => {
-    const out = applyReturnFilters(rows, { ...DEFAULT_RETURN_FILTERS, tab: 'overdue' });
+    const out = applyReturnFilters(rows, { ...DEFAULT_RETURN_FILTERS, tab: 'partial' });
     expect(out.map((p) => p.id)).toEqual(['b']);
   });
 
@@ -144,7 +132,7 @@ describe('isReturnFiltered — false only for DEFAULT_RETURN_FILTERS', () => {
 
   it('is true for a change to each of the four fields', () => {
     const deviations: PendingReturnFilters[] = [
-      { ...DEFAULT_RETURN_FILTERS, tab: 'overdue' },
+      { ...DEFAULT_RETURN_FILTERS, tab: 'partial' },
       { ...DEFAULT_RETURN_FILTERS, party: 'Zenith Traders' },
       { ...DEFAULT_RETURN_FILTERS, department: 'Engineering' },
       { ...DEFAULT_RETURN_FILTERS, sort: 'party' },

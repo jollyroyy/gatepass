@@ -3,9 +3,10 @@
 //
 // What these cases exist to hold:
 //   * The RGP/NRGP split of Pending OUT sums to the whole gate queue, and the
-//     return figure counts due-today and overdue material only — NOT everything
-//     still outside, because /returns and /overdue are the only two pages that
-//     can record a return and neither would take an October date today.
+//     return figure counts DUE-TODAY material only — not the backlog and not
+//     the future. A pass past its date is counted by Overdue Returns and by
+//     nothing else (client, 2026-08-23), and an October date is on neither
+//     page because neither would take its return today.
 //   * EVERY FIGURE DRILLS, AND SINCE 2026-08-23 ITS LIST IS A PAGE (client:
 //     "don't show the table on the same page. Show it on a different page,
 //     like you are showing the overdue details"). The figures drilled in place
@@ -213,10 +214,12 @@ describe('Pending OUT (Needs Approval)', () => {
 });
 
 describe('Pending RGP Return (Needs Verification)', () => {
-  it('counts due-today and overdue material, not everything outside', async () => {
+  it('counts due-today material only — a late pass belongs to Overdue Returns', async () => {
     await renderBoard();
-    // Three rows are still out; only two are due back today or already late.
-    expect(figure('Due back').textContent).toBe('2');
+    // Three rows are still out: one due today, one late since May, one due in
+    // October. Only the first is this figure's, and the late one is counted by
+    // the Overdue Returns tile below — once, not twice.
+    expect(figure('Due back').textContent).toBe('1');
   });
 
   // REWRITTEN 2026-08-23: this used to open the return queue in place. It is a

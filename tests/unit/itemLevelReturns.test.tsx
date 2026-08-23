@@ -47,7 +47,8 @@ function item(over: Partial<GatePassItemView>): GatePassItemView {
   } as any;
 }
 
-// The client's own example: a partly-returned, overdue RGP with two lines
+// The client's own example: a partly-returned RGP, due back TODAY, with two
+// lines
 // whose units DISAGREE (litre vs kg). Client, 2026-08-23: "whatever unit has
 // been selected, you need to show all of them, no matter what, no deviation
 // across all the views" — every quantity cell always carries its own unit
@@ -66,7 +67,10 @@ function resetRows(): void {
   OPEN_RETURNS = [
     pass({
       id: 'p1', pass_number: 'RGP-20260810-0007',
-      return_status: 'partially_returned', due_state: 'overdue', is_overdue: true,
+      // DUE TODAY, not late: since 2026-08-23 a pass past its date leaves this
+      // queue for Overdue Returns, so an overdue fixture would render no row at
+      // all and every case below would fail for the wrong reason.
+      return_status: 'partially_returned', due_state: 'due_today',
       expected_return_date: '2026-08-10', material_summary: 'Diesel, Steel Rods',
       item_count: 2, total_quantity: 2250, returned_quantity: 1000,
     }),

@@ -8,10 +8,12 @@
 // its draft, which is why the row owns that state and this table only says
 // which one is open.
 //
-// EXPECTED BACK CARRIES ITS LATENESS IN WORDS. "(2 Days Overdue)" under the
-// date, and the Status pill beside it, come from `due_state` — graded by the
-// database in `site_tz()`, never recomputed here — so the fact survives a
-// screenshot, a mono print and a reader who does not separate orange from red.
+// EXPECTED BACK CARRIES ITS DUE NOTE IN WORDS. "(Due Today)" under the date,
+// and the Status pill beside it, come from `due_state` — graded by the database
+// in `site_tz()`, never recomputed here — so the fact survives a screenshot, a
+// mono print and a reader who does not separate orange from red. There is no
+// "(2 Days Overdue)" here any more: a late pass has left this queue for Overdue
+// Returns (client, 2026-08-23).
 import React, { useState } from 'react';
 import type { GatePassView } from '../../types';
 import PendingReturnRow from './PendingReturnRow';

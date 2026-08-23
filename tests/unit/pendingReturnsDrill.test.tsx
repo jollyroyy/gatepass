@@ -10,13 +10,13 @@
 // `PendingReturnsPanel` — unchanged by this move — is what it renders.
 //
 // What these cases exist to hold:
-//   * It lists what is DUE TODAY or ALREADY LATE, and deliberately not every
-//     open obligation: material due in October cannot be recorded on either
-//     `/returns` or `/overdue` today, so a row for it would be a button that
-//     cannot be pressed.
-//   * Lateness is in WORDS ("(Due Today)" / "(3 Days Overdue)" under the date,
-//     plus the Status pill), from the database's own `due_state`, never from
-//     colour alone.
+//   * It lists what is DUE TODAY, and nothing else. A pass PAST its date has
+//     left for Overdue Returns and must not appear here as well (client,
+//     2026-08-23: "it should not show it in the pending return, it should show
+//     only in the overdue section"); material due in October is absent for the
+//     older reason — `/returns` could not record its return today either.
+//   * The due note is in WORDS ("(Due Today)" under the date, plus the Status
+//     pill), from the database's own `due_state`, never from colour alone.
 //   * Each row opens its own material lines IN PLACE on the chevron, which is
 //     where a return is recorded line by line and quantity by quantity, while
 //     the Action button beside it opens the pass's full record - the client's
@@ -61,12 +61,17 @@ function resetRows(): void {
            due_state: 'due_today', material_summary: 'Steel Props',
            total_quantity: 200, returned_quantity: 0 }),
     pass({ id: 'r2', pass_number: 'RGP-00055', return_status: 'partially_returned',
-           expected_return_date: '2026-05-18', due_state: 'overdue', is_overdue: true,
+           expected_return_date: '2026-08-19', due_state: 'due_today',
            material_summary: 'Scaffolding Pipes', total_quantity: 150, returned_quantity: 50,
            visitor_company: '{"n":"XYZ Builders","a":"","v":"9000000002"}' }),
     // Still out, due in October — a real obligation, no barrier action today.
     pass({ id: 'r3', pass_number: 'RGP-00099', expected_return_date: '2026-10-01',
            due_state: 'ok', material_summary: 'Wall Putty' }),
+    // Late since May. It belongs to Overdue Returns and to nothing else — the
+    // case below is what stops it standing in two queues at once.
+    pass({ id: 'r4', pass_number: 'RGP-00044', return_status: 'partially_returned',
+           expected_return_date: '2026-05-18', due_state: 'overdue', is_overdue: true,
+           material_summary: 'Timber Planks', total_quantity: 100, returned_quantity: 10 }),
   ];
 }
 
@@ -146,25 +151,27 @@ beforeEach(() => {
 });
 
 describe('What is on the page', () => {
-  it('lists due-today and overdue material, and not what is due later', async () => {
+  it('lists due-today material, and neither the overdue backlog nor a later date', async () => {
     await renderPage();
     expect(screen.getByText('RGP-00056')).toBeInTheDocument();
     expect(screen.getByText('RGP-00055')).toBeInTheDocument();
+    // r4 is late and r3 is due in October — neither is this queue's.
+    expect(screen.queryByText('RGP-00044')).not.toBeInTheDocument();
     expect(screen.queryByText('RGP-00099')).not.toBeInTheDocument();
     expect(screen.getByText(/Showing 1 to 2 of 2 entries/)).toBeInTheDocument();
   });
 
-  it('states lateness in words, never in colour alone', async () => {
+  it('says nothing about lateness, because nothing late can reach it', async () => {
     await renderPage();
-    // The Status pill on the late row, and the note under its date. A partly
-    // returned pass reads "Partially Returned" — that outranks lateness on the pill,
-    // which is exactly why the date carries the day count as well.
-    // Scoped to the table: the legend under it names the same four states, and
-    // that is the point of a legend — the words appear twice on purpose.
+    // The Status pill still reads "Partially Returned" on a part-returned row,
+    // and the date still carries its note — but the note is "(Due Today)" and
+    // there is no day count anywhere, because a late pass is on /overdue.
+    // Scoped to the table: the legend under it names the same states, and that
+    // is the point of a legend — the words appear twice on purpose.
     const table = within(screen.getByRole('table'));
     expect(table.getByText('Partially Returned')).toBeInTheDocument();
-    expect(table.getByText(/Days Overdue/)).toBeInTheDocument();
-    expect(table.getByText('(Due Today)')).toBeInTheDocument();
+    expect(table.queryByText(/Days Overdue/)).not.toBeInTheDocument();
+    expect(table.getAllByText('(Due Today)')).toHaveLength(2);
   });
 
   it('carries no overflow menu — the pass number is already the way to the record', async () => {
@@ -214,7 +221,7 @@ describe('What is on the page', () => {
       </MemoryRouter>,
     );
     await waitFor(() =>
-      expect(screen.getByText(/Nothing is due back today, and nothing is late/)).toBeInTheDocument());
+      expect(screen.getByText(/Nothing is due back today/)).toBeInTheDocument());
   });
 });
 
@@ -226,7 +233,7 @@ describe('The list carries neither tabs nor a search bar of its own', () => {
   it('has no status tab strip', async () => {
     await renderPage();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
-    for (const label of ['All (2)', 'Due Today (1)', 'Overdue (1)', 'Returned Partially (1)']) {
+    for (const label of ['All (2)', 'Returned Partially (1)']) {
       expect(screen.queryByText(label)).not.toBeInTheDocument();
     }
   });

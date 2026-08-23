@@ -3731,3 +3731,37 @@ strip agrees with them for the same reason it agreed with the card.
 ("adds the pending card to the figures") and `reportsFilters.test.tsx` ("renders the six figures")
 — all of which describe a report card set that no longer matches `buildReportKpis`. They fail at
 `HEAD` with this branch's changes stashed; they belong to the report workstream, not to this one.
+
+---
+
+## 2026-08-23 — Overdue is ONE queue: a late RGP leaves the guard's Pending Return
+
+Client:
+
+*"If the return date is passed beyond its expected date, it should not show it in the pending
+return. It should show only in the overdue section… Currently I do see there's a mismatch though
+we are showing both in overdue as well as pending return for RGP."*
+
+**F1 `src/lib/guardBoard.ts`** — `needsReturnVerification` was `due_today || overdue`; it is
+`due_today` alone now. That one predicate feeds the dashboard figure, the `/guard-dashboard/returns`
+drill and the panel's rows alike (the board's invariant: one derivation, never a second predicate),
+so the figure, the list and the Overdue Returns tile now describe disjoint sets. A pass past its
+date is counted and actioned on `/overdue` only. Material due in October stays absent for the older
+reason — `/returns` would not accept its return today either.
+
+`returnActionPath` went with it: with no overdue row left on the panel its `/overdue` branch was
+unreachable, and nothing in `src/` called it.
+
+**Dead affordances removed in the same change.** **F2 `src/lib/pendingReturnFilters.ts`** loses the
+`dueToday` and `overdue` statuses — one had become a synonym for All, the other an option that
+could never return a row. `ReturnTab` is `'all' | 'partial'`. **F3 `ReturnLegend`** loses its
+Overdue key (a colour no row can wear), **F4 `PendingReturnRow`** loses the `gb-late` branch, and
+the empty state reads "Nothing is due back today."
+
+### Gate
+
+`npm run check` — clean: typecheck plus 2087 tests in 160 files, all green. Cases rewritten:
+`guardBoard` (pins the late pass OUT of the queue), `pendingReturnFilters` (pins that no Overdue
+status is offered), `guardDashboard` (the figure counts 1 of 3, not 2), `pendingReturnsDrill` (a
+late fixture added expressly to assert it does NOT render), `itemLevelReturns` (its fixture was
+overdue and would otherwise have rendered no row at all).

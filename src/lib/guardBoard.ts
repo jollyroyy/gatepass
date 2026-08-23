@@ -2,7 +2,9 @@
 // actually asks (client mock-up, 2026-08-19):
 //
 //   Pending OUT (Needs Approval)        — what is waiting to leave
-//   Pending RGP Return (Needs Verification) — what is due back and still outside
+//   Pending RGP Return (Needs Verification) — what is due back TODAY and still
+//                                             outside; once the date passes it
+//                                             leaves for Overdue Returns
 //
 // It replaced a board of seven drill KPIs over a stack of pass cards. The
 // figures that went are not lost — they are the admin's board and Reports,
@@ -37,16 +39,21 @@ const isOpenReturn = (p: GatePassView): boolean =>
   p.return_status === 'awaiting_return' || p.return_status === 'partially_returned';
 
 /**
- * Due back today, or overdue — and deliberately NOT every open obligation.
+ * Due back TODAY, and nothing else — not the backlog, not the future.
  *
- * Material due in October is a real obligation that no guard is watching the
- * barrier for, and neither `/returns` (due today) nor `/overdue` would accept
- * its return today, so a row for it would be a button that cannot be pressed.
- * The whole backlog of any date is still one click away on `/overdue`, and the
- * admin's board counts what is outside.
+ * PAST ITS DATE MEANS OVERDUE, AND OVERDUE IS ONE QUEUE (client, 2026-08-23:
+ * "it should not show it in the pending return, it should show only in the
+ * overdue section"). A late pass used to be graded `overdue` here as well, so
+ * one slip stood in this figure AND in the Overdue Returns tile at the same
+ * time — two numbers for one obligation, which read as two.
+ *
+ * Material due in October is absent for the older reason: no guard is watching
+ * the barrier for it, and `/returns` would not accept its return today either,
+ * so a row for it would be a button that cannot be pressed. The whole backlog
+ * of any date is one Quick Action away on `/overdue`.
  */
 export const needsReturnVerification = (p: GatePassView): boolean =>
-  isOpenReturn(p) && (p.due_state === 'due_today' || p.due_state === 'overdue');
+  isOpenReturn(p) && p.due_state === 'due_today';
 
 /** Longest wait first — the truck that arrived at 10:20 is served before 10:30. */
 export function pendingOutOf(rows: GatePassView[]): GatePassView[] {
@@ -86,13 +93,6 @@ export function typeSplit(rows: GatePassView[]): TypeSplit {
 export function partyOf(p: GatePassView): string {
   const name = parseCompanyInfo(p.visitor_company).name.trim();
   return name || p.visitor_name;
-}
-
-/** Where a return row's action button goes — the page that can RECORD it, line
- *  by line. Two destinations because they are two pages, each already scoped by
- *  the reader's role. */
-export function returnActionPath(p: GatePassView): string {
-  return p.due_state === 'overdue' ? '/overdue' : '/returns';
 }
 
 /** Both figures come off the view's roll-ups; never re-sum item rows here, or

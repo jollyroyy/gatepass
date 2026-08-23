@@ -6,12 +6,14 @@
 // is now what a pressed figure opens, on the same page, and nothing else.
 //
 // WHAT IS ON IT, AND WHAT IS DELIBERATELY NOT. `pendingReturnsOf` is an open
-// return (`awaiting_return` or `partially_returned`) graded `due_today` or
-// `overdue` by the database in `site_tz()`. Material due in October is a real
-// obligation that no guard is watching the barrier for, and neither `/returns`
-// nor `/overdue` would accept its return today, so a row for it would be a
-// button that cannot be pressed. The whole backlog of any date is one Quick
-// Action away on Overdue Items.
+// return (`awaiting_return` or `partially_returned`) graded `due_today` by the
+// database in `site_tz()`. ONCE THE DATE HAS PASSED THE PASS LEAVES THIS QUEUE
+// FOR OVERDUE RETURNS and appears in exactly one place (client, 2026-08-23:
+// "it should not show it in the pending return, it should show only in the
+// overdue section"). Material due in October is absent too: no guard is
+// watching the barrier for it, and `/returns` would not accept its return
+// today. Both the backlog and the future are one Quick Action away on Overdue
+// Items.
 //
 // THIS IS STILL WHERE A RETURN IS ACTUALLY RECORDED, line by line and quantity
 // by quantity: 800 of the 1,000 litres that went out is a complete answer, and
@@ -82,7 +84,7 @@ export default function PendingReturnsPanel({ rows, loading, onRecorded }: Props
         ) : current.total === 0 ? (
           <div className="gb-empty">
             {rows.length === 0
-              ? 'Nothing is due back today, and nothing is late.'
+              ? 'Nothing is due back today.'
               : 'No pass matches these filters.'}
           </div>
         ) : (

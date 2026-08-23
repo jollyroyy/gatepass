@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import type { GatePassView } from '../../src/types';
 import {
   PREVIEW_ROWS, firstNameOf, needsReturnVerification, partyOf, pendingOutOf,
-  pendingReturnsOf, previewOf, returnActionPath, returnedQtyLabel, typeSplit,
+  pendingReturnsOf, previewOf, returnedQtyLabel, typeSplit,
 } from '../../src/lib/guardBoard';
 
 function pass(over: Partial<GatePassView>): GatePassView {
@@ -77,27 +77,28 @@ describe('Pending RGP Return — what the gate can actually verify today', () =>
     expected_return_date: '2026-10-01', due_state: 'ok',
   });
 
-  it('is due-today and overdue material — not everything still outside', () => {
-    // `later` is a real obligation and deliberately absent: no guard is
-    // watching the barrier for material due in October, and neither /returns
-    // nor /overdue would accept the return today.
+  it('is due-today material only — an overdue pass belongs to Overdue', () => {
+    // A pass whose date has passed is chased on /overdue and NOWHERE else
+    // (client, 2026-08-23). It stood in both queues at once and the two
+    // figures read as two different obligations for one slip.
     expect(needsReturnVerification(due)).toBe(true);
-    expect(needsReturnVerification(late)).toBe(true);
+    expect(needsReturnVerification(late)).toBe(false);
+    // Material due in October is a real obligation no guard is watching the
+    // barrier for, and /returns would not accept its return today either.
     expect(needsReturnVerification(later)).toBe(false);
   });
 
   it('ignores a pass whose return is already closed', () => {
-    expect(needsReturnVerification(pass({ return_status: 'returned', due_state: 'overdue' }))).toBe(false);
-    expect(needsReturnVerification(pass({ return_status: 'not_applicable', due_state: 'overdue' }))).toBe(false);
+    expect(needsReturnVerification(pass({ return_status: 'returned', due_state: 'due_today' }))).toBe(false);
+    expect(needsReturnVerification(pass({ return_status: 'not_applicable', due_state: 'due_today' }))).toBe(false);
   });
 
   it('lists the oldest expected date first', () => {
-    expect(pendingReturnsOf([due, later, late]).map((p) => p.id)).toEqual(['late', 'due']);
-  });
-
-  it('sends each row to the page that can record it', () => {
-    expect(returnActionPath(late)).toBe('/overdue');
-    expect(returnActionPath(due)).toBe('/returns');
+    const alsoDue = pass({
+      id: 'also', status: 'matched', return_status: 'awaiting_return',
+      expected_return_date: '2026-08-18', due_state: 'due_today',
+    });
+    expect(pendingReturnsOf([due, later, late, alsoDue]).map((p) => p.id)).toEqual(['also', 'due']);
   });
 
   it('reads the returned quantity off the view, never re-summing lines', () => {

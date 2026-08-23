@@ -6,6 +6,13 @@
 // options and the rows in the table are three readings of a single fetch. A
 // count on this screen can never disagree with the list under it.
 //
+// "DUE TODAY" AND "OVERDUE" ARE GONE (client, 2026-08-23: a pass past its date
+// "should not show it in the pending return… it should show only in the overdue
+// section"). This queue is due-today material only now
+// (`needsReturnVerification`), so Due Today would have been a synonym for All
+// and Overdue an option that could never return a row — a control that teaches
+// nothing, and one that teaches a falsehood.
+//
 // THE MOCK'S FIFTH TAB, "Returned", IS DELIBERATELY ABSENT. This page loads
 // open returns only (`awaiting_return` / `partially_returned`); a pass whose
 // last line came back has left this queue by definition, and a tab for it would
@@ -23,33 +30,24 @@ import { partyOf } from './guardBoard';
 /** The tab strip, and the `Status:` select under it — ONE choice with two
  *  controls, exactly as the mock draws it. A `Record` keyed by this union is
  *  what makes a fifth tab a compile error rather than a blank table. */
-export type ReturnTab = 'all' | 'dueToday' | 'overdue' | 'partial';
+export type ReturnTab = 'all' | 'partial';
 
-export const RETURN_TABS: ReturnTab[] = ['all', 'dueToday', 'overdue', 'partial'];
+export const RETURN_TABS: ReturnTab[] = ['all', 'partial'];
 
 export const RETURN_TAB_LABELS: Record<ReturnTab, string> = {
   all: 'All',
-  dueToday: 'Due Today',
-  overdue: 'Overdue',
   partial: 'Returned Partially',
 };
 
-/** True of a row when the tab is selected.
- *
- *  `dueToday` and `overdue` are disjoint (`due_state` is one value), but
- *  `partial` deliberately CUTS ACROSS both — a partly-returned pass is also
- *  either due today or late, and it belongs under both readings. So the counts
- *  do not sum to All, and that is honest: they are four questions, not four
- *  buckets. */
+/** True of a row when the tab is selected. `partial` is a SUBSET of `all`, not
+ *  a bucket beside it — the two counts do not sum to the list, and that is
+ *  honest: they are two questions about the same rows. */
 const TAB_MATCH: Record<ReturnTab, (p: GatePassView) => boolean> = {
   all: () => true,
-  dueToday: (p) => p.due_state === 'due_today',
-  overdue: (p) => p.due_state === 'overdue',
   partial: (p) => p.return_status === 'partially_returned',
 };
 
-/** Oldest expected date first is the default and the gate's own order — what
- *  is most overdue is what a guard should read first. */
+/** Oldest expected date first is the default and the gate's own order. */
 export type ReturnSortKey = 'due' | 'party';
 
 export const RETURN_SORT_LABELS: Record<ReturnSortKey, string> = {
@@ -83,7 +81,7 @@ export function isReturnFiltered(f: PendingReturnFilters): boolean {
 /** The count beside each tab, over the WHOLE list and never the filtered one —
  *  a tab reading "(0)" is exactly what tells a guard not to click it. */
 export function returnTabCounts(rows: GatePassView[]): Record<ReturnTab, number> {
-  const counts: Record<ReturnTab, number> = { all: 0, dueToday: 0, overdue: 0, partial: 0 };
+  const counts: Record<ReturnTab, number> = { all: 0, partial: 0 };
   for (const p of rows) {
     for (const tab of RETURN_TABS) if (TAB_MATCH[tab](p)) counts[tab] += 1;
   }
