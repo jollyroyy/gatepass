@@ -74,8 +74,10 @@ vi.mock('../../src/supabaseClient', () => ({
 
 async function renderPage() {
   render(<ApprovalDelegation office="coo" />);
+  // The status card is no longer drawn when nothing is delegated, so the load
+  // is over when the skeleton goes — not when a particular card appears.
   await waitFor(() => {
-    expect(screen.getByText('My Delegation Status')).toBeTruthy();
+    expect(document.querySelector('.gb-skeleton')).toBeNull();
   });
 }
 
@@ -151,11 +153,21 @@ describe('Approval Delegation', () => {
     expect(screen.getByText('No Limit')).toBeTruthy();
   });
 
-  it('says plainly when nothing is delegated, rather than showing an empty card', async () => {
+  // Client, 2026-08-23: "remove My Delegation Status / You have no delegation
+  // running … from approver view". Holding an office nobody is covering is the
+  // ordinary condition of all four, so the page says nothing about it at all.
+  it('draws no status card when nothing is delegated', async () => {
     delegations = [EXPIRED];
     await renderPage();
-    expect(screen.getByText(/no delegation running/i)).toBeTruthy();
+    expect(screen.queryByText('My Delegation Status')).toBeNull();
+    expect(screen.queryByText(/no delegation running/i)).toBeNull();
     expect(screen.queryByText('ACTIVE')).toBeNull();
+  });
+
+  it('still draws it, and its Revoke, while a delegation is live', async () => {
+    await renderPage();
+    expect(screen.getByText('My Delegation Status')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Revoke Delegation/i })).toBeTruthy();
   });
 
   // ── Writing one ───────────────────────────────────────────────────────────

@@ -595,6 +595,17 @@
            disabled:opacity-50 disabled:cursor-not-allowed
            transition-all duration-200;
   }
+  /* THE SAME GREEN AS THE APPROVER'S DASHBOARD CARD (`.gpo-act-approve`,
+   * `--gb-green`), for the one other place an approve press appears — the
+   * record's own decision bar. `matched-600` is a fixed hex (not a `--gb-*`
+   * variable scoped to `.gb-board`/`.gb-main`/`.gb-stack`), so it reads the
+   * same green on `/pass/:id` as it does inside the guard-skinned dashboard. */
+  .btn-approve {
+    @apply bg-matched-600 text-white rounded-xl px-5 py-2.5 text-sm font-semibold
+           hover:bg-matched-700 active:scale-[0.98]
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-all duration-200;
+  }
   .btn-ghost {
     @apply text-navy-500 rounded-xl px-4 py-2 text-sm font-medium
            hover:bg-surface-100 hover:text-navy-700 active:scale-[0.98]

@@ -179,7 +179,12 @@ export default function ApprovalDelegation({
         </div>
       ) : (
         <>
-          <DelegationStatusCard row={current} busy={busy} onRevoke={revoke} />
+          {/* NO CARD WHEN NOTHING IS RUNNING (client, 2026-08-23). An office
+              with no cover is the ordinary condition of all four of them, and
+              a panel whose whole content was "You have no delegation running"
+              was the first thing every approver read on this page. A live or
+              scheduled delegation still gets its card — and its Revoke. */}
+          {current && <DelegationStatusCard row={current} busy={busy} onRevoke={revoke} />}
 
           {/* A DEPUTY OR A DELEGATE MAY NOT HAND ON WHAT THEY ARE COVERING —
               `create_approval_delegation` refuses them, and drawing the form

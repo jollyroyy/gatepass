@@ -8,14 +8,22 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import type { UserRole } from '../../types';
+import type { ApprovalRoleKey } from '../../lib/approvalLadder';
 import { gp, pub } from '../../supabaseClient';
 import { useMyProfile } from '../../lib/useMyProfile';
 import ProfilePhotoCard from './ProfilePhotoCard';
 import ProfileDetails from './ProfileDetails';
 
-type Props = { session: Session; role: UserRole | null };
+type Props = {
+  session: Session;
+  role: UserRole | null;
+  /** The approval office this account holds (046), or null. An office holder's
+   *  VMS role can read `staff` (`officeReplacesRole`), which is true but not
+   *  what the profile should show — the office title takes precedence. */
+  office?: ApprovalRoleKey | null;
+};
 
-export default function ProfilePage({ session, role }: Props): React.ReactElement {
+export default function ProfilePage({ session, role, office = null }: Props): React.ReactElement {
   const userId = session.user.id;
   const { profile, loading, error, saveName, setAvatarUrl } = useMyProfile();
   const [deptNames, setDeptNames] = useState<string[]>([]);
@@ -78,6 +86,7 @@ export default function ProfilePage({ session, role }: Props): React.ReactElemen
             fullName={profile.full_name ?? ''}
             email={email}
             role={effectiveRole}
+            office={office}
             deptNames={deptNames}
             createdAt={profile.created_at}
             onSaveName={saveName}

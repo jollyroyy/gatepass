@@ -134,7 +134,7 @@ describe('Verify — per-item detail the guard needs', () => {
   it('states the item count and total quantity, not a bare "line(s)" figure', async () => {
     renderVerify();
     await waitFor(() => expect(screen.getByText(/2 items/i)).toBeInTheDocument());
-    expect(screen.getByText(/5 total qty/i)).toBeInTheDocument();
+    expect(screen.getByText(/5 Numbers total/i)).toBeInTheDocument();
   });
 
   it('shows per-item expected return dates for an RGP', async () => {

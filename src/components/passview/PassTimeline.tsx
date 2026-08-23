@@ -49,116 +49,22 @@
 // it. It is one `<div>` per entry, `StepDetail`, so no line can drift out of
 // the indent by being added in the wrong place.
 import React from 'react';
-import type { ApprovalStep, ApprovalStepState } from '../../lib/approvalLadder';
+import type { ApprovalStep } from '../../lib/approvalLadder';
 import type { ReturnTimelineLine } from '../../lib/returnTimeline';
 import { outstandingLineNote } from '../../lib/returnTimeline';
 import type { LineState } from '../../lib/returnDraft';
-import type { VerifyAction, Verification } from '../../types';
-import { formatDateTime, formatTime, formatDateOnly } from '../../lib/formatDate';
+import type { Verification } from '../../types';
+import { formatTime, formatDateOnly } from '../../lib/formatDate';
 
 /** One row of `v_verifications`, with the security officer's name resolved. */
 export interface ActivityEntry extends Verification {
   security_name: string;
 }
 
-/** Dot fill and the ink of the step's own note. The keys are the union, so a
- *  fifth state is a compile error rather than an unstyled rung. */
-const DOT: Record<ApprovalStepState, string> = {
-  done: 'bg-matched-500 border-matched-500',
-  pending: 'bg-transparent border-navy-300',
-  blocked: 'bg-flagged-500 border-flagged-500',
-  unset: 'bg-transparent border-pending-400',
-  // A rung the other office on this level closed (063). Filled neutral, never
-  // green: nobody signed it, and a green dot is what "approved" looks like.
-  skipped: 'bg-navy-300 border-navy-300',
-};
+import {
+  DOT, ACTION_DOT, ACTION_TITLE, Tick, Rail, StepDetail, StepLines,
+} from './PassTimelineParts';
 
-const NOTE_INK: Record<ApprovalStepState, string> = {
-  done: 'text-navy-500',
-  pending: 'text-navy-500',
-  blocked: 'text-flagged-700 font-semibold',
-  unset: 'text-pending-700',
-  skipped: 'text-navy-500',
-};
-
-const ACTION_DOT: Record<VerifyAction, string> = {
-  matched: 'bg-matched-500 border-matched-500',
-  flagged: 'bg-flagged-500 border-flagged-500',
-  returned: 'bg-accent-600 border-accent-600',
-  held: 'bg-pending-500 border-pending-500',
-  hod_reviewed: 'bg-accent-500 border-accent-500',
-  cancelled: 'bg-navy-500 border-navy-500',
-};
-
-const ACTION_TITLE: Record<VerifyAction, string> = {
-  matched: 'Cleared out at the gate',
-  flagged: 'Rejected at the security gate',
-  returned: 'Material marked returned',
-  held: 'Held at the gate',
-  hod_reviewed: 'HOD approved the override',
-  cancelled: 'Voided by the HOD',
-};
-
-function Tick({ state }: { state: ApprovalStepState }): React.ReactElement {
-  if (state === 'done') {
-    return (
-      <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={4} aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4.5 4.5L19 7" />
-      </svg>
-    );
-  }
-  if (state === 'blocked') {
-    return (
-      <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={4} aria-hidden="true">
-        <path strokeLinecap="round" d="M12 6v8M12 18h.01" />
-      </svg>
-    );
-  }
-  return <span className="sr-only">Not yet</span>;
-}
-
-/** The dot and the length of rail under it. `last` is what stops a tail hanging
- *  below the final rung, which reads as a step nobody drew. */
-function Rail({
-  dot, last, children,
-}: {
-  dot: React.ReactNode;
-  last: boolean;
-  children: React.ReactNode;
-}): React.ReactElement {
-  return (
-    <li className="flex gap-3">
-      <span className="flex flex-col items-center shrink-0">
-        {dot}
-        {!last && <span className="w-px flex-1 bg-surface-300 my-1" />}
-      </span>
-      <div className="min-w-0 pb-5">{children}</div>
-    </li>
-  );
-}
-
-/** The indented block every entry hangs its written lines from. Set in from the
- *  rail so the headings above them stay the thing a reader scans down. */
-function StepDetail({ children }: { children: React.ReactNode }): React.ReactElement {
-  return (
-    <div className="pl-4 mt-0.5" data-testid="timeline-detail">{children}</div>
-  );
-}
-
-/** The lines under a ladder rung. Both the ladder and the closing return step
- *  render it, so the two cannot drift apart. */
-function StepLines({ step }: { step: ApprovalStep }): React.ReactElement {
-  return (
-    <StepDetail>
-      {step.who && <p className="text-sm text-navy-700 break-words">{step.who}</p>}
-      {step.detail && <p className="text-xs text-navy-500 break-words">{step.detail}</p>}
-      {step.at && <p className="text-xs text-navy-500 tabular">{formatDateTime(step.at)}</p>}
-      {step.note && (
-        <p className={`text-xs mt-0.5 break-words ${NOTE_INK[step.state]}`}>{step.note}</p>
-      )}
-    </StepDetail>
-  );
-}
 
 type Props = {
   steps: ApprovalStep[];
@@ -169,7 +75,22 @@ type Props = {
    *  quantities include what the guard has STAGED but not yet recorded, which
    *  is what makes the rail move as they type. */
   returnLines?: ReturnTimelineLine[];
+  /** THE GATE IS THE END OF THIS PASS — an NRGP, which never comes back
+   *  (client, 2026-08-23). The rail already names the clearance a rung above,
+   *  on the ladder's own gate step, so the recorded gate event underneath it
+   *  said the same thing twice. On a pass that closes there it says what the
+   *  ladder cannot: the pass is CLOSED. An RGP is not — its material is still
+   *  out — so it keeps the plain wording and closes on its return rung. */
+  closesAtGate?: boolean;
 };
+
+/** The one rung that ends the pass, in the rail's own green and heavier than
+ *  the steps above it (client, 2026-08-23: "the same green that you are doing
+ *  for the other timeline milestones … make the closed bold"). `matched-700`
+ *  inverts with the theme; the small tinted pills under the return lines do
+ *  not, which is why this is the heading's own ink and not one of those. */
+const CLOSED_HEADING = 'text-sm font-bold text-matched-700';
+const STEP_HEADING = 'text-sm font-semibold text-navy-900';
 
 /** THE SAME THREE HUES THE ITEM TABLE PAINTS A LINE IN (`ITEM_RETURN_STYLES`),
  *  in the house theme this card is drawn in — the rail and the table are read
@@ -223,7 +144,7 @@ function ReturnLines({ lines }: { lines: ReturnTimelineLine[] }): React.ReactEle
 const RETURN_STEP_KEY = 'return';
 
 export default function PassTimeline({
-  steps, activity, returnLines = [],
+  steps, activity, returnLines = [], closesAtGate = false,
 }: Props): React.ReactElement {
   const ladder = steps.filter((s) => s.key !== RETURN_STEP_KEY);
   const closing = steps.filter((s) => s.key === RETURN_STEP_KEY);
@@ -243,7 +164,7 @@ export default function PassTimeline({
               </span>
             }
           >
-            <p className="text-sm font-semibold text-navy-900">{step.label}</p>
+            <p className={STEP_HEADING}>{step.label}</p>
             <StepLines step={step} />
           </Rail>
         ))}
@@ -257,7 +178,14 @@ export default function PassTimeline({
             <p className="text-xs text-navy-500">
               {formatTime(v.created_at)} · {formatDateOnly(v.created_at)}
             </p>
-            <p className="text-sm font-semibold text-navy-900">{ACTION_TITLE[v.action]}</p>
+            {(() => {
+              const closes = closesAtGate && v.action === 'matched';
+              return (
+                <p className={closes ? CLOSED_HEADING : STEP_HEADING}>
+                  {closes ? 'Closed' : ACTION_TITLE[v.action]}
+                </p>
+              );
+            })()}
             <StepDetail>
               <p className="text-xs text-navy-500">by {v.security_name || 'security'}</p>
               {v.remarks && <p className="text-xs text-navy-700 mt-0.5 break-words">{v.remarks}</p>}
@@ -275,7 +203,7 @@ export default function PassTimeline({
               </span>
             }
           >
-            <p className="text-sm font-semibold text-navy-900">{step.label}</p>
+            <p className={step.state === 'done' ? CLOSED_HEADING : STEP_HEADING}>{step.label}</p>
             <StepLines step={step} />
             {returnLines.length > 0 && (
               <StepDetail>

@@ -196,7 +196,7 @@ describe('the return closes the rail', () => {
     expect(back).toBe(lines.length - 1);
   });
 
-  it('keeps the returned rung last too, once the material is back', async () => {
+  it('keeps the closing rung last too, once the material is back', async () => {
     row = pass({
       status: 'matched',
       verified_at: '2026-08-18T06:15:00Z',
@@ -217,8 +217,81 @@ describe('the return closes the rail', () => {
     ];
     await renderAs('hod');
     const lines = railLines();
-    expect(lines[lines.length - 1]).toContain('Returned');
+    expect(lines[lines.length - 1]).toContain('Closed');
     expect(lines.findIndex((t) => t.includes('Material marked returned')))
       .toBeLessThan(lines.length - 1);
+  });
+});
+
+// THE CLEARANCE IS WRITTEN ONCE, AND THE END OF THE PASS IS CALLED "CLOSED"
+// (client, 2026-08-23: "since 'cleared out' is already mentioned once, the
+// second time you just mention closed … in the same green … make the closed
+// bold"). The ladder's own gate rung already says the material was cleared by
+// security; the recorded gate event underneath repeated it word for word. On an
+// NRGP — which never comes back — that second line is what closes the pass, so
+// it says so. An RGP keeps the plain wording there, because its material is
+// still out, and closes on its return rung instead.
+describe('the rail says "Closed" once, at the end', () => {
+  function railLines(): string[] {
+    return Array.from(screen.getByTestId('pass-timeline').querySelectorAll('li'))
+      .map((li) => li.textContent ?? '');
+  }
+
+  const clearedAtTheGate = {
+    id: 'v1', gate_pass_id: 'p1', action: 'matched', remarks: null,
+    gate_name: 'Service Gate', security_id: 'g1', security_name: 'Arjun Mehta',
+    created_at: '2026-08-22T06:05:00Z',
+  };
+
+  it('closes an NRGP at the gate, in bold matched green, saying it only once', async () => {
+    row = pass({
+      type: 'NRGP', return_status: 'not_applicable',
+      status: 'matched', verified_at: '2026-08-22T06:05:00Z', verified_by_name: 'Arjun Mehta',
+    });
+    verifications = [clearedAtTheGate];
+    await renderAs('hod');
+    const rail = within(screen.getByTestId('pass-timeline'));
+
+    const closed = rail.getByText('Closed');
+    expect(closed.className).toContain('font-bold');
+    expect(closed.className).toContain('text-matched-700');
+    // The ladder rung above still names the clearance — the recorded event no
+    // longer says the same words a second time.
+    expect(rail.getByText('Cleared by Security')).toBeInTheDocument();
+    expect(rail.queryByText('Cleared out at the gate')).toBeNull();
+  });
+
+  it('leaves an RGP still out reading "Cleared out at the gate", not closed', async () => {
+    row = pass({
+      status: 'matched', verified_at: '2026-08-22T06:05:00Z', verified_by_name: 'Arjun Mehta',
+      return_status: 'awaiting_return',
+    });
+    verifications = [clearedAtTheGate];
+    await renderAs('hod');
+    const rail = within(screen.getByTestId('pass-timeline'));
+    expect(rail.getByText('Cleared out at the gate')).toBeInTheDocument();
+    expect(rail.queryByText('Closed')).toBeNull();
+  });
+
+  it('closes a returned RGP on its last rung, in the same bold green', async () => {
+    row = pass({
+      status: 'matched', verified_at: '2026-08-22T06:05:00Z', verified_by_name: 'Arjun Mehta',
+      return_status: 'returned', actual_return_date: '2026-08-23T04:00:00Z',
+    });
+    verifications = [
+      clearedAtTheGate,
+      {
+        id: 'v2', gate_pass_id: 'p1', action: 'returned', remarks: null,
+        gate_name: null, security_id: 'g1', security_name: 'Arjun Mehta',
+        created_at: '2026-08-23T04:00:00Z',
+      },
+    ];
+    await renderAs('hod');
+    const rail = within(screen.getByTestId('pass-timeline'));
+    const closed = rail.getByText('Closed');
+    expect(closed.className).toContain('font-bold');
+    expect(closed.className).toContain('text-matched-700');
+    // …and it is the last rung on the rail.
+    expect(railLines()[railLines().length - 1]).toContain('Closed');
   });
 });

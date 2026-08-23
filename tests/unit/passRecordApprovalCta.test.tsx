@@ -1,4 +1,4 @@
-// APPROVE / REJECT AT THE FOOT OF THE GATE PASS RECORD (client, 2026-08-19:
+// APPROVE / REJECT ON THE GATE PASS RECORD (client, 2026-08-19:
 // "once I click on the pending approval item it should show the exact same
 // thing as it is showing in the guard's view — here make the CTA button, like
 // approve or reject, at the bottom in a very proper manner").
@@ -107,7 +107,7 @@ beforeEach(() => {
 });
 
 describe('The office whose turn it is', () => {
-  it('gets one Approve and one Reject, at the foot of the record', async () => {
+  it('gets one Approve and one Reject, right below the pass', async () => {
     await renderAs('security_head');
     const bar = await screen.findByTestId('record-approval-actions');
     expect(bar).toBeInTheDocument();
@@ -116,10 +116,15 @@ describe('The office whose turn it is', () => {
     // Which office is signing, and which rung of this pass's own ladder.
     expect(bar.textContent).toContain('Security Head');
     expect(bar.textContent).toContain('Level 1 of 2');
-    // The bar comes AFTER the record's table and timeline in the document, so
-    // the press is where the reading ends.
+    // The bar comes BEFORE the record's table and timeline in the document
+    // (client, 2026-08-23: "just below the pass, show that approve or reject
+    // button — don't show it at the bottom"): an approver lands here from
+    // their queue to sign, not to read every material line first.
     const record = screen.getByTestId('pass-record');
-    expect(record.lastElementChild).toBe(bar);
+    const table = screen.getByText('Items in this gate pass');
+    expect(bar.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(record.contains(bar)).toBe(true);
   });
 
   it('presses through to approve_pass_level, and to no other database RPC', async () => {

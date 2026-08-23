@@ -13,7 +13,7 @@ import React from 'react';
 import type { GatePassItemView } from '../../types';
 import { formatDateOnly } from '../../lib/formatDate';
 import ItemOrdinal from '../../components/ItemOrdinal';
-import { unitLabel } from '../../lib/units';
+import { sharedUnit, unitLabel } from '../../lib/units';
 
 /** Indian digit grouping — ₹14,500 not ₹14.5K. A guard reads this against a
  *  delivery note, so it must match the figure written on the paper. */
@@ -35,13 +35,20 @@ export default function VerifyItemsTable({ items, showReturnDates, totalQuantity
   // rather than breaking the sum.
   const declaredValue = items.reduce((sum, i) => sum + (i.approx_value ?? 0), 0);
   const anyValueDeclared = items.some((i) => i.approx_value != null);
+  // A total quantity only means something when every line agrees on a unit —
+  // 200 litres of diesel plus 10 drums of paint has no single figure to name
+  // (same call `PendingReturnItems` makes). Named when it does; dropped, not
+  // printed bare, when it doesn't (client, 2026-08-23: "never a number without
+  // a unit, anywhere").
+  const shared = sharedUnit(items.map((i) => i.unit));
 
   return (
     <div className="card p-6 mb-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
         <h2 className="card-title mb-0">Material</h2>
         <span className="text-sm font-medium text-navy-500 tabular">
-          {items.length} item{items.length !== 1 ? 's' : ''} · {totalQuantity} total qty
+          {items.length} item{items.length !== 1 ? 's' : ''}
+          {shared && ` · ${totalQuantity} ${unitLabel(shared)} total`}
           {anyValueDeclared && (
             <>
               {' · '}

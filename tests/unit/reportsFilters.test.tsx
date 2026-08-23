@@ -154,9 +154,12 @@ describe('Gate Pass Report — the mock-up itself', () => {
     await waitFor(() => expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument());
 
     const figures = screen.getByRole('group', { name: 'Report figures' });
-    for (const label of ['Total Passes', 'RGP Passes', 'NRGP Passes', 'Completed', 'Partially Returned', 'Cancelled']) {
+    for (const label of ['Total Passes', 'RGP Passes', 'NRGP Passes', 'Completed', 'Pending', 'Partially Returned']) {
       expect(figures).toHaveTextContent(label);
     }
+    // The Cancelled card is gone (client, 2026-08-23) — the bucket still
+    // exists on the Status filter, it just no longer gets a figure of its own.
+    expect(figures).not.toHaveTextContent('Cancelled');
     // 5 rows: 3 RGP + 2 NRGP.
     expect(figures).toHaveTextContent('5');
     // NO SECOND LINE on any card (client, 2026-08-23): the share of total and

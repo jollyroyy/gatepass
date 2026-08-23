@@ -91,10 +91,15 @@ export function gateStep(pass: GatePassView): ApprovalStep {
 export function returnStep(pass: GatePassView): ApprovalStep | null {
   if (pass.type !== 'RGP') return null;
 
+  // THE CLOSING RUNG SAYS "CLOSED", NOT "RETURNED" (client, 2026-08-23). The
+  // rail already carries the guard's own recorded "Material marked returned"
+  // event a rung above; repeating the same word underneath it read as a second
+  // return rather than as the end of the pass. "Closed" is the one thing this
+  // rung says that no other rung on the rail does.
   if (pass.return_status === 'returned') {
     return {
       key: 'return',
-      label: 'Returned',
+      label: 'Closed',
       who: null,
       detail: 'Material back in full',
       at: pass.actual_return_date,

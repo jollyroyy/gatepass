@@ -201,11 +201,11 @@ describe('buildApprovalSteps', () => {
     expect(last?.state).toBe('blocked');
   });
 
-  it('a fully returned RGP ends on Returned, with the date it came back', () => {
+  it('a fully returned RGP ends on Closed, with the date it came back', () => {
     const last = buildApprovalSteps(
       pass({ return_status: 'returned', actual_return_date: '2026-08-20T04:00:00Z' }), FULL,
     ).at(-1);
-    expect(last?.label).toBe('Returned');
+    expect(last?.label).toBe('Closed');
     expect(last?.state).toBe('done');
     expect(last?.at).toBe('2026-08-20T04:00:00Z');
   });

@@ -203,14 +203,18 @@ describe('buildReportKpis', () => {
     row({ id: 'd', type: 'NRGP', status: 'matched' }),
   ];
 
-  // REWRITTEN 2026-08-22: seven figures, since the `pending` bucket got its own
-  // card. The invariant is unchanged — the buckets sum to the total.
-  it('counts the report\'s seven figures, and they add up', () => {
+  // REWRITTEN 2026-08-23: six figures. `cancelled` lost its card, so the status
+  // figures no longer cover every row — they plus the cancelled rows do.
+  it('counts the report\'s six figures, and they add up', () => {
     const cards = buildReportKpis(rows);
+    expect(cards.map((c) => c.key)).toEqual(
+      ['total', 'rgp', 'nrgp', 'completed', 'pending', 'in_progress'],
+    );
     const by = Object.fromEntries(cards.map((c) => [c.key, c.value]));
     expect(by.total).toBe(4);
     expect(by.rgp + by.nrgp).toBe(by.total);
-    expect(by.completed + by.pending + by.in_progress + by.cancelled).toBe(by.total);
+    const cancelled = rows.filter((r) => reportStatusOf(r) === 'cancelled').length;
+    expect(by.completed + by.pending + by.in_progress + cancelled).toBe(by.total);
   });
 
   // REWRITTEN 2026-08-23. Four cases here pinned the second line every card

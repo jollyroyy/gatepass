@@ -150,6 +150,10 @@ export default function PassStackCard({
           {showRaisedBy && <Fact label="Requested By" value={pass.raised_by_name || '—'} />}
           {showContext && <Fact label="Department" value={pass.department_name || '—'} />}
           <Fact label="Vendor / Person" value={company.name || pass.visitor_name} />
+          {/* THE CREATION DATE, NOT THE MOMENT (client, 2026-08-23) — the same
+              reading the register already prints. The hour a pass was raised
+              answers nothing anybody asks of a card in a stack. */}
+          <Fact label="Created" value={formatDateOnly(pass.created_at)} />
           <Fact label="Material" value={pass.material_summary ?? '—'} />
           {/* The reason the pass exists — what an approver is actually being
               asked to agree to. Long ones ellipsis in the cell and are read in

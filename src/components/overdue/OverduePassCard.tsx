@@ -48,6 +48,11 @@ export default function OverduePassCard({ row, canProcessReturn }: Props): React
 
         <div className="gpo-facts">
           <Fact label="Requested By" value={pass.raised_by_name || '—'} />
+          {/* EVERY STACKED CARD CARRIES THE CREATION DATE (client, 2026-08-23),
+              this one included — an overdue pass is read against when it was
+              raised as much as against when it was due. The DATE alone, as the
+              register and the other stack print it. */}
+          <Fact label="Created" value={formatDateOnly(pass.created_at)} />
           <Fact label="Vendor / Person" value={party} />
           <Fact
             label="Gate Exit"

@@ -34,7 +34,6 @@ import type { UserRole } from '../../types';
 import type { ApprovalRoleKey } from '../../lib/approvalLadder';
 import type { GatePassRecord } from '../../lib/useGatePassRecord';
 import { passStageStyle } from '../../lib/passStage';
-import { OVERDUE_STYLE } from '../../lib/statusStyles';
 import { canVerifyAtGate } from '../../lib/phoneSearch';
 import { buildApprovalSteps, canRecordReturns } from '../../lib/approvalLadder';
 import { useApprovalRoles } from '../../lib/useApprovalRoles';
@@ -46,7 +45,7 @@ import { formatDateTime } from '../../lib/formatDate';
 import { buildReturnTimeline } from '../../lib/returnTimeline';
 import { vendorWhatsappLink } from '../../lib/whatsappShare';
 import { EMPTY_DRAFT, type ReturnDraft } from '../../lib/returnDraft';
-import Badge from '../Badge';
+import PassRecordHeader from './PassRecordHeader';
 import PassRecordSummary from './PassRecordSummary';
 import PassRecordReturns from './PassRecordReturns';
 import PassTimeline from './PassTimeline';
@@ -70,18 +69,6 @@ type Props = {
   onClear?: () => void;
 };
 
-const PrinterGlyph = (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 8.25V3.75h10.5v4.5M6.75 17.25h10.5v3h-10.5v-3z" />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 17.25H4.5a1.5 1.5 0 01-1.5-1.5v-4.5a1.5 1.5 0 011.5-1.5h15a1.5 1.5 0 011.5 1.5v4.5a1.5 1.5 0 01-1.5 1.5h-2.25" />
-  </svg>
-);
-
-const WhatsappGlyph = (
-  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-    <path d="M12.04 2c-5.5 0-9.96 4.46-9.96 9.96 0 1.76.46 3.48 1.34 5L2 22l5.2-1.36a9.9 9.9 0 004.84 1.24h.01c5.5 0 9.96-4.46 9.96-9.96 0-2.66-1.04-5.16-2.92-7.04A9.9 9.9 0 0012.04 2zm0 18.02h-.01a8.2 8.2 0 01-4.19-1.15l-.3-.18-3.09.81.82-3.01-.2-.31a8.24 8.24 0 01-1.26-4.22c0-4.55 3.7-8.25 8.25-8.25 2.2 0 4.27.86 5.83 2.42a8.19 8.19 0 012.41 5.83c0 4.55-3.7 8.26-8.26 8.26zm4.53-6.18c-.25-.13-1.47-.72-1.7-.8-.23-.09-.39-.13-.56.12s-.64.8-.79.97c-.14.16-.29.18-.54.06-.25-.13-1.05-.39-2-1.23a7.5 7.5 0 01-1.38-1.72c-.15-.25-.02-.38.11-.5.12-.11.25-.29.37-.44.13-.15.17-.25.25-.42.08-.16.04-.31-.02-.44-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43h-.48c-.16 0-.42.06-.64.31-.22.25-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.7 2.59 4.1 3.63.58.25 1.02.4 1.37.51.58.18 1.1.16 1.51.1.46-.07 1.47-.6 1.68-1.18.2-.58.2-1.08.14-1.18-.06-.11-.22-.17-.47-.29z" />
-  </svg>
-);
 
 export default function PassRecordView({
   record, role = null, office = null, decide = null, onRecorded, onClear,
@@ -147,61 +134,12 @@ export default function PassRecordView({
 
   return (
     <section data-testid="pass-record" className="flex flex-col gap-5">
-      {/* THE BELL IS FIXED TO THE VIEWPORT'S TOP-RIGHT CORNER, so a header row
-          with buttons on its right edge sits underneath it — Print Pass was
-          printing under the bell on every wide screen (client, 2026-08-19).
-          76px is the same reservation `.page-header` and the guard skin's
-          `.gb-page-head` already make; this row is not a `.page-header` (it
-          carries its own spacing inside the record's flex column), so it makes
-          the reservation itself. */}
-      <div className="flex flex-wrap items-start justify-between gap-3 pr-[76px]">
-        <div className="min-w-0">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="page-title !mb-0">{pass.type} Gate Pass Details</h1>
-            <Badge style={stage} />
-            {/* ONE "Overdue", never two (client, 2026-08-20). `passStageStyle`
-                already RENAMES a late open pass to Overdue, so this pill is
-                drawn only when the stage badge says something else — a
-                MISMATCHED pass that is also late still carries both facts. */}
-            {pass.is_overdue && stage.label !== OVERDUE_STYLE.label && (
-              <Badge style={OVERDUE_STYLE} />
-            )}
-          </div>
-          <p className="page-subtitle !mb-0 mt-1">
-            {pass.type === 'RGP'
-              ? 'View details of this Returnable Gate Pass'
-              : 'View details of this Non-Returnable Gate Pass'}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* IT OPENS WHATSAPP WITH THE TEXT PREPARED; IT DOES NOT SEND
-              ANYTHING. The HOD picks the chat and presses send themselves —
-              this app has no WhatsApp account and delivers no message on
-              anybody's behalf. `noopener` because it leaves the app. */}
-          {whatsapp && (
-            <a
-              href={whatsapp}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="share-whatsapp"
-              className="btn-secondary inline-flex items-center gap-2"
-            >
-              {WhatsappGlyph}
-              Send to Vendor
-            </a>
-          )}
-          <Link to={`/pass/${pass.id}/print`} className="btn-secondary inline-flex items-center gap-2">
-            {PrinterGlyph}
-            Print Pass
-          </Link>
-          {onClear && (
-            <button type="button" className="btn-ghost" onClick={onClear}>
-              Clear
-            </button>
-          )}
-        </div>
-      </div>
+      <PassRecordHeader
+        pass={pass}
+        stage={stage}
+        whatsapp={whatsapp}
+        onClear={onClear}
+      />
 
       {/* THE OVERRIDE IS STATED ON THE FACE OF THE PASS, permanently and to
           every reader of it — the raising HOD, the offices that were skipped,
@@ -227,6 +165,21 @@ export default function PassRecordView({
 
       <PassRecordSummary pass={pass} gateName={gateName} />
 
+      {/* THE OFFICE HOLDER'S OWN PRESS SITS RIGHT BELOW THE PASS, not at the
+          foot of the record (client, 2026-08-23: "just below the pass, show
+          that approve or reject button — don't show it at the bottom"). An
+          approver lands here from their queue to sign, not to read every
+          material line first; the ladder and the table are still below for
+          whoever wants the full reading, but the decision no longer waits at
+          the end of it. */}
+      <ApprovalDecisionBar
+        pass={pass}
+        approvals={approvals}
+        office={office}
+        decide={decide}
+        onDecided={() => onRecorded?.()}
+      />
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
         <div className="xl:col-span-2 flex flex-col gap-5">
           <PassRecordReturns
@@ -243,30 +196,24 @@ export default function PassRecordView({
         </div>
 
         <div className="flex flex-col gap-5">
-          <PassTimeline steps={steps} activity={activity} returnLines={returnLines} />
+          <PassTimeline
+            steps={steps}
+            activity={activity}
+            returnLines={returnLines}
+            closesAtGate={pass.type !== 'RGP'}
+          />
         </div>
       </div>
 
-      {/* THE ACTION IS AT THE FOOT OF THE RECORD (client, 2026-08-19: "show
-          approve pass at the bottom of the pass details for better
-          visibility"). A guard reads the pass downward — the facts, then every
-          material line, then the ladder — and the press belongs where that
-          reading ends, at full width, not as a small button above the fold.
-          There is exactly ONE of it: a second copy in the header is how a
-          reader ends up pressing the stale one. */}
-      {/* AN OFFICE HOLDER'S OWN PRESS, in the same place and for the same
-          reason (client, 2026-08-19). It can never appear beside the guard's
-          bar above: 046 hides a pass that still owes a signature from the gate
-          entirely, so the two conditions are mutually exclusive in the
+      {/* THE GUARD'S ACTION STAYS AT THE FOOT OF THE RECORD (client,
+          2026-08-19: "show approve pass at the bottom of the pass details for
+          better visibility"). A guard reads the pass downward — the facts,
+          then every material line, then the ladder — and the press belongs
+          where that reading ends. The office holder's own press moved above,
+          beside the summary (client, 2026-08-23); the two still never appear
+          together — 046 hides a pass that still owes a signature from the
+          gate entirely, so the two conditions are mutually exclusive in the
           database, not merely in this component. */}
-      <ApprovalDecisionBar
-        pass={pass}
-        approvals={approvals}
-        office={office}
-        decide={decide}
-        onDecided={() => onRecorded?.()}
-      />
-
       {/* BREAK GLASS — a super admin only, and only while the ladder is still
           owed something (055). It sits BELOW the office's own Approve/Reject so
           that signing properly is always the first thing offered. */}

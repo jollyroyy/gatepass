@@ -149,7 +149,10 @@ describe('the buckets are still disjoint and total', () => {
     const by = Object.fromEntries(cards.map((c) => [c.key, c.value]));
     expect(by.pending).toBe(1);
     expect(by.in_progress).toBe(1);
-    expect(by.completed + by.pending + by.in_progress + by.cancelled).toBe(by.total);
+    // `cancelled` lost its card on 2026-08-23, so the figures plus the
+    // cancelled rows — not the figures alone — cover every row.
+    const cancelled = rows.filter((r) => reportStatusOf(r) === 'cancelled').length;
+    expect(by.completed + by.pending + by.in_progress + cancelled).toBe(by.total);
   });
 
   it('offers the pending bucket on the Status select', () => {

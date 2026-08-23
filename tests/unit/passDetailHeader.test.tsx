@@ -84,7 +84,10 @@ describe('PassDetail header badge', () => {
   it('reads "Closed" for a fully returned RGP, never "Matched"', async () => {
     row = pass({ status: 'matched', return_status: 'returned' });
     renderDetail();
-    await waitFor(() => expect(screen.getByText('Closed')).toBeInTheDocument());
+    // TWICE, and deliberately: the header badge, and the rail's own closing
+    // rung, which took the same word on 2026-08-23 so the end of the pass is
+    // named the same thing in both places a reader looks.
+    await waitFor(() => expect(screen.getAllByText('Closed').length).toBe(2));
     expect(screen.queryByText('Matched')).toBeNull();
   });
 
@@ -98,10 +101,10 @@ describe('PassDetail header badge', () => {
   it('reads "Closed" for an NRGP, whose outward trip IS its end state', async () => {
     row = pass({ type: 'NRGP', return_status: 'not_applicable', actual_return_date: null });
     renderDetail();
-    // ONCE, in the header. The rail beside the record is the approval ladder
-    // now (2026-08-19) and its gate rung is worded as the event — "Cleared by
-    // Security" — not as the pass's resulting state, so the word appears in
-    // exactly one place.
+    // ONCE, in the header: this pass has no recorded gate event, and the
+    // ladder's own gate rung is worded as the event — "Cleared by Security" —
+    // not as the pass's resulting state. The rail says "Closed" only where a
+    // recorded clearance actually ends an NRGP.
     await waitFor(() => expect(screen.getAllByText('Closed').length).toBe(1));
     expect(screen.queryByText('Matched')).toBeNull();
   });

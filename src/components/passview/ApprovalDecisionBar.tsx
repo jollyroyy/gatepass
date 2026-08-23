@@ -170,7 +170,7 @@ export default function ApprovalDecisionBar({
           </button>
           <button
             type="button"
-            className="btn-primary text-base px-6 py-3"
+            className="btn-approve text-base px-6 py-3"
             disabled={busy}
             onClick={() => void decide(() => approvePass(pass.id))}
           >
