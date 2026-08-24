@@ -7,6 +7,7 @@
 import type { NewGatePass, NewGatePassItem, PassType } from '../types';
 import { requiresReturnDate } from './passTypes';
 import { isWholeUnit, wholeUnitError } from './units';
+import { splitMobile } from './mobileNumber';
 
 export type FormErrors = Record<string, string | undefined>;
 
@@ -89,7 +90,15 @@ export function validateRaiseForm(form: NewGatePass, hasDepartment: boolean, tod
   if (!form.visitor_company.trim()) errs.visitor_company = 'Vendor name is required.';
   if (!form.visitor_name.trim()) errs.visitor_name = 'Enter the name of the person who will carry the material.';
 
-  const mobile = form.visitor_phone.replace(/\D/g, '');
+  // THROUGH `splitMobile`, not a bare digit strip. `visitor_phone` is the ONE
+  // string `joinMobile` welds the dial-code select to the number box as
+  // ("+91 9876543210"), so stripping every non-digit counted the country code as
+  // subscriber digits — six digits behind `+91` measured eight and were
+  // accepted, and a genuine fifteen-digit number behind `+971` measured
+  // eighteen and was refused. `splitMobile` is the exact inverse of the
+  // `joinMobile` that built the string, and a number stored before the selector
+  // existed keeps every digit under the default code.
+  const { digits: mobile } = splitMobile(form.visitor_phone);
   if (!form.visitor_phone.trim()) {
     errs.visitor_phone = 'Mobile number is required.';
   } else if (mobile.length < 7 || mobile.length > 15) {
