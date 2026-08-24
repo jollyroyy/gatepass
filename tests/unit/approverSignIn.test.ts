@@ -52,35 +52,43 @@ beforeEach(() => {
 describe('fetchAccessState — an office holder is not a deactivated account', () => {
   it('a `staff` account holding an approval office is active', async () => {
     rpc.mockReturnValue(rpcResponse({ data: OFFICE_HOLDER, error: null }));
-    expect(await fetchAccessState(true)).toEqual({ mustChangePassword: false, isActive: true });
+    expect(await fetchAccessState()).toEqual({ mustChangePassword: false, isActive: true });
   });
 
   // The suspension outranks the office — `is_user_active` is what app_role()
   // reads, so a suspended holder reaches nothing whatever this screen says.
   it('a suspended office holder is still inactive', async () => {
     rpc.mockReturnValue(rpcResponse({ data: { ...OFFICE_HOLDER, is_active: false }, error: null }));
-    expect((await fetchAccessState(true)).isActive).toBe(false);
+    expect((await fetchAccessState()).isActive).toBe(false);
   });
 
-  // A bare `staff` row with no office reaches nothing, exactly as before. It
-  // is NOT reported as a suspension though: App.tsx's role check is what
-  // catches it, with a message that fits the cause ("No Gate Pass Access").
-  it('a bare `staff` row with no office is not called active', async () => {
+  // A bare `staff` row with no office reaches nothing — but that is NOT a
+  // suspension, and this function answers only the suspension question. Saying
+  // false here told every such person "Account Deactivated … an administrator
+  // can reactivate the account", which is a false statement about a database
+  // row that does not exist and sends them chasing the wrong fix. App.tsx's
+  // role check is what catches them, with the sentence that fits the cause.
+  it('a bare `staff` row with no office is active — it is not suspended', async () => {
     rpc.mockReturnValue(rpcResponse({ data: OFFICE_HOLDER, error: null }));
-    expect((await fetchAccessState(false)).isActive).toBe(false);
+    expect((await fetchAccessState()).isActive).toBe(true);
+  });
+
+  it('a suspended `staff` row IS a suspension', async () => {
+    rpc.mockReturnValue(rpcResponse({ data: { ...OFFICE_HOLDER, is_active: false }, error: null }));
+    expect((await fetchAccessState()).isActive).toBe(false);
   });
 
   it('a guard is unaffected — the regression that matters most', async () => {
     rpc.mockReturnValue(rpcResponse({ data: { ...OFFICE_HOLDER, role: 'guard' }, error: null }));
-    expect((await fetchAccessState(false)).isActive).toBe(true);
+    expect((await fetchAccessState()).isActive).toBe(true);
     rpc.mockReturnValue(
       rpcResponse({ data: { ...OFFICE_HOLDER, role: 'guard', is_active: false }, error: null }),
     );
-    expect((await fetchAccessState(false)).isActive).toBe(false);
+    expect((await fetchAccessState()).isActive).toBe(false);
   });
 
   it('no profile row at all is not a suspension', async () => {
     rpc.mockReturnValue(rpcResponse({ data: null, error: null }));
-    expect((await fetchAccessState(false)).isActive).toBe(true);
+    expect((await fetchAccessState()).isActive).toBe(true);
   });
 });

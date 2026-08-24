@@ -136,10 +136,10 @@ export default function App(): React.ReactElement {
       let mustChange = false;
       let active = true;
       try {
-        // The office is part of the question: an office holder's VMS role is
-        // `staff`, and without it every approver reads as a deactivated
-        // account. See fetchAccessState.
-        const access = await fetchAccessState(Boolean(held));
+        // Suspension only. Whether the ROLE has a place in this app is the
+        // separate question the `isForbidden` check below asks, and it has its
+        // own sentence — see fetchAccessState.
+        const access = await fetchAccessState();
         mustChange = access.mustChangePassword;
         active = access.isActive;
       } catch {

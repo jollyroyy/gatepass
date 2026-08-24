@@ -16,7 +16,6 @@
 // `pub().from('profiles')` call reappears.
 import { gp } from '../supabaseClient';
 import type { Profile, UserRole } from '../types';
-import { isDirectoryActive } from './userStatus';
 
 /** Shape the RPCs return: identical to Profile except `role` arrives as text. */
 type ProfileRow = Omit<Profile, 'role'> & { role: string };
@@ -84,30 +83,34 @@ export async function fetchMustChangePassword(): Promise<boolean> {
  * both gate the whole app, so asking for them separately would be two RPCs to
  * answer one question, with the second able to disagree with the first.
  *
- * `isActive` is the DERIVED answer (`isDirectoryActive`), not the raw column:
- * a `staff` row with nothing else going for it is flagged active and still
- * reaches nothing.
+ * `isActive` IS THE SUSPENSION AND NOTHING ELSE: `is_active === false`, the row
+ * migration 040 writes when an admin stops an account. It is deliberately NOT
+ * `isDirectoryActive`, which folds in "this role has no place in this app" —
+ * a second, unrelated fact that the admin DIRECTORY needs in one column and
+ * this gate must not confuse with a suspension.
  *
- * `hasOffice` is load-bearing and is why this takes an argument at all. An
- * approval office holder (046) is created as VMS `staff` — the role for "does
- * not use VMS" — and their `gatepass.approval_roles` row is what grants them
- * their route and their queue. Asked `isAccountActive`, this said false about
- * all four offices, so every one of them was shown "Account Deactivated" and
- * none could sign in to anything, with no suspension anywhere in the database.
+ * Folding them together made App.tsx tell every VMS `staff` account "Account
+ * Deactivated … your role and department are unchanged, an administrator can
+ * reactivate the account" — a false statement about a `user_status` row that
+ * was never written, and one that sends the reader to ask for the wrong fix.
+ * It also made the role branch of `NoAccess` unreachable. App.tsx's own role
+ * check is what catches somebody with no place here, and it says so plainly:
+ * "No Gate Pass Access".
+ *
+ * An absent row means active — 040 writes one only for somebody actually
+ * suspended — and so does no profile row at all.
  *
  * Throws on a failed lookup. App.tsx decides to fail open on that, not this
  * file — being unable to reach the database is not proof anybody is suspended.
  */
-export async function fetchAccessState(hasOffice = false): Promise<{
+export async function fetchAccessState(): Promise<{
   mustChangePassword: boolean;
   isActive: boolean;
 }> {
   const profile = await fetchMyProfile();
   return {
     mustChangePassword: Boolean(profile?.must_change_password),
-    // No profile row at all is not a suspension — the role check in App.tsx is
-    // what turns that into NoAccess, with a message that fits the cause.
-    isActive: profile ? isDirectoryActive(profile.role, profile.is_active, hasOffice) : true,
+    isActive: profile?.is_active !== false,
   };
 }
 

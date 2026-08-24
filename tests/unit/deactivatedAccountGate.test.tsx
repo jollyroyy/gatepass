@@ -135,6 +135,42 @@ describe('App — deactivated account gate', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Search Pass' })).toBeInTheDocument());
   });
 
+  // The two reasons a signed-in person reaches NoAccess are DIFFERENT, and the
+  // screen says different things about them. A VMS `staff` account was never
+  // suspended by anybody, so telling them an administrator deactivated it — and
+  // that an administrator can reactivate it — is simply untrue, and it hid the
+  // role branch of NoAccess entirely. See fetchAccessState in lib/profiles.
+  it('a `staff` account reads No Gate Pass Access, NOT Account Deactivated', async () => {
+    getUserRole.mockResolvedValue('staff');
+    fetchAccessState.mockResolvedValue({ mustChangePassword: false, isActive: true });
+
+    render(
+      <MemoryRouter initialEntries={['/console']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'No Gate Pass Access' })).toBeInTheDocument()
+    );
+    expect(screen.queryByRole('heading', { name: 'Account Deactivated' })).not.toBeInTheDocument();
+  });
+
+  it('a SUSPENDED `staff` account still reads Account Deactivated', async () => {
+    getUserRole.mockResolvedValue('staff');
+    fetchAccessState.mockResolvedValue({ mustChangePassword: false, isActive: false });
+
+    render(
+      <MemoryRouter initialEntries={['/console']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Account Deactivated' })).toBeInTheDocument()
+    );
+  });
+
   it('the forced password change still outranks it', async () => {
     fetchAccessState.mockResolvedValue({ mustChangePassword: true, isActive: true });
 
