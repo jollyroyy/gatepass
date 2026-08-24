@@ -117,10 +117,14 @@ function item(over: Record<string, unknown>): unknown {
   };
 }
 
+// `or` and `range` are part of the chain now: the approvals reads filter
+// server-side and PAGE, because PostgREST caps a response at 1000 rows without
+// saying so and the newest requests were falling off the end of the queue.
+// See src/lib/fetchAllRows.ts.
 function builder(table: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const obj: any = {};
-  for (const m of ['select', 'order', 'limit', 'lte', 'lt', 'gte', 'in', 'ilike']) obj[m] = () => obj;
+  for (const m of ['select', 'order', 'limit', 'lte', 'lt', 'gte', 'in', 'ilike', 'or', 'range']) obj[m] = () => obj;
   obj.eq = (col: string) => {
     if (table === 'v_gate_passes' && col === 'status') return obj;
     return obj;

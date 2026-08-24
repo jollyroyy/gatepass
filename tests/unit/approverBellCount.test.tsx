@@ -29,6 +29,13 @@ function table(name: string) {
   q.is = () => q;
   q.order = () => q;
   q.in = () => q;
+  // `or` and `range` are part of the chain now: the bell's read filters
+  // server-side and PAGES, because PostgREST caps a response at 1000 rows
+  // without saying so and the newest requests were falling off the end — the
+  // badge then reported "nothing waiting" over a full queue. See
+  // src/lib/fetchAllRows.ts.
+  q.or = () => q;
+  q.range = () => q;
   q.then = (fn: (r: unknown) => unknown) => Promise.resolve(res).then(fn);
   return q;
 }

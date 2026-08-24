@@ -16,6 +16,21 @@
 // first read to what this reader may see, so `.in('id', …)` narrows a query
 // rather than deciding access — the policies still do that.
 //
+// BOTH READS ARE FILTERED SERVER-SIDE AND PAGED, and that is not tidiness.
+// PostgREST caps a response at 1000 rows and says nothing about it. The first
+// read used to ask for EVERY approval row this reader may see and narrow it in
+// TypeScript, so once the four offices had written more than a thousand rows
+// between them the newest ones fell off the end of the page — and a gate pass
+// routed to an office simply never appeared in that office's queue. Measured on
+// 2026-08-24: 1124 rows readable, 1000 returned, the most recently routed row
+// absent, and "Nothing is waiting on your signature" printed over 231 pending
+// requests. A request nobody can see is a request nobody signs.
+//
+// So the `role_key = my office OR decided_by = me` rule that
+// `passIdsOnMyLadder` expresses is now ALSO stated to the server, and
+// `fetchAllRows` keeps asking until a page comes back short. The client-side
+// narrowing stays: it is what turns rows into ids, and it is unit-tested.
+//
 // THE SIGNED-IN UID IS PART OF THE ANSWER: a decision is a fact about the
 // person who pressed the button, not about the office, so `decidedByMe` needs
 // it. It is resolved once, defensively — a failure leaves the two history
@@ -31,6 +46,7 @@ import type { GatePassView } from '../types';
 import type { PassApproval } from './pendingApprovals';
 import { passIdsOnMyLadder } from './approvalHistory';
 import { safeErrorMessage } from './errors';
+import { fetchAllRows } from './fetchAllRows';
 
 export interface PendingApprovalsData {
   passes: GatePassView[];
@@ -73,9 +89,14 @@ export function usePendingApprovals(office: string | null): PendingApprovalsData
         }
         setUserId(uid);
 
-        const approvalRes = await gp().from('pass_approvals').select('*');
-        if (approvalRes.error) throw approvalRes.error;
-        const rows = (approvalRes.data as PassApproval[] | null) ?? [];
+        // `or(...)` mirrors passIdsOnMyLadder exactly. The `decided_by` arm is
+        // dropped when the uid did not resolve, rather than sent as a filter on
+        // the string "null" — which PostgREST would read as a literal.
+        const mine = uid
+          ? `role_key.eq.${office},decided_by.eq.${uid}`
+          : `role_key.eq.${office}`;
+        const rows = await fetchAllRows<PassApproval>((from, to) =>
+          gp().from('pass_approvals').select('*').or(mine).range(from, to));
         setApprovals(rows);
 
         const ids = passIdsOnMyLadder(rows, uid, office);
@@ -86,9 +107,18 @@ export function usePendingApprovals(office: string | null): PendingApprovalsData
           setError(null);
           return;
         }
-        const passRes = await gp().from('v_gate_passes').select('*').in('id', ids);
-        if (passRes.error) throw passRes.error;
-        setPasses((passRes.data as GatePassView[] | null) ?? []);
+        // Chunked, for the same reason: `.in('id', …)` is still one response
+        // and still capped, so a thousand-pass office would lose the tail.
+        // 500 ids is roughly 18KB of URL, comfortably inside the request line
+        // limit, and each chunk is itself paged.
+        const CHUNK = 500;
+        const found: GatePassView[] = [];
+        for (let i = 0; i < ids.length; i += CHUNK) {
+          const slice = ids.slice(i, i + CHUNK);
+          found.push(...await fetchAllRows<GatePassView>((from, to) =>
+            gp().from('v_gate_passes').select('*').in('id', slice).range(from, to)));
+        }
+        setPasses(found);
         setError(null);
       } catch (err) {
         setError(safeErrorMessage(err));

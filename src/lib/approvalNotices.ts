@@ -23,6 +23,7 @@
 // database no longer answers with it.
 import { useEffect } from 'react';
 import { gp } from '../supabaseClient';
+import { fetchAllRows } from './fetchAllRows';
 import type { GatePassView } from '../types';
 import type { ApprovalRoleKey } from './approvalLadder';
 import { APPROVAL_ROLE_TITLES } from './approvalLadder';
@@ -63,7 +64,14 @@ export function buildApprovalNotices(
 
 /** The read behind the badge. Two queries, narrowed by id — the same shape
  *  `usePendingApprovals` uses, and for the same reason: RLS scopes the first
- *  one, so `.in('id', …)` narrows a query rather than deciding access. */
+ *  one, so `.in('id', …)` narrows a query rather than deciding access.
+ *
+ *  AND FILTERED SERVER-SIDE AND PAGED, for the same reason as well. PostgREST
+ *  caps a response at 1000 rows without saying so, and the four offices had
+ *  written more than that between them — so the newest approvals fell off the
+ *  end of the page and the bell went quiet about exactly the requests that had
+ *  just arrived. A badge that under-counts is worse than no badge: it is an
+ *  assurance that nothing is waiting. */
 export function useApprovalNotices(
   office: ApprovalRoleKey | null,
   onFact: (fact: ApprovalNoticeFact) => void,
@@ -74,15 +82,23 @@ export function useApprovalNotices(
 
     void (async () => {
       try {
-        const approvalRes = await gp().from('pass_approvals').select('*');
-        if (cancelled || approvalRes.error) return;
-        const rows = (approvalRes.data as PassApproval[] | null) ?? [];
-        const ids = [...new Set(rows.filter((r) => r.status === 'pending').map((r) => r.gate_pass_id))];
+        // Only this office's rungs, and only the ones still owing a decision:
+        // the bell speaks about what is waiting, and nothing else.
+        const rows = await fetchAllRows<PassApproval>((from, to) =>
+          gp().from('pass_approvals').select('*')
+            .eq('role_key', office).eq('status', 'pending').range(from, to));
+        if (cancelled) return;
+        const ids = [...new Set(rows.map((r) => r.gate_pass_id))];
         if (ids.length === 0) return;
 
-        const passRes = await gp().from('v_gate_passes').select('*').in('id', ids);
-        if (cancelled || passRes.error) return;
-        const passes = (passRes.data as GatePassView[] | null) ?? [];
+        const CHUNK = 500;
+        const passes: GatePassView[] = [];
+        for (let i = 0; i < ids.length; i += CHUNK) {
+          const slice = ids.slice(i, i + CHUNK);
+          passes.push(...await fetchAllRows<GatePassView>((from, to) =>
+            gp().from('v_gate_passes').select('*').in('id', slice).range(from, to)));
+        }
+        if (cancelled) return;
         for (const fact of buildApprovalNotices(passes, rows, office)) onFact(fact);
       } catch {
         // The bell is an aid, never a gate. A failed read leaves it silent
