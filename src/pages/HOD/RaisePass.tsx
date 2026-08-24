@@ -262,7 +262,19 @@ export default function RaisePass(): React.ReactElement {
 
   return (
     <div>
-      <form onSubmit={handleSubmit} className="rp-sheet">
+      {/* `noValidate`, exactly as `DelegationForm` does it. Three controls in
+          this form carry native constraints — quantity's `min`/`step`, the
+          value box's `min="0"`, and the return date's `min={todayStr()}` — and
+          the browser's own constraint validation runs BEFORE `onSubmit`. So a
+          quantity of 0, a negative value, a past return date and a fractional
+          quantity on a whole unit were all stopped by a native bubble, and
+          `validateRaiseForm`'s own sentences for them never rendered: the
+          unit-aware "Numbers cannot be split — enter 2 or 3." was unreachable
+          from the UI entirely. Every one of those constraints has a JS
+          equivalent in `raisePassForm.ts`, so nothing is admitted that was
+          refused before — the refusal now speaks the app's language and appears
+          under the field it belongs to. */}
+      <form onSubmit={handleSubmit} className="rp-sheet" noValidate>
         <div className="rp-head">
           <h1 className="rp-title">{sourceId ? 'Raise Gate Pass Again' : 'Raise Gate Pass'}</h1>
           <p className="rp-subtitle">Fill in the details to raise a new gate pass request.</p>
