@@ -24,7 +24,7 @@ import React, { useState } from 'react';
 import { gp } from '../../supabaseClient';
 import type { Profile } from '../../types';
 import { safeErrorMessage } from '../../lib/errors';
-import { nameError } from '../../lib/nameValidation';
+import { personNameError } from '../../lib/nameValidation';
 import ModalShell from '../../components/ModalShell';
 import ResetPasswordSection from './ResetPasswordSection';
 import {
@@ -85,7 +85,7 @@ export default function EditUserModal({
     : undefined;
 
   async function handleSave() {
-    const err = nameError(name, 'Name');
+    const err = personNameError(name, 'Name');
     setNameErr(err);
     if (err) return;
     const nm = name.trim();

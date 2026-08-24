@@ -16,7 +16,7 @@
 import React, { useState } from 'react';
 import { gp } from '../../supabaseClient';
 import { safeErrorMessage } from '../../lib/errors';
-import { nameError } from '../../lib/nameValidation';
+import { personNameError } from '../../lib/nameValidation';
 import ModalShell from '../../components/ModalShell';
 import { CREATABLE_ROLES, isApprovalOffice, type CreatableRole } from '../../lib/userStatus';
 import { APPROVAL_ROLE_TITLES, type ApprovalRoleRow } from '../../lib/approvalLadder';
@@ -54,7 +54,7 @@ export default function AddUserModal({
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    const err = nameError(name, 'Name');
+    const err = personNameError(name, 'Name');
     setNameErr(err);
     if (err) return;
     const em = email.trim();
