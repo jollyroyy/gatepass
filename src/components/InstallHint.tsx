@@ -44,7 +44,7 @@ export default function InstallHint(): React.ReactElement | null {
   if (isStandalone()) return null;
 
   return (
-    <div className="no-print mt-4 text-[11px]" style={{ color: PALE_DIM, textShadow: SHADOW }}>
+    <div className="no-print mt-4 text-[15px]" style={{ color: PALE_DIM, textShadow: SHADOW }}>
       {canPrompt ? (
         <button
           type="button"
@@ -52,7 +52,7 @@ export default function InstallHint(): React.ReactElement | null {
           className="inline-flex items-center gap-1.5 underline underline-offset-2"
           style={{ color: PALE }}
         >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0 3.75-3.75M12 15l-3.75-3.75M4.5 15.75V18a2.25 2.25 0 0 0 2.25 2.25h10.5A2.25 2.25 0 0 0 19.5 18v-2.25" />
           </svg>
           Install app on this device
@@ -65,7 +65,7 @@ export default function InstallHint(): React.ReactElement | null {
           className="inline-flex items-center gap-1.5 underline underline-offset-2"
           style={{ color: PALE }}
         >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0 3.75-3.75M12 15l-3.75-3.75M4.5 15.75V18a2.25 2.25 0 0 0 2.25 2.25h10.5A2.25 2.25 0 0 0 19.5 18v-2.25" />
           </svg>
           Install this app on your phone

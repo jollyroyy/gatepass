@@ -31,6 +31,19 @@ export type InstallOutcome = 'accepted' | 'dismissed' | 'unavailable';
 
 export const INSTALL_DISMISSED_KEY = 'gatepass:install-dismissed';
 
+/** Set once we have evidence the app IS on this device. Kept so that the next
+ *  `beforeinstallprompt` can be read for what it is — Chromium fires it only
+ *  for an origin with no installed app, so seeing one after this marker means
+ *  somebody uninstalled us. */
+export const INSTALL_INSTALLED_KEY = 'gatepass:install-installed';
+
+/** How long "Not now" lasts. A dismissal used to be permanent, which on a
+ *  shared handset meant one tap silenced the offer for good — and survived an
+ *  uninstall, so a phone with no icon was never asked again. A week is long
+ *  enough not to nag and short enough that a device that lost the app gets
+ *  offered it back. */
+export const INSTALL_REOFFER_DAYS = 7;
+
 let deferred: InstallPromptEvent | null = null;
 const listeners = new Set<() => void>();
 
@@ -52,16 +65,37 @@ export function captureInstallPrompt(): void {
   if (attached) return;
   if (typeof window === 'undefined') return;
 
+  // Running from the home screen is the only proof iOS ever gives that the app
+  // was installed — Safari fires no `appinstalled` — and it is recorded on
+  // every standalone launch so the uninstall test below has something to
+  // compare against.
+  if (isStandalone()) rememberInstalled();
+
   const before = (event: Event) => {
     // Without this Chrome may show its own UI on some surfaces, and the event
     // is not retained for us to use later.
     event.preventDefault();
+    // THE EVENT IS ALSO AN UNINSTALL SIGNAL. A browser that has this app
+    // installed does not offer to install it, so an event arriving after we
+    // have seen it installed says the icon is gone from the phone. Whatever
+    // "Not now" was said while it was still there no longer applies.
+    if (wasInstalled()) {
+      forgetInstalled();
+      clearInstallDismissal();
+    }
     deferred = event as InstallPromptEvent;
     announce();
   };
   // Installed from our button or from the browser's own menu — either way there
   // is nothing left to offer, and the banner must go immediately.
-  const installed = () => { deferred = null; announce(); };
+  const installed = () => {
+    rememberInstalled();
+    // Nothing is being refused any more, and leaving the record would outlive
+    // the install and suppress the offer after a later uninstall.
+    clearInstallDismissal();
+    deferred = null;
+    announce();
+  };
 
   window.addEventListener('beforeinstallprompt', before);
   window.addEventListener('appinstalled', installed);
@@ -136,8 +170,38 @@ export function isIosDevice(
   return /macintosh/i.test(ua) && touchPoints > 1;
 }
 
+/**
+ * Has this person recently said no?
+ *
+ * TIME-BOXED, NOT PERMANENT. The stored value is the moment of the refusal;
+ * once it is older than `INSTALL_REOFFER_DAYS` the offer comes back on its own.
+ * That window is the ONLY re-offer mechanism on iOS, which reports neither an
+ * install nor an uninstall. A value that cannot be parsed is honoured rather
+ * than ignored — a dismissal wrongly kept is quiet, one wrongly dropped nags.
+ */
 export function installDismissed(): boolean {
-  try { return window.localStorage.getItem(INSTALL_DISMISSED_KEY) !== null; } catch { return false; }
+  let raw: string | null = null;
+  try { raw = window.localStorage.getItem(INSTALL_DISMISSED_KEY); } catch { return false; }
+  if (raw === null) return false;
+  const at = Date.parse(raw);
+  if (Number.isNaN(at)) return true;
+  return Date.now() - at < INSTALL_REOFFER_DAYS * 24 * 60 * 60 * 1000;
+}
+
+export function clearInstallDismissal(): void {
+  try { window.localStorage.removeItem(INSTALL_DISMISSED_KEY); } catch { /* denied */ }
+}
+
+function rememberInstalled(): void {
+  try { window.localStorage.setItem(INSTALL_INSTALLED_KEY, new Date().toISOString()); } catch { /* denied */ }
+}
+
+function wasInstalled(): boolean {
+  try { return window.localStorage.getItem(INSTALL_INSTALLED_KEY) !== null; } catch { return false; }
+}
+
+function forgetInstalled(): void {
+  try { window.localStorage.removeItem(INSTALL_INSTALLED_KEY); } catch { /* denied */ }
 }
 
 /** Remembered rather than held in state: the banner would otherwise return on

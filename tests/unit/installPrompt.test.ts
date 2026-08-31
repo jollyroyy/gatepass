@@ -23,6 +23,8 @@ import {
   installDismissed,
   dismissInstall,
   INSTALL_DISMISSED_KEY,
+  INSTALL_INSTALLED_KEY,
+  INSTALL_REOFFER_DAYS,
   __resetInstallPromptForTests,
 } from '../../src/lib/installPrompt';
 
@@ -166,5 +168,66 @@ describe('dismissal', () => {
     window.localStorage.setItem = () => { throw new Error('denied'); };
     expect(() => dismissInstall()).not.toThrow();
     window.localStorage.setItem = original;
+  });
+});
+
+// ── The offer has to come BACK ──────────────────────────────────────────────
+//
+// A dismissal used to be forever: one "Not now" on a borrowed handset and the
+// app never asked again, on any screen, for the life of that browser profile.
+// Worse, UNINSTALLING the app left that record in place — the phone had no
+// icon and the site had stopped offering to give it one.
+//
+// Two mechanisms, because the platforms answer differently. Chromium tells us
+// the truth: it fires `beforeinstallprompt` only for an origin that is NOT
+// installed, so that event arriving after we have seen the app running
+// standalone IS the uninstall, and the dismissal is dropped on the spot. iOS
+// says nothing ever, so the dismissal simply goes stale after a week.
+describe('the dismissal expires, and an uninstall cancels it outright', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it('holds for a few days', () => {
+    window.localStorage.setItem(INSTALL_DISMISSED_KEY, new Date(Date.now() - 2 * DAY).toISOString());
+    expect(installDismissed()).toBe(true);
+  });
+
+  it('lapses once it is older than the re-offer window', () => {
+    window.localStorage.setItem(
+      INSTALL_DISMISSED_KEY,
+      new Date(Date.now() - (INSTALL_REOFFER_DAYS + 1) * DAY).toISOString(),
+    );
+    expect(installDismissed()).toBe(false);
+  });
+
+  it('honours a record it cannot read rather than nagging on bad data', () => {
+    window.localStorage.setItem(INSTALL_DISMISSED_KEY, 'x');
+    expect(installDismissed()).toBe(true);
+  });
+
+  it('forgets the dismissal the moment the app is installed', () => {
+    dismissInstall();
+    window.dispatchEvent(new Event('appinstalled'));
+    expect(window.localStorage.getItem(INSTALL_DISMISSED_KEY)).toBeNull();
+    expect(window.localStorage.getItem(INSTALL_INSTALLED_KEY)).toBeTruthy();
+  });
+
+  it('re-offers immediately when an installed app is uninstalled', () => {
+    // Installed, then told never to ask again while it was on the phone.
+    window.dispatchEvent(new Event('appinstalled'));
+    dismissInstall();
+    expect(installDismissed()).toBe(true);
+
+    // Chrome only fires this for an origin with no app on the device.
+    fireBeforeInstallPrompt();
+    expect(installDismissed()).toBe(false);
+    expect(window.localStorage.getItem(INSTALL_INSTALLED_KEY)).toBeNull();
+  });
+
+  it('counts a standalone launch as proof of installation, since iOS fires no event', () => {
+    __resetInstallPromptForTests();
+    (window as any).matchMedia = (q: string) => ({ matches: q.includes('standalone'), media: q, addEventListener() {}, removeEventListener() {} });
+    captureInstallPrompt();
+    expect(window.localStorage.getItem(INSTALL_INSTALLED_KEY)).toBeTruthy();
+    delete (window as any).matchMedia;
   });
 });

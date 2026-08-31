@@ -4448,3 +4448,35 @@ that 404s the bundle, the guard fires `asset-error`, reloads exactly once, and d
 
 `vercel.json` still marks `/assets/*` immutable for a year — Vercel's header rules cannot be
 conditioned on status, and the caching is worth having. The mitigation is the two layers above.
+
+## 2026-08-31 — The install offer asks, expires, and returns after an uninstall
+
+**Client:** "can we also automatically add it to home screen of the phone … make sure even after
+uninstallation it again prompts for installation … make the installation text bit bigger by 2 size
+… a pop up should also show when it's not installed on the device". The handsets are personal, not
+company-owned, so the managed route (Android Enterprise / Intune `WebAppInstallForceList`, which
+IS silent) is not available.
+
+**No browser installs a web app without consent, and none will.** There is no API that puts an icon
+on a home screen unattended; Chromium requires a user gesture behind `prompt()` and iOS requires the
+person to perform the Share-sheet gesture themselves. Everything below is the nearest honest thing.
+
+- `src/components/InstallModal.tsx` (new, mounted in `AppShell` beside the banner) — on a PHONE
+  (`installGuidance().mobile`) that is not running standalone and has not recently refused, the
+  offer appears in front of the screen: the native dialog behind **Install app** on Chromium, the
+  Share-sheet sentence on iOS, `manualInstallHint()` everywhere else. Desktop keeps the banner
+  alone — there is no home screen to add to and a modal there is an interruption with nothing
+  behind it. Every exit (Install, Not now, Escape, backdrop, ✕) records the dismissal.
+- `installDismissed()` is now **time-boxed** — `INSTALL_REOFFER_DAYS = 7`. It used to be permanent,
+  so one "Not now" silenced the app for the life of the browser profile, and it survived an
+  uninstall: a phone with no icon was never asked again. An unparseable value is still honoured.
+- **An uninstall cancels the dismissal outright.** `appinstalled` writes `INSTALL_INSTALLED_KEY`
+  (and a standalone launch does too, since iOS fires no event); a later `beforeinstallprompt` —
+  which Chromium sends ONLY for an origin with no app on the device — is read as the uninstall, and
+  clears both the marker and the refusal. iOS has no such signal, so there the 7-day lapse is the
+  whole mechanism.
+- Text up two steps: banner `text-sm` → `text-lg` (title, body, both buttons), its icons
+  `w-5` → `w-6`; `InstallHint` `text-[11px]` → `text-[15px]`.
+
+**Gate:** `npm run check`. New `tests/unit/installModal.test.tsx` (9); `installPrompt.test.ts`
+gains the expiry/uninstall group. The uninstall arm was confirmed to fail with the branch disabled.
