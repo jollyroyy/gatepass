@@ -6,6 +6,91 @@ For current rules and architecture, see CLAUDE.md.
 
 ## Current state (session-by-session history)
 
+## 2026-08-31 (latest) — a delegation actually moves the rung, COO ↔ CEO included (`072`, APPLIED)
+
+Client: *"whenever any delegation of approval is created in either ceo/coo, it should appropriately
+go to the respective approver. I can see it's still going to coo for approval when he is on absence
+and has raised delegation for a particular time period, same for ceo."*
+
+### The bug, reproduced against production before anything was written
+
+`gatepass.my_approval_role()` was `returns text` — a **scalar** — over a two-arm `union all` (the
+office you hold; the office you cover under a live delegation). Every seat refusal in `049`, `062`
+and `066` existed to keep that query single-valued. **`067` skipped the refusal for the COO/CEO pair
+on purpose** and did not carry the scalarity. A `language sql` scalar over a multi-row body does not
+error — Postgres returns the first row and discards the rest.
+
+Live state on the day: the sitting CEO held `ceo` **and** was the live delegate of `coo`. The two
+arms returned two rows; `my_approval_role()` answered `ceo`. So `pass_routed_to_me` matched only
+`ceo`, `approve_pass_level` resolved `ceo`, hit `063`'s escalation gate, and refused. Probed with a
+real `authenticated` JWT for the CEO against pass `RGP-QMS-0009` (level 3, both rows pending):
+
+```
+ERROR: This pass is with the COO until 02 Sep 2026 13:23. It escalates to the CEO
+       only if they have not decided it by then.
+```
+
+Verified, not inferred. Both probes ran inside `begin … rollback`.
+
+### The fix — authority is a set, identity is a scalar
+
+`049`'s own comment had already named the work. `072`:
+
+- **`my_approval_roles()`** — `setof text`, holder arm first, both arms still gated on
+  `is_user_active` (040). **The authority test.**
+- **`my_approval_role()`** — the first of those. Identity only: routes, the title under a name, the
+  Delegation tab (`create_approval_delegation` gates on holding the office yourself anyway).
+- **`my_acting_role(pass, respect_escalation)`** — which of my offices may act on *this* pass:
+  lowest open rung, `063`'s window respected, **a covered office preferred over my own** on a shared
+  rung. Deliberately ungranted — only the two decision RPCs call it.
+- `pass_routed_to_me` matches on **membership**; `approve_pass_level` / `reject_pass_level` resolve
+  per pass, and reject passes `false` for the window (`063`'s rule, unchanged).
+
+**Why a covered office wins a tie.** It can only happen on level 3. Signing as the absent office
+clears the rung with no window to wait out, and `063`'s sibling-close writes the other row off as
+`not_required` in the same statement. One signature either way — four-eyes untouched.
+
+### And the two readers that were still naming the absent holder
+
+- `approval_notice_payload` addresses each level to the **live delegate**, then the current holder
+  (051), then `routed_to`. 051's argument verbatim; it just never considered a delegation.
+- `get_approval_ladder()` gained `acting_user_id` / `acting_name` / `delegated` (dropped and
+  recreated — a return type cannot be replaced). The **holder columns never move**: an admin seating
+  an office reads those. The "Waiting with" strip now prints `Sid (for Sudeshna Pal)`.
+
+**Not touched, deliberately:** `holds_fallback_office()` (067), `raise_pass`'s admission of the pair
+(069) and the CEO's whitelist decision (053) still read `approval_roles` alone. A delegation hands
+over a rung on the ladder, not the emergency door.
+
+### Client
+
+`ActingOffices` in `approvalDecision.ts` is one office, several, or none — `myStep`,
+`canDecideApproval`, `heldByOffice`, `inMyQueue` all take it, and a bare key still reads as it did.
+`App.tsx` resolves `offices` (`fetchMyApprovalOffices` → `my_approval_roles`) and derives `office =
+offices[0]`; `office` is who you ARE and travels to routes, the sidebar, the Delegation tab and the
+emergency bar, `offices` is what you may sign and travels to the queue, the bell and
+`ApprovalDecisionBar`. The bar's heading now names **the rung's** office, not the reader's — a CEO
+covering a COO is told they are signing as COO. `usePendingApprovals` filters `role_key.in.(…)`;
+both hooks key their effects on the joined string, because a fresh array every render is a fresh
+paged read every render.
+
+### Verification
+
+- Rolled-back probe as the CEO: `my_approval_roles()` → `{ceo,coo}`, `pass_routed_to_me` → true,
+  `approve_pass_level` succeeded, and the record read `coo: approved, decided_as_delegate = t` with
+  `ceo: not_required — level 3 was approved by the COO`.
+- **Applied to production** with `psql --single-transaction`, then re-verified live: offices
+  `{ceo,coo}`, identity `ceo`, ladder `coo held=Questmallcoo acting=CEO delegated=true`.
+- `npm run check` — 2314 tests, all passing. New: `tests/unit/delegatedSharedRung.test.ts`,
+  three cases in `tests/unit/waitingWith.test.ts`, a `072` block in `sqlInvariants.test.ts`. The
+  superseded assertions in the 046/051/061/062/063/068 blocks were retargeted, not deleted.
+
+### Known gap
+
+`get_approval_ladder()`'s extra columns are additive, so the currently deployed bundle keeps working
+against the new function. Nothing sends a delegate a letter when a window OPENS — there is still no
+scheduler on this deployment (the same reason expiry is derived at query time).
+
 ## 2026-08-31 (same day, follow-up) — every mobile browser, and the sign-in screen
 
 **Client, twice.** "Make sure it's followed across all mobile browsers." Then: "Still unable to

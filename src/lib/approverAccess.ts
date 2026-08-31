@@ -27,26 +27,41 @@ import type { ApprovalRoleKey } from './approvalLadder';
 // not pull a live Supabase client in behind it.
 
 /**
- * The office this user holds, or null.
+ * EVERY OFFICE THIS USER MAY ACT FOR — none, one, or (since 067 let the COO and
+ * the CEO cover each other) two.
  *
  * A FAILURE IS "NO OFFICE", not an error: the RPC is called during the same
  * resolution that decides whether the app renders at all, and a dropped packet
- * must not lock a guard out of their own dashboard. The cost is that a genuine
- * outage hides an approver's queue — which is visible and recoverable, where
- * the alternative is an app that refuses to load.
+ * must not lock a guard out of their own dashboard. The cost is stated plainly —
+ * a genuine outage hides an approver's queue, which is visible and recoverable,
+ * where the alternative is an app that refuses to load.
+ *
+ * ⚠ `my_approval_roles()` (072) AND NOT `my_approval_role()`. The scalar is the
+ * caller's IDENTITY — which office they are, for a title and a Delegation tab —
+ * and it silently dropped the second row for the one person who had two. What
+ * may be SIGNED is this list; see `ActingOffices` in `approvalDecision.ts`.
  */
-export async function fetchMyApprovalRole(): Promise<ApprovalRoleKey | null> {
+export async function fetchMyApprovalOffices(): Promise<ApprovalRoleKey[]> {
   try {
-    const { data, error } = await gp().rpc('my_approval_role');
-    if (error) return null;
-    // ONLY A NON-EMPTY STRING IS AN OFFICE. `my_approval_role()` returns a text
-    // scalar, so anything else — null, an empty string, or the `[]` PostgREST
-    // hands back for a shape this client did not expect — means "no office".
-    // That became load-bearing on 2026-08-22, when holding an office started
-    // REPLACING the role's access (roleRoutes.ts): a truthy non-answer would
-    // strip a guard of every gate screen and leave them on an empty queue.
-    return typeof data === 'string' && data.length > 0 ? (data as ApprovalRoleKey) : null;
+    const { data, error } = await gp().rpc('my_approval_roles');
+    if (error) return [];
+    // A SETOF text RPC arrives as an array of scalars. Anything else — null, a
+    // bare string, the `{}` PostgREST hands back for a shape this client did
+    // not expect — means "no office", and that became load-bearing on
+    // 2026-08-22 when holding an office started REPLACING the role's access
+    // (roleRoutes.ts): a truthy non-answer would strip a guard of every gate
+    // screen and leave them on an empty queue.
+    if (!Array.isArray(data)) return [];
+    return data.filter((r): r is ApprovalRoleKey => typeof r === 'string' && r.length > 0);
   } catch {
-    return null;
+    return [];
   }
+}
+
+/** The office this person IS — the first of the above, mirroring
+ *  `gatepass.my_approval_role()`'s own "holder first, else what I am covering"
+ *  order. Routes, the title under a name, and the Delegation tab read this;
+ *  nothing that decides whether a press is allowed may. */
+export function primaryOffice(offices: ApprovalRoleKey[]): ApprovalRoleKey | null {
+  return offices[0] ?? null;
 }

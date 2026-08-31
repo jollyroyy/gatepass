@@ -96,6 +96,22 @@ takes ONE signature. Every other office delegates only to an active HOD holding 
 `approval_office_pair()` is the rule; the one-seat refusal is skipped for that pair alone, and only
 because covering a shared rung cannot put two signatures on one pass.
 
+**AUTHORITY IS A SET, IDENTITY IS A SCALAR** (`072`). Because of the line above, one person can hold
+an office AND cover the other half of level 3, so `my_approval_role()` — `returns text` over a
+two-arm union — silently dropped the covered one (a `language sql` scalar returns the FIRST row, no
+error) and the pass sat with an approver who had declared themselves away. **Nothing that authorises
+a press may read that scalar.** `my_approval_roles()` (setof, holder arm first) is the authority
+test — `pass_routed_to_me` matches on membership; `my_acting_role(pass, respect_escalation)` picks
+which of them may act on ONE pass (lowest open rung, 063's window respected unless a REJECTION asks
+it not to be, a covered office preferred over your own on a shared rung) and is deliberately
+ungranted. `my_approval_role()` survives as identity alone: routes, the title under a name, and the
+Delegation tab. On the client, `ActingOffices` (`approvalDecision.ts`) is one office or several, and
+`office` (who you ARE) travels beside `offices` (what you may sign) — `App.tsx` resolves both.
+The letter (`approval_notice_payload`) and the "Waiting with" strip (`get_approval_ladder`'s
+`acting_*` columns) address the live DELEGATE, for 051's reason. A delegation hands over a rung on
+the ladder and NOT the emergency door: `holds_fallback_office()` (067), `raise_pass` (069) and the
+CEO's whitelist decision (053) still read `approval_roles` alone.
+
 **An approval office replaces a role's routes, not adds to them** (`officeReplacesRole` in
 `roleRoutes.ts`): an office holder gets `APPROVER_ROUTES` only — "Pending for My Approval" and
 "Delegation" — never their VMS role's screens. Admin/super_admin are exempt (an admin who lost

@@ -61,6 +61,11 @@ type Props = {
    *  not a role — see approverAccess.ts — so it travels beside one, and it is
    *  what decides whether the Approve / Reject bar is drawn at the foot. */
   office?: ApprovalRoleKey | null;
+  /** EVERY office the reader may act for — two while a COO/CEO delegation is
+   *  live (072). `office` above is who they ARE, and decides how a vacant rung
+   *  reads and whether the emergency door is theirs; this decides what the
+   *  Approve / Reject bar may sign. */
+  offices?: ApprovalRoleKey[];
   /** The decision an approval email asked for, off `?decide=`. Threaded
    *  straight to the decision bar — see `ApprovalDecisionBar`. */
   decide?: 'approve' | 'reject' | null;
@@ -71,7 +76,7 @@ type Props = {
 
 
 export default function PassRecordView({
-  record, role = null, office = null, decide = null, onRecorded, onClear,
+  record, role = null, office = null, offices, decide = null, onRecorded, onClear,
 }: Props): React.ReactElement {
   const { pass, items, activity } = record;
   const { roles } = useApprovalRoles();
@@ -175,7 +180,7 @@ export default function PassRecordView({
       <ApprovalDecisionBar
         pass={pass}
         approvals={approvals}
-        office={office}
+        offices={offices ?? (office ? [office] : [])}
         decide={decide}
         onDecided={() => onRecorded?.()}
       />

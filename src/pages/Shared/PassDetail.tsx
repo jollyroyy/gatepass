@@ -28,12 +28,15 @@ import { formatDateTime } from '../../lib/formatDate';
 export default function PassDetail({
   role = null,
   office = null,
+  offices,
 }: {
   role?: UserRole | null;
   /** The approval office the reader holds (046), passed straight through to the
    *  record: it is what draws the Approve / Reject bar at the foot, and this
    *  page is where an approver lands from their stacked queue. */
   office?: ApprovalRoleKey | null;
+  /** Every office they may act for (072) — what the bar may actually sign. */
+  offices?: ApprovalRoleKey[];
 }): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -173,6 +176,7 @@ export default function PassDetail({
         record={record}
         role={role}
         office={office}
+        offices={offices}
         decide={decide}
         onRecorded={() => setReloadKey((k) => k + 1)}
       />

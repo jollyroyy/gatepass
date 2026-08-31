@@ -5,7 +5,7 @@ import { supabase, getUserRole } from './supabaseClient';
 import type { UserRole } from './types/index';
 import { homeFor, isForbidden } from './lib/roleRoutes';
 import { isResumableTarget, loginPathFor, nextAfterLogin, pathnameOf } from './lib/postLoginRedirect';
-import { fetchMyApprovalRole } from './lib/approverAccess';
+import { fetchMyApprovalOffices, primaryOffice } from './lib/approverAccess';
 import type { ApprovalRoleKey } from './lib/approvalLadder';
 import { fetchAccessState } from './lib/profiles';
 import { ThemeProvider } from './lib/theme';
@@ -119,7 +119,13 @@ export default function App(): React.ReactElement {
   // NOT a role — it is an extra grant read alongside one, which is why it has
   // its own piece of state rather than being folded into `role`. See
   // src/lib/approverAccess.ts.
-  const [office, setOffice] = useState<ApprovalRoleKey | null>(null);
+  // EVERY office this reader may act for, and the one they ARE. They differ
+  // for exactly one person: an approver covering the other half of the shared
+  // level-3 rung under a live delegation (072). `office` decides routes, the
+  // title under their name and which office's Delegation tab opens; `offices`
+  // decides what may be signed.
+  const [offices, setOffices] = useState<ApprovalRoleKey[]>([]);
+  const office = primaryOffice(offices);
 
   useEffect(() => {
     let cancelled = false;
@@ -130,13 +136,13 @@ export default function App(): React.ReactElement {
           setRole(null);
           setMustChangePassword(false);
           setDeactivated(false);
-          setOffice(null);
+          setOffices([]);
           setResolving(false);
         }
         return;
       }
       const r = await getUserRole();
-      const held = await fetchMyApprovalRole();
+      const held = await fetchMyApprovalOffices();
       let mustChange = false;
       let active = true;
       try {
@@ -152,7 +158,7 @@ export default function App(): React.ReactElement {
       }
       if (!cancelled) {
         setRole((r as UserRole | null) ?? null);
-        setOffice(held);
+        setOffices(held);
         setMustChangePassword(mustChange);
         setDeactivated(!active);
         setResolving(false);
@@ -254,7 +260,7 @@ export default function App(): React.ReactElement {
   }
 
   return (
-    <AppShell session={session} role={role} isApprover={office !== null} office={office}>
+    <AppShell session={session} role={role} isApprover={office !== null} office={office} offices={offices}>
       <RouteGuard role={role} office={office}>
         <Routes>
           {/* Signed in and still on `/login`: this is the moment the emailed
@@ -325,7 +331,7 @@ export default function App(): React.ReactElement {
 
           {/* The four approval offices (046). One screen, and it is the whole
               of what an office holder does here. */}
-          <Route path="/approvals" element={<PendingApprovals office={office} />} />
+          <Route path="/approvals" element={<PendingApprovals office={office} offices={offices} />} />
           {/* Delegating that office to a stand-in for a stated period (062).
               The approver's own act — no admin is involved at any point. */}
           <Route path="/delegation" element={<ApprovalDelegation office={office} />} />
@@ -340,7 +346,7 @@ export default function App(): React.ReactElement {
           <Route path="/my-passes" element={<MyRaisedPasses />} />
 
           {/* Shared */}
-          <Route path="/pass/:id" element={<PassDetail role={role} office={office} />} />
+          <Route path="/pass/:id" element={<PassDetail role={role} office={office} offices={offices} />} />
           <Route path="/profile" element={<ProfilePage session={session} role={role} office={office} />} />
 
           <Route path="*" element={<Navigate to={homeFor(role, office)} replace />} />

@@ -25,7 +25,7 @@
 // mine" from "this screen is broken".
 import React, { useEffect, useRef, useState } from 'react';
 import type { GatePassView } from '../../types';
-import { APPROVAL_ROLE_TITLES, type ApprovalRoleKey } from '../../lib/approvalLadder';
+import { APPROVAL_ROLE_TITLES } from '../../lib/approvalLadder';
 import type { PassApprovalRow } from '../../lib/passApprovalState';
 import { approvePass, rejectPass } from '../../lib/approvalActions';
 import {
@@ -34,6 +34,7 @@ import {
   isHeldForEscalation,
   levelLabel,
   myStep,
+  type ActingOffices,
 } from '../../lib/approvalDecision';
 import { safeErrorMessage } from '../../lib/errors';
 import RejectApprovalModal from '../approver/RejectApprovalModal';
@@ -43,8 +44,11 @@ type Props = {
   pass: GatePassView;
   /** This pass's own ladder, from `get_pass_approvals()`. */
   approvals: PassApprovalRow[];
-  /** The office the READER holds, or null. Not a role — see approverAccess.ts. */
-  office: ApprovalRoleKey | null;
+  /** EVERY office the reader may act for, or none. Not a role — see
+   *  approverAccess.ts. It is a list because a live COO -> CEO delegation
+   *  leaves one person able to sign for both halves of the shared level-3 rung
+   *  (072), and the bar has to offer the one the RPC will actually accept. */
+  offices: ActingOffices;
   /** WHICH BUTTON THE READER PRESSED IN THEIR APPROVAL EMAIL (client,
    *  2026-08-20), off `/pass/:id?decide=…`. It is an INTENT and never a
    *  decision: the link is a GET, and GETs are prefetched by mail scanners, so
@@ -58,7 +62,7 @@ type Props = {
 };
 
 export default function ApprovalDecisionBar({
-  pass, approvals, office, decide: intent = null, onDecided,
+  pass, approvals, offices, decide: intent = null, onDecided,
 }: Props): React.ReactElement | null {
   const [busy, setBusy] = useState(false);
   const [rejecting, setRejecting] = useState(intent === 'reject');
@@ -78,16 +82,19 @@ export default function ApprovalDecisionBar({
     if (intent) box.current?.scrollIntoView?.({ block: 'center' });
   }, [intent]);
 
-  const mine = myStep(approvals, office);
+  const mine = myStep(approvals, offices);
   // Not routed to me at all, or my rung is already signed: no bar, no sentence.
   // The ladder on the right of the record already says what I decided and when.
-  if (!office || !mine || mine.status !== 'pending' || pass.status !== 'pending') return null;
+  if (!mine || mine.status !== 'pending' || pass.status !== 'pending') return null;
 
-  const title = APPROVAL_ROLE_TITLES[office];
+  // THE OFFICE THE RUNG BELONGS TO, not the one the reader IS. A CEO covering
+  // an absent COO signs the COO's row, and the bar says so — `myStep` chose
+  // that row by the same rule `gatepass.my_acting_role` (072) uses server-side.
+  const title = APPROVAL_ROLE_TITLES[mine.role_key];
   const level = levelLabel(approvals, mine);
 
-  if (!canDecideApproval(pass.status, approvals, office)) {
-    const holder = heldByOffice(approvals, office);
+  if (!canDecideApproval(pass.status, approvals, offices)) {
+    const holder = heldByOffice(approvals, offices);
     const held = isHeldForEscalation(mine);
     return (
       <div data-testid="record-approval-actions" className="card p-4">

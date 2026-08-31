@@ -1269,6 +1269,8 @@ describe('046 — the approval ladder becomes a workflow, and the gate stops see
   it('every new function is SECURITY DEFINER with a pinned search_path', () => {
     for (const fn of [
       'my_approval_role',
+      'my_approval_roles',
+      'my_acting_role',
       'pass_awaits_approval',
       'pass_routed_to_me',
       'snapshot_pass_approvals',
@@ -1286,13 +1288,20 @@ describe('046 — the approval ladder becomes a workflow, and the gate stops see
   it('a suspended office holder holds no office (040)', () => {
     // Otherwise deactivating an approver would leave passes addressed to
     // somebody who cannot sign in.
-    expect(bodyOf('my_approval_role')).toMatch(/gatepass\.is_user_active\(auth\.uid\(\)\)/i);
+    // ON `my_approval_roles()` SINCE 072: the scalar is identity now, and the
+    // set is the authority test. Suspending an approver must empty both.
+    expect(bodyOf('my_approval_roles')).toMatch(/gatepass\.is_user_active\(auth\.uid\(\)\)/i);
   });
 
   it('both decisions are the caller`s own office, and in slip order', () => {
     for (const fn of ['approve_pass_level', 'reject_pass_level']) {
       const body = bodyOf(fn);
-      expect(body, fn).toMatch(/gatepass\.my_approval_role\(\)/i);
+      // 072: the caller's OFFICES, and the one of them that may act on this
+      // pass. Never `my_approval_role()`, which is identity and dropped the
+      // second office of the one person who has two.
+      expect(body, fn).toMatch(/gatepass\.my_approval_roles\(\)/i);
+      expect(body, fn).toMatch(/gatepass\.my_acting_role\(/i);
+      expect(body, fn).not.toMatch(/gatepass\.my_approval_role\(\)/i);
       // The caller's level must be the LOWEST still-pending one.
       expect(body, fn).toMatch(/min\(a\.level_no\)/i);
       expect(body, fn).toMatch(/v_mine <> v_lowest/i);
@@ -1430,8 +1439,11 @@ describe('051 — the approval letter is addressed to the office s current holde
     // was routed to months ago asks somebody the database would refuse. Found
     // by moving the Security Head while a pass sat at level 1.
     expect(body).toMatch(/join gatepass\.approval_roles r on r\.role_key = a\.role_key/i);
-    expect(body).toMatch(/coalesce\(cur\.email,\s*ap\.email\)/i);
-    expect(body).toMatch(/coalesce\(cur\.full_name,\s*ap\.full_name\)/i);
+    // 072 put the LIVE DELEGATE in front of the holder, for 051's own reason:
+    // during a declared absence the holder is precisely the person the database
+    // would refuse. The holder is still the fallback, and `routed_to` behind it.
+    expect(body).toMatch(/coalesce\(dp\.email,\s*cur\.email,\s*ap\.email\)/i);
+    expect(body).toMatch(/coalesce\(dp\.full_name,\s*cur\.full_name,\s*ap\.full_name\)/i);
   });
 
   it('keeps routed_to as the fallback, for an office nobody holds today', () => {
@@ -1601,12 +1613,14 @@ describe('068 — the standing deputy is gone, and leaves nothing reachable behi
     }
   });
 
-  it('keeps my_approval_role scalar, on the holder and a live delegation alone', () => {
-    const body = fnBody('gatepass.my_approval_role');
+  it('resolves an office from the holder and a live delegation alone', () => {
+    // 072 SPLIT THIS IN TWO. The arms — and 049's no-truncation rule — belong to
+    // the set-returning `my_approval_roles()`; the scalar is identity, and says
+    // `limit 1` out loud rather than leaning on a `union all`'s row order.
+    const body = fnBody('gatepass.my_approval_roles');
     expect(body).toMatch(/where r\.user_id = auth\.uid\(\)/i);
     expect(body).toMatch(/gatepass\.delegation_is_live/i);
     expect(body).toMatch(/gatepass\.is_user_active\(auth\.uid\(\)\)/i);
-    // Still scalar by refusal, never by truncation — 049's hazard, unchanged.
     expect(body).not.toMatch(/limit\s+1/i);
   });
 
@@ -1656,7 +1670,7 @@ describe('068 — the standing deputy is gone, and leaves nothing reachable behi
     expect(fnBody('gatepass.get_approval_ladder')).not.toMatch(/\bemail\b/i);
     // The letter still reaches the office holder, resolved TODAY (051).
     expect(fnBody('gatepass.approval_notice_payload'))
-      .toMatch(/'approver_email',\s*coalesce\(cur\.email, ap\.email\)/i);
+      .toMatch(/'approver_email',\s*coalesce\(dp\.email, cur\.email, ap\.email\)/i);
   });
 
   it('reloads PostgREST, so the dropped columns leave its schema cache too', () => {
@@ -2182,8 +2196,11 @@ describe('061 — ladder visibility is linear', () => {
     expect(body).not.toMatch(/b\.status = 'pending'/i);
   });
 
-  it('still resolves the office through my_approval_role, so a delegate inherits it', () => {
-    expect(body).toMatch(/a\.role_key = gatepass\.my_approval_role\(\)/i);
+  it('still resolves the office through the caller`s own offices, so a delegate inherits it', () => {
+    // 072 made it MEMBERSHIP. A person covering the other half of the shared
+    // level-3 rung may act for two offices, and `=` against a scalar silently
+    // hid the covered one — which is exactly a pass a delegate cannot see.
+    expect(body).toMatch(/a\.role_key in \(select t\.role_key from gatepass\.my_approval_roles\(\)/i);
   });
 
   it('stays SECURITY DEFINER with an empty search_path — it is read from a policy', () => {
@@ -2240,8 +2257,10 @@ describe('062 — approval delegation', () => {
   });
 
   // ── my_approval_role stays scalar ───────────────────────────────────────
-  it('widens my_approval_role by a live-delegation arm, gated on the account being active', () => {
-    const body = fnBody('gatepass.my_approval_role');
+  it('widens the caller`s offices by a live-delegation arm, gated on the account being active', () => {
+    // The arm moved to `my_approval_roles()` in 072 — see that migration's
+    // header for why a scalar could not hold it any longer.
+    const body = fnBody('gatepass.my_approval_roles');
     expect(body).toMatch(/from gatepass\.approval_delegations d/i);
     expect(body).toMatch(/d\.delegate_id = auth\.uid\(\)/i);
     expect(body).toMatch(/gatepass\.delegation_is_live\(d\.revoked_at, d\.starts_at, d\.ends_at\)/i);
@@ -2253,7 +2272,7 @@ describe('062 — approval delegation', () => {
   // seat, which is precisely the failure 049 was written to stop. Scalarity is
   // guaranteed by the refusals, not by truncation.
   it('does NOT hide a double seat behind a limit', () => {
-    expect(fnBody('gatepass.my_approval_role')).not.toMatch(/limit\s+1/i);
+    expect(fnBody('gatepass.my_approval_roles')).not.toMatch(/limit\s+1/i);
   });
 
   it('refuses a delegate who already holds an office or an overlapping delegation', () => {
@@ -2453,9 +2472,13 @@ describe('063 — the last rung is the COO or the CEO, and the CEO inherits it o
   });
 
   it('refuses the CEO while the COO still has time, naming the moment', () => {
+    // 072 MOVED THE COMPARISON, not the rule: `my_acting_role` will not hand
+    // back an office whose window is still open, and `approve_pass_level` then
+    // names the moment. The sentence the CEO reads is unchanged.
+    expect(fnBody('gatepass.my_acting_role'))
+      .toMatch(/gatepass\.level_escalates_at\(p_pass_id, m\.role_key\) <= now\(\)/i);
     const body = fnBody('gatepass.approve_pass_level');
-    expect(body).toMatch(/gatepass\.level_escalates_at\(p_pass_id, v_role\)/i);
-    expect(body).toMatch(/now\(\) < v_escalates/i);
+    expect(body).toMatch(/gatepass\.level_escalates_at\(p_pass_id, 'ceo'\)/i);
     expect(body).toMatch(/raise exception 'This pass is with the COO until/i);
   });
 
@@ -2771,6 +2794,131 @@ describe('070 — a rejection at the gate is final', () => {
   });
 
   it('reloads PostgREST, so the dropped RPC leaves the schema cache too', () => {
+    expect(bare).toMatch(/notify pgrst, 'reload schema';/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 072 — a delegation actually moves the rung, even between the COO and the CEO.
+//
+// THE HAZARD THIS MIGRATION CLOSES IS THE ONE 049 WROTE DOWN AND 067 REOPENED:
+// `my_approval_role()` was a scalar over a two-arm union, kept single-valued by
+// seat refusals, and 067 skipped the refusal for the COO/CEO pair. A `language
+// sql` scalar over a multi-row body does not error — it returns the first row —
+// so the covered office vanished and the pass sat with an absent holder.
+//
+// The property to defend from here on is therefore: NOTHING THAT AUTHORISES A
+// PRESS MAY READ THE SCALAR. Every case below is that property, or the address
+// chain that follows from it.
+// ──────────────────────────────────────────────────────────────────────────────
+describe('072 — a delegation moves the rung', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('072'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(migrations);
+  const fnBody = (name: string) => fns.filter((f) => f.name === name).slice(-1)[0].body;
+
+  it('creates and alters nothing in `public` — the two-schema rule', () => {
+    expect(/create\s+(table|view|function|type)\s+public\./i.test(bare)).toBe(false);
+    expect(/alter\s+table\s+public\./i.test(bare)).toBe(false);
+  });
+
+  it('carries both arms into a SET, and keeps the holder first', () => {
+    const body = fnBody('gatepass.my_approval_roles');
+    expect(body).toMatch(/returns setof text/i);
+    // Holder arm, then the delegation arm — the order `my_approval_role()`
+    // depends on to keep meaning "the office I am".
+    expect(body.indexOf('approval_roles')).toBeLessThan(body.indexOf('approval_delegations'));
+    expect(body).toMatch(/gatepass\.delegation_is_live\(d\.revoked_at, d\.starts_at, d\.ends_at\)/i);
+  });
+
+  it('empties both arms for a suspended account (040)', () => {
+    const body = fnBody('gatepass.my_approval_roles');
+    expect((body.match(/gatepass\.is_user_active\(auth\.uid\(\)\)/gi) ?? []).length)
+      .toBeGreaterThanOrEqual(2);
+  });
+
+  // THE WHOLE POINT. A scalar that silently drops a row is not an authority
+  // test, and every one of these three used to be.
+  it('authorises through the SET, never through the identity scalar', () => {
+    for (const fn of [
+      'gatepass.pass_routed_to_me',
+      'gatepass.approve_pass_level',
+      'gatepass.reject_pass_level',
+      'gatepass.my_acting_role',
+    ]) {
+      const body = fnBody(fn);
+      expect(body, fn).toMatch(/gatepass\.my_approval_roles\(\)/i);
+      expect(body, fn).not.toMatch(/gatepass\.my_approval_role\(\)/i);
+    }
+  });
+
+  it('picks the office that may act on THIS pass — lowest rung, window respected', () => {
+    const body = fnBody('gatepass.my_acting_role');
+    expect(body).toMatch(/min\(level_no\)/i);
+    expect(body).toMatch(/a\.status = 'pending'/i);
+    expect(body).toMatch(/gatepass\.level_escalates_at\(p_pass_id, m\.role_key\) <= now\(\)/i);
+    // A covered office wins a tie: it is the rung the absent holder cannot sign,
+    // and it is the only one of the two that clears with no window to wait out.
+    expect(body).toMatch(/order by m\.delegated desc/i);
+  });
+
+  it('lets a rejection past the window, and only a rejection', () => {
+    // 063's rule: a ceiling caps what may be COMMITTED; refusing to let an
+    // office STOP a pass points it the wrong way.
+    expect(fnBody('gatepass.reject_pass_level')).toMatch(/my_acting_role\(p_pass_id, false\)/i);
+    expect(fnBody('gatepass.approve_pass_level')).not.toMatch(/my_acting_role\(p_pass_id, false\)/i);
+  });
+
+  it('keeps my_acting_role off PostgREST entirely', () => {
+    // Nothing outside the two decision RPCs has any business asking, and an
+    // ungranted function is one fewer thing reachable by every signed-in user.
+    expect(bare).toMatch(/revoke all on function gatepass\.my_acting_role\(uuid, boolean\) from public;/i);
+    expect(bare).not.toMatch(/grant execute on function gatepass\.my_acting_role[^;]*authenticated/i);
+  });
+
+  it('leaves the emergency door with the SEAT, not with a stand-in (067)', () => {
+    // A delegation hands over a rung on the ladder. It does not hand over the
+    // super admin fallback, the pair's right to raise (069) or the CEO's
+    // whitelist decision (053) — none of which this migration may touch.
+    expect(bare).not.toMatch(/holds_fallback_office|emergency_release_pass|raise_pass|whitelist/i);
+  });
+
+  it('every new function is SECURITY DEFINER with a pinned search_path', () => {
+    for (const fn of ['gatepass.my_approval_roles', 'gatepass.my_approval_role', 'gatepass.my_acting_role']) {
+      const body = fnBody(fn);
+      expect(body, fn).toMatch(/security definer/i);
+      expect(body, fn).toMatch(/set search_path = ''/i);
+    }
+  });
+
+  it('addresses the letter to whoever may sign it today', () => {
+    const body = fnBody('gatepass.approval_notice_payload');
+    expect(body).toMatch(/coalesce\(dg\.delegate_id, r\.user_id, a\.routed_to\)/i);
+    expect(body).toMatch(/gatepass\.delegation_is_live/i);
+    // Still LEFT into VMS, so a narrowed policy drops ONE address rather than
+    // rerouting the mail (051's rule).
+    const joins = (body.match(/join public\./gi) ?? []).length;
+    const lefts = (body.match(/left join\s+public\./gi) ?? []).length;
+    expect(lefts).toBe(joins);
+    // And still service_role only.
+    expect(bare).not.toMatch(/grant execute on function gatepass\.approval_notice_payload[^;]*authenticated/i);
+  });
+
+  it('names the acting holder on the ladder without moving the seat, or leaking an address', () => {
+    const body = fnBody('gatepass.get_approval_ladder');
+    expect(body).toMatch(/acting_user_id/i);
+    expect(body).toMatch(/coalesce\(dp\.full_name, p\.full_name\)/i);
+    // The holder columns are the ones an admin seats an office by. They stay.
+    expect(body).toMatch(/r\.user_id,/i);
+    expect(body).not.toMatch(/\bemail\b/i);
+    // Dropped and recreated, because a return type cannot be replaced — and the
+    // grant has to come back in the same transaction.
+    expect(bare).toMatch(/drop function if exists gatepass\.get_approval_ladder\(\);/i);
+    expect(bare).toMatch(/grant execute on function gatepass\.get_approval_ladder\(\) to authenticated;/i);
+  });
+
+  it('reloads PostgREST, so the new RPC and the new columns reach its cache', () => {
     expect(bare).toMatch(/notify pgrst, 'reload schema';/i);
   });
 });

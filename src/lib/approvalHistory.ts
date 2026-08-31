@@ -66,11 +66,14 @@ export function decidedByMe(
 export function passIdsOnMyLadder(
   approvals: PassApproval[],
   userId: string | null,
-  office: string | null,
+  /** Every office this reader may act for — two while a COO/CEO delegation is
+   *  live (072), and a pass routed to EITHER is one they have to be able to
+   *  open. */
+  offices: string[],
 ): string[] {
   const ids = new Set<string>();
   for (const a of approvals) {
-    if (a.role_key === office || (userId !== null && a.decided_by === userId)) {
+    if (offices.includes(a.role_key) || (userId !== null && a.decided_by === userId)) {
       ids.add(a.gate_pass_id);
     }
   }

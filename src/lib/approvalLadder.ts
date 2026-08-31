@@ -69,6 +69,18 @@ export interface ApprovalRoleRow {
   full_name: string | null;
   department_name: string | null;
   designated_at: string;
+  /** WHO IS ANSWERING FOR THIS OFFICE TODAY (migration 072). Equal to the
+   *  holder on every ordinary day, and the delegate while a delegation is live —
+   *  which is the only name a board asking "who is this pass waiting with" may
+   *  print, because the holder declared themselves away and the database will
+   *  take the press from the delegate. The holder columns above never move: an
+   *  admin seating an office reads those.
+   *
+   *  Optional because a client holding a response from before 072 has neither,
+   *  and a missing name must degrade to the holder rather than to a blank. */
+  acting_user_id?: string | null;
+  acting_name?: string | null;
+  delegated?: boolean | null;
 }
 
 /** The title printed beside the level. "Finance HOD" and not "Finance Head"

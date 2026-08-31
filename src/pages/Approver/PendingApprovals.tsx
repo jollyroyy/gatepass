@@ -94,8 +94,17 @@ import { holdsFallbackOffice } from '../../lib/superAdminFallback';
  *  not, so the page size is the guard's stack size, not the table's five. */
 const PAGE_SIZE = 10;
 
-export default function PendingApprovals({ office }: { office: ApprovalRoleKey | null }): React.ReactElement {
-  const { passes, approvals, userId, loading, error, reload } = usePendingApprovals(office);
+export default function PendingApprovals(
+  { office, offices }: { office: ApprovalRoleKey | null; offices?: ApprovalRoleKey[] },
+): React.ReactElement {
+  // THE DEFAULT IS THE IDENTITY. A caller that knows only which office the
+  // reader IS gets exactly the behaviour it had before 072; `App.tsx`, which
+  // asked the database for the whole list, passes the whole list.
+  const mine = useMemo(
+    () => offices ?? (office ? [office] : []),
+    [offices, office],
+  );
+  const { passes, approvals, userId, loading, error, reload } = usePendingApprovals(mine);
   const [filters, setFilters] = useState<PendingApprovalFilters>(DEFAULT_APPROVAL_FILTERS);
   // Which figure is drilled open, or `null` for none. The queue opens first:
   // it is the one list with work in it.
@@ -109,8 +118,10 @@ export default function PendingApprovals({ office }: { office: ApprovalRoleKey |
   const escalationHours = useEscalationHours();
 
   const queue = useMemo(
-    () => (office ? sortOldestFirst(inMyQueue(passes, approvals, office, escalationHours)) : []),
-    [passes, approvals, office, escalationHours]
+    () => (mine.length > 0
+      ? sortOldestFirst(inMyQueue(passes, approvals, mine, escalationHours))
+      : []),
+    [passes, approvals, mine, escalationHours]
   );
   const approved = useMemo(
     () => decidedByMe(passes, approvals, userId, 'approved'),

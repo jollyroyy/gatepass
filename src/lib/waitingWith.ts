@@ -66,8 +66,16 @@ export interface WaitingRow {
   /** The desk: an office title, or "Security gate". */
   office: string;
   /** WHO. Null when nobody holds the office — which reads "Not designated yet",
-   *  never a blank — and null on the gate row, which names no individual. */
+   *  never a blank — and null on the gate row, which names no individual.
+   *
+   *  THE PERSON ANSWERING TODAY, which during a live delegation is the delegate
+   *  and not the holder (072). A strip that names an approver who has declared
+   *  themselves absent is telling a desk to chase the one person who cannot
+   *  sign — 051 made the same correction to the post. */
   person: string | null;
+  /** The holder this row is being covered FOR, or null when nobody is covering.
+   *  Printed beside the name: who is away is the other half of the answer. */
+  coveringFor: string | null;
   count: number;
 }
 
@@ -120,12 +128,17 @@ export function buildWaitingWith(
   // The four offices in slip order, then the gate — a pass climbs the ladder
   // and only afterwards reaches the barrier, so the strip reads in the order a
   // pass travels.
-  const office: WaitingRow[] = APPROVAL_LADDER.map(({ key }) => ({
-    key,
-    office: APPROVAL_ROLE_TITLES[key],
-    person: holder.get(key)?.full_name ?? null,
-    count: counts.get(key) ?? 0,
-  }));
+  const office: WaitingRow[] = APPROVAL_LADDER.map(({ key }) => {
+    const row = holder.get(key);
+    const covering = row?.delegated === true;
+    return {
+      key,
+      office: APPROVAL_ROLE_TITLES[key],
+      person: (covering ? row?.acting_name : null) ?? row?.full_name ?? null,
+      coveringFor: covering ? row?.full_name ?? null : null,
+      count: counts.get(key) ?? 0,
+    };
+  });
 
   return [
     ...office,
@@ -133,6 +146,7 @@ export function buildWaitingWith(
       key: GATE_KEY,
       office: 'Security gate',
       person: null,
+      coveringFor: null,
       count: counts.get(GATE_KEY) ?? 0,
     },
   ];
@@ -150,5 +164,9 @@ export function waitingWithTotal(rows: WaitingRow[]): number {
 export function waitingPersonLabel(row: WaitingRow): string {
   if (row.key === GATE_KEY) return 'Guard on duty';
   if (!row.person) return 'Not designated yet';
+  // WHO IS COVERING, AND FOR WHOM. Both names, because either alone is a half
+  // answer: the delegate is who to chase, and the holder is why it is not the
+  // name the reader expected to see.
+  if (row.coveringFor) return `${row.person} (for ${row.coveringFor})`;
   return row.person;
 }

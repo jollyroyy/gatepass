@@ -59,7 +59,11 @@ export interface PendingApprovalsData {
   reload: () => void;
 }
 
-export function usePendingApprovals(office: string | null): PendingApprovalsData {
+export function usePendingApprovals(offices: string[]): PendingApprovalsData {
+  // A NEW ARRAY EVERY RENDER IS A NEW `load` EVERY RENDER, and `load` is an
+  // effect dependency that fires two paged reads. The offices are a short,
+  // ordered list of literals, so their joined text is a sound identity.
+  const key = offices.join(',');
   const [passes, setPasses] = useState<GatePassView[]>([]);
   const [approvals, setApprovals] = useState<PassApproval[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
@@ -68,9 +72,10 @@ export function usePendingApprovals(office: string | null): PendingApprovalsData
 
   const load = useCallback(
     async (silent = false) => {
+      const mineOffices = key ? key.split(',') : [];
       // No office held: nothing to query, and no query is made — the caller
       // renders the no-office state before this even runs.
-      if (!office) {
+      if (mineOffices.length === 0) {
         setPasses([]);
         setApprovals([]);
         setLoading(false);
@@ -92,14 +97,13 @@ export function usePendingApprovals(office: string | null): PendingApprovalsData
         // `or(...)` mirrors passIdsOnMyLadder exactly. The `decided_by` arm is
         // dropped when the uid did not resolve, rather than sent as a filter on
         // the string "null" — which PostgREST would read as a literal.
-        const mine = uid
-          ? `role_key.eq.${office},decided_by.eq.${uid}`
-          : `role_key.eq.${office}`;
+        const offs = `role_key.in.(${mineOffices.join(',')})`;
+        const mine = uid ? `${offs},decided_by.eq.${uid}` : offs;
         const rows = await fetchAllRows<PassApproval>((from, to) =>
           gp().from('pass_approvals').select('*').or(mine).range(from, to));
         setApprovals(rows);
 
-        const ids = passIdsOnMyLadder(rows, uid, office);
+        const ids = passIdsOnMyLadder(rows, uid, mineOffices);
         if (ids.length === 0) {
           // Nothing has ever been routed to this office. `.in('id', [])` is a
           // query with no possible result — skip it rather than make it.
@@ -126,7 +130,7 @@ export function usePendingApprovals(office: string | null): PendingApprovalsData
         if (!silent) setLoading(false);
       }
     },
-    [office]
+    [key]
   );
 
   useEffect(() => {
@@ -137,7 +141,7 @@ export function usePendingApprovals(office: string | null): PendingApprovalsData
   // `channel()`. Silent refresh so the queue never flashes a skeleton while
   // another office's decision moves a pass through the ladder.
   useEffect(() => {
-    if (!office) return undefined;
+    if (!key) return undefined;
     let ch: ReturnType<typeof supabase.channel> | null = null;
     try {
       ch = supabase
@@ -156,7 +160,7 @@ export function usePendingApprovals(office: string | null): PendingApprovalsData
         // ignore cleanup failures
       }
     };
-  }, [load, office]);
+  }, [load, key]);
 
   const reload = useCallback(() => {
     void load(true);

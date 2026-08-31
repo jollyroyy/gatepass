@@ -19,6 +19,27 @@
 import type { ApprovalRoleKey } from './approvalLadder';
 import type { PassApprovalStatus } from './passApprovalState';
 
+/**
+ * THE OFFICES A READER MAY ACT FOR — one, several, or none.
+ *
+ * Several is not a hypothetical: since migration 067 the COO and the CEO
+ * delegate only to each other, so a live COO → CEO delegation leaves the CEO
+ * holding their own office AND covering the COO's. Migration 072 made
+ * `gatepass.my_approval_roles()` return both, because the scalar before it
+ * silently dropped the second one and the pass sat with an absent holder.
+ *
+ * A bare key is still accepted everywhere a list is, so every caller that has
+ * exactly one office reads exactly as it did.
+ */
+export type ActingOffices = ApprovalRoleKey | ApprovalRoleKey[] | null | undefined;
+
+/** `ActingOffices` as an array, always. Not exported as a convenience — the
+ *  four functions below are the only things that should be asking. */
+function officeList(offices: ActingOffices): ApprovalRoleKey[] {
+  if (!offices) return [];
+  return Array.isArray(offices) ? offices : [offices];
+}
+
 /** The fields the rule depends on. Anything wider satisfies it. */
 export interface ApprovalStepRow {
   role_key: ApprovalRoleKey;
@@ -130,14 +151,30 @@ export function actingStep<T extends ApprovalStepRow>(rows: T[]): T | null {
   return here.find((r) => r.role_key !== ESCALATES_TO && !isHeldForEscalation(r)) ?? here[0];
 }
 
-/** This office's own rung on this pass, or `null` when the pass is not routed
- *  to it (or the reader holds no office at all). */
+/**
+ * The rung on this pass that is MINE to answer for, or `null` when the pass is
+ * not routed to any office I may act for.
+ *
+ * WITH TWO OFFICES IT IS A CHOICE, and it is the same one
+ * `gatepass.my_acting_role` (072) makes server-side, or the button drawn here
+ * would press an RPC that signs a different row: the lowest rung of mine, and
+ * on a rung I hold twice, the one that is free to act rather than the one
+ * waiting out an escalation window. A pass is never signed twice by this —
+ * closing either row of a shared rung closes the other (063).
+ */
 export function myStep<T extends ApprovalStepRow>(
   rows: T[],
-  office: ApprovalRoleKey | null,
+  offices: ActingOffices,
 ): T | null {
-  if (!office) return null;
-  return rows.find((r) => r.role_key === office) ?? null;
+  const mine = officeList(offices);
+  if (mine.length === 0) return null;
+  const held = rows.filter((r) => mine.includes(r.role_key));
+  if (held.length === 0) return null;
+  const pending = held.filter((r) => r.status === 'pending');
+  const from = pending.length > 0 ? pending : held;
+  const lowest = Math.min(...from.map((r) => r.level_no));
+  const here = from.filter((r) => r.level_no === lowest);
+  return here.find((r) => !isHeldForEscalation(r)) ?? here[0];
 }
 
 /**
@@ -151,10 +188,10 @@ export function myStep<T extends ApprovalStepRow>(
 export function canDecideApproval<T extends ApprovalStepRow>(
   passStatus: string,
   rows: T[],
-  office: ApprovalRoleKey | null,
+  offices: ActingOffices,
 ): boolean {
   if (passStatus !== 'pending') return false;
-  const mine = myStep(rows, office);
+  const mine = myStep(rows, offices);
   if (!mine || mine.status !== 'pending') return false;
   // A shared rung whose window has not run out is not mine yet, however low it
   // is (063). `approve_pass_level` refuses exactly this press.
@@ -172,17 +209,18 @@ export function canDecideApproval<T extends ApprovalStepRow>(
  */
 export function heldByOffice<T extends ApprovalStepRow>(
   rows: T[],
-  office: ApprovalRoleKey | null,
+  offices: ActingOffices,
 ): ApprovalRoleKey | null {
   const lowest = lowestPendingLevel(rows);
   if (lowest === null) return null;
-  const mine = myStep(rows, office);
+  const mine = myStep(rows, offices);
   // MY OWN LEVEL CAN STILL BE SOMEBODY ELSE'S TURN. On a shared rung the office
   // waiting for the window is on the lowest level and still cannot act, and the
   // office holding it up is its neighbour — not an office below.
   if (mine && mine.level_no === lowest && !isHeldForEscalation(mine)) return null;
+  const held = officeList(offices);
   const here = rows.filter((r) => r.level_no === lowest && r.status === 'pending'
-    && r.role_key !== office);
+    && !held.includes(r.role_key));
   return here.find((r) => !isHeldForEscalation(r))?.role_key ?? here[0]?.role_key ?? null;
 }
 

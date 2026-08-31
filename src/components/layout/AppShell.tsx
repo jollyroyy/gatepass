@@ -20,12 +20,15 @@ type Props = {
    *  waiting on it (client, 2026-08-20). `isApprover` stays because the shell's
    *  dark half only needs the boolean. */
   office?: ApprovalRoleKey | null;
+  /** Every office this reader may act for — two while a COO/CEO delegation is
+   *  live (072). The bell counts what any of them may sign. */
+  offices?: ApprovalRoleKey[];
   children: React.ReactNode;
 };
 
 const COLLAPSE_KEY = 'gatepass-sidebar-collapsed';
 
-export default function AppShell({ session, role, isApprover = false, office = null, children }: Props): React.ReactElement {
+export default function AppShell({ session, role, isApprover = false, office = null, offices = [], children }: Props): React.ReactElement {
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try { return window.localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
   });
@@ -44,7 +47,7 @@ export default function AppShell({ session, role, isApprover = false, office = n
   const noticeRole = isApprover && role !== 'admin' && role !== 'super_admin' ? null : role;
 
   return (
-    <NotificationProvider session={session} role={noticeRole} office={office}>
+    <NotificationProvider session={session} role={noticeRole} offices={offices}>
       <SessionTimeout />
       <div className="min-h-screen bg-surface-50">
         <Sidebar session={session} role={role} isApprover={isApprover} office={office} collapsed={collapsed} onCollapsedChange={setCollapsed} />

@@ -141,11 +141,11 @@ type Props = {
   /** Which of the four approval offices this reader holds (046), if any. It is
    *  not a role, so it travels beside one — an office holder's VMS role is
    *  `staff`, and the bell would otherwise have nothing to key on. */
-  office?: ApprovalRoleKey | null;
+  offices?: ApprovalRoleKey[];
   children: React.ReactNode;
 };
 
-export function NotificationProvider({ session, role, office = null, children }: Props): React.ReactElement {
+export function NotificationProvider({ session, role, offices = [], children }: Props): React.ReactElement {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   // Every fact the bell has already accounted for — shown, or dismissed in an
   // earlier session. Seeded from storage so a dismissed mismatch is not
@@ -219,7 +219,7 @@ export function NotificationProvider({ session, role, office = null, children }:
     },
     [addNotification],
   );
-  useApprovalNotices(office, addApprovalNotice);
+  useApprovalNotices(offices, addApprovalNotice);
 
   // ─── What happened while nobody was looking ────────────────────────────────
   // HOD only, and two kinds of fact only, both of which are a DECISION waiting on

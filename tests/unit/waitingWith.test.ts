@@ -184,3 +184,41 @@ describe('the strip counts every pending pass, whatever day it was raised', () =
     expect(waitingWithTotal(buildWaitingWith(rows, [], []))).toBe(0);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A DELEGATED OFFICE IS ANSWERED FOR BY THE DELEGATE (migration 072).
+//
+// Client, 2026-08-31: an approval delegated by the COO or the CEO "should
+// appropriately go to the respective approver". A strip that keeps printing the
+// holder is telling a desk to chase the one person who has declared themselves
+// away — the same correction 051 made to the post, made here to the board.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('an office somebody else is covering', () => {
+  const covered = role({
+    role_key: 'coo',
+    user_id: 'u2',
+    full_name: 'Sudeshna Pal',
+    acting_user_id: 'u4',
+    acting_name: 'Sid',
+    delegated: true,
+  });
+
+  it('names the person who can actually sign', () => {
+    const rows = buildWaitingWith([], [], [covered]);
+    const coo = rows.find((r) => r.key === 'coo')!;
+    expect(coo.person).toBe('Sid');
+    expect(coo.coveringFor).toBe('Sudeshna Pal');
+  });
+
+  it('says who they are covering for, so the unexpected name is explained', () => {
+    const rows = buildWaitingWith([], [], [covered]);
+    expect(waitingPersonLabel(rows.find((r) => r.key === 'coo')!)).toBe('Sid (for Sudeshna Pal)');
+  });
+
+  it('prints the holder, plainly, when nobody is covering', () => {
+    const rows = buildWaitingWith([], [], [role({ role_key: 'coo', full_name: 'Sudeshna Pal' })]);
+    const coo = rows.find((r) => r.key === 'coo')!;
+    expect(coo.coveringFor).toBeNull();
+    expect(waitingPersonLabel(coo)).toBe('Sudeshna Pal');
+  });
+});

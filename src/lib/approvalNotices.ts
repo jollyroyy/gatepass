@@ -28,6 +28,7 @@ import type { GatePassView } from '../types';
 import type { ApprovalRoleKey } from './approvalLadder';
 import { APPROVAL_ROLE_TITLES } from './approvalLadder';
 import { inMyQueue, sortOldestFirst, type PassApproval } from './pendingApprovals';
+import { myStep, withEscalation } from './approvalDecision';
 
 /** One thing the bell will say. Deliberately not an `AppNotification`: the id
  *  and the type belong to the provider that files it. */
@@ -50,12 +51,26 @@ export function approvalNoticeMessage(passNumber: string, office: ApprovalRoleKe
 export function buildApprovalNotices(
   passes: GatePassView[],
   approvals: PassApproval[],
-  office: ApprovalRoleKey,
+  /** Every office this reader may act for. Two of them, when a live COO -> CEO
+   *  delegation is running (072) — and then the notice names the rung it is
+   *  actually about, which may be the office being COVERED rather than the
+   *  reader's own. Being asked to sign "as COO" is the whole message. */
+  offices: ApprovalRoleKey[],
 ): ApprovalNoticeFact[] {
-  return sortOldestFirst(inMyQueue(passes, approvals, office)).map((p) => ({
+  const byPass = new Map<string, PassApproval[]>();
+  for (const a of approvals) {
+    const list = byPass.get(a.gate_pass_id);
+    if (list) list.push(a);
+    else byPass.set(a.gate_pass_id, [a]);
+  }
+  return sortOldestFirst(inMyQueue(passes, approvals, offices)).map((p) => ({
     passId: p.id,
     passNumber: p.pass_number,
-    message: approvalNoticeMessage(p.pass_number, office),
+    message: approvalNoticeMessage(
+      p.pass_number,
+      myStep(withEscalation(byPass.get(p.id) ?? [], p.created_at), offices)?.role_key
+        ?? offices[0],
+    ),
     // Dated by the RAISE, not by the read: "4h ago" must mean the HOD has been
     // waiting four hours, which is the fact an approver is being asked about.
     timestamp: p.created_at,
@@ -73,11 +88,16 @@ export function buildApprovalNotices(
  *  just arrived. A badge that under-counts is worse than no badge: it is an
  *  assurance that nothing is waiting. */
 export function useApprovalNotices(
-  office: ApprovalRoleKey | null,
+  offices: ApprovalRoleKey[],
   onFact: (fact: ApprovalNoticeFact) => void,
 ): void {
+  // A NEW ARRAY EVERY RENDER IS A NEW DEPENDENCY EVERY RENDER, and this effect
+  // fires two paged reads. The offices are a short, ordered list of literals,
+  // so their joined text is a sound identity for them.
+  const key = offices.join(',');
   useEffect(() => {
-    if (!office) return undefined;
+    const mine = key ? (key.split(',') as ApprovalRoleKey[]) : [];
+    if (mine.length === 0) return undefined;
     let cancelled = false;
 
     void (async () => {
@@ -86,7 +106,7 @@ export function useApprovalNotices(
         // the bell speaks about what is waiting, and nothing else.
         const rows = await fetchAllRows<PassApproval>((from, to) =>
           gp().from('pass_approvals').select('*')
-            .eq('role_key', office).eq('status', 'pending').range(from, to));
+            .in('role_key', mine).eq('status', 'pending').range(from, to));
         if (cancelled) return;
         const ids = [...new Set(rows.map((r) => r.gate_pass_id))];
         if (ids.length === 0) return;
@@ -99,7 +119,7 @@ export function useApprovalNotices(
             gp().from('v_gate_passes').select('*').in('id', slice).range(from, to)));
         }
         if (cancelled) return;
-        for (const fact of buildApprovalNotices(passes, rows, office)) onFact(fact);
+        for (const fact of buildApprovalNotices(passes, rows, mine)) onFact(fact);
       } catch {
         // The bell is an aid, never a gate. A failed read leaves it silent
         // rather than blocking the screen the approver came here to use.
@@ -109,5 +129,5 @@ export function useApprovalNotices(
     return () => {
       cancelled = true;
     };
-  }, [office, onFact]);
+  }, [key, onFact]);
 }

@@ -26,6 +26,7 @@ import {
   canDecideApproval,
   DEFAULT_ESCALATION_HOURS,
   withEscalation,
+  type ActingOffices,
 } from './approvalDecision';
 import { partyOf } from './guardBoard';
 import { holdsFallbackOffice, isPassStuck } from './superAdminFallback';
@@ -52,7 +53,10 @@ export interface PassApproval {
 export function inMyQueue(
   passes: GatePassView[],
   approvals: PassApproval[],
-  office: ApprovalRoleKey,
+  /** ONE OFFICE OR SEVERAL. A live COO → CEO delegation leaves one person able
+   *  to act for both, and the queue has to list what either of them may sign —
+   *  see `ActingOffices` and migration 072. */
+  offices: ActingOffices,
   /** How long the office below a SHARED rung gets before it escalates (063).
    *  Defaulted rather than required so a caller with no settings read still
    *  filters the queue by the same rule the RPC enforces, an hour or two out at
@@ -68,7 +72,7 @@ export function inMyQueue(
   return passes.filter((p) => canDecideApproval(
     p.status,
     withEscalation(byPass.get(p.id) ?? [], p.created_at, escalationHours),
-    office,
+    offices,
   ));
 }
 

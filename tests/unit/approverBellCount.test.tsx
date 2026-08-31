@@ -87,7 +87,7 @@ function ladder(passId: string, statuses: Record<string, string>) {
 function renderBell(office: string | null) {
   return render(
     <MemoryRouter>
-      <NotificationProvider session={fakeSession()} role={null} office={office as never}>
+      <NotificationProvider session={fakeSession()} role={null} offices={office ? [office as never] : []}>
         <NotificationBell />
       </NotificationProvider>
     </MemoryRouter>,
