@@ -71,7 +71,8 @@ An **office-holding admin/super_admin** is a distinct 7th case — see §1.3.
 | `/reset-password` | A (always, any auth state) | A | A | A | A | A |
 | `/dashboard` | R→home | A | R→home | R→home | R→`/no-access` | R→`/approvals` |
 | `/dashboard/:key` | R→home | A | R→home | R→home | R→`/no-access` | R→`/approvals` |
-| `/raise` | R→home | A | R→home | R→home | R→`/no-access` | R→`/approvals` |
+| `/raise` | R→home | A | R→home | R→home | R→`/no-access` | R→`/approvals`‡ |
+| `/my-passes` | R→home | R→home | R→home | R→home | R→`/no-access` | R→`/approvals`‡ |
 | `/mismatch/:id` | R→home | A | R→home | R→home | R→`/no-access` | R→`/approvals` |
 | `/expired/:id` | R→home | A | R→home | R→home | R→`/no-access` | R→`/approvals` |
 | `/reports` | R→home | A | R→home | R→home | R→`/no-access` | R→`/approvals` |
@@ -100,6 +101,17 @@ office redirects home from them — they only reach these if they themselves hol
 `officeReplacesRole` explicitly exempts from replacement (`roleRoutes.ts:112-126`), meaning an
 admin who ALSO holds an office keeps `/admin` etc. AND gains `/approvals`/`/delegation`/`/whitelist`
 — see §1.3.
+
+‡ **UPDATED (migration 069, client 2026-08-31)**: the generic "office" column is no longer
+uniform for `/raise` and `/my-passes`. `RAISING_OFFICE_ROUTES = ['/raise', '/my-passes']`
+(`roleRoutes.ts:58-59`) is granted only when `officeRaises(office)` is true, which checks the
+OFFICE KEY, not just "holds an office" — `RAISING_OFFICES = ['coo', 'ceo']` (`roleRoutes.ts:58`).
+So: a Security Head or Finance HOD office holder is R→`/approvals` on both routes (as the table
+shows), but the sitting COO or the sitting CEO is **A** on both — "make sure CEO and COO has the
+ability to raise pass on behalf of any department in their logins." `/raise` for them renders the
+HOD's form plus a `rp-dept` Department select (§ P1 plan, `PassDetailsCards.tsx`); `/my-passes`
+(`src/pages/Approver/MyRaisedPasses.tsx`) is their own `raised_by = auth.uid()` register. Not
+covered by an implemented spec yet — see the P1 plan's "Planned, not yet written" note.
 
 † The print-route gate at `App.tsx:244` runs BEFORE the `staff`-no-office `NoAccess` check at
 line 233 — **verify empirically**: because the print branch is reached only after the deactivated
@@ -640,6 +652,22 @@ row count equals the number shown on the card BEFORE navigating.
 | Signature boxes | `PrintSignatureBoxes.tsx`, 3-column grid, all classes literal `text-black`/`border-black`, `aria-hidden` on the tick/cross/dash `Mark` glyph | no interactive elements |
 | Sidebar/chrome | absent entirely — page renders outside `<AppShell>` (`App.tsx:244-250`) | assert no `nav`/sidebar element present |
 
+**NEW (client, 2026-08-31): the CEO's signature box is print-only conditional**
+(`src/lib/printCeoBox.ts`, `ceoBoxApplies`/`printedSteps`). The record ON SCREEN (`/pass/:id`,
+not `/print`) still draws every rung including a skipped CEO one — this rule is print-exclusive.
+The box survives printing in exactly four cases: the CEO approved or rejected level 3; the COO's
+escalation window (`app_settings.coo_escalation_hours`) has run out with no COO decision; the
+pass carries no COO rung at all (office vacant when raised); or a pre-`pass_approvals` pass whose
+org-chart-derived ladder draws no COO rung either. Everything else (the COO signed it, still
+holds the rung pending, or the rung closed `not_required`) drops the CEO box from the printed
+sheet only. **Planned, not yet written**: a spec asserting the common case (COO signs level 3 →
+printed sheet omits a CEO box, on-screen record still shows it as `not_required`) is
+straightforward against the seeded ladder and belongs in this file's scope; the escalation-window
+and vacant-COO-office cases both need state (a pass genuinely past `coo_escalation_hours`, or an
+evicted COO seat) this harness's real-time UI driving and singleton-office seeding
+(`tests/e2e/CONVENTIONS.md`) cannot safely produce, so those two branches are left as a
+documented gap rather than seeded ad hoc.
+
 ### 2.14 Profile page `[researched]`
 
 | Element | Exact text/attrs | Locator |
@@ -750,6 +778,12 @@ text.
   office-holding-admin, see P3-04). Steps: visit every route forbidden to that role (§1.2 table).
   Assertions: final URL === `homeFor()` value from §1.2; browser history entry for the forbidden
   URL is NOT navigable back to (used `replace`).
+- **P3-03a** — **NEW (migration 069)**, `/raise` and `/my-passes` split within "office". As
+  `secHead` and as `finHead`: both redirect R→`/approvals` from `/raise` and `/my-passes`. As
+  `coo` and as `ceo`: both are **A** on `/raise` and `/my-passes`. Not yet implemented as a spec
+  (`raisePass()` in `tests/e2e/helpers/lifecycle.ts` has no Department-select step for the
+  raising-office form) — see the P1 plan's "Planned, not yet written" note for the recommended
+  helper change.
 - **P3-04** — An admin who ALSO holds an approval office keeps every admin route AND gains
   `/approvals`/`/delegation`/`/whitelist`. Preconditions: seed an admin account, then
   `set_approval_role` it to e.g. Finance HOD. Steps: sign in, visit `/admin`, `/admin-dashboard`,

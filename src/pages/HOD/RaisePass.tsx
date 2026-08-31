@@ -10,7 +10,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
-import type { GatePassView, NewGatePass, NewGatePassItem, PassType } from '../../types';
+import type { GatePassView, NewGatePass, NewGatePassItem, PassType, UserRole } from '../../types';
 import { EMPTY_ITEM } from '../../types';
 import { requiresReturnDate } from '../../lib/passTypes';
 import { validateRaiseForm, todayStr, type FormErrors } from '../../lib/raisePassForm';
@@ -46,9 +46,13 @@ interface RaisePassProps {
    *  (`officeRaises`) reach this screen without being an HOD, and only they get
    *  the selector. */
   office?: ApprovalRoleKey | null;
+  /** Their VMS role, for ONE thing: where Cancel goes. `homeFor` needs both —
+   *  an admin who also holds an office keeps their own board, and deriving the
+   *  role from the office here would send them to the approval queue instead. */
+  role?: UserRole | null;
 }
 
-export default function RaisePass({ office = null }: RaisePassProps): React.ReactElement {
+export default function RaisePass({ office = null, role = null }: RaisePassProps): React.ReactElement {
   // `/raise` is one screen; the pass TYPE may still arrive in the query string
   // from an older link or bookmark. Read ONCE, as the initial state: the reader
   // may change the type with the selector afterwards, and a `useEffect` that
@@ -79,7 +83,15 @@ export default function RaisePass({ office = null }: RaisePassProps): React.Reac
   // Does this reader CHOOSE a department, or is theirs captured for them?
   const picksDepartment = officeRaises(office);
   const { depts, autoSelect, error: deptError } = useRaiseDepartments(picksDepartment);
-  const chosenDept = depts.find((d) => d.id === form.department_id) ?? depts[0];
+  // NO FALLBACK FOR A READER WHO PICKS. An HOD's department is selected for
+  // them the moment the list loads, so `depts[0]` covers the frame before that
+  // lands. A COO or CEO starts with nothing chosen ON PURPOSE — falling back to
+  // the alphabetically first department would print `RGP-ENG-####` in the
+  // read-only reference field over a form where no department has been chosen,
+  // which reads as a choice already made. The submitted value was never
+  // affected; the preview was.
+  const chosenDept = depts.find((d) => d.id === form.department_id)
+    ?? (picksDepartment ? undefined : depts[0]);
   const deptName = chosenDept ? `${chosenDept.name} (${chosenDept.code})` : '';
   const { sourceId, source, prefill } = useReraisePass(todayStr());
 
@@ -169,6 +181,12 @@ export default function RaisePass({ office = null }: RaisePassProps): React.Reac
     const errs = validateRaiseForm(
       form, picksDepartment ? !!form.department_id : depts.length > 0, todayStr(),
     );
+    // "You are not assigned to any department" is the HOD's failure and reads
+    // as nonsense to an office holder, who is assigned to none by definition
+    // and was asked to pick one.
+    if (picksDepartment && errs.department_id) {
+      errs.department_id = 'Choose the department this pass is raised for.';
+    }
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
@@ -275,7 +293,7 @@ export default function RaisePass({ office = null }: RaisePassProps): React.Reac
         {submitError && <div className="alert-error">{submitError}</div>}
 
         <div className="rp-actions">
-          <button type="button" className="btn-secondary px-6" onClick={() => navigate(homeFor(picksDepartment ? null : 'hod', office))}>
+          <button type="button" className="btn-secondary px-6" onClick={() => navigate(homeFor(role, office))}>
             Cancel
           </button>
           <button type="submit" className="btn-primary px-8" disabled={submitting}>

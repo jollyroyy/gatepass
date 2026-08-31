@@ -337,7 +337,7 @@ File: `src/pages/Security/Verify.tsx`.
 | Material table | `VerifyItemsTable` — heading `Material`, `{n} item(s)`, optional `· {total} {unit} total`, optional `· ₹X declared` (VerifyItemsTable.tsx:48-59); per-line: name, `(make_model)` if set, description, unit+qty (readonly), `₹value`, `Reason` = `item.purpose`, `Expected Return` (RGP only, if set) | | `items.length === 0` → `No item lines recorded on this pass.` (:63) |
 | Expired banner | `This pass expired on {formatDateTime(expires_at)} and can no longer be approved. Ask the HOD to raise a new one. You can still reject it if something is wrong.` (:247-250) | | `!alreadyActioned && expired` |
 | Approve button | `Approve` (:269), `disabled={submitting || expired}` | `page.getByRole('button', { name: 'Approve', exact: true })` | opens `ApprovePanel` |
-| Flag to Requester button | `Flag to Requester` (:273) | `page.getByRole('button', { name: 'Flag to Requester' })` | hidden when `pass.status === 'matched'`; NOT disabled by `expired` (deliberate, comment :255-262) |
+| Reject Pass button | **UPDATED (migration 070, 2026-08-31)**: `Reject Pass` — was `Flag to Requester` before then; the RPC (`flag_pass`) and status (`flagged`) are unchanged, only the label, because what the button now does (close the pass permanently) is no longer honestly described as "flag" | `page.getByRole('button', { name: 'Reject Pass' })` | hidden when `pass.status === 'matched'`; NOT disabled by `expired` (deliberate, comment in `Verify.tsx`) |
 | — buttons row | hidden entirely when `alreadyActioned` | | |
 
 `ApprovePanel` (VerifyPanels.tsx:41-133), inside `ModalShell` (`role="dialog"`,
@@ -350,15 +350,22 @@ Close button `aria-label="Close"`):
 - `Confirm Approval` button (:122-129) → `Approving…` while submitting; `disabled={submitting || lines.some(l => l.verified_qty <= 0)}` — **every line's verified_qty must be > 0**, this is the ONLY client-side validation (`handleConfirm`, :60-68)
 - On confirm → `gp().rpc('match_pass', {...})` → success navigates to `/console` with flash `` `${pass_number} approved — cleared to proceed.` ``
 
-`FlagPanel` (VerifyPanels.tsx:142-192):
-- Title `Flag to Requester` (:151), explanatory paragraph (:152-156)
-- Textarea `id="gate-flag-reason"`, label `Reason for flagging *` (:159), `maxLength={500}`, placeholder `e.g. Only 1 drill of the 2 declared is present.` (:168)
-- Char counter `{n}/500` (:172)
-- Cancel button (:178)
-- `Send to Requester` button → `Sending…` while submitting; `disabled={submitting || !valid}` where `valid = reason.trim().length > 0` (:147) — **MANDATORY reason, whitespace-only is invalid**
-- On confirm → `gp().rpc('flag_pass', {...})` → success navigates to `/console` with flash `` `${pass_number} rejected — sent to the raising department for review.` ``
+`FlagPanel` (VerifyPanels.tsx), **REWORDED for migration 070 (2026-08-31), the RPC unchanged**:
+- Title `Reject Gate Pass` — was `Flag to Requester`
+- Textarea `id="gate-flag-reason"`, label `Reason for rejecting *` — was `Reason for flagging *` — `maxLength={500}`, placeholder `e.g. Only 1 drill of the 2 declared is present.` (unchanged)
+- Explanatory paragraph now states finality: "This is final. The pass is cancelled, the material is not released, and the department that raised it is notified at once and must raise a new pass."
+- Char counter `{n}/500` (unchanged)
+- Cancel button (unchanged)
+- `Reject and Cancel Pass` button — was `Send to Requester` — → `Rejecting…` while submitting; `disabled={submitting || !valid}` where `valid = reason.trim().length > 0` — **MANDATORY reason, whitespace-only is invalid** (unchanged)
+- On confirm → `gp().rpc('flag_pass', {...})` (same RPC as before) → success navigates to `/console` with flash `` `${pass_number} rejected and cancelled — the raising department has been notified.` `` — **UPDATED text**, was `` `${pass_number} rejected — sent to the raising department for review.` ``
 
-Post-decision redirect target for BOTH paths: **`/console`** (Verify.tsx:136,150)
+**THE REJECTION IS NOW FINAL** (migration 070): `gatepass.hod_review_flagged_pass` is DROPPED —
+nothing can move the pass after this RPC runs. Revisiting `/verify/:id` shows the
+already-actioned banner (`GUARD_OUTCOME.flagged = 'rejected'`) with no Approve or Reject Pass
+button, permanently — there is no server-side path back to a decidable state, unlike a stale
+tab on an approve-able pass which the realtime subscription can still recover.
+
+Post-decision redirect target for BOTH paths: **`/console`** (Verify.tsx)
 — never back to `/verify/:id` or `/guard-dashboard`.
 
 Realtime: `Verify.tsx` subscribes to `postgres_changes` UPDATE on this one
@@ -785,17 +792,25 @@ assertions. Preconditions reference §7's data-setup recipes.
 - **P2-52 — Approve button on the outer screen is disabled once the pass is
   expired.** Precondition: D-EXPIRED-PENDING. Steps: visit `/verify/:id`.
   Assert: `Approve` button `disabled`; expired banner text visible verbatim
-  (§2.12); `Flag to Requester` remains ENABLED.
-- **P2-53 — Flag requires a non-empty, non-whitespace reason.** Precondition:
-  D-ACTIONABLE. Steps: click `Flag to Requester`; leave the textarea empty,
-  assert `Send to Requester` disabled; type only spaces, assert still
-  disabled; type a real reason, assert enabled.
-- **P2-54 — Flag happy path and redirect flash text.** Steps: type a reason,
-  e.g. `Only 1 of 2 drills present.`; click `Send to Requester`. Assert:
-  navigates to `/console`; flash reads `` `${pass_number} rejected — sent to
-  the raising department for review.` ``.
-- **P2-55 — Flag reason respects the 500-char cap.** Steps: type 550 chars.
+  (§2.12); `Reject Pass` (was `Flag to Requester`) remains ENABLED.
+- **P2-53 — Reject requires a non-empty, non-whitespace reason.** **UPDATED
+  wording (migration 070)**, RPC and mandatory-reason rule unchanged.
+  Precondition: D-ACTIONABLE. Steps: click `Reject Pass`; leave the textarea
+  empty, assert `Reject and Cancel Pass` disabled; type only spaces, assert
+  still disabled; type a real reason, assert enabled. Implemented in
+  `tests/e2e/guard/verify-flag.spec.ts`.
+- **P2-54 — Reject happy path, redirect flash text, and the rejection is
+  final.** **UPDATED (migration 070)**. Steps: type a reason, e.g. `Only 1 of
+  2 drills present.`; click `Reject and Cancel Pass`. Assert: navigates to
+  `/console`; flash reads `` `${pass_number} rejected and cancelled — the
+  raising department has been notified.` `` (was `` `${pass_number} rejected
+  — sent to the raising department for review.` ``). NEW assertion: revisit
+  `/verify/:id` and confirm no route back to a decision — no `Approve`, no
+  `Reject Pass`, only the already-actioned banner. Implemented in
+  `tests/e2e/guard/verify-flag.spec.ts`.
+- **P2-55 — Reject reason respects the 500-char cap.** Steps: type 550 chars.
   Assert: input value length caps at 500; counter reads `500/500`.
+  Implemented in `tests/e2e/guard/verify-flag.spec.ts`.
 - **P2-56 — Already-actioned pass shows the read-only banner and no
   buttons.** Precondition: D-MATCHED (already `matched`). Steps: visit
   `/verify/:id` directly. Assert: banner text includes `already **approved**

@@ -6,6 +6,101 @@ For current rules and architecture, see CLAUDE.md.
 
 ## Current state (session-by-session history)
 
+## 2026-08-31 — the CEO leaves the printed slip, the COO and CEO raise passes, and a gate rejection becomes final (`069`, `070`)
+
+Three client instructions in one session, on top of the same day's `068`. Two migrations, both
+written and **NOT yet applied** — `068`, `069` and `070` are all still unapplied on the live
+project, and they must be pasted in that order.
+
+### 1. The CEO's box leaves the printed slip unless the CEO is signing it
+
+Client: *"remove ceo from print pass page, if he is not approving. When coo is absent and is
+unable to approve, only that time show ceo approval in the print pass page."*
+
+Level 3 is one rung the COO and the CEO share (`063`), so on an ordinary pass the CEO never had
+anything to sign — and the slip still printed a box headed CEO, reading "Not required" or empty.
+To somebody holding the sheet at a gate, both read as a signature still owed.
+
+- **`src/lib/printCeoBox.ts`** (new, with `tests/unit/printCeoBox.test.ts`, 9 cases) keeps the
+  rung only when the CEO **approved or rejected** it, when the COO's escalation window has
+  **run out** (`withEscalation`, the display mirror of `gatepass.level_escalates_at`), or when
+  the pass carries **no COO rung at all** (vacant office the day it was raised — the CEO was
+  level 3 alone). A pre-workflow pass with no `pass_approvals` rows is graded from whether the
+  org-chart ladder drew a COO rung.
+- `PassPrint` now reads `useEscalationHours()` and filters the STEPS before building the boxes,
+  so the paper and the record stay one derivation with one office removed.
+- **The record on screen is deliberately unchanged**: a desk reader may see a skipped rung and
+  click into the reason; the paper has neither room nor a reader who can.
+
+### 2. The COO and the CEO raise a gate pass for any department (`069`)
+
+Client: *"make sure CEO and COO has the ability to raise pass on behalf of any department in
+their logins, so create those forms exactly as the hod sees it except one thing that ceo and coo
+can select the department."* Asked and answered by the client in-session: **they sign their own
+level-3 rung** — no self-approval special case, the ladder is untouched.
+
+- `raise_pass` admits `gatepass.app_role() = 'hod'` **or** `holds_fallback_office()` — 067's
+  sitting COO/CEO pair REUSED rather than a second list of office keys (a deputy or delegate is
+  excluded). The wide branch still demands a real `public.departments` row; the HOD branch is
+  unchanged.
+- **`gate_passes_select` gained `raised_by = auth.uid()`** and `gate_pass_items_select` gained
+  the new SECURITY DEFINER `raised_by_me()`. Without them the feature is unusable rather than
+  merely narrow: an office holder heads no department, so `my_department_ids()` is empty, and
+  `061` hides the pass from their own office until every rung below theirs is signed — they
+  would raise a pass and lose it.
+- Client side: `roleRoutes.ts` gained `RAISING_OFFICES` / `RAISING_OFFICE_ROUTES` and
+  `officeRaises()`, and `isForbidden` / `homeFor` now take the **office key**; a bare `true`
+  still means "an office, unspecified" and gets the narrow answer, which is what keeps every
+  existing caller correct. Two new sidebar tabs for those two offices only, a new
+  `pages/Approver/MyRaisedPasses.tsx` (the register their own pass would otherwise vanish from),
+  and `PassDetailsCards` gained an optional `departments` selector — absent for an HOD, so the
+  two forms are one code path with one field.
+- `RaisePass.tsx` was 345 lines before this and is 298 after: the department load moved to
+  `useRaiseDepartments.ts` and the RPC call to `raisePassRequest.ts`.
+- **Fixed in passing:** `passNumberPreview` still built the pre-`064` shape, showing
+  `RGP-20260831-####` for a pass that lands as `RGP-IT-12`. It now takes the department code,
+  which is also what makes the new selector's effect visible before submit.
+- Verified against the live project: `public.departments` carries `dept: authenticated users can
+  read` with `qual = true`, so the selector can read the whole table client-side.
+
+### 3. A rejection at the gate is FINAL (`070`)
+
+Client: *"once a guard rejects a pass he has to mention the justification as to why is he
+rejecting the pass and then the entire pass will be cancelled and a new pass needs to be
+raised."* The justification half was already true (`035` refuses a blank reason); what changed is
+that the pass is now closed where the guard leaves it.
+
+- **`hod_review_flagged_pass` is DROPPED.** It was the single door out of `flagged` — `match_pass`
+  admits only `pending` and `hod_reviewed` — so with it gone the status is terminal by
+  construction. It is dropped rather than left unused because an unused SECURITY DEFINER function
+  is still `EXECUTE`-able over PostgREST by every authenticated user.
+- **`flagged` is kept, not folded into `cancelled`.** "Security stopped this at the gate, and here
+  is what they wrote" is a different fact from "the HOD voided it", and every report already
+  grades the two together. The badge wording is unchanged.
+- `flag_pass` itself is untouched, deliberately: it already did exactly what was asked.
+- Client side: `FlaggedReviewActions.tsx` **deleted**; `/mismatch/:id` lost both decisions and
+  offers only Raise It Again; the pass record offers the raising HOD the same; the guard's second
+  button went back to **Reject Pass** ("Reject and Cancel Pass" in the modal, which now states the
+  finality); `voidSupersededPass` voids an **expired** source only, because a rejected one is
+  already closed; the bell's sentence stops offering a decision the HOD no longer has.
+- **`hod_reviewed` is now historical.** Three live passes hold it, so `match_pass` / `flag_pass`
+  still admit it and the guard's screen still handles it — nothing can enter it again.
+- `scripts/verify-035.mjs` deleted with the flow it probed.
+
+### Checks
+
+`npm run check` green — typecheck plus 2194 vitest cases across 171 files, including the new
+`printCeoBox` and route-office suites and the `069` / `070` SQL invariants. The e2e suite was not
+run (it drives the real project). **Nothing is applied to the database**; `069`'s RLS change wants
+a `scripts/verify-069.mjs` run with real JWTs once it is.
+
+### Session note
+
+A second Claude session was working in this repo at the same time (it shipped `068`). File
+ownership was split by direct message between the two sessions; `069`/`070` were renumbered
+around `068`, which was already taken.
+
+
 ## 2026-08-31 — the standing deputy is removed from the approval ladder (`068`)
 
 **Client instruction: remove the deputy field completely from the gate pass approval ladder**

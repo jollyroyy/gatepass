@@ -54,7 +54,7 @@ test.describe('Verify — Approve', () => {
     await settled(page);
     await expect(page.getByText(/already.*approved.*by/s)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Approve', exact: true })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Flag to Requester' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Reject Pass' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'View full details' })).toHaveAttribute('href', `/pass/${passAId}`);
   });
 });

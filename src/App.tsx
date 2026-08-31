@@ -285,7 +285,7 @@ export default function App(): React.ReactElement {
               same screen with ONE addition, a department selector, because they
               head no department of their own. `RaisePass` decides that from the
               office alone. */}
-          <Route path="/raise" element={<RaisePass office={office} />} />
+          <Route path="/raise" element={<RaisePass office={office} role={role} />} />
           <Route path="/mismatch/:id" element={<MismatchReview />} />
           <Route path="/expired/:id" element={<ExpiredReview />} />
           <Route path="/reports" element={<HodReports />} />

@@ -177,9 +177,16 @@ elsewhere). Empty: `.gb-empty` text "No passes match these filters."
 
 ## 4. `/mismatch/:id` — Mismatch Review (`src/pages/HOD/MismatchReview.tsx`)
 
+**REWRITTEN for migration 070 (2026-08-31)**: a guard's rejection at the gate is now FINAL.
+`gatepass.hod_review_flagged_pass` is DROPPED — the two decisions this screen used to offer
+("Reject Permanently", which changed nothing on a pass security already closed, and "Send Back
+to the Gate", the override that lived on the pass record) are both gone with it. The screen is
+no longer built on `PassDecisionPanel` at all; it is a standalone component with exactly one
+action.
+
 **Route + access**: `/mismatch/:id`, HOD only, reached only from the notification bell (no
-dashboard card links here). `hod_review_flagged_pass` refuses anyone but the raising HOD
-server-side regardless of this route list.
+dashboard card links here). There is no server RPC left to gate a stale click — the page is
+read-only over `v_gate_passes` and `gate_passes_select` is the only authority left.
 
 ### Selector inventory
 | Element | Text | Locator | Conditional |
@@ -192,25 +199,27 @@ server-side regardless of this route list.
 | "Stopped at the gate" heading | "Stopped at the gate" | `page.getByRole('heading', { name: 'Stopped at the gate' })` | pass loaded |
 | Flag reason | `pass.flag_reason` or "No reason was recorded." | text in `.card.border-flagged-500\/30 p` | always |
 | "Flagged by" / "Flagged at" | dt/dd pairs | scope within their `dl` | always |
-| Settled message | "This pass is no longer awaiting your decision — nothing further is needed here. View the pass ." | `page.locator('.empty-state')` inside `PassDecisionPanel` — **AMBIGUOUS with not-found empty-state** if queried page-wide; scope inside `PassDecisionPanel`'s container | `pass.status !== 'flagged'` |
-| "View the pass" link | "View the pass" | `page.getByRole('link', { name: 'View the pass' })`, href `/pass/:id` | settled only |
-| "Raise It Again" | "Raise It Again" | `page.getByRole('button', { name: 'Raise It Again' })` | idle (not settled, not confirming) |
-| "Reject Permanently" | "Reject Permanently" | `page.getByRole('button', { name: 'Reject Permanently' })` (this screen's `voidLabel`) | idle |
-| Idle help text | "Raising it again opens a new gate pass pre-filled from this one. This pass is voided only once the corrected one is submitted." | `page.getByText(...)` | idle |
-| Confirm warning | "This is final. The pass will be void and the material will not be released." | `page.getByText(...)` | confirming |
-| Reason field | label "Reason (optional)" | `page.getByLabel('Reason (optional)')` — real `id="void-reason"`/`htmlFor` | confirming |
-| Confirm button | "Confirm — Reject Permanently" (busy: "Working…") | `page.getByRole('button', { name: /Confirm — Reject Permanently/ })` | confirming |
-| Cancel | "Cancel" | `page.getByRole('button', { name: 'Cancel' })` | confirming |
+| Compact pass row | via `PassRow` | `PassRow` compact rendering | always |
+| "This pass is cancelled" heading | "This pass is cancelled" | `page.getByRole('heading', { name: 'This pass is cancelled' })` | always — there is no settled/idle split any more; a rejected pass reads the same way on every visit |
+| Explanatory text | "A rejection at the gate is final — the material was not released and this pass cannot be used again. Raising it again opens a new gate pass pre-filled from this one, so you correct what security stopped rather than retype it." | `page.getByText(...)` | always |
+| "Raise It Again" | "Raise It Again" | `page.getByRole('button', { name: 'Raise It Again' })` | always |
+| "View the pass" link | "View the pass" | `page.getByRole('link', { name: 'View the pass' })`, href `/pass/:id` | always |
+
+**Deleted, do not test for**: "Reject Permanently", "Send Back to the Gate", any confirm/cancel
+panel, any "Working…"/busy state, any settled-vs-idle empty-state split. None of it exists in
+the component any more.
 
 ### Landmines
-- Success calls `dismissPass(id)` then `navigate('/dashboard')` immediately
-  (`MismatchReview.tsx:297-298`) — no success message on this page; wait for the URL change.
-- Error is cleared BEFORE the async call starts (deliberate anti-flicker,
-  `MismatchReview.tsx:267-269,289`) — a retry-after-failure test should expect the banner to
-  vanish the instant the retry begins, not only on success.
-- No realtime subscription on this page at all — a stale-open tab keeps showing the decision
-  buttons even if another actor changed the pass status; the server (`hod_review_flagged_pass`)
-  is the real gate and will refuse a stale click, surfacing an RPC error in `.alert-error`.
+- "Raise It Again" calls `dismissPass(pass.id)` then `navigate('/raise', { state: { copyFrom:
+  pass.id } })` immediately (`MismatchReview.tsx`) — there is no confirm step and no RPC call on
+  this screen at all before leaving it.
+- Re-raising a REJECTED source pass void-supersedes nothing (`useReraisePass.ts`,
+  `voidSupersededPass`): the helper now only calls `hod_void_expired_pass` for an EXPIRED source,
+  because a rejected pass is already closed and there is no RPC left that could touch it.
+  Re-visiting `/mismatch/:id` after submitting the replacement shows the exact same screen —
+  assert that, not a "no longer awaiting" state that no longer exists.
+- No realtime subscription on this page — a stale-open tab simply keeps showing the same static
+  read; there is no decision left that a concurrent actor could invalidate.
 
 ---
 
@@ -272,7 +281,8 @@ Default `RGP` unless `?type=NRGP`. Switching to NRGP clears every item's
 
 | Field | Label (verbatim) | Type | Required | Exact error / rule | id |
 |---|---|---|---|---|---|
-| Reference Number | "Reference Number" | text, `readOnly` | n/a | live preview `${TYPE}-${YYYYMMDD}-####`, never the real number pre-submit | `rp-ref` |
+| Reference Number | "Reference Number" | text, `readOnly` | n/a | **UPDATED (migration 064, confirmed live 2026-08-31)**: live preview `${TYPE}-${DEPTCODE}-####`, e.g. `RGP-IT-####` — carries the DEPARTMENT code, not a date; the old `${TYPE}-${YYYYMMDD}-####` format this row previously described is gone. For a raising office (COO/CEO) the preview follows whichever department is picked in the Department select below, and reads `RGP-DEPT-####` before any department is chosen (`passNumberPreview`, `src/lib/raisePassForm.ts`) | `rp-ref` |
+| Department (COO/CEO raise form only) | "Department" | native `<select>` | Yes, for a raising office; absent entirely for an HOD | blank first option "Select a department…"; every department loads (not just one), and nothing is pre-selected — client, 2026-08-31: "create those forms exactly as the hod sees it except one thing that ceo and coo can select the department" | `rp-dept` |
 | Vehicle Number | "Vehicle Number" | text | No | placeholder "Optional — e.g. KA01AB1234" — **no format validation applied** despite `indianVehicle.ts` existing (confirmed unused here by grep) | `rp-vehicle` |
 | Vendor Name | "Vendor Name" (+ red `*`) | text | Yes | empty → `'Vendor name is required.'` (`raisePassForm.ts:89`) | `rp-vendor` |
 | Vendor Address | "Vendor Address" | text | No | none, placeholder "Street, area, city, pincode" | `rp-address` |
@@ -770,11 +780,44 @@ redirect target (`homeFor(role, isApprover)`, `roleRoutes.ts:143-148`):
 | HOD | `/dashboard`, `/raise`, `/overdue`, `/reports`, `/returns`, `/mismatch/:id`, `/expired/:id`, `/pass/:id`, `/profile` | allowed (`ROLE_ROUTES.hod`) |
 | HOD | `/admin`, `/admin-dashboard`, `/all-passes`, `/activity`, `/guard-dashboard`, `/console`, `/verify`, `/approvals`, `/delegation`, `/whitelist` | forbidden → redirected to `/dashboard` |
 | Office holder, no other role (e.g. dedicated Security Head account) | `/approvals`, `/delegation`, `/whitelist`, `/pass/:id`, `/profile` | allowed (`APPROVER_ROUTES`) |
-| Office holder | `/dashboard`, `/raise`, `/overdue`, `/reports`, `/guard-dashboard`, `/admin`, any role-specific route | forbidden → redirected to `/approvals` (`officeReplacesRole` strips the underlying role entirely) |
+| Office holder — Security Head or Finance HOD specifically | `/raise`, `/my-passes` | forbidden → redirected to `/approvals` — these two routes are NOT in `APPROVER_ROUTES`; only `RAISING_OFFICE_ROUTES` carries them and `officeRaises()` admits only `coo`/`ceo` (`roleRoutes.ts:58-59,80-82`) |
+| Office holder — the sitting COO or CEO | `/raise`, `/my-passes` | **NEW (migration 069, client 2026-08-31)**: allowed, in addition to `APPROVER_ROUTES` — "make sure CEO and COO has the ability to raise pass on behalf of any department in their logins." `/raise` renders the HOD's form plus a Department select (`rp-dept`); `/my-passes` (`src/pages/Approver/MyRaisedPasses.tsx`) is their own `raised_by = auth.uid()` register, since no board of theirs otherwise lists a pass they raised themselves. Not yet covered by a spec — see the "Planned, not yet written" note below §13. |
+| Office holder | `/dashboard`, `/overdue`, `/reports`, `/guard-dashboard`, `/admin`, any other role-specific route | forbidden → redirected to `/approvals` (`officeReplacesRole` strips the underlying role entirely) |
 | HOD who is ALSO designated to an office (e.g. an HOD holding Finance Head) | `/dashboard`, `/raise`, `/reports` | forbidden → redirected to `/approvals` — **this is the key regression case the office-replaces-role rule exists for**: verify the HOD board and Raise Gate Pass are fully unreachable while the designation holds |
 | Admin/super_admin designated to an office | admin routes AND `/approvals`/`/delegation`/`/whitelist` | **both allowed** — admin/super_admin are exempt from `officeReplacesRole` (`roleRoutes.ts:111-121`) |
 | Non-CEO office holder (e.g. Security Head, Finance Head, COO) | `/whitelist` directly by URL | route loads (not forbidden), but Approve/Reject controls are absent and the "Only the designated CEO..." notice shows |
 | CEO | `/whitelist` via the "Whitelist of Vendors" link on `/approvals` | link is present only for CEO; clicking navigates and full decision controls are available |
+
+### Planned, not yet written — migration 069 (COO/CEO raise) and the printed-slip CEO rule
+
+**Not implemented in this pass.** Both items below need either a new spec against the existing
+`coo`/`ceo` e2e accounts (`tests/e2e/fixtures/accounts.ts`) or state (an escalated/vacant COO
+rung) the seed does not currently produce, so they are recorded here as coverage gaps rather than
+guessed at.
+
+- **COO/CEO raise form (migration 069).** As `coo` (or `ceo`), reach `/raise` and `/my-passes`
+  directly (route-matrix case above); on `/raise` assert the extra `rp-dept` select (blank first
+  option "Select a department…", every department loads, not just one) and that the Reference
+  Number preview tracks whichever department is picked. Raise one pass against `E2E` or `E2E2`,
+  submit, and assert it appears in `/my-passes` (`raised_by = auth.uid()`, no realtime — a plain
+  reload) and nowhere on the HOD board. **Why not written now**: `tests/e2e/helpers/lifecycle.ts`'s
+  `raisePass()` has no department-select step (only the HOD form exists today, which has no
+  `rp-dept`); adding one is a shared-helper change with a shared-file conflict risk while another
+  session is also working in `tests/e2e/`, and a raised pass is permanent, so a wrong first
+  attempt at the helper cannot be undone. Recommended: add an optional `department` param to
+  `raisePass()` in a follow-up session, guarded by `if (await page.locator('#rp-dept').count())`,
+  so existing HOD callers are unaffected.
+- **Printed slip drops the CEO box unless the CEO is actually signing (`printCeoBox.ts`).** Four
+  cases make the box survive (CEO approved/rejected level 3; the COO's escalation window has run
+  out; the pass carries no COO rung at all; a pre-`pass_approvals` pass whose org-chart ladder
+  draws no COO rung) — everything else (the COO signed, still holds the rung, or it closed
+  `not_required`) drops it. **Why not written now**: exercising the escalation case needs a pass
+  that has sat on the COO's rung past `app_settings.coo_escalation_hours`, which (like the
+  `/expired/:id` gap in §5) cannot be produced by driving the UI in real time within a test
+  timeout; the no-COO-rung case needs a seed where the COO office is vacant, which would evict the
+  E2E harness's own COO account (`tests/e2e/.state/`) and is out of scope for a spec to do itself.
+  Recommended: a DB-seed fixture (department/time-travel) is the real prerequisite, tracked as a
+  gap rather than worked around.
 
 ---
 
@@ -905,34 +948,35 @@ date range). Assert `.gb-empty` text "No passes match these filters."
 **P1-29 — Menus close on outside click, not Escape.** Open the Export menu, press Escape,
 assert menu still open; click elsewhere on the page, assert menu closed.
 
-### Mismatch Review (`/mismatch/:id`)
+### Mismatch Review (`/mismatch/:id`) — REWRITTEN for migration 070 (2026-08-31)
+
+`hod_review_flagged_pass` is dropped; a guard's rejection is final. P1-31 through P1-33 and
+P1-35 below exercised that dropped RPC and its cancel/error paths — they are RETIRED, not
+weakened, because the UI they tested no longer exists. Implemented in
+`tests/e2e/hod/review.spec.ts`.
 
 **P1-30 — Not-found state.** Navigate to `/mismatch/<random-uuid>` as the HOD. Assert
 `.empty-state` text "That gate pass could not be found, or it is not one you may review."
 
-**P1-31 — Settled pass shows the view-only message.** Preconditions: a pass that was flagged
-and already resolved (status no longer `flagged`). Assert settled `.empty-state` text and a
-working "View the pass" link to `/pass/:id`.
+**P1-31, P1-32, P1-33 — RETIRED.** These covered the settled-message empty state and the
+"Reject Permanently" happy/cancel paths, all built on `hod_review_flagged_pass`. The RPC is
+gone and so is the UI: there is no settled/idle split and no confirm panel left to click through.
 
-**P1-32 — Reject Permanently — happy path.** Preconditions: an HOD's pass that security flagged
-(status `flagged`) at the gate. Steps: navigate here (simulate arriving from the bell), click
-"Reject Permanently", assert confirm UI appears with warning text and optional Reason field;
-type a reason, click "Confirm — Reject Permanently". Assert: navigation to `/dashboard`
-(no success message shown on this page).
+**P1-34 — Raise It Again pre-fills `/raise` without consuming the pass.** Click "Raise It
+Again". Assert: URL is `/raise`; Vendor Name and item rows are pre-filled from the source pass
+(wait for the async prefill, per the landmine in §6g); the "Raise Gate Pass Again" heading and
+"Correcting {pass_number}..." banner are present. Revisiting `/mismatch/:id` afterward (without
+submitting the re-raise) shows the exact same screen — nothing on this page is consumed by
+navigating away.
 
-**P1-33 — Reject Permanently — cancel step.** Same precondition. Click "Reject Permanently",
-then "Cancel". Assert: idle buttons ("Raise It Again"/"Reject Permanently") are visible again,
-no RPC call was made (no navigation occurred).
+**P1-35 — RETIRED.** Covered the reject RPC's error-clear-before-call anti-flicker. No RPC call
+happens on this screen any more (`dismissPass` is a local bell-state update, not a network
+call), so there is nothing left to retry.
 
-**P1-34 — Raise It Again pre-fills `/raise`.** Click "Raise It Again". Assert: URL is `/raise`;
-Vendor Name and item rows are pre-filled from the source pass (wait for the async prefill, per
-the landmine in §6g); the "Raise Gate Pass Again" heading and "Correcting {pass_number}..."
-banner are present.
-
-**P1-35 — Error-clear-before-call anti-flicker.** Preconditions: force the reject RPC to fail
-once then succeed. Click Reject → Confirm (fails, `.alert-error` shows) → click Confirm again.
-Assert: the instant the second attempt starts, `.alert-error` is gone before the new
-result returns.
+**New coverage** (not in the original P1-30..35 numbering): assert the deleted controls are
+genuinely absent — no "Reject Permanently", no "Send Back to the Gate", no confirm/cancel panel
+— on the same pass the not-found and prefill cases already produce. Implemented in
+`tests/e2e/hod/review.spec.ts`.
 
 ### Expired Review (`/expired/:id`)
 
@@ -1027,9 +1071,15 @@ responds to arrow keys per native `role="radiogroup"` semantics.
 Again". Assert the form is briefly blank/default, then Vendor Name and item rows populate from
 the source pass without requiring a manual reload (poll, don't assert instantly).
 
-**P1-60 — Re-raise voids the source pass, eventually.** Complete a re-raise submit. Assert the
-new pass's success modal appears first; only afterward (poll `/pass/<old-id>`) assert the old
-pass's status has moved to void/rejected — do not assert both in the same tick.
+**P1-60 — REWRITTEN for migration 070.** `voidSupersededPass` (`useReraisePass.ts`) now voids
+the source pass ONLY when it is EXPIRED (`hod_void_expired_pass`); a REJECTED source is already
+closed by `flag_pass` and calls no RPC on re-raise at all — a guard's rejection was made final,
+so there is nothing left to void. Complete a re-raise from a rejected pass and assert the
+source's `/mismatch/:id` reads identically before and after the replacement is submitted (still
+"This pass is cancelled", no new state). The expired-pass case (`/expired/:id`, still built on
+`hod_void_expired_pass`) keeps the original "voids the source pass, eventually" behaviour and is
+covered by §5's own re-raise case, unimplemented pending a genuinely-expired seed row.
+Implemented (rejected-pass half only) in `tests/e2e/hod/raise-happy.spec.ts`.
 
 **P1-61 — No departments assigned.** Preconditions: an HOD account with zero rows in
 `hod_departments` (edge/admin-seeded state). Steps: fill the form validly, submit. Assert whole-

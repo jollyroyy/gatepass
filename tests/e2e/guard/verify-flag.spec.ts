@@ -76,8 +76,7 @@ test.describe('Verify — Reject Pass', () => {
     // decision — no Approve, no Reject Pass, just the "already rejected" read.
     await page.goto(`/verify/${passId}`);
     await settled(page);
-    await expect(page.getByText('This pass was already')).toBeVisible();
-    await expect(page.getByText('rejected')).toBeVisible();
+    await expect(page.locator('.alert-warning').filter({ hasText: 'This pass was already' })).toContainText('rejected');
     await expect(page.getByRole('button', { name: 'Approve' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Reject Pass' })).toHaveCount(0);
   });
