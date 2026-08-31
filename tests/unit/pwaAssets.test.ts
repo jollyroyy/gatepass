@@ -115,3 +115,39 @@ describe('the brand mark', () => {
     for (const path of stroked) expect(path).toMatch(/fill="/);
   });
 });
+
+// ─── The boot guard ─────────────────────────────────────────────────────────
+// 2026-08-31: a hashed bundle pinned as a 404 in the browser's HTTP cache left
+// the deployed app blank, with nothing on the page to say so. The guard is what
+// notices; its behaviour is proven in tests/unit/bootGuard.test.ts. What is
+// pinned here is that it is actually WIRED UP, and wired up the only two ways
+// that work.
+describe('PWA: the boot guard', () => {
+  const guard = readFileSync(root('public/boot-guard.js'), 'utf8');
+
+  it('is loaded from index.html before the module bundle', () => {
+    expect(html).toMatch(/<script src="\/boot-guard\.js"><\/script>/);
+    // Classic and not deferred: it has to be listening before the bundle it
+    // watches is fetched. A `type="module"` or `defer` on this tag would put it
+    // after the very error it exists to catch.
+    expect(html).not.toMatch(/<script[^>]*boot-guard\.js"[^>]*(defer|type="module")/);
+  });
+
+  it('stays a separate file, because the production CSP forbids inline script', () => {
+    const csp = readFileSync(root('vercel.json'), 'utf8');
+    const scriptSrc = csp.match(/script-src ([^;]+);/);
+    expect(scriptSrc).not.toBeNull();
+    // No hash, no nonce, no 'unsafe-inline' — an inline guard would simply not
+    // execute in production, and would execute fine on localhost, which is the
+    // worst of both.
+    expect(scriptSrc![1]).toBe("'self'");
+  });
+
+  it('can only repair once per tab — twice is a reload loop', () => {
+    // Read the CODE, not the file: the comment above the call explains the
+    // choice by naming localStorage, and a whole-file regex fails on the prose.
+    const code = guard.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(code).toMatch(/sessionStorage\.setItem/);
+    expect(code).not.toMatch(/localStorage/);
+  });
+});

@@ -24,10 +24,18 @@
  * LAUNCH offline, which is a different and much smaller promise.
  */
 
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL_CACHE = `gatepass-shell-${VERSION}`;
 const ASSET_CACHE = `gatepass-assets-${VERSION}`;
 const CURRENT_CACHES = [SHELL_CACHE, ASSET_CACHE];
+
+/* How many hashed files the asset cache may hold. Every deploy renames all of
+ * them, so without a ceiling this cache keeps one entry per build FOR EVER —
+ * the live worker was found holding forty-eight superseded bundles, 38 MB, none
+ * of them nameable by any HTML this app will ever serve again. A build is one
+ * JS and one CSS, so twenty-four leaves a dozen deploys' worth of instant back
+ * navigation and throws away the archaeology. */
+const ASSET_CACHE_LIMIT = 24;
 
 /* The document every navigation falls back to. A SPA has exactly one. */
 const SHELL_URL = '/index.html';
@@ -39,7 +47,14 @@ const SHELL_URL = '/index.html';
  * from its own copy afterwards. */
 const PRECACHE = [SHELL_URL];
 
+/* `skipWaiting` is not impatience. A worker normally waits for every tab of the
+ * app to close before it takes over, which is right when the change is a
+ * feature and wrong when the change is a REPAIR: the browser that most needs
+ * this worker is the one sitting on a blank page, and it will not close that
+ * tab, it will reload it. Safe here because the only thing this worker chooses
+ * between is hashed filenames, which never mean two different files. */
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(SHELL_CACHE).then((cache) => cache.addAll(PRECACHE)).catch(() => undefined),
   );
@@ -66,6 +81,7 @@ async function putIfStorable(cacheName, request, response) {
   if (!isStorable(response)) return;
   const cache = await caches.open(cacheName);
   await cache.put(request, response.clone());
+  if (cacheName === ASSET_CACHE) await trimCache(ASSET_CACHE, ASSET_CACHE_LIMIT);
 }
 
 async function networkFirst(request) {
@@ -83,12 +99,46 @@ async function networkFirst(request) {
   }
 }
 
+/** Drops the oldest entries once a cache is over its ceiling. `keys()` returns
+ *  insertion order, so the front of the list is the least recently added. */
+async function trimCache(cacheName, limit) {
+  const cache = await caches.open(cacheName);
+  const keys = await cache.keys();
+  if (keys.length <= limit) return;
+  await Promise.all(keys.slice(0, keys.length - limit).map((key) => cache.delete(key)));
+}
+
+/**
+ * A hashed asset. Cache-first, and — the part that is not decoration — it does
+ * not believe a failure the first time.
+ *
+ * A NON-200 FOR A HASHED FILENAME IS A LIE TOLD BY A CACHE. The filename came
+ * out of the HTML the very same build wrote, so the file exists by
+ * construction; what does not exist is a reason to trust a 404 for it. On
+ * 2026-08-31 the deployed app served a blank page to every browser that had
+ * asked for one of these URLs during the deploy window: the answer then was a
+ * 404, `vercel.json` stamps `immutable, max-age=31536000` on everything under
+ * `/assets/` whatever its status, and the browser held that 404 for a year.
+ * curl saw 200. The page stayed empty.
+ *
+ * So one retry, with `cache: 'reload'`, which goes past the HTTP cache to the
+ * origin. Exactly one: if the second answer is bad too the file really is gone,
+ * and a loop would only turn a broken page into a broken page plus a hot phone.
+ * Neither answer is cached unless it is a 200.
+ */
 async function cacheFirst(request) {
   const cached = await caches.match(request);
   if (cached) return cached;
+
   const response = await fetch(request);
-  await putIfStorable(ASSET_CACHE, request, response);
-  return response;
+  if (response.ok) {
+    await putIfStorable(ASSET_CACHE, request, response);
+    return response;
+  }
+
+  const retried = await fetch(request.url, { cache: 'reload' });
+  await putIfStorable(ASSET_CACHE, request, retried);
+  return retried;
 }
 
 async function staleWhileRevalidate(request) {

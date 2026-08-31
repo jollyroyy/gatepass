@@ -32,6 +32,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <title>Quest Gate Pass</title>
+
+    <!-- Runs before the bundle and does nothing unless the bundle fails to
+         start. A hashed asset can be pinned as a 404 in a browser's HTTP cache
+         (2026-08-31 — see public/boot-guard.js), and the only symptom is a
+         blank page that reports nothing. Classic, not a module, so it is in
+         place before the deferred bundle it watches; a separate file, not
+         inline, because the production CSP is script-src 'self'. -->
+    <script src="/boot-guard.js"></script>
   </head>
   <body>
     <div id="root"></div>

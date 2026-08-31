@@ -4102,3 +4102,62 @@ sentence is keyed off a blank box existing and so disappears with it.
 `npm run check` (2165 tests). New cases in `tests/unit/printSignatureBoxes.test.ts` (the predicate,
 omission, RGP still drawn) and `tests/unit/passPrintSignatures.test.tsx` (NRGP renders the gate box
 and no receiver box or hand-signing sentence; NRGP dropped from the every-category receiver loop).
+
+---
+
+## 2026-08-31 — The deployed app served a blank page (poisoned asset 404)
+
+**Symptom.** `https://gatepass-bay.vercel.app/login` rendered nothing — dark background,
+`#root` empty, no visible error. Local dev, the local production build (`vite preview`) and the
+exact same bundle hash all rendered fine.
+
+**Diagnosis** (browser, on the live origin). `index.html` named `/assets/index-BbT27NeX.js`;
+`curl` got **200, 814 KB** for that URL from three different edge requests, while `fetch()` in
+the page got **404** with a Vercel `NOT_FOUND` body whose `x-vercel-id` timestamp was the
+*deployment minute*. Re-requesting the same URL with `{ cache: 'reload' }` returned 200, and a
+plain fetch afterwards returned 200 too — so the 404 lived in the **browser's own HTTP cache**.
+`vercel.json` stamps `Cache-Control: public, max-age=31536000, immutable` on everything matching
+`/assets/(.*)` **whatever the status**, so a single transient 404 during the deploy window was
+pinned for a year. The module never executed; nothing on the page said so.
+
+The service worker made it worse and hid it: `cacheFirst` took the 404 at face value (correctly
+refusing to cache it, so every load re-asked the poisoned HTTP cache), and its asset cache had
+never evicted anything — **48 superseded bundles, 38 MB**, one per deploy since it shipped.
+
+**Fix — two layers, because one of them cannot reach an already-broken browser.**
+
+`public/sw.js` (VERSION → `v2`, so the 38 MB of stale caches is dropped on activate):
+- a non-200 for a **hashed** filename is a lie told by a cache — the build that wrote the name
+  into the HTML also shipped the file — so `cacheFirst` retries **once** with `{ cache: 'reload' }`
+  and serves that. Exactly once: a second bad answer means the file really is gone.
+- `skipWaiting()` on install. A worker that waits for every tab to close is right for a feature
+  and wrong for a repair — the browser that needs it is sitting on a blank page it will reload,
+  not close. Safe because the only thing this worker chooses between is hashed filenames.
+- `ASSET_CACHE_LIMIT = 24`, trimmed after every put (`keys()` is insertion-ordered).
+
+`public/boot-guard.js`, new, loaded from `index.html` **before** the module bundle: a classic
+script (the production CSP is `script-src 'self'` — inline would silently fail in prod and work
+on localhost) that watches for the two symptoms — an `/assets/` resource that errors, or a
+`#root` still empty 6 s after load — and repairs by re-fetching what the document names with
+`{ cache: 'reload' }`, then reloading. **Once per tab** (`sessionStorage`, deliberately not
+`localStorage`): a repair that can fire twice is a reload loop, which is worse than the blank
+page. This is the layer that heals a browser whose HTTP cache is already poisoned and whose
+installed worker is still the old one.
+
+`#root` empty is an unambiguous signal here: `App` renders `FullPageLoader` while it resolves a
+session, so a mounted app is never an empty root.
+
+### Gate
+
+`npm run check` (2180 tests). New: `tests/unit/swAssetRecovery.test.ts` — it **executes**
+`public/sw.js` in a hand-built `self`/`caches`/`fetch` scope and asserts the retry, the
+no-double-fetch, the no-loop, the trim and `skipWaiting`. That matters: `pwaAssets.test.ts` pins
+the worker by *grepping its text*, and every assertion in it passed while the app was blank.
+`tests/unit/bootGuard.test.ts` runs the guard the same way. Verified in a real browser against
+the production build: healthy page renders and the guard stays asleep for 8 s; against a server
+that 404s the bundle, the guard fires `asset-error`, reloads exactly once, and does not loop.
+
+### Not fixed, on purpose
+
+`vercel.json` still marks `/assets/*` immutable for a year — Vercel's header rules cannot be
+conditioned on status, and the caching is worth having. The mitigation is the two layers above.
