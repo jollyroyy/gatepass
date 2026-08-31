@@ -126,7 +126,7 @@ export default function PassRecordItems({
                 <th>Quantity</th>
                 <th>Value</th>
                 <th>{isRgp && !rejected ? 'Return Status' : 'Status'}</th>
-                {isRgp && !rejected && <th>Action</th>}
+                {isRgp && !rejected && <th className="sticky-action">Action</th>}
               </tr>
             </thead>
             <tbody>
@@ -204,7 +204,7 @@ export default function PassRecordItems({
                       )}
                     </td>
                     {isRgp && !rejected && (
-                      <td>
+                      <td className="sticky-action">
                         {canRecord && owes && onAdd ? (
                           <button
                             type="button"

@@ -50,7 +50,7 @@ export default function ScheduledReturnsTable({
               <th>Expected Return</th>
               <th>Quantity</th>
               <th>Return Status</th>
-              <th>Action</th>
+              <th className="sticky-action">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -92,7 +92,7 @@ export default function ScheduledReturnsTable({
                         stage until Record is pressed. */}
                     <Badge style={ITEM_RETURN_STYLES[stage]} />
                   </td>
-                  <td>
+                  <td className="sticky-action">
                     {owes ? (
                       <button
                         type="button"

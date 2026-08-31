@@ -63,7 +63,7 @@ export default function DelegationHistoryTable({ rows, busy, onRevoke }: Props):
                   <th scope="col">Approval Limit</th>
                   <th scope="col">Status</th>
                   <th scope="col">Created On</th>
-                  <th scope="col">Actions</th>
+                  <th scope="col" className="sticky-action">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -83,7 +83,7 @@ export default function DelegationHistoryTable({ rows, busy, onRevoke }: Props):
                       )}
                     </td>
                     <td>{formatDateTime(r.created_at)}</td>
-                    <td>
+                    <td className="sticky-action">
                       {/* NOTHING TO PRESS ON A FINISHED ROW. The mock draws an
                           eye on every row that opens a detail view; every fact
                           this app holds about a delegation is already in the

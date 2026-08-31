@@ -72,7 +72,7 @@ export default function UsersTable({
             <th>Status</th>
             <th>Departments</th>
             <th>Created</th>
-            <th />
+            <th className="sticky-action" />
           </tr>
         </thead>
         <tbody>
@@ -103,7 +103,7 @@ export default function UsersTable({
                   {p.role === 'hod' ? deptNamesByHod.get(p.id)?.join(', ') || '—' : '—'}
                 </td>
                 <td className="tabular whitespace-nowrap">{formatDateOnly(p.created_at)}</td>
-                <td className="text-right">
+                <td className="text-right sticky-action">
                   {/* AN OFFICE HOLDER GETS EDIT AND DEACTIVATE LIKE ANYONE
                       ELSE (client, 2026-08-20: "make sure that all these four
                       roles should have the deactivate and edit option also for

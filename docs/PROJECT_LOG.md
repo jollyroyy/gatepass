@@ -4565,3 +4565,48 @@ person to perform the Share-sheet gesture themselves. Everything below is the ne
 
 **Gate:** `npm run check`. New `tests/unit/installModal.test.tsx` (9); `installPrompt.test.ts`
 gains the expiry/uninstall group. The uninstall arm was confirmed to fail with the branch disabled.
+
+## 2026-08-31 — The gate's buttons reach the phone
+
+**Client:** "make sure all the buttons are appearing in the pwa app also and every feature works,
+currently approve out button is not appearing in mobile pwa … make sure the app is fully optimized
+and functional in mobile app".
+
+**The cause was layout, not authorisation.** Every wide table in the app scrolls sideways inside
+`.gb-scroll` / `.overflow-x-auto`, and every one of them puts its control in the LAST column. The
+Pending OUT queue is ELEVEN columns and Approve OUT is the eleventh: on a 390px screen the button
+was rendered roughly 800px past the right edge. `canVerifyAtGate` was true, `match_pass` would have
+accepted the press, and the guard could not see the thing to press.
+
+- `src/lib/useIsNarrow.ts` (new) — one `matchMedia` question, `(max-width: 1023px)`, with the
+  legacy `addListener` fallback and a FALSE answer wherever `matchMedia` is missing (jsdom, and any
+  pre-paint render), so an unknown viewport gets the layout that loses nothing.
+- `src/components/guard/PendingOutCards.tsx` (new) — below `lg` the queue is the ONE stacked card
+  (`PassStack` + `matchAction`, the same pair the global search answer uses), each card carrying
+  Approve OUT on its face and unfolding its own material lines. `PendingOutPanel` picks ONE of the
+  two layouts rather than drawing both behind a `lg:hidden`: a phone must not build twenty table
+  rows it cannot see, nor let them start item queries.
+- `.sticky-action` in `index.css` — for the tables where the reader still wants the row, the action
+  cell pins itself to the right edge of the scroller below `lg` and the rest of the row slides
+  under it. Applied to Admin → Users (Edit/Deactivate), Blacklist (Request Whitelist), Reports (the
+  kebab that owns Print Pass), Delegation history (Revoke), the record's item table (Mark return),
+  Scheduled Returns (Mark returned) and the guard's per-line return entry (+ Add Return). A sticky
+  cell must be opaque, and the plate is `--gb-paper` inside the guard/stack islands and the app's
+  own `--glass-bg` elsewhere; `@media print` puts it back to `static`.
+- Installed-PWA fixes: `.gb-returnbox` clears the iOS home indicator
+  (`env(safe-area-inset-bottom)`) — the Record field sat on the gesture bar; `.gb-board` gains a
+  `100dvh` min-height after the `100vh` fallback; `apple-mobile-web-app-status-bar-style` is `black`
+  rather than `default`, which was painting a white iOS status bar over a shell that is dark in both
+  themes.
+
+**Gate:** `npm run check` — 181 files, 2318 tests, green; `npm run build` clean. New
+`tests/unit/pendingOutMobile.test.tsx` (4) holds that a phone gets cards with a working Approve OUT,
+that no wide table is built there at all, that a pass the gate can no longer clear still degrades to
+View pass, and that the desk keeps the eleven-column table.
+
+**Audited and found sound, so untouched:** the manifest (192/512/maskable icons, `standalone`,
+scope), `public/sw.js`, the CSP's `worker-src`, and `AppShell`'s mobile drawer. **Not fixed, flagged:**
+`InstallModal` and `InstallAppBanner` share one dismissal key, so closing the sign-in modal also
+silences the banner for the same 7 days — that contradicts `InstallModal`'s own comment, and which
+of the two should win is a product call. The client bundle is one 824kB chunk (232kB gzipped); route
+-level `React.lazy` would cut what a guard's phone downloads on first launch and has not been done.

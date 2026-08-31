@@ -180,7 +180,7 @@ export default function BlacklistTab(): React.ReactElement {
                 <th>Value</th>
                 <th>Reason</th>
                 <th>Blocked At</th>
-                <th>Actions</th>
+                <th className="sticky-action">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -194,7 +194,7 @@ export default function BlacklistTab(): React.ReactElement {
                   <td className="font-semibold text-navy-900">{e.list_value}</td>
                   <td className="text-navy-600 max-w-[300px]">{e.reason}</td>
                   <td className="tabular whitespace-nowrap">{formatDateTime(e.created_at)}</td>
-                  <td>
+                  <td className="sticky-action">
                     {pendingIds.has(e.id) ? (
                       <span className="text-xs font-medium text-pending-700">Awaiting CEO approval</span>
                     ) : requestFor === e.id ? (

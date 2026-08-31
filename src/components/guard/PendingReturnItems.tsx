@@ -80,7 +80,7 @@ export default function PendingReturnItems({ items, draft, onAdd }: Props): Reac
           <th>Value</th>
           <th>Expected Qty</th>
           <th>Returned Qty</th>
-          <th>Return Now</th>
+          <th className="sticky-action">Return Now</th>
           <th>Status</th>
         </tr>
       </thead>
@@ -104,7 +104,7 @@ export default function PendingReturnItems({ items, draft, onAdd }: Props): Reac
               <td>{item.approx_value == null ? '—' : formatCurrency(item.approx_value)}</td>
               <td>{quantityCell(item.quantity, item.unit)}</td>
               <td>{quantityCell(effectiveReturned(item, draft), item.unit)}</td>
-              <td>
+              <td className="sticky-action">
                 {state === 'returned' && !staged ? (
                   <span className="gb-pill gb-pill-green">
                     {TickGlyph}

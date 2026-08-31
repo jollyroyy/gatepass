@@ -107,7 +107,7 @@ export default function ReportsTable({ rows, showPeople = true }: Props): React.
           {showPeople && <th>Raised By Department</th>}
           <th>Status</th>
           {showPeople && <th>Created By</th>}
-          <th aria-label="Actions" />
+          <th aria-label="Actions" className="sticky-action" />
         </tr>
       </thead>
       <tbody>
@@ -128,7 +128,7 @@ export default function ReportsTable({ rows, showPeople = true }: Props): React.
               <span className={`gb-pill ${reportStatusPill(p)}`}>{reportStatusLabel(p)}</span>
             </td>
             {showPeople && <td>{p.raised_by_name ?? '—'}</td>}
-            <td className="no-print">
+            <td className="no-print sticky-action">
               <RowMenu pass={p} />
             </td>
           </tr>

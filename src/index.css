@@ -354,6 +354,11 @@
     box-shadow: none !important;
     border-radius: 0 !important;
   }
+  /* Paper has no right edge to pin an action column to. */
+  .sticky-action {
+    position: static !important;
+    box-shadow: none !important;
+  }
   /* The register lives inside a horizontal scroller; paper cannot scroll, so
      nothing in the print tree may clip. */
   .overflow-x-auto,
@@ -1288,7 +1293,13 @@
      * ones Tailwind emits for those utilities. */
     margin: -5rem -1rem -2rem;
     padding: 5rem 1rem 2rem;
+    /* `dvh`, not `vh`: mobile browsers measure `vh` against the viewport with
+     * the address bar HIDDEN, so a board that exactly fills the screen still
+     * grew a strip of empty scroll under it while the bar was showing. `dvh`
+     * is the height actually visible right now. The `vh` line stays first for
+     * any browser that does not know the unit. */
     min-height: calc(100vh - 3.5rem);
+    min-height: calc(100dvh - 3.5rem);
   }
 
   @media (min-width: 640px) {
@@ -2345,7 +2356,11 @@
     .gb-returnbox {
       left: 8px;
       right: 8px;
-      bottom: 8px;
+      /* CLEAR THE HOME INDICATOR. Installed on an iPhone there is no browser
+       * chrome under this sheet — the gesture bar is, and a Record button
+       * sitting on it is a button the phone swallows. `env()` is 0 everywhere
+       * that has no inset, so the desk loses nothing. */
+      bottom: calc(8px + env(safe-area-inset-bottom, 0px));
       width: auto;
     }
   }
@@ -4195,5 +4210,61 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   THE ACTION COLUMN FOLLOWS THE READER ON A PHONE
+   (client, 2026-08-31: buttons that "are not appearing in mobile")
+
+   Every wide table in this app scrolls sideways inside `.gb-scroll` /
+   `.overflow-x-auto`, and every one of them puts its control — Approve OUT,
+   Edit, Revoke, Mark returned, Request Whitelist, the row's kebab — in the LAST
+   column. On a 390px screen that column starts several hundred pixels past the
+   right edge: the button exists, and the person holding the phone never sees it.
+
+   Below `lg` the action cell therefore pins itself to the right edge of the
+   scroller and the rest of the row slides underneath it. It is the one change
+   that reaches every table at once, so a table added later inherits the fix by
+   naming the class rather than by growing a second layout.
+
+   The guard's own queue does NOT rely on this — eleven columns are not worth
+   scrolling at all, so it swaps to `PendingOutCards` (see `useIsNarrow`). This
+   is for the tables where the reader still wants the row.
+
+   A sticky cell MUST be opaque or the scrolled columns read straight through
+   it, and the plate differs per skin: the guard/stack islands paint with
+   `--gb-paper`, everything else with the app's own `--glass-bg`. Both are
+   declared for light and dark, so neither needs a `dark:` variant here.
+   ============================================================ */
+@media (max-width: 1023px) {
+  .sticky-action {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    background: rgb(var(--glass-bg));
+    /* The seam that says "there is more table to the left of this" — a shadow
+     * cast inward, so it appears only while something is scrolled under it. */
+    box-shadow: -10px 0 10px -10px rgb(16 24 40 / 0.28);
+  }
+  thead .sticky-action {
+    z-index: 3;
+    background: rgb(var(--glass-bg));
+  }
+  .gb-board .sticky-action,
+  .gb-main .sticky-action,
+  .gb-stack .sticky-action,
+  /* A `.gb-table` drawn outside those three islands has no `--gb-paper` to
+   * read, and a var nobody declared invalidates the whole declaration — which
+   * on a sticky cell means a transparent one with the row sliding through it.
+   * The fallback is the app's own plate. */
+  .gb-table .sticky-action {
+    background: var(--gb-paper, rgb(var(--glass-bg)));
+  }
+  .gb-board thead .sticky-action,
+  .gb-main thead .sticky-action,
+  .gb-stack thead .sticky-action,
+  .gb-table thead .sticky-action {
+    background: var(--gb-head);
   }
 }

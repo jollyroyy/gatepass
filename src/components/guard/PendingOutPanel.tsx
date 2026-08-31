@@ -23,6 +23,7 @@ import React, { useMemo, useState } from 'react';
 import GuardPager from './GuardPager';
 import GuardToolbar from './GuardToolbar';
 import PendingOutFilterBar from './PendingOutFilterBar';
+import PendingOutCards from './PendingOutCards';
 import PendingOutTable from './PendingOutTable';
 import type { GatePassView } from '../../types';
 import {
@@ -37,6 +38,7 @@ import {
   type TypeTab,
 } from '../../lib/pendingOutFilters';
 import { pageOf } from '../../lib/scheduledReturns';
+import useIsNarrow from '../../lib/useIsNarrow';
 
 type Props = {
   /** The passes the pressed figure counted. */
@@ -56,6 +58,10 @@ export default function PendingOutPanel({ rows, loading, initialTab }: Props): R
   const { parties, departments } = useMemo(() => scopeOptions(rows), [rows]);
   const filtered = useMemo(() => applyFilters(rows, filters), [rows, filters]);
   const current = pageOf(filtered, page, size);
+  // ONE layout at a time, chosen by the viewport itself — see `useIsNarrow`.
+  // Drawing both and hiding one with `lg:hidden` would put every row in the DOM
+  // twice and let a phone start item queries for a table it cannot see.
+  const onPhone = useIsNarrow();
 
   // Narrowing the list must not leave the reader on page 9 of 2 — `pageOf`
   // clamps, and this puts the control back in step with what it clamped to.
@@ -96,9 +102,13 @@ export default function PendingOutPanel({ rows, loading, initialTab }: Props): R
           </div>
         ) : (
           <>
-            <div className="gb-scroll">
-              <PendingOutTable rows={current.rows} />
-            </div>
+            {onPhone ? (
+              <PendingOutCards rows={current.rows} />
+            ) : (
+              <div className="gb-scroll">
+                <PendingOutTable rows={current.rows} />
+              </div>
+            )}
             <GuardPager
               page={current}
               size={size}
