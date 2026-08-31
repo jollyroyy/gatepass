@@ -6,6 +6,7 @@ import Sidebar from './Sidebar';
 import NotificationBell from './NotificationBell';
 import SessionTimeout from '../SessionTimeout';
 import OfflineBanner from '../OfflineBanner';
+import InstallAppBanner from '../InstallAppBanner';
 import { NotificationProvider } from '../../lib/notifications';
 
 type Props = {
@@ -81,6 +82,9 @@ export default function AppShell({ session, role, isApprover = false, office = n
                 offline app OPENS instead of erroring, and what it opens is every
                 list empty. Renders nothing while online. */}
             <OfflineBanner />
+            {/* The offer to install. Renders nothing in the installed app, once
+                dismissed, or where the browser has not said it is installable. */}
+            <InstallAppBanner />
             {children}
           </main>
 

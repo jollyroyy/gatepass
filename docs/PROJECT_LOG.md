@@ -6,6 +6,42 @@ For current rules and architecture, see CLAUDE.md.
 
 ## Current state (session-by-session history)
 
+## 2026-08-31 (later still) — the phone finally offers to install the app
+
+**Symptom (client).** "We don't see the PWA app install button in phone."
+
+**Cause — nothing was broken.** Every file a browser checks was already correct and had been
+since the PWA landed: `public/manifest.webmanifest` (name, short_name, `start_url` `/`, scope
+`/`, `display: standalone`, 192 / 512 / maskable icons all present), the apple-touch-icon,
+`public/sw.js` registering with a fetch handler, HTTPS. Verified live with `curl -I` against
+`https://gatepass-bay.vercel.app` — manifest 200 `application/manifest+json`, sw.js 200, all
+three icons 200 — so `pwaAssets.test.ts` was telling the truth. **What was missing is the only
+part a site has to write for itself.** Chrome has not shown an automatic install bar since
+2019; it fires `beforeinstallprompt` at the page and waits to be asked, and nothing in `src/`
+had ever listened for it. iOS is worse: WebKit fires no such event and exposes no API, every
+browser on an iPhone is WebKit, and Share → Add to Home Screen is invisible unless described.
+
+**Fix.**
+- `src/lib/installPrompt.ts` — captures the event and holds it. **Attached from `main.tsx`
+  BEFORE render**, because Chrome commonly fires it before React has mounted anything, and the
+  event fires once and cannot be replayed; `subscribeInstallPrompt` therefore calls back
+  immediately when an event is already in hand. Also `isStandalone()` (matchMedia *and*
+  `navigator.standalone` — iOS answers only the second), `isIosDevice()` (an iPad has reported
+  the desktop Mac UA since iPadOS 13, so `maxTouchPoints` is the tiebreak), and a remembered
+  dismissal.
+- `src/components/InstallAppBanner.tsx` — a real **Install app** button where the event exists;
+  the Share → Add to Home Screen sentence on iOS, with **no** button, since there would be
+  nothing behind it. Renders nothing inside the installed app or after "Not now".
+- Rendered in `AppShell` beside `OfflineBanner`, so it appears on every authenticated screen.
+
+**Deliberately NOT on `/login`.** That page is a fixed-context surface (literal colours only —
+the neutral ramp inverts under `.dark`) and is at 275 of the 300-line cap; the banner uses
+`navy-*`/`accent-*` tokens and would render wrong on it. Anyone who can install can log in.
+
+**Unverified on hardware.** The Chrome branch cannot be exercised from a laptop test suite —
+`tests/unit/installPrompt.test.ts` and `installAppBanner.test.tsx` (27 specs) drive a synthetic
+`beforeinstallprompt`. Confirm on a real Android handset after deploy.
+
 ## 2026-08-31 (later) — a COO/CEO-raised pass says so, on every timeline (`071`)
 
 `069` let the sitting COO and the CEO raise material for any department. Nothing afterwards said
