@@ -10,7 +10,7 @@
 // box is headed by, and the two rungs that get no box at all.
 import { describe, it, expect } from 'vitest';
 import {
-  buildSignatureBoxes, returnReceipt, signerName, type ReturnReceipt,
+  buildSignatureBoxes, receiverBoxApplies, returnReceipt, signerName, type ReturnReceipt,
 } from '../../src/lib/printSignatureBoxes';
 import type { ApprovalStep } from '../../src/lib/passLadderLegs';
 
@@ -156,5 +156,33 @@ describe("the receiver's box", () => {
     expect(box.state).toBe('blank');
     expect(box.caption).toBe('Signature & Stamp');
     expect(box.signer).toBeNull();
+  });
+});
+
+// ─── An NRGP has no receiver ────────────────────────────────────────────────
+// Client, 2026-08-31: "for NRGP passes while taking printouts, don't show
+// receiver signature in the print page, just show security desk gate clearance
+// for out signature, but show both for RGP".
+//
+// Nothing on an NRGP is coming back, so the box could never be signed by
+// anybody: on paper an empty box reads as a signature somebody still owes, and
+// this one nobody does. The gate's own box is untouched — that IS the outward
+// clearance, and it is drawn from the `gate` rung for both pass types.
+describe('the receiver box belongs to the RGP alone', () => {
+  it('applies to an RGP and never to an NRGP', () => {
+    expect(receiverBoxApplies('RGP')).toBe(true);
+    expect(receiverBoxApplies('NRGP')).toBe(false);
+  });
+
+  it('is omitted entirely when it does not apply, gate clearance kept', () => {
+    const steps = [step({ key: 'gate', office: undefined, label: 'Security Verification' })];
+    const boxes = buildSignatureBoxes(steps, null, receiverBoxApplies('NRGP'));
+    expect(boxes.map((b) => b.key)).toEqual(['gate']);
+    expect(boxes[0].label).toBe('Security Verification');
+  });
+
+  it('is still drawn for an RGP that has not come back yet', () => {
+    const boxes = buildSignatureBoxes([step()], null, receiverBoxApplies('RGP'));
+    expect(boxes.map((b) => b.key)).toEqual(['level-coo', 'receiver']);
   });
 });

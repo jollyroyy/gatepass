@@ -42,7 +42,7 @@
 // read. Until then the box prints empty and is signed by hand — a tick before
 // the last line is back would be a receipt nobody gave, and an NRGP never earns
 // one at all because nothing on it is coming back.
-import type { GatePassView } from '../types';
+import type { GatePassView, PassType } from '../types';
 import type { ApprovalStep } from './passLadderLegs';
 import { APPROVAL_ROLE_TITLES, type ApprovalRoleKey } from './approvalLadder';
 
@@ -162,13 +162,29 @@ export function returnReceipt(
 }
 
 /**
- * Every box the slip prints, in ladder order, with the receiver's one last.
+ * Does this pass owe a receiver's box at all?
+ *
+ * ONLY AN RGP DOES (client, 2026-08-31: "for NRGP passes while taking
+ * printouts, don't show receiver signature in the print page, just show
+ * security desk gate clearance for out signature"). Nothing on an NRGP is
+ * coming back, so the box is one no person could ever sign — and an empty box
+ * on paper reads as a signature somebody still owes. The gate's own box stays
+ * on both types: that is the outward clearance, drawn from the `gate` rung.
+ */
+export function receiverBoxApplies(type: PassType): boolean {
+  return type === 'RGP';
+}
+
+/**
+ * Every box the slip prints, in ladder order, with the receiver's one last —
+ * omitted entirely when `withReceiver` is false, which is every NRGP.
  *
  * The return leg is dropped: it is the only step on the rail that nobody signs.
  */
 export function buildSignatureBoxes(
   steps: ApprovalStep[],
   receipt: ReturnReceipt | null = null,
+  withReceiver = true,
 ): SignatureBoxView[] {
   const boxes: SignatureBoxView[] = steps
     .filter((s) => s.key !== RETURN_KEY)
@@ -186,6 +202,8 @@ export function buildSignatureBoxes(
         caption: CAPTION[state],
       };
     });
+
+  if (!withReceiver) return boxes;
 
   boxes.push({
     key: 'receiver',

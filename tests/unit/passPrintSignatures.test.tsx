@@ -107,7 +107,6 @@ async function renderFor(over: Record<string, unknown>) {
 const CATEGORIES: { name: string; over: Record<string, unknown> }[] = [
   { name: 'RGP Out', over: { type: 'RGP', direction: 'out' } },
   { name: 'RGP In', over: { type: 'RGP', direction: 'in' } },
-  { name: 'NRGP Out', over: { type: 'NRGP', direction: 'out' } },
 ];
 
 describe('the slip prints a box per office, on every category', () => {
@@ -121,6 +120,18 @@ describe('the slip prints a box per office, on every category', () => {
       expect(screen.getByText('Signature & Stamp')).toBeInTheDocument();
     });
   }
+
+  // Client, 2026-08-31: an NRGP prints the gate's outward clearance and no
+  // receiver box — nothing on it is coming back, so that box is one nobody
+  // could ever sign, and an empty one reads as a signature still owed.
+  it('draws the gate clearance but NO receiver box for NRGP Out', async () => {
+    await renderFor({ type: 'NRGP', direction: 'out' });
+    expect(screen.getByText('Security Verification')).toBeInTheDocument();
+    expect(screen.getByText('Issuing HOD')).toBeInTheDocument();
+    expect(screen.queryByText('Receiver Signature')).toBeNull();
+    expect(screen.queryByText('Signature & Stamp')).toBeNull();
+    expect(screen.queryByText(/receiver's box is signed by hand/i)).toBeNull();
+  });
 
   it('says a ticked box is a portal approval, not a mark made with a pen', async () => {
     await renderFor({});

@@ -4077,3 +4077,28 @@ now sends a guard.
 `tests/unit/gateTextSearch.test.tsx` (both tables asked, the union rendered, the three actions),
 `tests/unit/guardReturnQueueItems.test.tsx` (four lines over two passes reads 4, opens four rows,
 excludes the late pass, and Returns Due Today is gone).
+
+---
+
+## 2026-08-31 — An NRGP printout carries no receiver box
+
+Client: "for NRGP passes while taking printouts, don't show receiver signature in the print page,
+just show security desk gate clearance for out signature, but show this and receiver signature both
+for RGP".
+
+Nothing on an NRGP is coming back, so `returnReceipt` already refused it a receipt and the box
+printed permanently blank — on paper that reads as a signature somebody still owes. It is now
+omitted outright.
+
+`receiverBoxApplies(type)` in `src/lib/printSignatureBoxes.ts` is the one rule (`type === 'RGP'`),
+and `buildSignatureBoxes` takes it as a third argument (`withReceiver`, defaulting true) and
+returns before pushing the box. `PassPrint` passes `receiverBoxApplies(pass.type)`. The gate rung
+is untouched — "Security Verification" IS the outward clearance and is drawn from the ladder for
+both types — as is `PrintSignatureBoxes`, whose "only the receiver's box is signed by hand"
+sentence is keyed off a blank box existing and so disappears with it.
+
+### Gate
+
+`npm run check` (2165 tests). New cases in `tests/unit/printSignatureBoxes.test.ts` (the predicate,
+omission, RGP still drawn) and `tests/unit/passPrintSignatures.test.tsx` (NRGP renders the gate box
+and no receiver box or hand-signing sentence; NRGP dropped from the every-category receiver loop).

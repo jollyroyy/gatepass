@@ -14,7 +14,7 @@ import { QuestLockup } from '../../components/QuestMark';
 
 import PrintSignatureBoxes from './PrintSignatureBoxes';
 import {
-  buildSignatureBoxes, returnReceipt, type ReceiptEvent,
+  buildSignatureBoxes, receiverBoxApplies, returnReceipt, type ReceiptEvent,
 } from '../../lib/printSignatureBoxes';
 
 // THE BOXES ARE BACK, WITH THE APPROVAL INSIDE THEM (client, 2026-08-22: "go
@@ -245,7 +245,11 @@ export default function PassPrint(): React.ReactElement {
               Built from the record's OWN ladder — the same `buildApprovalSteps`
               the pass record's timeline renders — so the paper and the screen
               cannot name a different office, person or moment. */}
-          <PrintSignatureBoxes boxes={buildSignatureBoxes(steps, returnReceipt(pass, events))} />
+          <PrintSignatureBoxes
+            boxes={buildSignatureBoxes(
+              steps, returnReceipt(pass, events), receiverBoxApplies(pass.type),
+            )}
+          />
         </div>
       </div>
     </div>
