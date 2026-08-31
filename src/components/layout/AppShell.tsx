@@ -7,6 +7,7 @@ import NotificationBell from './NotificationBell';
 import SessionTimeout from '../SessionTimeout';
 import OfflineBanner from '../OfflineBanner';
 import InstallAppBanner from '../InstallAppBanner';
+import InstallModal from '../InstallModal';
 import { NotificationProvider } from '../../lib/notifications';
 
 type Props = {
@@ -85,6 +86,10 @@ export default function AppShell({ session, role, isApprover = false, office = n
             {/* The offer to install. Renders nothing in the installed app, once
                 dismissed, or where the browser has not said it is installable. */}
             <InstallAppBanner />
+            {/* And on a phone with no app on it, the same offer in front of the
+                screen rather than above the fold. Renders nothing on a desktop,
+                inside the installed app, or once it has been closed. */}
+            <InstallModal />
             {children}
           </main>
 
