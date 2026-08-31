@@ -104,20 +104,33 @@ describe('067 — the super admin fallback', () => {
     expect(/app_role\(\)\s*=\s*'super_admin'/i.test(fn.body)).toBe(true);
     expect(/holds_fallback_office\(\)/i.test(fn.body)).toBe(true);
 
+    // SINCE 071 THE PREDICATE IS ONE INDIRECTION DEEP. `holds_fallback_office`
+    // answers yes/no and `my_fallback_office` answers WHICH of the two, so the
+    // pair, the holder-only match and the active check live in exactly one
+    // function — and this invariant follows them there rather than letting the
+    // rewrite pass unexamined.
     const holder = lastFunction('holds_fallback_office');
     expect(
-      /role_key\s+in\s*\(\s*'coo'\s*,\s*'ceo'\s*\)/i.test(holder.body),
-      `gatepass.holds_fallback_office (in ${holder.file}) no longer names the two offices.`,
+      /my_fallback_office\s*\(\s*\)/i.test(holder.body),
+      `gatepass.holds_fallback_office (in ${holder.file}) no longer resolves through ` +
+        `my_fallback_office(), and no longer names the two offices itself either.`,
+    ).toBe(true);
+
+    const which = lastFunction('my_fallback_office');
+    expect(
+      /role_key\s+in\s*\(\s*'coo'\s*,\s*'ceo'\s*\)/i.test(which.body),
+      `gatepass.my_fallback_office (in ${which.file}) no longer names the two offices.`,
     ).toBe(true);
     expect(
-      /r\.user_id\s*=\s*auth\.uid\(\)/i.test(holder.body) && !/deputy_id/i.test(holder.body),
-      `gatepass.holds_fallback_office (in ${holder.file}) must match the HOLDER only. Emergency ` +
+      /r\.user_id\s*=\s*auth\.uid\(\)/i.test(which.body) && !/deputy_id/i.test(which.body),
+      `gatepass.my_fallback_office (in ${which.file}) must match the HOLDER only. Emergency ` +
         `release is the last door in the system and does not travel to a delegate.`,
     ).toBe(true);
     expect(
-      /is_user_active\s*\(\s*auth\.uid\(\)\s*\)/i.test(holder.body),
-      `gatepass.holds_fallback_office (in ${holder.file}) does not check that the caller is active. ` +
-        `A suspended account would keep the one power nobody else has.`,
+      /is_user_active\s*\(\s*auth\.uid\(\)\s*\)/i.test(which.body),
+      `gatepass.my_fallback_office (in ${which.file}) does not check that the caller is active. ` +
+        `A suspended account would keep the one power nobody else has — and could raise a pass ` +
+        `for any department in the bargain (069).`,
     ).toBe(true);
   });
 

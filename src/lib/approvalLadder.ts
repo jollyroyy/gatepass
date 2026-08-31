@@ -46,6 +46,7 @@
 import type { GatePassView, UserRole } from '../types';
 import { gateStep, returnStep, type ApprovalStep } from './passLadderLegs';
 import { escalationNote, isHeldForEscalation } from './approvalDecision';
+import { raisedStepLabel, raisedStepNote, issuingBoxLabel, raisingOfficeOf } from './raisedByOffice';
 import {
   APPROVAL_NOTE,
   APPROVAL_STATE,
@@ -166,17 +167,28 @@ export function buildApprovalSteps(
   // does has a real answer for every level it owes, and it wins.
   const signedOnPaper = viewerRole === 'guard' && approvals.length === 0;
 
+  // WHICH OFFICE RAISED IT, IF AN OFFICE DID (069/071) — null is the ordinary
+  // case, an HOD raising for their own department, and every line below then
+  // reads exactly as it always has. `boxLabel` is the PRINTED heading and must
+  // not ride on `office`: that field means an approval rung, and `printCeoBox`
+  // filters the CEO's own rung by it.
+  const raisedBy = raisingOfficeOf(pass);
+
   const steps: ApprovalStep[] = [
     {
       key: 'raised',
-      label: 'Raised By',
+      label: raisedStepLabel(raisedBy),
       who: pass.raised_by_name,
+      // Still the DEPARTMENT: the office is added to this rung, never in place
+      // of the department the material is moving for.
       detail: pass.department_name,
       at: pass.created_at,
       // The issuing HOD raised it, which IS their approval — there is nobody
-      // for them to wait on (client, 2026-08-19).
+      // for them to wait on (client, 2026-08-19). The COO and the CEO raise on
+      // the same terms and still sign their own level-3 rung below (069).
       state: 'done',
-      note: 'Approved on raising',
+      note: raisedStepNote(raisedBy),
+      boxLabel: issuingBoxLabel(raisedBy),
     },
   ];
 

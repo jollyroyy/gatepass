@@ -6,6 +6,66 @@ For current rules and architecture, see CLAUDE.md.
 
 ## Current state (session-by-session history)
 
+## 2026-08-31 (later) — a COO/CEO-raised pass says so, on every timeline (`071`)
+
+`069` let the sitting COO and the CEO raise material for any department. Nothing afterwards said
+that had happened: `raised_by_name` is a person's name, and beside a department they head none
+of, **every timeline in the app read as though that department's own HOD had raised it.** The
+printed slip was the plainest case — its first box is headed "Issuing HOD" and a person signs
+paper underneath that line.
+
+**Migration `071_raised_by_office_is_recorded.sql` — written and APPLIED to the live project the
+same day** (`psql --single-transaction -v ON_ERROR_STOP=1` over the session pooler; every
+statement returned, one expected NOTICE for the `drop constraint if exists`).
+
+- **`gate_passes.raised_by_office text`**, `check (… is null or in ('coo','ceo'))`. A **SNAPSHOT**,
+  written by `raise_pass`, not a lookup: `approval_roles` keeps only the CURRENT holder (CLAUDE.md's
+  own landmine), so deriving the office later would relabel every past pass the day a seat changes
+  hands and credit a new holder with material their predecessor moved. **Nothing is back-filled** —
+  null is the ordinary case and reads exactly as before. Live count of non-null rows at apply
+  time: 0.
+- **The pair is still defined once.** New `gatepass.my_fallback_office()` answers WHICH office
+  (`'coo' | 'ceo' | null`, holder-only, active-only); `067`'s `holds_fallback_office()` is
+  re-expressed as `my_fallback_office() is not null`, so the `('coo','ceo')` list and the
+  `is_user_active` check exist in one place. Every caller — the emergency release, `069`'s raising
+  guard, both select policies — keeps its meaning to the letter and is bound by `create or replace`.
+- **`v_gate_passes` gains `raised_by_office`** (TRAP 2: dropped and rebuilt, `security_invoker = true`
+  restated, grant re-applied). Every list, card, drill, report, CSV and notification query in `src/`
+  reads that view with `select('*')`, so one column reaches all four timelines with **no second
+  query anywhere**.
+
+**`src/lib/raisedByOffice.ts`** (new, 88 lines) is the ONE place the wording is chosen, and four
+surfaces take it from there:
+
+| surface | before | after |
+|---|---|---|
+| card strip (`passTimeline`) | `RAISED` | `RAISED BY COO` |
+| record rail (`buildApprovalSteps`) | `Raised By` / "Approved on raising" | `Raised By (COO)` / "Raised by the COO for this department — approved on raising" |
+| admin activity log (`buildActivityLog`) | `Raised` | `Raised — COO` (same shape as its `Approved — COO` rows, so filtering for an office finds the raise too) |
+| printed slip (`buildSignatureBoxes`) | box headed `Issuing HOD` | `Issuing COO` |
+
+The print heading rides on a new `ApprovalStep.boxLabel`, **not** on `office` — that field means an
+approval rung and is what `printCeoBox` filters the CEO's own rung by, so a raise step claiming
+`office: 'ceo'` would be read as a signature the CEO gave. The rung's `detail` stays the
+DEPARTMENT: the office is added, never substituted.
+
+**Tests**: `tests/unit/officeRaisedPass.test.ts` (new, 11 cases) pins all four surfaces plus the
+"an unrecognised value is not a title to print" rule, and each case has an HOD-raised twin proving
+the ordinary pass is untouched. `sqlInvariants` gains a `071` block (6 cases: the CHECK, the single
+definition of the pair, the pinned `search_path`/grants, the stamp inside `raise_pass`, the view
+rebuild, the PostgREST reload). Two existing invariants were updated to follow the indirection
+rather than be deleted — `069`'s pool assertion now accepts either spelling, and `067`'s
+`superAdminFallbackSql` case now asserts `holds_fallback_office` resolves through
+`my_fallback_office` and checks the pair/holder/active rules THERE. Note for future edits:
+`extractFunctions` slices from one `create function` to the NEXT, so a "body" swallows the DDL that
+follows it — assert against the `$fn$ … $fn$` slice when a negative match matters.
+
+- **NOT SEEN SIGNED-IN IN A BROWSER**: `npm run check` (2220 tests, clean on a re-run — one
+  full-suite `ERR_INVALID_ARG_TYPE` stray from `appShell.test.tsx` did not reproduce), the psql
+  apply, and two live `postgres` reads (the view column exists; `my_fallback_office()` returns null
+  for `postgres`). **psql bypasses RLS**, so the policy halves of `069`/`071` remain unproved by
+  this session; no `@e2e.local` COO login was driven.
+
 ## 2026-08-31 — the CEO leaves the printed slip, the COO and CEO raise passes, and a gate rejection becomes final (`069`, `070`)
 
 Three client instructions in one session, on top of the same day's `068`. Two migrations, both

@@ -44,6 +44,13 @@ export interface ApprovalStep {
   state: ApprovalStepState;
   /** A sentence the step needs and the label cannot carry. */
   note?: string;
+  /** The heading the PRINTED slip's box carries, when it differs from the
+   *  wording on screen. Set on the raise rung alone (migration 071): the paper
+   *  heads it "Issuing HOD", and a pass the COO raised for a department they do
+   *  not head must head it "Issuing COO" instead — a person signs underneath
+   *  that line. `printSignatureBoxes.labelOf` falls back to its own words when
+   *  this is absent, so no other rung has to carry it. */
+  boxLabel?: string;
   /** The approval office this rung belongs to, for the rungs that have one.
    *  Absent on the raise, the gate and the return leg. Carried so the printed
    *  signature boxes can be HEADED by the office (the label a person signing

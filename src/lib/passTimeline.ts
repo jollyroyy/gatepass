@@ -21,6 +21,7 @@
 // This is presentation only: no new query, no new column. Every field it reads
 // is already on `gatepass.v_gate_passes`.
 import type { GatePassView } from '../types';
+import { raisedMomentLabel, raisingOfficeOf } from './raisedByOffice';
 
 export type TimelineMoment = { label: string; at: string };
 
@@ -34,12 +35,17 @@ type TimelinePass = Pick<
   | 'flagged_at'
   | 'hod_reviewed_at'
   | 'actual_return_date'
+  // THE RAISE MOMENT NAMES THE OFFICE THAT RAISED IT (migration 071). A COO- or
+  // CEO-raised pass (069) carries a person's name against a department they
+  // head none of, and without this the strip said only "RAISED" — which on
+  // every card in the app read as that department's own HOD.
+  | 'raised_by_office'
 >;
 
 /** The pass's moments, oldest first. Always at least one — it was raised. */
 export function passTimeline(p: TimelinePass): TimelineMoment[] {
   const moments: (TimelineMoment | null)[] = [
-    { label: 'Raised', at: p.created_at },
+    { label: raisedMomentLabel(raisingOfficeOf(p)), at: p.created_at },
     // `flagged_at` (035) is the FIRST flag; `verified_at` is only a fallback
     // for rows written before that column existed.
     p.flag_reason ? { label: 'Rejected at security gate', at: p.flagged_at ?? p.verified_at ?? p.created_at } : null,

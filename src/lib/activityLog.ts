@@ -26,6 +26,7 @@
 //     of scans.
 import type { GatePassView, VerifyAction } from '../types';
 import { APPROVAL_ROLE_TITLES, type ApprovalRoleKey } from './approvalLadder';
+import { raisedEventLabel, raisingOfficeOf } from './raisedByOffice';
 
 /** One thing that happened, to one pass, at one moment. */
 export interface ActivityLogEntry {
@@ -109,7 +110,10 @@ export function buildActivityLog(
       at: p.created_at,
       passId: p.id,
       passNumber: p.pass_number,
-      event: 'Raised',
+      // "Raised — COO" on a pass the COO or the CEO raised for a department
+      // they do not head (069/071), in the same shape as the approval rows
+      // below, so filtering this screen for an office finds the raise too.
+      event: raisedEventLabel(raisingOfficeOf(p)),
       who: p.raised_by_name,
       // The department and the money, because "what was it worth" is one of the
       // questions this screen exists to answer, and the value cannot change

@@ -2597,10 +2597,13 @@ describe('069 — the COO and the CEO raise for any department', () => {
 
   it('admits the two fallback offices to raise_pass, and nobody else new', () => {
     const body = fnBody('gatepass.raise_pass');
-    // The pool is `holds_fallback_office()` (067) REUSED, never a second list
-    // of office keys: two spellings of "the COO or the CEO" is how the raise
-    // form and the emergency release start disagreeing about who that is.
-    expect(body).toMatch(/gatepass\.holds_fallback_office\(\)/i);
+    // The pool is 067's predicate REUSED, never a second list of office keys:
+    // two spellings of "the COO or the CEO" is how the raise form and the
+    // emergency release start disagreeing about who that is. 071 re-expressed
+    // that predicate as `my_fallback_office()` — which ANSWERS WHICH of the two
+    // rather than yes/no, and which `holds_fallback_office()` is now defined in
+    // terms of — so either spelling is the same one definition.
+    expect(body).toMatch(/gatepass\.(holds|my)_fallback_office\(\)/i);
     expect(body).toMatch(/gatepass\.app_role\(\) <> 'hod'/i);
     expect(
       /'security_head'|'finance_head'/i.test(body),
@@ -2644,6 +2647,76 @@ describe('069 — the COO and the CEO raise for any department', () => {
     expect(body).toMatch(/g\.raised_by = auth\.uid\(\)/i);
     expect(bare).toMatch(/revoke all on function gatepass\.raised_by_me\(uuid\) from public/i);
     expect(bare).toMatch(/grant execute on function gatepass\.raised_by_me\(uuid\) to authenticated/i);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+describe('071 — a pass records the office that raised it', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('071'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(migrations);
+  const fnBody = (name: string) => fns.filter((f) => f.name === name).slice(-1)[0].body;
+
+  it('admits only the two offices the raising pair can be', () => {
+    // A free-text column here would put a heading on the printed slip that no
+    // client-side map has words for. A CHECK and not an enum, because a new
+    // enum label cannot be USED in the transaction that adds it and
+    // APPLY_ALL.sql is one transaction.
+    expect(bare).toMatch(/add column if not exists raised_by_office text/i);
+    expect(bare).toMatch(
+      /check \(raised_by_office is null or raised_by_office in \('coo', 'ceo'\)\)/i,
+    );
+  });
+
+  it('states the pair ONCE — holds_fallback_office is my_fallback_office', () => {
+    const which = fnBody('gatepass.my_fallback_office');
+    expect(which).toMatch(/r\.role_key in \('coo', 'ceo'\)/i);
+    expect(which).toMatch(/gatepass\.is_user_active\(auth\.uid\(\)\)/i);
+    // 067's predicate keeps its meaning to the letter and gains no second list.
+    // `extractFunctions` slices from one `create function` to the NEXT, so a
+    // body swallows whatever DDL follows it — the pair has to be looked for in
+    // the dollar-quoted body itself, not in that slice.
+    const holds = fnBody('gatepass.holds_fallback_office').match(/\$fn\$([\s\S]*?)\$fn\$/)![1];
+    expect(holds).toMatch(/gatepass\.my_fallback_office\(\) is not null/i);
+    expect(
+      /'coo'|'ceo'/i.test(holds),
+      'holds_fallback_office must not restate the pair — my_fallback_office is where it lives',
+    ).toBe(false);
+  });
+
+  it('pins search_path on the new helper and grants it no wider than authenticated', () => {
+    const body = fnBody('gatepass.my_fallback_office');
+    expect(body).toMatch(/security definer/i);
+    expect(body).toMatch(/set search_path = ''/i);
+    expect(bare).toMatch(/revoke all on function gatepass\.my_fallback_office\(\) from public/i);
+    expect(bare).toMatch(
+      /grant execute on function gatepass\.my_fallback_office\(\) to authenticated/i,
+    );
+  });
+
+  it('stamps the office at the moment the pass is raised', () => {
+    // A SNAPSHOT, not a lookup: approval_roles keeps only the CURRENT holder,
+    // so deriving it later would relabel every past pass the day a seat changes
+    // hands. The office read for the guard is the office written on the row.
+    const body = fnBody('gatepass.raise_pass');
+    expect(body).toMatch(/v_office\s*:=\s*gatepass\.my_fallback_office\(\)/i);
+    expect(body).toMatch(/raised_by, raised_by_office/i);
+    expect(body).toMatch(/auth\.uid\(\), v_office/i);
+  });
+
+  it('rebuilds v_gate_passes rather than replacing it, keeping invoker rights and the grant', () => {
+    // TRAP 2: `create or replace view` cannot absorb a new base-table column,
+    // and a rebuild that forgets security_invoker lets every HOD read every
+    // department.
+    expect(bare).toMatch(/drop view if exists gatepass\.v_gate_passes/i);
+    expect(bare).toMatch(/create view gatepass\.v_gate_passes with \(security_invoker = true\)/i);
+    expect(bare).toMatch(/p\.raised_by_office/i);
+    expect(bare).toMatch(/grant select on gatepass\.v_gate_passes to authenticated/i);
+  });
+
+  it('reloads PostgREST so the new column is in the schema cache', () => {
+    expect(bare).toMatch(/notify pgrst, 'reload schema';/i);
   });
 });
 

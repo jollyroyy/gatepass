@@ -107,7 +107,11 @@ export function signerName(who: string | null, label: string): string | null {
  *  because that is what the person reading the paper is looking for; the raise
  *  and the gate keep the words the slip has always used. */
 function labelOf(step: ApprovalStep): string {
-  if (step.key === 'raised') return 'Issuing HOD';
+  // THE RAISE BOX IS HEADED BY WHOEVER ACTUALLY RAISED IT (071). `boxLabel` is
+  // set by `buildApprovalSteps` and says "Issuing COO" on a pass the COO raised
+  // for a department they head none of; "Issuing HOD" is the fall-back and the
+  // ordinary case.
+  if (step.key === 'raised') return step.boxLabel ?? 'Issuing HOD';
   if (step.key === 'gate') return 'Security Verification';
   if (step.office) {
     return APPROVAL_ROLE_TITLES[step.office as ApprovalRoleKey] ?? step.office;

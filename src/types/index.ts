@@ -132,6 +132,12 @@ export interface GatePass {
 
   department_id: string;
   raised_by: string;
+  /** The fallback office the raiser sat in — 'coo' | 'ceo' — or null when an
+   *  HOD raised it for a department they head (migration 071). A SNAPSHOT: the
+   *  designation table keeps only the current holder, so it can never be
+   *  re-derived later. Read it through `raisingOfficeOf` in
+   *  `src/lib/raisedByOffice.ts`, never by comparing against `approval_roles`. */
+  raised_by_office: string | null;
 
   // Fields the guard physically checks against the visitor and material.
   //
