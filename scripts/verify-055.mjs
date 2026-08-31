@@ -139,9 +139,9 @@ async function restore(admin, original) {
 
 const snapshot = async (admin) => {
   const { data } = await gp(admin).rpc('get_approval_ladder');
-  return (data ?? []).map((o) => ({ role_key: o.role_key, user_id: o.user_id, deputy_id: o.deputy_id ?? null }));
+  return (data ?? []).map((o) => ({ role_key: o.role_key, user_id: o.user_id }));
 };
-const asKey = (rows) => rows.map((o) => `${o.role_key}:${o.user_id}:${o.deputy_id ?? '-'}`).sort().join('|');
+const asKey = (rows) => rows.map((o) => `${o.role_key}:${o.user_id}`).sort().join('|');
 
 const REASON = 'Night shift, all four approvers unreachable, perishable stock waiting at the barrier.';
 

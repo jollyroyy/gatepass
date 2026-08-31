@@ -16,7 +16,12 @@
     "test:watch": "vitest",
     "create-user": "tsx scripts/create-user.ts",
     "build:sql": "node scripts/build-apply-all.mjs",
-    "build:login-bg": "node scripts/make-login-bg.mjs"
+    "build:login-bg": "node scripts/make-login-bg.mjs",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "e2e:report": "playwright show-report",
+    "e2e:seed": "node scripts/e2e/seed.mjs",
+    "e2e:restore": "node scripts/e2e/restore.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
@@ -28,6 +33,7 @@
     "react-router-dom": "^6.26.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@types/qrcode": "^1.5.6",

@@ -39,6 +39,7 @@ import OverdueItemsPage from './pages/Shared/OverdueItemsPage';
 import WhitelistApprovals from './pages/Approver/WhitelistApprovals';
 import PendingApprovals from './pages/Approver/PendingApprovals';
 import ApprovalDelegation from './pages/Approver/ApprovalDelegation';
+import MyRaisedPasses from './pages/Approver/MyRaisedPasses';
 import ReturnsDueTodayPage from './pages/Shared/ReturnsDueTodayPage';
 
 /**
@@ -50,16 +51,19 @@ import ReturnsDueTodayPage from './pages/Shared/ReturnsDueTodayPage';
  */
 function RouteGuard({
   role,
-  isApprover,
+  office,
   children,
 }: {
   role: UserRole | null;
-  isApprover: boolean;
+  // THE OFFICE KEY, not a boolean: since 069 the COO and the CEO reach two
+  // screens no other office does (`/raise`, `/my-passes`), so "does this reader
+  // hold an office" is no longer a fine enough question to guard a route with.
+  office: ApprovalRoleKey | null;
   children: React.ReactNode;
 }): React.ReactElement {
   const { pathname } = useLocation();
-  if (isForbidden(pathname, role, isApprover)) {
-    return <Navigate to={homeFor(role, isApprover)} replace />;
+  if (isForbidden(pathname, role, office)) {
+    return <Navigate to={homeFor(role, office)} replace />;
   }
   return <>{children}</>;
 }
@@ -75,13 +79,13 @@ function RouteGuard({
  *  `isForbidden` still grades the destination on top of that: the parameter is
  *  attacker-supplied, and a wrong-role target must land on this reader's home
  *  rather than on a screen that will bounce. */
-function resumeAfterLogin(search: string, role: UserRole | null, isApprover: boolean): string {
+function resumeAfterLogin(search: string, role: UserRole | null, office: ApprovalRoleKey | null): string {
   const target = nextAfterLogin(search);
   const path = target ? pathnameOf(target) : null;
-  if (target && path && isResumableTarget(path) && !isForbidden(path, role, isApprover)) {
+  if (target && path && isResumableTarget(path) && !isForbidden(path, role, office)) {
     return target;
   }
-  return homeFor(role, isApprover);
+  return homeFor(role, office);
 }
 
 function FullPageLoader(): React.ReactElement {
@@ -251,7 +255,7 @@ export default function App(): React.ReactElement {
 
   return (
     <AppShell session={session} role={role} isApprover={office !== null} office={office}>
-      <RouteGuard role={role} isApprover={office !== null}>
+      <RouteGuard role={role} office={office}>
         <Routes>
           {/* Signed in and still on `/login`: this is the moment the emailed
               deep link resumes. `isForbidden` still grades the destination —
@@ -261,7 +265,7 @@ export default function App(): React.ReactElement {
             path="/login"
             element={
               <Navigate
-                to={resumeAfterLogin(search, role, office !== null)}
+                to={resumeAfterLogin(search, role, office)}
                 replace
               />
             }
@@ -277,7 +281,11 @@ export default function App(): React.ReactElement {
               so `ROLE_ROUTES` already admits exactly the right role and no
               sidebar tab appears for them. */}
           <Route path="/dashboard/:key" element={<HodDashboardDrill />} />
-          <Route path="/raise" element={<RaisePass />} />
+          {/* The HOD's own form — and, since 069, the COO's and the CEO's: the
+              same screen with ONE addition, a department selector, because they
+              head no department of their own. `RaisePass` decides that from the
+              office alone. */}
+          <Route path="/raise" element={<RaisePass office={office} />} />
           <Route path="/mismatch/:id" element={<MismatchReview />} />
           <Route path="/expired/:id" element={<ExpiredReview />} />
           <Route path="/reports" element={<HodReports />} />
@@ -325,11 +333,17 @@ export default function App(): React.ReactElement {
               holder may open it; only the CEO sees anything in it. */}
           <Route path="/whitelist" element={<WhitelistApprovals />} />
 
+          {/* Where a COO or CEO finds the passes they raised. They head no
+              department, so no board of theirs lists such a pass — migration
+              069's `raised_by = auth.uid()` arm is the only thing that shows it
+              to them, and this is the only screen that reads it. */}
+          <Route path="/my-passes" element={<MyRaisedPasses />} />
+
           {/* Shared */}
           <Route path="/pass/:id" element={<PassDetail role={role} office={office} />} />
           <Route path="/profile" element={<ProfilePage session={session} role={role} office={office} />} />
 
-          <Route path="*" element={<Navigate to={homeFor(role, office !== null)} replace />} />
+          <Route path="*" element={<Navigate to={homeFor(role, office)} replace />} />
         </Routes>
       </RouteGuard>
     </AppShell>

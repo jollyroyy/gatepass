@@ -24,7 +24,6 @@ import { supabase } from '../../supabaseClient';
 import { useGatePassRecord } from '../../lib/useGatePassRecord';
 import PassRecordView from '../../components/passview/PassRecordView';
 import { formatDateTime } from '../../lib/formatDate';
-import FlaggedReviewActions from './FlaggedReviewActions';
 
 export default function PassDetail({
   role = null,
@@ -39,7 +38,6 @@ export default function PassDetail({
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showCreated, setShowCreated] = useState(searchParams.get('created') === '1');
-  const [error, setError] = useState<string | null>(null);
 
   // Raised passes are permanent — there is no cancellation (migration 024).
   const [userId, setUserId] = useState<string | null>(null);
@@ -106,7 +104,7 @@ export default function PassDetail({
         </div>
       )}
 
-      {(error || loadError) && <div className="alert-error">{error ?? loadError}</div>}
+      {loadError && <div className="alert-error">{loadError}</div>}
 
       {pass.status === 'flagged' && (
         <div className="alert-error flex-col items-start gap-3">
@@ -121,17 +119,19 @@ export default function PassDetail({
               {pass.flag_reason ?? 'No reason recorded.'}
             </p>
           </div>
+          {/* NO ANSWER TO GIVE (migration 070; client, 2026-08-31: "the entire
+              pass will be cancelled and a new pass needs to be raised"). This
+              is where the requester used to send the pass back to the gate or
+              uphold the flag; both are gone with the RPC behind them. What is
+              left for the person who raised it is the replacement. */}
+          <p className="text-xs text-flagged-700">
+            A rejection at the gate is final — this pass is cancelled and the material was not
+            released.
+          </p>
           {userId !== null && pass.raised_by === userId && (
-            <div className="flex flex-col gap-2 mt-1">
-              <p className="text-xs text-flagged-700">
-                Approving lets this material through despite the rejection. The reason above stays on the record.
-              </p>
-              <FlaggedReviewActions
-                passId={pass.id}
-                onDone={() => setReloadKey((k) => k + 1)}
-                onError={(message) => setError(message)}
-              />
-            </div>
+            <Link to="/raise" state={{ copyFrom: pass.id }} className="btn-primary">
+              Raise It Again
+            </Link>
           )}
         </div>
       )}
@@ -151,12 +151,14 @@ export default function PassDetail({
         <div className="alert-error flex-col items-start gap-1">
           {/* TWO DIFFERENT REJECTIONS END HERE, and `flag_reason` is what tells
               them apart — the same null the notification bell reads. A pass
-              security flagged and the HOD then upheld carries the guard's
-              reason; a pass an approval office refused (046) never reached the
-              gate, so it carries none and its reason is on the ladder instead. */}
+              carrying the guard's reason was closed by the raising HOD after
+              security stopped it, which is a HISTORICAL shape only: since 070 a
+              gate rejection closes the pass itself and stays `flagged`. A pass
+              an approval office refused (046) never reached the gate, so it
+              carries no gate reason and its own is on the ladder instead. */}
           <p className="font-semibold">
             {pass.flag_reason
-              ? 'Rejected by HOD — this pass is closed and cannot be used at the gate'
+              ? 'Closed by the raising department — this pass cannot be used at the gate'
               : 'Rejected in the approval ladder — this pass is closed and cannot be used at the gate'}
           </p>
           {pass.flag_reason && (

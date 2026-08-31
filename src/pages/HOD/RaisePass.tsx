@@ -9,14 +9,18 @@
 // the order matters.
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { gp, pub, supabase } from '../../supabaseClient';
-import type { DeptOption, GatePassView, NewGatePass, NewGatePassItem, PassType } from '../../types';
+import { supabase } from '../../supabaseClient';
+import type { GatePassView, NewGatePass, NewGatePassItem, PassType } from '../../types';
 import { EMPTY_ITEM } from '../../types';
 import { requiresReturnDate } from '../../lib/passTypes';
-import { validateRaiseForm, packVendor, todayStr, earliestReturnDate, type FormErrors } from '../../lib/raisePassForm';
+import { validateRaiseForm, todayStr, type FormErrors } from '../../lib/raisePassForm';
 import { safeErrorMessage } from '../../lib/errors';
 import { notifyApproval } from '../../lib/notifyApproval';
 import { useReraisePass, voidSupersededPass } from './useReraisePass';
+import { useRaiseDepartments } from './useRaiseDepartments';
+import { createPass } from './raisePassRequest';
+import { officeRaises, homeFor } from '../../lib/roleRoutes';
+import type { ApprovalRoleKey } from '../../lib/approvalLadder';
 import PassSubmittedModal from './PassSubmittedModal';
 import PassDetailsCards from './PassDetailsCards';
 import MaterialItemsCard from './MaterialItemsCard';
@@ -25,7 +29,26 @@ import MaterialItemsCard from './MaterialItemsCard';
  *  single item is the exception here, and one empty row reads as a limit. */
 const STARTING_ITEMS = 2;
 
-export default function RaisePass(): React.ReactElement {
+/**
+ * THE SAME FORM FOR THE COO AND THE CEO, with one field added (client,
+ * 2026-08-31: "create those forms exactly as the hod sees it except one thing
+ * that ceo and coo can select the department to raise the gatepass").
+ *
+ * The difference is entirely in WHICH DEPARTMENTS LOAD. An HOD's list is the
+ * one they head, resolved from `hod_departments` and never asked for; a raising
+ * office's list is every department, and they must pick. Everything below that
+ * — validation, the item table, `raise_pass`, the confirmation, the approval
+ * letter — is one code path for both, which is what "exactly as the hod sees
+ * it" has to mean if the two forms are not to drift.
+ */
+interface RaisePassProps {
+  /** The approval office this reader holds, or null. Only the COO and the CEO
+   *  (`officeRaises`) reach this screen without being an HOD, and only they get
+   *  the selector. */
+  office?: ApprovalRoleKey | null;
+}
+
+export default function RaisePass({ office = null }: RaisePassProps): React.ReactElement {
   // `/raise` is one screen; the pass TYPE may still arrive in the query string
   // from an older link or bookmark. Read ONCE, as the initial state: the reader
   // may change the type with the selector afterwards, and a `useEffect` that
@@ -48,12 +71,14 @@ export default function RaisePass(): React.ReactElement {
     items: Array.from({ length: STARTING_ITEMS }, () => ({ ...EMPTY_ITEM })),
   });
   const [errors, setErrors] = useState<FormErrors>({});
-  const [depts, setDepts] = useState<DeptOption[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submittedPass, setSubmittedPass] = useState<GatePassView | null>(null);
   const [supersedeWarning, setSupersedeWarning] = useState<string | null>(null);
+  // Does this reader CHOOSE a department, or is theirs captured for them?
+  const picksDepartment = officeRaises(office);
+  const { depts, autoSelect, error: deptError } = useRaiseDepartments(picksDepartment);
   const chosenDept = depts.find((d) => d.id === form.department_id) ?? depts[0];
   const deptName = chosenDept ? `${chosenDept.name} (${chosenDept.code})` : '';
   const { sourceId, source, prefill } = useReraisePass(todayStr());
@@ -70,36 +95,17 @@ export default function RaisePass(): React.ReactElement {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
   }, []);
 
+  // An HOD's own department is selected for them; a COO or CEO must pick, so
+  // nothing is auto-selected for them. Merged rather than assigned, for the
+  // reason the pre-fill effect below is: both may land in either order.
   useEffect(() => {
-    let cancelled = false;
-    async function loadDepartments() {
-      try {
-        const { data: hodDepts, error: hodErr } = await gp().from('hod_departments').select('department_id');
-        if (hodErr) throw hodErr;
-        const ids = (hodDepts ?? []).map((r: { department_id: string }) => r.department_id);
-        if (ids.length === 0) {
-          if (!cancelled) setDepts([]);
-          return;
-        }
-        const { data: deptRows, error: deptErr } = await pub()
-          .from('departments')
-          .select('id, name, code')
-          .in('id', ids);
-        if (deptErr) throw deptErr;
-        if (!cancelled) {
-          const list = (deptRows ?? []) as DeptOption[];
-          setDepts(list);
-          if (list.length > 0) setForm((f) => (f.department_id ? f : { ...f, department_id: list[0].id }));
-        }
-      } catch (err) {
-        if (!cancelled) setSubmitError(safeErrorMessage(err));
-      }
-    }
-    loadDepartments();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!autoSelect) return;
+    setForm((f) => (f.department_id ? f : { ...f, department_id: autoSelect }));
+  }, [autoSelect]);
+
+  useEffect(() => {
+    if (deptError) setSubmitError(deptError);
+  }, [deptError]);
 
   function handleTypeChange(type: PassType) {
     setForm((f) => ({
@@ -157,7 +163,12 @@ export default function RaisePass(): React.ReactElement {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const errs = validateRaiseForm(form, depts.length > 0, todayStr());
+    // `hasDepartment` is "this form can name a department at all". For an HOD
+    // that is whether they are assigned to one; for a COO or CEO it is whether
+    // they picked one, because nothing was chosen for them.
+    const errs = validateRaiseForm(
+      form, picksDepartment ? !!form.department_id : depts.length > 0, todayStr(),
+    );
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
@@ -165,75 +176,10 @@ export default function RaisePass(): React.ReactElement {
     setSubmitError(null);
     try {
       if (!userId) throw new Error('Could not determine your user account. Please sign in again.');
-      const departmentId = form.department_id || depts[0].id;
-      // THE PASS'S DEADLINE IS THE EARLIEST LINE'S. `v_gate_passes` grades
-      // `is_overdue` / `due_state` off this one column, and a pass is late the
-      // moment its first line is — see `earliestReturnDate`.
-      const returnDate = requiresReturnDate(form.type) ? earliestReturnDate(form.items) : null;
-      const { data, error } = await gp().rpc('raise_pass', {
-        p_type: form.type,
-        p_direction: 'out',
-        p_department_id: departmentId,
-        p_visitor_name: form.visitor_name.trim(),
-        p_visitor_company: packVendor(form),
-        p_vehicle_number: form.vehicle_number.trim() || null,
-        // ONE reason for the whole pass (the mock asks once). `raise_pass` (045)
-        // also uses it as each line's `purpose`, which is NOT NULL — so the
-        // record and the printed slip show the reason that was authorised
-        // instead of the literal 'Material movement' fallback.
-        p_purpose: form.purpose.trim() || null,
-        p_expected_return_date: returnDate,
-        p_items: form.items.map((item) => ({
-          // ONE "Item Description" on the mock, two NOT NULL columns behind it.
-          // `description` is what `normalize_material` keys the one-open-line-
-          // per-material index on, so it must be the material and nothing else.
-          name: item.name.trim(),
-          description: item.name.trim(),
-          quantity: Number(item.quantity),
-          // THE UNIT THE HOD PICKED (client, 2026-08-20). `nos` is the select's
-          // own default, so a line nobody touched still lands as a plain count —
-          // the same value every line raised between 2026-08-19 and today
-          // carries — and the guard reads it back read-only at the barrier.
-          unit: item.unit || 'nos',
-          // WHAT THE LINE IS ROUGHLY WORTH (client, 2026-08-20). A blank stays
-          // NULL — `raise_pass` does `nullif(…, '')::numeric` — so `total_value`
-          // adds only the lines somebody actually priced, and an unpriced pass
-          // still prints a dash rather than ₹0. Sent as a string on purpose:
-          // the RPC casts it, and Number('') is 0, which would price every
-          // blank line at nothing.
-          approx_value: item.approx_value.trim(),
-          make_model: item.make_model.trim() || null,
-          serial_no: item.serial_no.trim() || null,
-          invoice_no: item.invoice_no.trim() || null,
-          remarks: item.remarks.trim() || null,
-          // EACH LINE CARRIES ITS OWN DATE — client, 2026-08-19: "we would
-          // expect a date of return against each item in the RGP form." The
-          // pass-level date above is the earliest of these, so the two can
-          // never disagree about when the FIRST piece of material is due.
-          expected_return_date: requiresReturnDate(form.type) ? item.expected_return_date : null,
-        })),
-      });
-      if (error) throw error;
-      const created = data as unknown as GatePassView;
-      // `raise_pass` returns a `gatepass.gate_passes` ROW, not a view row, so it
-      // carries no `awaits_approval` — and the confirmation badge would say
-      // "Pending Gate Review" over a pass the gate is not even allowed to see
-      // yet. One narrow read of the view fixes the one field that matters here.
-      // FAILURE IS TOLERATED on purpose: the pass is already raised, and a
-      // confirmation modal is not worth a red error over a badge word.
-      let awaits: boolean | undefined;
-      try {
-        const { data: view } = await gp()
-          .from('v_gate_passes')
-          .select('awaits_approval')
-          .eq('id', created.id)
-          .limit(1);
-        const row = (Array.isArray(view) ? view[0] : view) as { awaits_approval?: boolean } | null;
-        awaits = row?.awaits_approval;
-      } catch {
-        awaits = undefined;
-      }
-      setSubmittedPass(awaits === undefined ? created : { ...created, awaits_approval: awaits });
+      const departmentId = form.department_id || depts[0]?.id;
+      if (!departmentId) throw new Error('Choose the department this pass is raised for.');
+      const created = await createPass(form, departmentId);
+      setSubmittedPass(created);
       // The pass is raised. Now tell the office it landed on, and copy this HOD.
       // NOT AWAITED, and it cannot throw: `notifyApproval` swallows everything,
       // because a mail provider having a bad afternoon must not put a red
@@ -300,6 +246,8 @@ export default function RaisePass(): React.ReactElement {
           errors={errors}
           onTypeChange={handleTypeChange}
           onUpdate={update}
+          departments={picksDepartment ? depts : undefined}
+          deptCode={chosenDept?.code}
         />
 
         <MaterialItemsCard
@@ -316,12 +264,18 @@ export default function RaisePass(): React.ReactElement {
             it — an HOD assigned to none — has nowhere of its own to report.
             It is a whole-form failure anyway: without a department there is no
             pass to raise. */}
-        {errors.department_id && <div className="alert-error">{errors.department_id}</div>}
+        {/* For an HOD this is a WHOLE-FORM failure with nowhere else to go —
+            they were never asked for a department, and without one there is no
+            pass to raise. A COO or CEO has a field for it, and the message is
+            printed under that field instead of twice. */}
+        {!picksDepartment && errors.department_id && (
+          <div className="alert-error">{errors.department_id}</div>
+        )}
 
         {submitError && <div className="alert-error">{submitError}</div>}
 
         <div className="rp-actions">
-          <button type="button" className="btn-secondary px-6" onClick={() => navigate('/dashboard')}>
+          <button type="button" className="btn-secondary px-6" onClick={() => navigate(homeFor(picksDepartment ? null : 'hod', office))}>
             Cancel
           </button>
           <button type="submit" className="btn-primary px-8" disabled={submitting}>

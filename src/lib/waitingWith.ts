@@ -68,10 +68,6 @@ export interface WaitingRow {
   /** WHO. Null when nobody holds the office — which reads "Not designated yet",
    *  never a blank — and null on the gate row, which names no individual. */
   person: string | null;
-  /** The office's standing deputy (054), who may sign exactly what the holder
-   *  may. Named because "waiting for X" is only half true when a second person
-   *  can clear it. */
-  deputy: string | null;
   count: number;
 }
 
@@ -128,7 +124,6 @@ export function buildWaitingWith(
     key,
     office: APPROVAL_ROLE_TITLES[key],
     person: holder.get(key)?.full_name ?? null,
-    deputy: holder.get(key)?.deputy_name ?? null,
     count: counts.get(key) ?? 0,
   }));
 
@@ -138,7 +133,6 @@ export function buildWaitingWith(
       key: GATE_KEY,
       office: 'Security gate',
       person: null,
-      deputy: null,
       count: counts.get(GATE_KEY) ?? 0,
     },
   ];
@@ -156,5 +150,5 @@ export function waitingWithTotal(rows: WaitingRow[]): number {
 export function waitingPersonLabel(row: WaitingRow): string {
   if (row.key === GATE_KEY) return 'Guard on duty';
   if (!row.person) return 'Not designated yet';
-  return row.deputy ? `${row.person} · deputy ${row.deputy}` : row.person;
+  return row.person;
 }

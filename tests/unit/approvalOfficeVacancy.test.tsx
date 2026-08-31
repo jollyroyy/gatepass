@@ -29,8 +29,6 @@ const LADDER = [{
   full_name: 'Sudeshna Pal',
   department_name: null,
   designated_at: '2026-08-01T00:00:00Z',
-  deputy_id: null,
-  deputy_name: null,
 }];
 
 function thenable(data: unknown) {

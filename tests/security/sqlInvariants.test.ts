@@ -576,26 +576,23 @@ describe('SQL invariants', () => {
   //   HOD override did not fix the mismatch — the gate keeps both options.
   // - v_gate_passes must expose flagged_at and hod_reviewed_at so every card
   //   can show the full timeline (raised → mismatch → override) from ONE row.
-  it('035: the HOD override refreshes expiry, flag_pass accepts hod_reviewed, and the view carries the audit timestamps', () => {
+  it('035: flag_pass accepts hod_reviewed, and the view carries the audit timestamps', () => {
     const migrations = allMigrationsText();
     const fns = extractFunctions(migrations);
 
-    const review = fns.filter((fn) => fn.name === 'gatepass.hod_review_flagged_pass').pop();
-    expect(review, 'no migration defines gatepass.hod_review_flagged_pass (015/024/027)').toBeDefined();
-    expect(
-      /update\s+gatepass\.gate_passes[\s\S]*?set\s+[\s\S]*?expires_at\s*=/i.test(review!.body),
-      `hod_review_flagged_pass's final definition (in ${review!.file}) no longer refreshes ` +
-        `expires_at on approve — an override-approved pass keeps its original expiry and is refused ` +
-        `by match_pass the moment it has passed, making the HOD's clearance a dead end`
-    ).toBe(true);
+    // THE OVERRIDE ITSELF IS GONE (070), so the expiry-refresh invariant 035
+    // wrote here is retired with it — see the 070 block at the foot of this
+    // file, which pins the opposite fact. What 035 established that is STILL
+    // true is asserted below: flag_pass admits `hod_reviewed`, and the view
+    // carries the two audit timestamps.
 
     const flag = fns.filter((fn) => fn.name === 'gatepass.flag_pass').pop();
     expect(flag, 'no migration defines gatepass.flag_pass (003/014?)').toBeDefined();
     expect(
       /'\s*hod_reviewed\s*'/i.test(flag!.body),
-      `flag_pass's final definition (in ${flag!.file}) no longer admits 'hod_reviewed'. The gate ` +
-        `must keep the mismatch option open on an override-approved pass — approving is HOD's ` +
-        `judgement, not a fact about the material.`
+      `flag_pass's final definition (in ${flag!.file}) no longer admits 'hod_reviewed'. Nothing can ` +
+        `ENTER that status since 070, but live passes still sit in it, and the gate must be able to ` +
+        `close them — refusing here would strand them with no reachable outcome at all.`
     ).toBe(true);
 
     const view = extractViews(migrations)
@@ -1550,76 +1547,93 @@ describe('053 — the CEO office decides whitelist requests', () => {
   });
 });
 
-describe('054 — an office may have one standing deputy, and one person one seat', () => {
+describe('068 — the standing deputy is gone, and leaves nothing reachable behind', () => {
   const migrations = sqlMigrations();
-  const sql = migrations.find((m) => m.name.startsWith('054'))!.sql;
+  const sql = migrations.find((m) => m.name.startsWith('068'))!.sql;
   const bare = stripSqlComments(sql);
   const fns = extractFunctions(migrations);
-  /** The LAST definition wins — 054 restates several of 043/046/049/051. */
+  /** The LAST definition wins — 068 restates everything 054 widened. */
   const fnBody = (name: string) => fns.filter((f) => f.name === name).slice(-1)[0].body;
+  const defined = (name: string) => fns.some((f) => f.name === name);
 
   it('touches nothing in `public` — the two-schema rule', () => {
     expect(/create\s+(table|view|function|type)\s+public\./i.test(bare)).toBe(false);
     expect(/alter\s+table\s+public\./i.test(bare)).toBe(false);
   });
 
-  it('lets a deputy act for the office, without widening my_approval_role beyond one row', () => {
-    // The whole migration hangs off this one `or`: every RLS policy, both
-    // decision RPCs and the slip-order rule resolve authority through this
-    // function, so widening it here is what gives a deputy the existing
-    // workflow. It stays SCALAR only because three separate rules keep it to
-    // one row — 049's unique user_id, 054's unique deputy_id, and the two
-    // setters refusing to seat one person twice.
-    const body = fnBody('gatepass.my_approval_role');
-    expect(body).toMatch(/r\.user_id = auth\.uid\(\)\s+or\s+r\.deputy_id = auth\.uid\(\)/i);
-    expect(body).toMatch(/gatepass\.is_user_active\(auth\.uid\(\)\)/i);
+  it('drops both columns, the index and the check — no dead schema is left behind', () => {
+    // CLAUDE.md's rule: a retired feature leaves no column an authenticated
+    // reader can still select over PostgREST.
+    expect(bare).toMatch(/drop index if exists gatepass\.approval_roles_one_deputy_per_person;/i);
+    expect(bare).toMatch(/drop constraint if exists approval_roles_deputy_is_not_holder;/i);
+    expect(bare).toMatch(/alter table gatepass\.approval_roles\s+drop column if exists deputy_id;/i);
+    expect(bare).toMatch(/alter table gatepass\.pass_approvals\s+drop column if exists decided_as_deputy;/i);
   });
 
-  it('keeps one person to one seat, by index AND by sentence in both directions', () => {
-    // 049's hazard exactly: a scalar over several rows returns an arbitrary
-    // one, silently. A deputy reopens it unless a deputy is unique too.
-    expect(bare).toMatch(
-      /create unique index[\s\S]*?approval_roles_one_deputy_per_person[\s\S]*?\(deputy_id\)[\s\S]*?where deputy_id is not null/i,
+  it('drops both deputy RPCs — an unused SECURITY DEFINER function is still EXECUTE-able', () => {
+    expect(bare).toMatch(/drop function if exists gatepass\.set_approval_deputy\(text, uuid\);/i);
+    expect(bare).toMatch(/drop function if exists gatepass\.clear_approval_deputy\(text\);/i);
+  });
+
+  it('leaves no live function in the whole schema still naming a deputy', () => {
+    // The one test here that cannot be satisfied by deleting a line in this
+    // file: it reads the LAST definition of every function the app has, so a
+    // body 054 widened and 068 forgot to restate fails on its own.
+    //
+    // `extractFunctions` runs one definition to the START of the next, so the
+    // slice carries whatever comments and DDL sit between them. Cut at the
+    // body's own dollar-quoted terminator and strip comments, or this asserts
+    // on prose rather than on code.
+    const codeOf = (body: string) => {
+      const bare = stripSqlComments(body);
+      const end = bare.search(/\n\s*\$(fn)?\$\s*;/);
+      return end === -1 ? bare : bare.slice(0, end);
+    };
+    // A function this migration DROPS still has a last `create` somewhere in
+    // history; it is the drop, asserted above, that retires it.
+    const dropped = new Set(
+      [...bare.matchAll(/drop function if exists\s+(gatepass\.\w+)/gi)].map((m) => m[1].toLowerCase()),
     );
-    // A holder cannot be made a deputy...
-    expect(fnBody('gatepass.set_approval_deputy')).toMatch(/One person holds one approval seat/i);
-    // ...and a deputy cannot be made a holder.
-    expect(fnBody('gatepass.set_approval_role')).toMatch(/standing deputy for the % office/i);
-  });
-
-  it('refuses to let the holder be their own deputy', () => {
-    expect(bare).toMatch(/constraint approval_roles_deputy_is_not_holder/i);
-    expect(bare).toMatch(/check \(deputy_id is null or deputy_id <> user_id\)/i);
-  });
-
-  it('admits nobody but an admin to either deputy RPC', () => {
-    for (const name of ['gatepass.set_approval_deputy', 'gatepass.clear_approval_deputy']) {
-      const body = fnBody(name);
-      expect(body).toMatch(/if not gatepass\.is_admin\(\) then/i);
-      expect(body).toMatch(/security definer/i);
-      expect(body).toMatch(/set search_path = ''/i);
+    for (const name of new Set(fns.map((f) => f.name))) {
+      const latest = fns.filter((f) => f.name === name).slice(-1)[0];
+      if (dropped.has(name.toLowerCase()) && !latest.file.startsWith('068')) continue;
+      expect([name, /deputy/i.test(codeOf(latest.body))]).toEqual([name, false]);
     }
   });
 
-  it('records WHICH SEAT signed, as a stored column rather than a join', () => {
-    // The seat is a fact about the moment of the decision, and both seats move.
-    // A join back to approval_roles would retroactively rewrite history every
-    // time an office was re-pointed.
-    expect(bare).toMatch(/alter table gatepass\.pass_approvals[\s\S]*?decided_as_deputy boolean not null default false/i);
-    for (const name of ['gatepass.approve_pass_level', 'gatepass.reject_pass_level']) {
-      expect(fnBody(name)).toMatch(/decided_as_deputy\s*=\s*coalesce\(v_as_deputy, false\)/i);
-    }
+  it('keeps my_approval_role scalar, on the holder and a live delegation alone', () => {
+    const body = fnBody('gatepass.my_approval_role');
+    expect(body).toMatch(/where r\.user_id = auth\.uid\(\)/i);
+    expect(body).toMatch(/gatepass\.delegation_is_live/i);
+    expect(body).toMatch(/gatepass\.is_user_active\(auth\.uid\(\)\)/i);
+    // Still scalar by refusal, never by truncation — 049's hazard, unchanged.
+    expect(body).not.toMatch(/limit\s+1/i);
+  });
+
+  it('keeps every seat refusal the ladder still has', () => {
+    const role = fnBody('gatepass.set_approval_role');
+    expect(role).toMatch(/One person holds one approval office/i);
+    expect(role).toMatch(/covering the % office under a delegation/i);
+    expect(role).toMatch(/That account is deactivated/i);
+    const deleg = fnBody('gatepass.create_approval_delegation');
+    expect(deleg).toMatch(/One person holds one approval seat, so they cannot also cover yours/i);
+    expect(deleg).toMatch(/already covering the % office under a delegation over part of that period/i);
   });
 
   it('leaves the slip order, the pass status rules and the rejection reason exactly as 046 set them', () => {
-    // A deputy is a second signer, not a second set of rules.
+    // Removing a seat is not a change to the rules the remaining seat obeys.
     for (const name of ['gatepass.approve_pass_level', 'gatepass.reject_pass_level']) {
       const body = fnBody(name);
       expect(body).toMatch(/An earlier approval level has not signed this pass yet/i);
       expect(body).toMatch(/This gate pass is no longer waiting for approval/i);
       expect(body).toMatch(/This gate pass is not waiting on your approval/i);
+      // 062's delegation stamp survives — it is the cover that remains.
+      expect(body).toMatch(/decided_as_delegate\s*=\s*\(v_deleg_id is not null\)/i);
     }
     expect(fnBody('gatepass.reject_pass_level')).toMatch(/A rejection needs a reason/i);
+    // 063's escalation gate and its shared rung are untouched.
+    expect(fnBody('gatepass.approve_pass_level')).toMatch(/gatepass\.level_escalates_at/i);
+    expect(fnBody('gatepass.approve_pass_level')).toMatch(/status\s*=\s*'not_required'/i);
   });
 
   it('drops and recreates the two readers whose return type changed, and re-grants them', () => {
@@ -1630,23 +1644,27 @@ describe('054 — an office may have one standing deputy, and one person one sea
       expect(lower).toContain(`drop function if exists ${fn}`);
       expect(lower).toContain(`grant execute on function ${fn} to authenticated`);
     }
-  });
-
-  it('tells the deputy about the pass, resolving them TODAY rather than at raise', () => {
-    // 051's rule, applied to the second seat: authority is resolved at the
-    // moment of the press, so the address has to be too.
-    const body = fnBody('gatepass.approval_notice_payload');
-    expect(body).toMatch(/'deputy_email',\s*dep\.email/i);
-    expect(body).toMatch(/left join public\.profiles\s+dep on dep\.id = r\.deputy_id/i);
+    // Every OTHER column the two readers carried survives the rebuild.
+    const rows = fnBody('gatepass.get_pass_approvals');
+    for (const col of ['a.grandfathered', 'a.decided_as_delegate']) expect(rows).toContain(col);
+    expect(fnBody('gatepass.get_approval_ladder')).toMatch(/r\.designated_at/i);
   });
 
   it('never exposes an approver address to a signed-in reader', () => {
-    // 047's rule, restated because this migration touches both functions:
-    // the payload carries emails and stays service_role-only; the ladder is
-    // readable by every signed-in user and must carry none.
+    // 047's rule, restated because this migration touches both functions.
     expect(bare).not.toMatch(/grant execute on function gatepass\.approval_notice_payload[^;]*authenticated/i);
-    const ladder = fnBody('gatepass.get_approval_ladder');
-    expect(ladder).not.toMatch(/\bemail\b/i);
+    expect(fnBody('gatepass.get_approval_ladder')).not.toMatch(/\bemail\b/i);
+    // The letter still reaches the office holder, resolved TODAY (051).
+    expect(fnBody('gatepass.approval_notice_payload'))
+      .toMatch(/'approver_email',\s*coalesce\(cur\.email, ap\.email\)/i);
+  });
+
+  it('reloads PostgREST, so the dropped columns leave its schema cache too', () => {
+    expect(bare).toMatch(/notify pgrst, 'reload schema';/i);
+  });
+
+  it('keeps clear_approval_role, which is the only way to empty an office now', () => {
+    expect(defined('gatepass.clear_approval_role')).toBe(true);
   });
 });
 
@@ -1991,10 +2009,9 @@ describe('059 — an approval office is held by exactly one ACTIVE person', () =
     expect(/alter\s+table\s+public\./i.test(bare)).toBe(false);
   });
 
-  it('deactivation vacates the office AND any deputy seat', () => {
+  it('deactivation vacates the office', () => {
     const body = fnBody('gatepass.admin_soft_delete_user');
     expect(body).toMatch(/delete from gatepass\.approval_roles r where r\.role_key = v_office;/i);
-    expect(body).toMatch(/set deputy_id = null\s+where r\.deputy_id = p_user_id;/i);
     // And the three refusals 040 shipped with are still in front of it.
     expect(body).toMatch(/if not gatepass\.is_admin\(\) then/i);
     expect(body).toMatch(/p_user_id = auth\.uid\(\)/i);
@@ -2024,16 +2041,14 @@ describe('059 — an approval office is held by exactly one ACTIVE person', () =
     );
   });
 
-  it('refuses to seat a deactivated account, as holder OR as deputy', () => {
-    for (const fn of ['gatepass.set_approval_role', 'gatepass.set_approval_deputy']) {
-      const body = fnBody(fn);
-      expect(body).toMatch(/if not gatepass\.is_user_active\(p_user_id\) then/i);
-      expect(body).toMatch(/That account is deactivated/i);
-      // 049's and 054's one-seat refusals survive untouched.
-      expect(body).toMatch(/if not gatepass\.is_admin\(\) then/i);
-      expect(body).toMatch(/p_role_key not in \('security_head', 'coo', 'ceo', 'finance_head'\)/i);
-      expect(body).toMatch(/set search_path = ''/i);
-    }
+  it('refuses to seat a deactivated account', () => {
+    const body = fnBody('gatepass.set_approval_role');
+    expect(body).toMatch(/if not gatepass\.is_user_active\(p_user_id\) then/i);
+    expect(body).toMatch(/That account is deactivated/i);
+    // 049's one-seat refusal survives untouched.
+    expect(body).toMatch(/if not gatepass\.is_admin\(\) then/i);
+    expect(body).toMatch(/p_role_key not in \('security_head', 'coo', 'ceo', 'finance_head'\)/i);
+    expect(body).toMatch(/set search_path = ''/i);
   });
 
   it('swaps a holder atomically — one row per office, never two', () => {
@@ -2046,7 +2061,6 @@ describe('059 — an approval office is held by exactly one ACTIVE person', () =
 
   it('sweeps anybody already seated while suspended, using the same test', () => {
     expect(bare).toMatch(/delete from gatepass\.approval_roles r\s+where not gatepass\.is_user_active\(r\.user_id\)/i);
-    expect(bare).toMatch(/set deputy_id = null\s+where r\.deputy_id is not null\s+and not gatepass\.is_user_active\(r\.deputy_id\)/i);
     // The marker is written off the seat BEFORE it is removed, and only for a
     // row that is actually suspended.
     expect(bare).toMatch(/s\.is_active = false/i);
@@ -2168,7 +2182,7 @@ describe('061 — ladder visibility is linear', () => {
     expect(body).not.toMatch(/b\.status = 'pending'/i);
   });
 
-  it('still resolves the office through my_approval_role, so a deputy inherits it', () => {
+  it('still resolves the office through my_approval_role, so a delegate inherits it', () => {
     expect(body).toMatch(/a\.role_key = gatepass\.my_approval_role\(\)/i);
   });
 
@@ -2242,10 +2256,9 @@ describe('062 — approval delegation', () => {
     expect(fnBody('gatepass.my_approval_role')).not.toMatch(/limit\s+1/i);
   });
 
-  it('refuses a delegate who already holds an office, a deputy seat or an overlapping delegation', () => {
+  it('refuses a delegate who already holds an office or an overlapping delegation', () => {
     const body = fnBody('gatepass.create_approval_delegation');
     expect(body).toMatch(/where r\.user_id = p_delegate_id/i);
-    expect(body).toMatch(/where r\.deputy_id = p_delegate_id/i);
     // OVERLAP, not existence — two windows that do not overlap are two separate
     // absences and are legal. Half-open, matching `delegation_is_live`.
     expect(body).toMatch(/d\.starts_at < p_ends_at/i);
@@ -2254,21 +2267,19 @@ describe('062 — approval delegation', () => {
 
   // The other direction, and it is the one an admin could otherwise walk
   // straight through: seating somebody who is already covering an office.
-  it('refuses to seat a live-or-future delegate as a holder or a deputy', () => {
-    for (const fn of ['gatepass.set_approval_role', 'gatepass.set_approval_deputy']) {
-      const body = fnBody(fn);
-      expect(body).toMatch(/from gatepass\.approval_delegations d/i);
-      expect(body).toMatch(/d\.delegate_id = p_user_id/i);
-      expect(body).toMatch(/d\.ends_at > now\(\)/i);
-      expect(body).toMatch(/covering the % office under a delegation/i);
-      // And 059's refusal survives this restatement.
-      expect(body).toMatch(/if not gatepass\.is_user_active\(p_user_id\) then/i);
-    }
+  it('refuses to seat a live-or-future delegate as a holder', () => {
+    const body = fnBody('gatepass.set_approval_role');
+    expect(body).toMatch(/from gatepass\.approval_delegations d/i);
+    expect(body).toMatch(/d\.delegate_id = p_user_id/i);
+    expect(body).toMatch(/d\.ends_at > now\(\)/i);
+    expect(body).toMatch(/covering the % office under a delegation/i);
+    // And 059's refusal survives this restatement.
+    expect(body).toMatch(/if not gatepass\.is_user_active\(p_user_id\) then/i);
   });
 
   // ── Who may write one ───────────────────────────────────────────────────
   // THE APPROVER'S OWN ACT (client, 2026-08-22). Gated on HOLDING the office —
-  // not `my_approval_role()`, which is true for a deputy and for a delegate as
+  // not `my_approval_role()`, which is true for a delegate as
   // well, and neither may hand on what they are only covering.
   it('admits only the office holder themselves — not an admin, not a stand-in', () => {
     const body = fnBody('gatepass.create_approval_delegation');
@@ -2313,8 +2324,6 @@ describe('062 — approval delegation', () => {
       const body = fnBody(fn);
       expect(body).toMatch(/decided_as_delegate\s*=\s*\(v_deleg_id is not null\)/i);
       expect(body).toMatch(/delegation_id\s*=\s*v_deleg_id/i);
-      // 054's stamp is untouched.
-      expect(body).toMatch(/decided_as_deputy\s*=\s*coalesce\(v_as_deputy, false\)/i);
     }
   });
 
@@ -2324,7 +2333,7 @@ describe('062 — approval delegation', () => {
   it('rebuilds get_pass_approvals keeping every column it already returned', () => {
     expect(bare).toMatch(/drop function if exists gatepass\.get_pass_approvals\(uuid\);/i);
     const body = fnBody('gatepass.get_pass_approvals');
-    for (const col of ['a.decided_as_deputy', 'a.grandfathered', 'a.decided_as_delegate']) {
+    for (const col of ['a.grandfathered', 'a.decided_as_delegate']) {
       expect(body).toContain(col);
     }
     expect(bare).toMatch(/grant execute on function gatepass\.get_pass_approvals\(uuid\) to authenticated;/i);
@@ -2555,7 +2564,7 @@ describe('066 — a delegate is an HOD', () => {
 
   it('keeps every one-seat exclusion the candidate list already had', () => {
     const body = fnBody('gatepass.list_delegation_candidates');
-    expect(body).toMatch(/from gatepass\.approval_roles r[\s\S]*r\.user_id = p\.id or r\.deputy_id = p\.id/i);
+    expect(body).toMatch(/from gatepass\.approval_roles r[\s\S]*r\.user_id = p\.id/i);
     expect(body).toMatch(/from gatepass\.approval_delegations dl/i);
   });
 
@@ -2566,14 +2575,129 @@ describe('066 — a delegate is an HOD', () => {
     expect(body).toMatch(/raise exception '[^']*department head/i);
   });
 
-  it('still refuses a delegate who holds an office, a deputy seat or an overlapping window', () => {
+  it('still refuses a delegate who holds an office or has an overlapping window', () => {
     const body = fnBody('gatepass.create_approval_delegation');
     expect(body).toMatch(/from gatepass\.approval_roles r\s*\n\s*where r\.user_id = p_delegate_id/i);
-    expect(body).toMatch(/from gatepass\.approval_roles r\s*\n\s*where r\.deputy_id = p_delegate_id/i);
     expect(body).toMatch(/d\.starts_at < p_ends_at/i);
   });
 
   it('reloads PostgREST so the narrowed list is the one the portal calls', () => {
+    expect(bare).toMatch(/notify pgrst, 'reload schema';/i);
+  });
+});
+
+
+// ════════════════════════════════════════════════════════════════════════════
+describe('069 — the COO and the CEO raise for any department', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('069'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(migrations);
+  const fnBody = (name: string) => fns.filter((f) => f.name === name).slice(-1)[0].body;
+
+  it('admits the two fallback offices to raise_pass, and nobody else new', () => {
+    const body = fnBody('gatepass.raise_pass');
+    // The pool is `holds_fallback_office()` (067) REUSED, never a second list
+    // of office keys: two spellings of "the COO or the CEO" is how the raise
+    // form and the emergency release start disagreeing about who that is.
+    expect(body).toMatch(/gatepass\.holds_fallback_office\(\)/i);
+    expect(body).toMatch(/gatepass\.app_role\(\) <> 'hod'/i);
+    expect(
+      /'security_head'|'finance_head'/i.test(body),
+      'raise_pass must not name an office key of its own — the pair is holds_fallback_office()',
+    ).toBe(false);
+  });
+
+  it('still confines an HOD to a department they head', () => {
+    const body = fnBody('gatepass.raise_pass');
+    expect(body).toMatch(/p_department_id not in \(select gatepass\.my_department_ids\(\)\)/i);
+    // …and the wide branch still demands a REAL department, so the office
+    // cannot raise against an invented uuid and meet a constraint violation
+    // instead of a sentence.
+    expect(body).toMatch(/from public\.departments d[\s\S]*?d\.id = p_department_id/i);
+  });
+
+  it('lets the raiser see the pass they raised, on both select policies', () => {
+    // Without this arm a COO raises a pass and cannot open, print or find it:
+    // they head no department (my_department_ids() is empty) and 061 hides a
+    // pass from their office until every rung below theirs is signed.
+    expect(bare).toMatch(/create policy gate_passes_select[\s\S]*?raised_by = auth\.uid\(\)/i);
+    expect(bare).toMatch(/create policy gate_pass_items_select[\s\S]*?gatepass\.raised_by_me\(gate_pass_id\)/i);
+  });
+
+  it('keeps every arm 067 put on those policies', () => {
+    for (const arm of [
+      /gatepass\.is_admin\(\)/i,
+      /gatepass\.pass_awaits_approval/i,
+      /gatepass\.my_department_ids\(\)/i,
+      /gatepass\.pass_routed_to_me/i,
+      /gatepass\.pass_is_stuck/i,
+    ]) {
+      expect(bare).toMatch(arm);
+    }
+  });
+
+  it('pins search_path on the new helper and grants it no wider than authenticated', () => {
+    const body = fnBody('gatepass.raised_by_me');
+    expect(body).toMatch(/security definer/i);
+    expect(body).toMatch(/set search_path = ''/i);
+    expect(body).toMatch(/g\.raised_by = auth\.uid\(\)/i);
+    expect(bare).toMatch(/revoke all on function gatepass\.raised_by_me\(uuid\) from public/i);
+    expect(bare).toMatch(/grant execute on function gatepass\.raised_by_me\(uuid\) to authenticated/i);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+describe('070 — a rejection at the gate is final', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('070'))!.sql;
+  const bare = stripSqlComments(sql);
+  const all = stripSqlComments(migrations.map((m) => m.sql).join('\n'));
+
+  it('drops the override RPC', () => {
+    expect(bare).toMatch(/drop function if exists gatepass\.hod_review_flagged_pass\(uuid, text, text\)/i);
+  });
+
+  it('leaves no definition of it after the drop — an unused SECURITY DEFINER is still executable', () => {
+    // Ordering matters and is the whole point: APPLY_ALL.sql is one paste in
+    // migration order, so a `create or replace` AFTER the drop would put the
+    // function back and hand every authenticated user a way to move a pass out
+    // of `flagged`. 015 and 065 create it; both run before 070.
+    const dropAt = all.search(/drop function if exists gatepass\.hod_review_flagged_pass/i);
+    expect(dropAt).toBeGreaterThan(-1);
+    const after = all.slice(dropAt);
+    expect(
+      /create (or replace )?function gatepass\.hod_review_flagged_pass/i.test(after),
+      'a migration after 070 recreates the override the client removed',
+    ).toBe(false);
+    expect(
+      /grant execute on function gatepass\.hod_review_flagged_pass/i.test(after),
+      'a migration after 070 re-grants the dropped override',
+    ).toBe(false);
+  });
+
+  it('leaves flag_pass itself alone — the written reason was already mandatory', () => {
+    // The client asked for a justification and for the pass to be closed. The
+    // first half has been true since 035, and re-issuing the function to say so
+    // again would only risk changing something that already works.
+    expect(
+      /create (or replace )?function gatepass\.flag_pass/i.test(bare),
+      '070 must not redefine flag_pass',
+    ).toBe(false);
+    const fns = extractFunctions(migrations);
+    const flag = fns.filter((f) => f.name === 'gatepass.flag_pass').slice(-1)[0];
+    expect(flag.body).toMatch(/p_reason is null or length\(trim\(p_reason\)\) = 0/i);
+    expect(flag.body).toMatch(/raise exception 'A reason is required/i);
+  });
+
+  it('does not fold the rejection into `cancelled`, so the record can still say who stopped it', () => {
+    const fns = extractFunctions(migrations);
+    const flag = fns.filter((f) => f.name === 'gatepass.flag_pass').slice(-1)[0];
+    expect(flag.body).toMatch(/status\s*=\s*'flagged'/i);
+    expect(flag.body).toMatch(/flag_reason\s*=\s*trim\(p_reason\)/i);
+  });
+
+  it('reloads PostgREST, so the dropped RPC leaves the schema cache too', () => {
     expect(bare).toMatch(/notify pgrst, 'reload schema';/i);
   });
 });

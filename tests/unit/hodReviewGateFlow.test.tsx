@@ -148,21 +148,30 @@ describe('HOD-approved passes at the gate (flag → hod_reviewed → clear)', ()
       );
     }
 
-    it('offers both Approve and Flag to Requester for a hod_reviewed pass', async () => {
+    // `hod_reviewed` is now a HISTORICAL status: migration 070 (client,
+    // 2026-08-31 — a guard's rejection is final and cancels the pass outright)
+    // dropped `hod_review_flagged_pass`, the RPC that produced this status, so
+    // nothing new can ever reach it again. But three passes raised before the
+    // migration still sit in `hod_reviewed`, and the gate still has to be able
+    // to close them — so `match_pass` and `flag_pass` both still admit it.
+    // Only the button wording moved, from "Flag to Requester" (which described
+    // handing the pass back to the HOD) to "Reject Pass" (which now cancels it).
+    it('offers both Approve and Reject Pass for a hod_reviewed pass', async () => {
       verifyRow = APPROVED;
       await renderVerify();
 
       await waitFor(() => expect(screen.getByText(/APPROVED-0001/)).toBeInTheDocument());
-      // Approve / Reject since 2026-08-20, and Approve / Flag to Requester
-      // since 2026-08-23 (client). The RPCs are unchanged throughout — this is
-      // still match_pass and flag_pass underneath.
+      // Approve / Reject since 2026-08-20, Approve / Flag to Requester since
+      // 2026-08-23, and Approve / Reject Pass since 2026-08-31. The RPCs are
+      // unchanged throughout — this is still match_pass and flag_pass
+      // underneath.
       const matchBtn = screen.getByRole('button', { name: 'Approve' });
       expect(matchBtn).toBeInTheDocument();
       expect(matchBtn).toBeEnabled();
       // 035: an override approval is not a fact about the material — the guard
-      // at the barrier must still be able to re-flag a fresh pass whose
+      // at the barrier must still be able to reject a fresh pass whose
       // mismatch was not actually fixed. flag_pass admits hod_reviewed now.
-      const flagBtn = screen.getByRole('button', { name: 'Flag to Requester' });
+      const flagBtn = screen.getByRole('button', { name: 'Reject Pass' });
       expect(flagBtn).toBeInTheDocument();
       expect(flagBtn).toBeEnabled();
     });

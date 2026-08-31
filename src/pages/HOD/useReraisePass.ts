@@ -133,17 +133,18 @@ export function useReraisePass(todayStr: string): ReraiseSource & { sourceId: st
  *  stopped for anyone who then closed the tab, and would leave the gate with
  *  nothing at all if the new pass were never submitted.
  *
- *  TWO RPCs, PICKED FROM THE SOURCE PASS, because the two screens that lead here
- *  supersede two different kinds of dead pass and each RPC refuses the other's:
+ *  THERE IS ONLY ONE KIND OF PASS LEFT TO VOID (migration 070). An EXPIRED pass
+ *  is still open — nobody stopped it, it simply never travelled — so it is
+ *  closed here with `hod_void_expired_pass` (041), which refuses anything that
+ *  is not pending AND genuinely past its own `expires_at`, and writes the
+ *  `verifications` row that makes the supersede auditable.
  *
- *    flagged  → `hod_review_flagged_pass(reject)`, which refuses anything that
- *               is not currently flagged.
- *    expired  → `hod_void_expired_pass` (041), which refuses anything that is
- *               not pending AND genuinely past its own `expires_at`.
- *
- *  Both write the `verifications` row that makes the supersede auditable, and
- *  both leave the outcome as 'cancelled'. `source` is null only on a fresh
- *  raise, where nothing is superseded at all.
+ *  A REJECTED PASS IS ALREADY CLOSED. Since the client made a gate rejection
+ *  final, `flag_pass` ends the pass where it stands and
+ *  `hod_review_flagged_pass` no longer exists — so there is nothing to void and
+ *  no call to make. This returns null for that case rather than reporting a
+ *  failure: the replacement was raised, and nothing about the old pass is left
+ *  open. `source` is null only on a fresh raise, where nothing is superseded.
  *
  *  Returns an error message on failure rather than throwing: the new pass exists
  *  either way, and the HOD must be told the old one is still open, not shown a
@@ -153,13 +154,10 @@ export async function voidSupersededPass(
   newPassNumber: string,
   source: GatePassView | null,
 ): Promise<string | null> {
-  const reason = `Superseded by ${newPassNumber}`;
-  const { error } = isExpiredPending(source ?? { status: 'pending', is_expired: false })
-    ? await gp().rpc('hod_void_expired_pass', { p_pass_id: passId, p_reason: reason })
-    : await gp().rpc('hod_review_flagged_pass', {
-        p_pass_id: passId,
-        p_action: 'reject',
-        p_reason: reason,
-      });
+  if (!isExpiredPending(source ?? { status: 'pending', is_expired: false })) return null;
+  const { error } = await gp().rpc('hod_void_expired_pass', {
+    p_pass_id: passId,
+    p_reason: `Superseded by ${newPassNumber}`,
+  });
   return error ? (error.message ?? 'Unknown error') : null;
 }

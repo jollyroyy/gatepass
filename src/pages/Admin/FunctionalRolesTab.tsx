@@ -13,7 +13,7 @@
 //      not a copy of it. It already offers Guard, HOD and the four approval
 //      offices, and writes the office row in the same transaction (046);
 //   3. ASSIGN the four offices — `ApprovalLadderCard`, the one control that
-//      seats a holder and a standing deputy. Rendered here as well as on the
+//      seats an office holder. Rendered here as well as on the
 //      Users tab because this is the screen the client will look for it on, and
 //      it is ONE component reading one RPC, so the two cannot disagree.
 //

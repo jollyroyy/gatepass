@@ -11,13 +11,20 @@
 //                      `passNumberPreview` for why the serial reads `####`.
 //   Vehicle Number   — one vehicle for the whole pass.
 //
-// THE DEPARTMENT FIELD IS GONE (client: "no need to show the department because
-// it will be automatically captured") — the form still resolves it from the
-// HOD's own `hod_departments` assignment and sends it, it is simply not asked
-// for. THE PASS-LEVEL RETURN DATE IS GONE TOO: a date is taken against each ITEM
+// THE DEPARTMENT FIELD IS GONE FOR AN HOD (client: "no need to show the
+// department because it will be automatically captured") — the form resolves it
+// from their own `hod_departments` assignment and sends it, it is simply not
+// asked for. IT IS A FIELD AGAIN FOR THE COO AND THE CEO, and only for them
+// (client, 2026-08-31: "ceo and coo can select the department to raise the
+// gatepass"): they head no department, so there is nothing to capture
+// automatically and the pass has no department at all until they say which.
+// That is the ONE difference between the two forms — `departments` is passed
+// only when the reader may choose, and an absent list draws the HOD's form
+// exactly as it was.
+// THE PASS-LEVEL RETURN DATE IS GONE TOO: a date is taken against each ITEM
 // now, and the pass's deadline is the earliest of them.
 import React from 'react';
-import type { NewGatePass, PassType } from '../../types';
+import type { DeptOption, NewGatePass, PassType } from '../../types';
 import PassTypeSelector from './PassTypeSelector';
 import { passNumberPreview, PURPOSE_MAX } from '../../lib/raisePassForm';
 import { DIAL_CODES, joinMobile, splitMobile } from '../../lib/mobileNumber';
@@ -27,6 +34,14 @@ interface PassDetailsCardsProps {
   errors: Record<string, string | undefined>;
   onTypeChange: (type: PassType) => void;
   onUpdate: <K extends keyof NewGatePass>(key: K, value: NewGatePass[K]) => void;
+  /** The departments this reader may raise for, when they may CHOOSE one — a
+   *  sitting COO or CEO (069). Absent for an HOD, whose department is resolved
+   *  from their own assignment and never asked for. */
+  departments?: DeptOption[];
+  /** The code of the department the pass will be raised for, whether it was
+   *  chosen or captured — it is the middle segment of the reference number
+   *  (064), so an HOD who is never shown the field still sees `RGP-IT-####`. */
+  deptCode?: string | null;
 }
 
 function Legend({ children }: { children: React.ReactNode }): React.ReactElement {
@@ -42,8 +57,13 @@ export default function PassDetailsCards({
   errors,
   onTypeChange,
   onUpdate,
+  departments,
+  deptCode,
 }: PassDetailsCardsProps): React.ReactElement {
   const mobile = splitMobile(form.visitor_phone);
+  // The reference number's middle segment is the DEPARTMENT's code (064), so
+  // the preview follows whatever department the pass will be raised for: an
+  // HOD's own, or the one a COO picked a moment ago in the selector below.
 
   return (
     <>
@@ -66,11 +86,37 @@ export default function PassDetailsCards({
               id="rp-ref"
               className="input rp-ref"
               aria-label="Reference Number"
-              value={passNumberPreview(form.type)}
+              value={passNumberPreview(form.type, deptCode)}
               readOnly
             />
             <p className="rp-hint mt-1">The serial is assigned when the pass is submitted.</p>
           </div>
+
+          {departments && (
+            <div>
+              <label className="label" htmlFor="rp-dept">Department<Req /></label>
+              {/* A NATIVE SELECT, not a search box: a mall has tens of
+                  departments, not thousands, and the COO picking one is the
+                  whole difference between this form and the HOD's. The blank
+                  first option is deliberate — nothing is pre-selected, so a
+                  pass cannot be raised against a department nobody chose. */}
+              <select
+                id="rp-dept"
+                className="input"
+                value={form.department_id}
+                onChange={(e) => onUpdate('department_id', e.target.value)}
+              >
+                <option value="">Select a department…</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                ))}
+              </select>
+              {errors.department_id && <p className="field-error">{errors.department_id}</p>}
+              <p className="rp-hint mt-1">
+                The pass is raised on this department's behalf and carries its code.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="label" htmlFor="rp-vehicle">Vehicle Number</label>

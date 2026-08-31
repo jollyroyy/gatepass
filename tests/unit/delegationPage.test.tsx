@@ -238,7 +238,7 @@ describe('Approval Delegation', () => {
 
   // ── Who may delegate at all ───────────────────────────────────────────────
   // `list_delegation_candidates` refuses anyone who does not HOLD an office, so
-  // a standing deputy or a current delegate gets no form. That is an answer,
+  // a current delegate gets no form. That is an answer,
   // not an error: they may act for the office but may not hand it on.
   it('draws no form for a stand-in, and does not report their refusal as a failure', async () => {
     candidatesFail = true;

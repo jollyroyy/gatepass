@@ -24,20 +24,27 @@ export function todayStr(): string {
  *  form (client, 2026-08-19: "show the reference number of the RGP or NRGP pass
  *  and it should be uneditable").
  *
- *  THE SERIAL IS `####`, AND THAT IS DELIBERATE. `gatepass.set_pass_number()`
- *  (042) assigns the number inside the INSERT, under an advisory lock, as
- *  `TYPE-YYYYMMDD-NNNN`. Nothing outside that transaction can know NNNN: two
- *  HODs filling this form at the same moment would both be shown the same
- *  serial and one of them would be wrong, and an HOD reads only their own
- *  department's passes anyway, so a count here could not even be made to
- *  guess. The prefix is exact; the four digits are honestly unknown until the
- *  pass exists, and the modal that follows the submit states the real number.
+ *  IT CARRIES THE DEPARTMENT, NOT THE DATE. `gatepass.set_pass_number()` builds
+ *  `TYPE-DEPTCODE-NNNN` since migration 064 (042 dropped the direction, 064 the
+ *  date), so a preview built from today's date named a shape the database has
+ *  not written since — `RGP-20260831-####` for a pass that lands as `RGP-IT-12`.
+ *  The code comes from the department the pass is being raised for: the HOD's
+ *  own, or — since 069 — whichever one a COO or CEO picked.
  *
- *  The date is the UTC date, not the local one — that is what the trigger uses
- *  (`(now() at time zone 'UTC')::date`), and `todayStr()` is UTC too, so the
- *  two agree by construction. */
-export function passNumberPreview(type: PassType, today: string = todayStr()): string {
-  return `${type}-${today.replace(/-/g, '')}-####`;
+ *  THE SERIAL IS `####`, AND THAT IS DELIBERATE. The number is assigned inside
+ *  the INSERT, under an advisory lock. Nothing outside that transaction can know
+ *  NNNN: two HODs filling this form at the same moment would both be shown the
+ *  same serial and one of them would be wrong, and the counter runs for ever per
+ *  (type, department) rather than resetting, so a count here could not even be
+ *  made to guess. The prefix is exact; the four digits are honestly unknown
+ *  until the pass exists, and the modal that follows the submit states the real
+ *  number.
+ *
+ *  A MISSING CODE PRINTS `DEPT` rather than an empty segment — the shape stays
+ *  legible while the department list is still loading, and it never claims to
+ *  be a real prefix. */
+export function passNumberPreview(type: PassType, deptCode?: string | null): string {
+  return `${type}-${(deptCode ?? '').trim() || 'DEPT'}-####`;
 }
 
 /** The PASS's deadline, derived from its lines: the earliest date any item is

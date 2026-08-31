@@ -28,6 +28,23 @@ export const DELEGATION_LINK: NavLink = {
   icon: <svg {...ICON_PROPS}><circle cx="8" cy="8" r="3" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.75 19.5a5.25 5.25 0 0110.5 0" /><path strokeLinecap="round" strokeLinejoin="round" d="M14.5 9.75h6.75m0 0l-2.5-2.5m2.5 2.5l-2.5 2.5" /><circle cx="18" cy="17.5" r="2.5" /></svg>,
 };
 
+/** THE TWO TABS THE COO AND THE CEO GET ON TOP OF THOSE (069; client,
+ *  2026-08-31: "make sure CEO and COO has the ability to raise pass on behalf
+ *  of any department in their logins"). Out of ALL_LINKS for the reason the
+ *  other two are — the grant comes from `gatepass.approval_roles`, not from
+ *  `profiles.role`, and `NavLink.roles` can only express the latter. Which
+ *  offices get them is `RAISING_OFFICES` in roleRoutes.ts and is not restated
+ *  here: this file is the label and the icon. */
+export const OFFICE_RAISE_LINK: NavLink = {
+  to: '/raise', label: 'Raise Gate Pass', roles: [],
+  icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>,
+};
+
+export const OFFICE_PASSES_LINK: NavLink = {
+  to: '/my-passes', label: 'Passes I Raised', roles: [],
+  icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3.75h7.5l4.5 4.5v11.25a1.5 1.5 0 01-1.5 1.5H6.75a1.5 1.5 0 01-1.5-1.5V5.25a1.5 1.5 0 011.5-1.5z" /><path strokeLinecap="round" strokeLinejoin="round" d="M14.25 3.75V8.25h4.5M8.25 12.75h7.5M8.25 16.5h4.5" /></svg>,
+};
+
 export const ALL_LINKS: NavLink[] = [
   {
     to: '/dashboard', label: 'Dashboard', roles: ['hod'],

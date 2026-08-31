@@ -102,7 +102,12 @@ function formatTime(iso: string): string {
  *  accusation with no author is not reviewable. */
 export function mismatchMessage(passNumber: string, reason: string | null, by: string | null): string {
   const who = by ? ` by ${by}` : '';
-  return `${passNumber} was rejected at the security gate${who}. Reason: ${reason || 'No reason recorded'}. Review and either reject it or raise it again.`;
+  // A REJECTION AT THE GATE IS FINAL (migration 070; client, 2026-08-31: "then
+  // the entire pass will be cancelled and a new pass needs to be raised"). The
+  // sentence used to end "Review and either reject it or raise it again",
+  // offering a decision the HOD no longer has — the pass is closed by the time
+  // this notice is written, and the only thing left to do is raise another.
+  return `${passNumber} was rejected at the security gate${who}. Reason: ${reason || 'No reason recorded'}. The pass is cancelled — raise a new one to move the material.`;
 }
 
 /** The words the HOD reads on an expiry. It says NULL AND VOID rather than

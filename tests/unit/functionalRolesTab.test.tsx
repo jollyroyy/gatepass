@@ -6,7 +6,7 @@
 // here — Create Role Holder (the Users tab's own modal, not a copy) and the
 // approval ladder card.
 //
-// Mocking pattern copied from approvalDeputyCard.test.tsx, so this file cannot
+// Mocking pattern copied from approvalLadderCard.test.tsx, so this file cannot
 // drift from how the rest of the admin portal's tests fake Supabase.
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
@@ -25,8 +25,6 @@ const LADDER = [
     full_name: 'Sanjay Rao',
     department_name: 'Security',
     designated_at: '2026-08-01T00:00:00Z',
-    deputy_id: null,
-    deputy_name: null,
   },
 ];
 

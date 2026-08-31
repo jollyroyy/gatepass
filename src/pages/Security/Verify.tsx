@@ -2,12 +2,18 @@
 //
 // Client, 2026-08-20: "for the guard's view … put it as approve and reject.
 // Don't put mismatched or something … if rejects, make the rejection reason
-// mandatory." And 2026-08-23: "replace the reject with flag to requestor
-// button." Both are WORDING and nothing else — Approve is still `match_pass`,
-// the second answer is still `flag_pass`, and it still goes straight back to
-// the raising HOD exactly as the old "Flag Mismatch" did. THE REQUESTER
-// ANSWERS IT, NEVER THE THREE APPROVAL OFFICES: their rungs were signed before
-// the pass reached the barrier and nothing in this loop reopens them.
+// mandatory." Approve is `match_pass`; the second answer is `flag_pass`, and
+// the written reason it demands has been mandatory since.
+//
+// THE REJECTION IS NOW FINAL (client, 2026-08-31: "once a guard rejects a pass
+// he has to mention the justification as to why is he rejecting the pass and
+// then the entire pass will be cancelled and a new pass needs to be raised").
+// Between 2026-08-23 and then the button read "Flag to Requester" and the pass
+// went back to the raising HOD, who could send it to this gate again; migration
+// 070 dropped that answer with the RPC behind it. The pass is closed where the
+// guard leaves it, and the department raises another. THE REQUESTER IS STILL
+// THE ONE TOLD, NEVER THE THREE APPROVAL OFFICES: their rungs were signed
+// before the pass reached the barrier and nothing here reopens them.
 // The statuses (`matched` / `flagged`), the HOD's review screen and every
 // report keep their own vocabulary; this is what the person at the barrier
 // reads.
@@ -147,7 +153,7 @@ export default function Verify(): React.ReactElement {
     try {
       const { error } = await gp().rpc('flag_pass', { p_pass_id: pass.id, p_reason: reason });
       if (error) throw error;
-      navigate('/console', { state: { flash: `${pass.pass_number} rejected — sent to the raising department for review.` } });
+      navigate('/console', { state: { flash: `${pass.pass_number} rejected and cancelled — the raising department has been notified.` } });
     } catch (err) {
       setActionError(safeErrorMessage(err));
       setSubmitting(false);
@@ -270,7 +276,7 @@ export default function Verify(): React.ReactElement {
           </button>
           {pass.status !== 'matched' && (
             <button type="button" className="btn-flag" disabled={submitting} onClick={() => setPanel('flag')}>
-              Flag to Requester
+              Reject Pass
             </button>
           )}
         </div>

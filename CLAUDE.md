@@ -26,6 +26,11 @@ npm run build          # same typecheck + vite build
 npm run build:sql      # regenerate supabase/APPLY_ALL.sql from migrations/
 npm run create-user -- --email x@y.z --password P --name "N" --role hod --dept IT
 node scripts/verify-rls.mjs           # live RLS checks against the real DB
+
+npm run e2e            # Playwright, headless, against the REAL project
+npm run e2e:seed       # provision the @e2e.local cast (idempotent; global setup runs it)
+npm run e2e:restore    # give the four approval offices back to their pre-campaign holders
+npm run e2e:report     # open the last HTML report
 ```
 
 **`npm run lint` is a no-op — never trust it.** It runs bare `tsc --noEmit`, which picks up
@@ -77,7 +82,7 @@ policy). Deactivation keeps the role and department assignment and deletes every
 
 **Super admin is a FALLBACK, held by the COO and the CEO** (migration `067`). There is no standing
 super admin account — the one that existed was stripped and suspended on 2026-08-24.
-`is_super_admin()` = the VMS role **or** the sitting COO/CEO holder (not a deputy, not a delegate),
+`is_super_admin()` = the VMS role **or** the sitting COO/CEO holder (not a delegate),
 and it is deliberately **not** `is_admin()`: it grants `emergency_release_pass` and nothing else, so
 those two keep approver routes only. An office holder may release only a **stuck** pass —
 `pass_is_stuck()`, meaning pending, still owing a signature, and on its current rung longer than
@@ -101,14 +106,25 @@ holds at most one office (`049`).
 
 **State transitions are RPC-only.** No client holds `UPDATE` or `DELETE` on
 `gatepass.gate_passes`. `match_pass`, `flag_pass`, `mark_returned`, `apply_item_returns`,
-`hod_review_flagged_pass`, `hod_void_expired_pass` own the whole state machine. RLS cannot
+`hod_void_expired_pass` own the whole state machine. RLS cannot
 express "you may change `status` but not `visitor_name`". Route new state changes through a
 new RPC; **do not add an UPDATE policy**.
 
 **A raised gate pass is permanent** (migration `024`): no cancellation, no HOD delete. The
-two ways a pass closes without moving are `hod_review_flagged_pass('reject')` (security
-stopped it) and `hod_void_expired_pass` (expired unused) — both raising-HOD only, both
-re-checked server-side, both writing a `verifications` row.
+two ways a pass closes without moving are `flag_pass` (security stopped it at the barrier)
+and `hod_void_expired_pass` (expired unused, raising-HOD only) — both re-checked
+server-side, both writing a `verifications` row.
+
+**A GATE REJECTION IS FINAL** (migration `070`; client, 2026-08-31: "once a guard rejects a
+pass he has to mention the justification … then the entire pass will be cancelled and a new
+pass needs to be raised"). `flag_pass` demands a written reason (035) and closes the pass
+where it stands: `status` stays **`flagged`**, which is now TERMINAL. `hod_review_flagged_pass`
+is dropped — there is no override, no "send it back to the gate" and nothing for the
+requester to answer; `/mismatch/:id` offers only Raise It Again, and `voidSupersededPass`
+voids an EXPIRED source only. `flagged` is kept rather than folded into `cancelled` so the
+record can still say security stopped it and quote whose words. **`hod_reviewed` is a
+HISTORICAL status**: nothing can enter it, three live passes hold it, and `match_pass` /
+`flag_pass` still admit it so the gate can close them.
 
 **Two axes, only one moves after the gate.** `status` describes the OUTWARD trip and
 **freezes at `matched`**; the return leg is `return_status` (`awaiting_return` →
@@ -119,10 +135,34 @@ re-checked server-side, both writing a `verifications` row.
 into the parent; the client never computes "all items are back". A recorded return **cannot
 be undone** — `returned_qty` only increases. Do not write a `reverse_item_return`.
 
+**The printed slip drops the CEO's box unless the CEO is signing it** (client, 2026-08-31:
+"remove CEO from print pass page if he is not approving … when the COO is absent and is
+unable to approve, only that time show CEO approval"). Level 3 is one rung the two share
+(063), so on most passes the CEO never had anything to sign and a box headed CEO — "Not
+required" or empty — read as an owed signature. `printCeoBox.ts` keeps it only when the CEO
+approved/rejected it, when the COO's escalation window has run out (`withEscalation`, the
+same moment `level_escalates_at` computes), or when the pass carries no COO rung at all.
+**The record on screen still draws every rung** — a desk reader may see a skipped one, the
+paper may not.
+
 **`is_overdue` / `is_expired` are defined exactly once, in `gatepass.v_gate_passes`.** Never
 recompute either in TypeScript. No `expired` enum label, no `pg_cron` — expiry is derived at
 query time. A pass reads Expired when `status === 'pending' && is_expired`; use
 `isExpiredPending()` in `src/lib/statusStyles.ts`.
+
+**The COO and the CEO raise for ANY department** (migration `069`; client, 2026-08-31).
+`raise_pass` admits an HOD for a department they head, **or** `holds_fallback_office()` — the
+same sitting COO/CEO pair 067 trusts with the emergency release, reused so the pair is
+defined once; a deputy or delegate is excluded. Their form is the HOD's with ONE addition, a
+department selector (`PassDetailsCards`'s `departments` prop, absent for an HOD); everything
+below it is one code path. `RAISING_OFFICES` / `RAISING_OFFICE_ROUTES` in `roleRoutes.ts`
+grant those two offices `/raise` and `/my-passes` on top of `APPROVER_ROUTES` — `isForbidden`
+and `homeFor` take the OFFICE KEY now, and a bare `true` still means "an office, unspecified"
+and gets the narrow answer. They sign their own level-3 rung like anyone else (client's
+explicit choice); the ladder is not special-cased. `gate_passes_select` gained
+`raised_by = auth.uid()` (and items `raised_by_me()`), without which the raiser cannot see
+their own pass at all — they head no department and 061 hides it until the ladder reaches
+them. `/my-passes` exists for the same reason.
 
 **One department per person** (`032`): unique index on `hod_departments(hod_id)`, mirrored
 into VMS's `profiles.department_id`. A department may still host several HODs, so the HOD
@@ -179,9 +219,13 @@ direction = which way is it going?  in  | out
 
 Exactly three combinations are legal, enforced by check constraints: `RGP-out`, `RGP-in`,
 `NRGP-out`. `src/lib/passTypes.ts` mirrors this in `PASS_CATEGORIES`. NRGP is outward-only.
-`pass_number` carries direction (`RGP-OUT-20260727-0001`), counters are per (type, direction,
-day). IGP/OGP remain as unreachable enum labels (Postgres cannot drop one). `RaisePass`
-hardcodes `p_direction: 'out'` — RGP-in passes cannot currently be created via the UI.
+**`pass_number` carries the DEPARTMENT, not the direction or the date** — `TYPE-DEPTCODE-NNNN`,
+e.g. `RGP-IT-0001` (migration `064`; `042` dropped the direction, `064` dropped the date). The
+counter is per (type, department) and runs FOR EVER rather than resetting at midnight, so
+`RGP-IT-0002` is the second RGP that IT has ever raised; the four-digit pad is a MINIMUM width, so
+pass 10,000 reads `RGP-IT-10000`. `gatepass.set_pass_number()` is the one definition. IGP/OGP
+remain as unreachable enum labels (Postgres cannot drop one). `RaisePass` hardcodes
+`p_direction: 'out'` — RGP-in passes cannot currently be created via the UI.
 
 ## SQL invariants that are easy to break silently
 
@@ -337,6 +381,17 @@ security call.
 **Git work goes to a `sonnet` subagent** (commits, pushes, branches, tags); read-only
 inspection may run directly. Always push after completing work — don't wait to be asked.
 Commits are the USER's: no `Co-Authored-By`, no AI attribution anywhere.
+
+**The e2e suite drives the REAL Supabase project, and it is not a unit test.** `tests/e2e/` is
+Playwright's; `tests/unit` and `tests/security` are vitest's, and `vitest.config.ts` excludes the
+former by name because both runners claim `*.spec.ts`. Read `tests/e2e/CONVENTIONS.md` before
+writing a spec — it is the harness contract, and it carries the rules that keep a browser test from
+damaging shared data: only the `@e2e.local` cast, only departments `E2E`/`E2E2`, a raised pass is
+permanent so create the minimum, and never mutate an account the rest of the suite signs in as.
+**An approval office is a singleton seat**, so seeding EVICTS the sitting holders and snapshots them
+to `tests/e2e/.state/`; `scripts/e2e/ensure-ladder.mjs` re-takes a seat anything else steals
+mid-run, and `npm run e2e:restore` is the way back. **Run one Playwright process at a time** — two
+against one dev server and one database produce timeouts that look like app bugs.
 
 **Keep this file current.** When you finish a chunk of work needing session handoff, log it in
 `docs/PROJECT_LOG.md`, not here — this file is rules, not a journal. Say whether a claim is

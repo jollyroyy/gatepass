@@ -1,10 +1,17 @@
 import { defineConfig } from 'vitest/config';
+import { configDefaults } from 'vitest/config';
 
 export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./tests/setup.ts'],
+
+    // tests/e2e/** belongs to PLAYWRIGHT, not to vitest. Both runners name their
+    // files `*.spec.ts`, and vitest's default `include` would otherwise pick up
+    // the browser specs, import `@playwright/test` inside jsdom and fail the
+    // gate (`npm run check`) with errors that have nothing to do with the app.
+    exclude: [...configDefaults.exclude, 'tests/e2e/**'],
 
     // THE SUITE WAS FLAKY UNDER ITS OWN PARALLELISM, not because of anything a
     // spec asserts. Vitest defaults to one worker per logical CPU (16 here) and

@@ -52,7 +52,6 @@ export interface ApprovalEvent {
   decided_by: string | null;
   decided_at: string | null;
   reason: string | null;
-  decided_as_deputy?: boolean;
   emergency?: boolean;
 }
 
@@ -135,10 +134,7 @@ export function buildActivityLog(
       // signatures they never gave (055).
       event: a.emergency ? `Released without ${office} approval` : `${verb} — ${office}`,
       who: (a.decided_by && names.get(a.decided_by)) || null,
-      detail: [
-        a.decided_as_deputy ? `standing deputy for the ${office}` : null,
-        a.reason,
-      ].filter(Boolean).join(' · ') || null,
+      detail: a.reason || null,
     });
   }
 

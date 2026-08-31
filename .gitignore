@@ -22,3 +22,10 @@ saas-audit-output/
 
 # Supabase CLI local link state (project ref, versions, pooler URL). Machine-local, not source.
 supabase/.temp/
+
+# Playwright e2e artefacts. `.state/` holds signed-in browser sessions for the
+# e2e cast AND the approval-ladder snapshot that `npm run e2e:restore` consumes —
+# real bearer tokens, never committed.
+playwright-report/
+test-results/
+tests/e2e/.state/

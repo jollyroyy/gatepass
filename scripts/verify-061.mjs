@@ -131,7 +131,7 @@ async function restore(admin, original) {
 
 const snapshot = async (admin) => {
   const { data } = await gp(admin).rpc('get_approval_ladder');
-  return (data ?? []).map((o) => ({ role_key: o.role_key, user_id: o.user_id, deputy_id: o.deputy_id ?? null }));
+  return (data ?? []).map((o) => ({ role_key: o.role_key, user_id: o.user_id }));
 };
 
 const main = async () => {

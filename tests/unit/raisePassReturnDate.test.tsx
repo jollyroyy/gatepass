@@ -98,13 +98,17 @@ describe('RaisePass — the reference number, and the department that is not ask
     renderRaisePass();
     const ref = await screen.findByLabelText('Reference Number');
 
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    expect((ref as HTMLInputElement).value).toBe(`RGP-${today}-####`);
+    // THE MIDDLE SEGMENT IS THE DEPARTMENT'S CODE, not the date: migration 064
+    // builds `TYPE-DEPTCODE-NNNN` (042 dropped the direction, 064 the date), and
+    // a preview reading `RGP-20260831-####` named a shape the database has not
+    // written since. The HOD is still never asked for the department — the code
+    // is the one they are assigned to, resolved by the form itself.
+    expect((ref as HTMLInputElement).value).toBe('RGP-IT-####');
     expect((ref as HTMLInputElement).readOnly).toBe(true);
 
     fireEvent.click(screen.getByRole('radio', { name: /NRGP/ }));
     await waitFor(() =>
-      expect((screen.getByLabelText('Reference Number') as HTMLInputElement).value).toBe(`NRGP-${today}-####`),
+      expect((screen.getByLabelText('Reference Number') as HTMLInputElement).value).toBe('NRGP-IT-####'),
     );
   });
 

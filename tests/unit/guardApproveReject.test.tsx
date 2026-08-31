@@ -5,11 +5,16 @@
 // mismatched or something … and if rejects, make the rejection reason
 // mandatory."
 //
-// THIS IS A WORDING CHANGE, NOT A STATE-MACHINE CHANGE. Approve is still
-// `match_pass` and Reject is still `flag_pass` — a rejected pass still goes
-// back to the raising HOD for review, which is the mechanism that has always
-// been behind the old "Flag Mismatch" button. The RPCs, the statuses and the
-// HOD's review screen are untouched; only what the guard reads changed.
+// THIS WAS ORIGINALLY A WORDING CHANGE, NOT A STATE-MACHINE CHANGE — Approve
+// was `match_pass` and Reject was `flag_pass`, and a rejected pass went back
+// to the raising HOD for review. THAT HANDOFF IS GONE (client, 2026-08-31:
+// "once a guard rejects a pass he has to mention the justification as to why
+// is he rejecting the pass and then the entire pass will be cancelled and a
+// new pass needs to be raised"). Migration 070 drops the RPC
+// (`hod_review_flagged_pass`) that let the HOD send a flagged pass back to
+// this gate. `flag_pass` and the `flagged` status are still exactly what runs
+// underneath — only the wording changed, this time to say the decision is
+// final.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -85,22 +90,24 @@ async function renderVerify() {
   await waitFor(() => expect(screen.getByText('RGP-20260820-0001')).toBeInTheDocument());
 }
 
-describe("the guard's decision screen says Approve and Flag to Requester", () => {
+describe("the guard's decision screen says Approve and Reject Pass", () => {
   beforeEach(() => {
     rpcCalls.length = 0;
   });
 
-  // The second answer was called Reject until 2026-08-23, when the client
-  // renamed it to what it has always DONE: "replace the reject with flag to
-  // requestor button". Match, Mismatch and Hold stay banned — they are the
-  // database's words, not the barrier's.
-  it('offers exactly Approve and Flag to Requester, and never Match, Mismatch or Hold', async () => {
+  // The second answer read "Flag to Requester" between 2026-08-23 and
+  // 2026-08-31, describing the handoff back to the HOD. That handoff is gone
+  // (migration 070), so the button is back to naming what it now does: reject
+  // the pass outright. Match, Mismatch and Hold stay banned — they are the
+  // database's words, not the barrier's — and the bare "Reject" without
+  // "Pass" is banned too, since the button text is specifically "Reject Pass".
+  it('offers exactly Approve and Reject Pass, and never Match, Mismatch or Hold', async () => {
     await renderVerify();
 
     expect(screen.getByRole('button', { name: /^approve$/i })).toBeEnabled();
-    expect(screen.getByRole('button', { name: /^flag to requester$/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^reject pass$/i })).toBeEnabled();
 
-    for (const banned of [/match/i, /mismatch/i, /\bhold\b/i, /^reject$/i]) {
+    for (const banned of [/match/i, /mismatch/i, /\bhold\b/i, /flag to requester/i]) {
       expect(screen.queryAllByRole('button', { name: banned })).toHaveLength(0);
     }
   });
@@ -114,12 +121,18 @@ describe("the guard's decision screen says Approve and Flag to Requester", () =>
     await waitFor(() => expect(rpcCalls.map((c) => c.fn)).toContain('match_pass'));
   });
 
-  it('will not flag a pass without a reason, and sends the typed one', async () => {
+  it('will not reject a pass without a reason, and sends the typed one', async () => {
     await renderVerify();
 
-    fireEvent.click(screen.getByRole('button', { name: /^flag to requester$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^reject pass$/i }));
 
-    const confirm = screen.getByRole('button', { name: /send to requester/i });
+    // The modal must say the rejection is final and the pass is cancelled —
+    // this is the whole reason for the 2026-08-31 wording change, not just a
+    // renamed button. Asserted against the copy in VerifyPanels.tsx.
+    expect(screen.getByText(/this is final/i)).toBeInTheDocument();
+    expect(screen.getByText(/the pass is cancelled/i)).toBeInTheDocument();
+
+    const confirm = screen.getByRole('button', { name: /reject and cancel pass/i });
     // Mandatory: the control is dead until a reason is typed, and pressing it
     // in that state must not reach the database.
     expect(confirm).toBeDisabled();
@@ -127,8 +140,8 @@ describe("the guard's decision screen says Approve and Flag to Requester", () =>
     expect(rpcCalls).toHaveLength(0);
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '  Only 1 drill of 2 present.  ' } });
-    expect(screen.getByRole('button', { name: /send to requester/i })).toBeEnabled();
-    fireEvent.click(screen.getByRole('button', { name: /send to requester/i }));
+    expect(screen.getByRole('button', { name: /reject and cancel pass/i })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: /reject and cancel pass/i }));
 
     await waitFor(() => expect(rpcCalls).toHaveLength(1));
     expect(rpcCalls[0].fn).toBe('flag_pass');
@@ -138,11 +151,11 @@ describe("the guard's decision screen says Approve and Flag to Requester", () =>
   it('whitespace alone is not a reason', async () => {
     await renderVerify();
 
-    fireEvent.click(screen.getByRole('button', { name: /^flag to requester$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^reject pass$/i }));
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '     ' } });
 
-    expect(screen.getByRole('button', { name: /send to requester/i })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: /send to requester/i }));
+    expect(screen.getByRole('button', { name: /reject and cancel pass/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /reject and cancel pass/i }));
     expect(rpcCalls).toHaveLength(0);
   });
 });

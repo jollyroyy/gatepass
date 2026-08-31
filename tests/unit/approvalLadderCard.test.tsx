@@ -1,13 +1,14 @@
-// Migration 054: every approval office may carry ONE STANDING DEPUTY, named by
-// an admin on the same card that designates the holder.
+// The approval ladder card seats ONE person per office, and nothing else.
 //
-// What these cases pin is the shape of the control, not the database's rules —
-// "one person, one seat" is enforced by a unique index and two RPC refusals,
-// and `tests/security/sqlInvariants.test.ts` is where that lives. Here we hold
-// the three things only the screen can get wrong: the deputy seat is offered at
-// all, choosing somebody calls the deputy RPC rather than the holder one,
-// clearing it calls the CLEAR rpc rather than writing a null, and an office
-// with nobody in it cannot be given a deputy.
+// 054 gave every office a second permanent seat — a standing deputy an admin
+// named on this very card. The client withdrew it and 068 removed it, so what
+// these cases pin is the ABSENCE: no deputy control is offered, and neither
+// deputy RPC is reachable from this screen. A removal nothing tests is a
+// removal that comes back the next time somebody restores a select.
+//
+// The rest is the shape of the control, not the database's rules — "one person,
+// one seat" is a unique index and two RPC refusals, and
+// `tests/security/sqlInvariants.test.ts` is where that lives.
 //
 // Mocking pattern copied from tests/unit/createApproverUser.test.tsx — same
 // `thenable` shape, same `gp()`/`fetchDirectory` mocks, so this file cannot
@@ -27,8 +28,7 @@ const PROFILES = [
   },
 ];
 
-/** Only the Security Head office is filled. The COO's empty seat is what the
- *  last case below is about. */
+/** Only the Security Head office is filled; the COO's is empty. */
 const LADDER = [
   {
     role_key: 'security_head',
@@ -36,8 +36,6 @@ const LADDER = [
     full_name: 'Sanjay Rao',
     department_name: 'Security',
     designated_at: '2026-08-01T00:00:00Z',
-    deputy_id: null,
-    deputy_name: null,
   },
 ];
 
@@ -71,74 +69,72 @@ import ApprovalLadderCard from '../../src/pages/Admin/ApprovalLadderCard';
 
 async function renderCard() {
   render(<ApprovalLadderCard />);
-  // The deputy control only exists once the ladder has loaded.
-  await waitFor(() => expect(screen.getByLabelText('Security Head deputy')).toBeTruthy());
+  await waitFor(() => expect(screen.getByLabelText('Security Head account')).toBeTruthy());
 }
 
-describe('the approval ladder card offers a deputy seat (054)', () => {
+describe('the approval ladder card seats one person per office (068)', () => {
   beforeEach(() => rpcSpy.mockClear());
 
-  it('offers a deputy select beside every office holder select', async () => {
+  it('offers no deputy control on any office', async () => {
     await renderCard();
-    expect(screen.getByLabelText('Security Head account')).toBeTruthy();
-    expect(screen.getByLabelText('Security Head deputy')).toBeTruthy();
-    expect(screen.getByLabelText('CEO deputy')).toBeTruthy();
+    for (const title of ['Security Head', 'Finance HOD', 'COO', 'CEO']) {
+      expect(screen.getByLabelText(`${title} account`)).toBeTruthy();
+      expect(screen.queryByLabelText(`${title} deputy`)).toBeNull();
+    }
+    expect(document.body.textContent).not.toMatch(/deputy/i);
   });
 
-  it('names a deputy through set_approval_deputy, not set_approval_role', async () => {
-    // The two seats are different RPCs. Calling the holder's one here would
-    // silently REPLACE the office holder with their intended cover — the exact
-    // mistake this card exists to make impossible.
+  it('seats a holder through set_approval_role', async () => {
     await renderCard();
-    fireEvent.change(screen.getByLabelText('Security Head deputy'), { target: { value: 'u2' } });
+    fireEvent.change(screen.getByLabelText('Security Head account'), { target: { value: 'u2' } });
     await waitFor(() =>
-      expect(rpcSpy).toHaveBeenCalledWith('set_approval_deputy', {
+      expect(rpcSpy).toHaveBeenCalledWith('set_approval_role', {
         p_role_key: 'security_head',
         p_user_id: 'u2',
       }),
     );
-    expect(rpcSpy).not.toHaveBeenCalledWith('set_approval_role', expect.anything());
   });
 
-  it('CLEARS the seat rather than writing a null when the blank option is chosen', async () => {
-    // `deputy_id` is nullable but the write is an update, not an upsert of null
-    // through the setter — the database has two operations here and the screen
-    // must pick the right one.
+  it('CLEARS the office rather than writing a null when the blank option is chosen', async () => {
+    // `approval_roles.user_id` is NOT NULL — the database has two operations
+    // here and the screen must pick the right one.
     await renderCard();
-    fireEvent.change(screen.getByLabelText('Security Head deputy'), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('Security Head account'), { target: { value: '' } });
     await waitFor(() =>
-      expect(rpcSpy).toHaveBeenCalledWith('clear_approval_deputy', { p_role_key: 'security_head' }),
+      expect(rpcSpy).toHaveBeenCalledWith('clear_approval_role', { p_role_key: 'security_head' }),
     );
   });
 
-  it('will not let an EMPTY office take a deputy', async () => {
-    // `approval_roles.user_id` is NOT NULL, so there is no row to hang a deputy
-    // on until somebody holds the office. The RPC refuses it in a sentence;
-    // offering a control whose only possible outcome is that sentence is worse
-    // than not offering it.
+  it('never calls either deputy RPC, which no longer exists', async () => {
     await renderCard();
-    expect((screen.getByLabelText('CEO deputy') as HTMLSelectElement).disabled).toBe(true);
-    expect((screen.getByLabelText('Security Head deputy') as HTMLSelectElement).disabled).toBe(false);
+    fireEvent.change(screen.getByLabelText('Security Head account'), { target: { value: 'u2' } });
+    await waitFor(() => expect(rpcSpy).toHaveBeenCalledWith('set_approval_role', expect.anything()));
+    const called = rpcSpy.mock.calls.map((c) => c[0]);
+    expect(called).not.toContain('set_approval_deputy');
+    expect(called).not.toContain('clear_approval_deputy');
   });
 
   // A SUSPENDED ACCOUNT CANNOT BE SEATED (migration 059). `my_approval_role()`
   // gates on `is_user_active`, so designating one produces an office that reads
   // as staffed and can approve nothing — which is exactly how an office ends up
   // silently dead while passes pile up behind it.
-  it('offers only ACTIVE accounts on either seat', async () => {
+  it('offers only ACTIVE accounts', async () => {
     await renderCard();
-    for (const label of ['Security Head account', 'Security Head deputy']) {
-      const options = Array.from((screen.getByLabelText(label) as HTMLSelectElement).options)
-        .map((o) => o.textContent ?? '');
-      expect(options.some((o) => o.includes('Sanjay Rao'))).toBe(true);
-      expect(options.some((o) => o.includes('Priya Nair'))).toBe(true);
-      expect(options.some((o) => o.includes('Deepa Menon'))).toBe(false);
-    }
+    const options = Array.from((screen.getByLabelText('Security Head account') as HTMLSelectElement).options)
+      .map((o) => o.textContent ?? '');
+    expect(options.some((o) => o.includes('Sanjay Rao'))).toBe(true);
+    expect(options.some((o) => o.includes('Priya Nair'))).toBe(true);
+    expect(options.some((o) => o.includes('Deepa Menon'))).toBe(false);
   });
 
   it('says on screen that deactivating a holder vacates their office', async () => {
     await renderCard();
     expect(document.body.textContent).toMatch(/deactivating a holder vacates their office/i);
+  });
+
+  it('says an empty office is empty rather than printing a level with no name', async () => {
+    await renderCard();
+    expect(document.body.textContent).toMatch(/Not designated yet/i);
   });
 
   it('no longer claims that designating somebody grants no access', async () => {

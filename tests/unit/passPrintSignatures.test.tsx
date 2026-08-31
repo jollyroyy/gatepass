@@ -155,18 +155,18 @@ describe('a box carries the decision that was made in the portal', () => {
   it('ticks the box, names the signer and prints the date', async () => {
     current.roles = [{
       role_key: 'security_head', user_id: 'u9', full_name: 'Demi', department_name: 'Security',
-      designated_at: '2026-08-01T00:00:00Z', deputy_id: null, deputy_name: null,
+      designated_at: '2026-08-01T00:00:00Z',
     }];
     current.approvals = [
       {
         role_key: 'security_head', level_no: 1, status: 'approved',
         routed_name: 'Demi', decided_name: 'Demi', decided_at: '2026-08-04T07:30:00Z',
-        reason: null, decided_as_deputy: false,
+        reason: null,
       },
       {
         role_key: 'finance_head', level_no: 2, status: 'pending',
         routed_name: 'Sameer', decided_name: null, decided_at: null,
-        reason: null, decided_as_deputy: false,
+        reason: null,
       },
     ];
     await renderFor({});
@@ -183,23 +183,54 @@ describe('a box carries the decision that was made in the portal', () => {
     expect(screen.getAllByText('Awaiting approval').length).toBeGreaterThan(0);
   });
 
-  it('marks the office that never had to sign as Not required', async () => {
+  // THE CEO IS NOT ON THE PAPER UNLESS THE CEO IS THE ONE SIGNING (client,
+  // 2026-08-31: "remove CEO from print pass page if he is not approving. When
+  // the COO is absent and is unable to approve, only that time show CEO
+  // approval"). Level 3 is one rung the two share (063), so on an ordinary pass
+  // the CEO never had anything to sign — and a box headed CEO, whether it read
+  // "Not required" or sat empty, said the opposite to somebody holding the
+  // sheet at a gate. The RECORD on screen still draws the skipped rung; only
+  // the slip drops it. See src/lib/printCeoBox.ts.
+  it('drops the CEO box entirely when the COO signed the shared rung', async () => {
     current.approvals = [
       {
         role_key: 'coo', level_no: 3, status: 'approved',
         routed_name: 'Vikram', decided_name: 'Vikram', decided_at: '2026-08-04T08:00:00Z',
-        reason: null, decided_as_deputy: false,
+        reason: null,
       },
       {
         role_key: 'ceo', level_no: 3, status: 'not_required',
         routed_name: 'Neha', decided_name: null, decided_at: '2026-08-04T08:00:00Z',
-        reason: 'Not required — level 3 was approved by the COO.', decided_as_deputy: false,
+        reason: 'Not required — level 3 was approved by the COO.',
       },
     ];
     await renderFor({});
-    expect(screen.getByText('Not required')).toBeInTheDocument();
-    // NOT a tick and NOT a name: the CEO pressed nothing (063).
+    // The rung that WAS signed prints, with its signer.
+    expect(screen.getByText('COO')).toBeInTheDocument();
+    expect(screen.getByText('Vikram')).toBeInTheDocument();
+    // The one nobody ever had to sign is not drawn at all — no heading, no
+    // caption, no name.
+    expect(screen.queryByText('CEO')).toBeNull();
+    expect(screen.queryByText('Not required')).toBeNull();
     expect(screen.queryByText('Neha')).toBeNull();
+  });
+
+  it('prints the CEO box when the CEO is the office that signed level 3', async () => {
+    current.approvals = [
+      {
+        role_key: 'coo', level_no: 3, status: 'not_required',
+        routed_name: 'Vikram', decided_name: null, decided_at: '2026-08-06T08:00:00Z',
+        reason: 'Not required — level 3 was approved by the CEO.',
+      },
+      {
+        role_key: 'ceo', level_no: 3, status: 'approved',
+        routed_name: 'Neha', decided_name: 'Neha', decided_at: '2026-08-06T08:00:00Z',
+        reason: null,
+      },
+    ];
+    await renderFor({});
+    expect(screen.getByText('CEO')).toBeInTheDocument();
+    expect(screen.getByText('Neha')).toBeInTheDocument();
   });
 
   it('prints the gate clearance in its own box', async () => {

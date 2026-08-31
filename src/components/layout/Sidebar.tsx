@@ -3,24 +3,28 @@ import { Link, useLocation } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import type { UserRole } from '../../types';
 import type { ApprovalRoleKey } from '../../lib/approvalLadder';
-import { isNavActive, ROLE_ROUTES } from '../../lib/roleRoutes';
+import { isNavActive, officeRaises, ROLE_ROUTES } from '../../lib/roleRoutes';
 import { fetchDisplayName } from '../../lib/profiles';
 import { useTheme } from '../../lib/theme';
 import SidebarProfile from './SidebarProfile';
-import { ALL_LINKS, APPROVER_LINK, DELEGATION_LINK } from './sidebarLinks';
+import {
+  ALL_LINKS, APPROVER_LINK, DELEGATION_LINK, OFFICE_PASSES_LINK, OFFICE_RAISE_LINK,
+} from './sidebarLinks';
 import { QuestMark, QuestLockup } from '../QuestMark';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 
 // Re-exported: the link table moved to ./sidebarLinks for the file-size cap,
 // and every existing importer names it through this module.
-export { ALL_LINKS, APPROVER_LINK, DELEGATION_LINK } from './sidebarLinks';
+export {
+  ALL_LINKS, APPROVER_LINK, DELEGATION_LINK, OFFICE_PASSES_LINK, OFFICE_RAISE_LINK,
+} from './sidebarLinks';
 
 type Props = {
   session: Session;
   role: UserRole | null;
   /** Holds one of the four approval offices (046). Not a role — see
-   *  src/lib/approverAccess.ts — so it adds a tab rather than replacing the
-   *  set: a guard who is Security Head keeps every gate tab and gains this one. */
+   *  src/lib/approverAccess.ts. Since 2026-08-22 it REPLACES the role's tabs
+   *  rather than adding to one — see the comment on `officeOnly` below. */
   isApprover?: boolean;
   /** WHICH office, not merely whether one is held: the profile block at the
    *  foot of the sidebar prints its title in place of the VMS role. */
@@ -64,9 +68,15 @@ export default function Sidebar({ session, role, isApprover = false, office = nu
   // An admin who holds an office keeps their own tabs and gains these two, for
   // the reason `officeReplacesRole` gives: their board is the only screen that
   // can undo a mistaken designation.
+  //
+  // THE COO AND THE CEO GET TWO MORE (069): they may raise a pass for any
+  // department, and the register that shows them what they raised. Only those
+  // two offices — `officeRaises` is the rule, and it lives beside the routes
+  // those tabs open so a tab can never be drawn on a path the guard bounces.
   const officeOnly = isApprover && role !== 'admin' && role !== 'super_admin';
   const links = officeOnly ? [] : roleLinks;
   if (isApprover) links.push(APPROVER_LINK, DELEGATION_LINK);
+  if (officeRaises(office)) links.push(OFFICE_RAISE_LINK, OFFICE_PASSES_LINK);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileName, setProfileName] = useState<string>('');
   const [collapsedInternal, setCollapsedInternal] = useState<boolean>(() => {

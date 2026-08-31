@@ -5,6 +5,11 @@
 // This is defence in depth, not the security boundary. RLS in the database is the
 // authority; this only stops a wrong-role user seeing a broken screen.
 import type { UserRole } from '../types/index';
+// TYPE-ONLY, and it must stay that way: this module is what route protection is
+// verified against, and it must not drag a live Supabase client into a test
+// that only asks which paths a role may reach. `import type` is erased at
+// compile time, so nothing `approvalLadder.ts` imports is pulled in here.
+import type { ApprovalRoleKey } from './approvalLadder';
 
 /**
  * THE WHOLE OF WHAT AN APPROVAL OFFICE HOLDER MAY REACH. Since 2026-08-22 this
@@ -25,12 +30,55 @@ import type { UserRole } from '../types/index';
 // they hand their office to a stand-in for a stated period and revoke it
 // themselves. It is listed for every office because every office may delegate,
 // and — as with `/whitelist` — the route is UX defence in depth: the page shows
-// a deputy or a delegate no form at all, because `create_approval_delegation`
+// a delegate no form at all, because `create_approval_delegation`
 // admits only somebody who HOLDS an office.
 export const APPROVER_ROUTES: string[] = ['/approvals', '/delegation', '/whitelist', '/pass', '/profile'];
 
+/**
+ * THE TWO OFFICES THAT MAY ALSO RAISE A PASS, and the two screens that gives
+ * them (client, 2026-08-31: "make sure CEO and COO has the ability to raise
+ * pass on behalf of any department in their logins").
+ *
+ * ONLY THESE TWO, and deliberately the same pair migration 067 already trusts
+ * with the emergency release: the Security Head clears material at the barrier
+ * and the Finance HOD signs level 2, so letting either originate the material
+ * they vet is the collision `officeReplacesRole` exists to prevent. The COO and
+ * the CEO share ONE rung (063), which is why the pair is a pair at all.
+ *
+ * `/my-passes` comes with `/raise` because it has to: an office holder heads no
+ * department, so `gate_passes_select` admits their own pass only through
+ * migration 069's `raised_by = auth.uid()` arm and no board of theirs lists it.
+ * Without the register, a pass they raised is unreachable the moment they close
+ * the confirmation.
+ *
+ * THIS IS UX DEFENCE IN DEPTH, as the rest of this module is: `raise_pass`
+ * (069) refuses anyone who is neither an HOD nor the sitting COO/CEO, whatever
+ * this list says.
+ */
+export const RAISING_OFFICES: ApprovalRoleKey[] = ['coo', 'ceo'];
+export const RAISING_OFFICE_ROUTES: string[] = ['/raise', '/my-passes'];
+
 /** Where an office holder with no other role in this app lands. */
 export const APPROVER_HOME = '/approvals';
+
+/**
+ * What this reader holds, as the two functions below take it.
+ *
+ * A BOOLEAN IS STILL ACCEPTED, and means "an office, unspecified" — every
+ * caller that only knows whether a queue exists keeps working, and gets the
+ * narrow answer (no `/raise`), which is the safe one. Pass the OFFICE KEY to
+ * get the COO's and the CEO's extra screens.
+ */
+export type OfficeHeld = ApprovalRoleKey | boolean | null;
+
+function holdsOffice(office: OfficeHeld): boolean {
+  return office === true || typeof office === 'string';
+}
+
+/** Does the office this reader holds carry the raise screens? */
+export function officeRaises(office: OfficeHeld): boolean {
+  return typeof office === 'string' && (RAISING_OFFICES as string[]).includes(office);
+}
 
 export const ROLE_ROUTES: Record<UserRole, string[]> = {
   // Security at the gate. THE ORDER OF THIS LIST IS THE ORDER OF THE SIDEBAR
@@ -123,14 +171,19 @@ function officeReplacesRole(role: UserRole | null, isApprover: boolean): boolean
 export function isForbidden(
   pathname: string,
   role: UserRole | null,
-  isApprover = false,
+  office: OfficeHeld = false,
 ): boolean {
+  const isApprover = holdsOffice(office);
   if (role === null && !isApprover) return false; // still resolving; App renders a loader
+  // The COO's and the CEO's two extra screens ride on BOTH arms: the office
+  // replaces a `staff` holder's (empty) routes and adds to an admin's, and in
+  // either case raising a pass is something the office grants, not the role.
+  const raising = officeRaises(office) ? RAISING_OFFICE_ROUTES : [];
   const allowed = officeReplacesRole(role, isApprover)
-    ? APPROVER_ROUTES
+    ? [...APPROVER_ROUTES, ...raising]
     : [
       ...(role ? ROLE_ROUTES[role] : []),
-      ...(isApprover ? APPROVER_ROUTES : []),
+      ...(isApprover ? [...APPROVER_ROUTES, ...raising] : []),
     ];
   if (allowed.length === 0) return true;
   return !allowed.some((r) => pathname === r || pathname.startsWith(`${r}/`));
@@ -140,7 +193,8 @@ export function isForbidden(
  *  their VMS role says (client, 2026-08-22) — it is now the whole of what they
  *  do here, so it is also the only home they can have. An admin keeps their
  *  own board, for the reason `officeReplacesRole` gives. */
-export function homeFor(role: UserRole | null, isApprover = false): string {
+export function homeFor(role: UserRole | null, office: OfficeHeld = false): string {
+  const isApprover = holdsOffice(office);
   if (officeReplacesRole(role, isApprover)) return APPROVER_HOME;
   if (role && ROLE_ROUTES[role].length > 0) return ROLE_HOME[role];
   if (isApprover) return APPROVER_HOME;

@@ -1,7 +1,7 @@
 // Migration 060: an admin's Delete on a department with an ACTIVE HOD raises a
 // request instead of deleting it; the HOD decides it here, on their dashboard.
 //
-// Mocking pattern copied from tests/unit/approvalDeputyCard.test.tsx — same
+// Mocking pattern copied from tests/unit/approvalLadderCard.test.tsx — same
 // `thenable` shape and hoisted `rpc` spy, so this file cannot drift from how
 // the rest of the portal fakes Supabase. The RPC is NOT mocked away at the
 // `useDepartmentDeleteRequests` module level — the point of this file is to

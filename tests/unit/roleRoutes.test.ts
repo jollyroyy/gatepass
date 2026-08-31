@@ -3,7 +3,10 @@
 // promises a test at tests/security/routeProtection.test.ts; that path
 // doesn't exist yet, so this suite lives here instead until it does.
 import { describe, it, expect } from 'vitest';
-import { APPROVER_HOME, APPROVER_ROUTES, ROLE_ROUTES, ROLE_HOME, isForbidden, homeFor, isNavActive } from '../../src/lib/roleRoutes';
+import {
+  APPROVER_HOME, APPROVER_ROUTES, ROLE_ROUTES, ROLE_HOME, RAISING_OFFICES, RAISING_OFFICE_ROUTES,
+  isForbidden, homeFor, isNavActive, officeRaises,
+} from '../../src/lib/roleRoutes';
 import type { UserRole } from '../../src/types';
 
 const ALL_ROLES = Object.keys(ROLE_ROUTES) as UserRole[];
@@ -257,5 +260,65 @@ describe('an approval office REPLACES the role`s access', () => {
       }
       if (ROLE_ROUTES[role].length > 0) expect(homeFor(role)).toBe(ROLE_HOME[role]);
     }
+  });
+});
+
+// THE COO AND THE CEO MAY ALSO RAISE A PASS (migration 069; client, 2026-08-31:
+// "make sure CEO and COO has the ability to raise pass on behalf of any
+// department in their logins"). That is a grant of the OFFICE, so the third
+// argument stopped being "does this reader hold one" and became "which one".
+describe('the two offices that may raise a pass', () => {
+  const OTHER_OFFICES = ['security_head', 'finance_head'] as const;
+
+  it('is the COO and the CEO, and nobody else', () => {
+    expect(RAISING_OFFICES).toEqual(['coo', 'ceo']);
+    for (const office of RAISING_OFFICES) expect(officeRaises(office)).toBe(true);
+    for (const office of OTHER_OFFICES) expect(officeRaises(office)).toBe(false);
+    // A BOOLEAN MEANS "an office, unspecified" and gets the NARROW answer: a
+    // caller that only knows a queue exists must not hand out the raise form.
+    expect(officeRaises(true)).toBe(false);
+    expect(officeRaises(false)).toBe(false);
+    expect(officeRaises(null)).toBe(false);
+  });
+
+  it('reaches the raise form and its register, on top of the approver routes', () => {
+    for (const office of RAISING_OFFICES) {
+      for (const path of [...APPROVER_ROUTES, ...RAISING_OFFICE_ROUTES]) {
+        expect(isForbidden(path, 'staff', office), `${office} ${path}`).toBe(false);
+      }
+      // Still an office holder first: their home is the queue, not the form.
+      expect(homeFor('staff', office)).toBe(APPROVER_HOME);
+      // And the office still REPLACES a role's own screens (2026-08-22).
+      expect(isForbidden('/dashboard', 'hod', office)).toBe(true);
+      expect(isForbidden('/console', 'guard', office)).toBe(true);
+    }
+  });
+
+  it('does not open them to the Security Head, the Finance HOD, or a bare boolean', () => {
+    for (const office of [...OTHER_OFFICES, true] as const) {
+      for (const path of RAISING_OFFICE_ROUTES) {
+        expect(isForbidden(path, 'staff', office), `${office} ${path}`).toBe(true);
+      }
+      expect(isForbidden('/approvals', 'staff', office)).toBe(false);
+    }
+  });
+
+  it('adds them to an admin who holds one, who keeps everything else', () => {
+    // The admin exemption is additive, so a designated admin gains the raise
+    // screens without losing the board that could undo the designation.
+    for (const role of ['admin', 'super_admin'] as const) {
+      for (const path of [...ROLE_ROUTES[role], ...RAISING_OFFICE_ROUTES, '/approvals']) {
+        expect(isForbidden(path, role, 'coo'), `${role} ${path}`).toBe(false);
+      }
+      expect(homeFor(role, 'coo')).toBe(ROLE_HOME[role]);
+    }
+  });
+
+  it('leaves an HOD who holds no office exactly where they were', () => {
+    // /raise is an HOD route in its own right and must not have moved.
+    expect(isForbidden('/raise', 'hod')).toBe(false);
+    expect(isForbidden('/my-passes', 'hod')).toBe(true);
+    expect(isForbidden('/my-passes', 'guard')).toBe(true);
+    expect(isForbidden('/my-passes', 'admin')).toBe(true);
   });
 });

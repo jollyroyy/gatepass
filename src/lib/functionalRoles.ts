@@ -12,7 +12,7 @@
 //     new label could not be used in the transaction that added it anyway.
 //   * a GATE PASS APPROVAL OFFICE — a row in `gatepass.approval_roles`, keyed by
 //     `role_key` with a CHECK constraint (043). Four keys, one holder each (049)
-//     and one optional standing deputy (054).
+//     and nobody else (049).
 //
 // So "create a role" means CREATE SOMEBODY IN A ROLE — an account carrying that
 // grant — not invent a new kind of authority. Anything else would be a lie told
@@ -49,7 +49,7 @@ export interface FunctionalRole {
 export const GRANT_NOTE: Record<RoleGrantedBy, string> = {
   users_tab: 'Assigned in Admin → Users, when the account is created or edited.',
   approval_ladder:
-    'Assigned on the Gate pass approval ladder below — one holder, plus an optional standing deputy.',
+    'Assigned on the Gate pass approval ladder below — one office, one holder.',
   not_from_portal:
     'Cannot be granted from this portal. An admin account is created with the server-side key from the command line (migration 021), never from a screen.',
 };

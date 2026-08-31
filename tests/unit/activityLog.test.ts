@@ -51,7 +51,6 @@ function approval(over: Partial<ApprovalEvent> = {}): ApprovalEvent {
     decided_by: 'u-sec',
     decided_at: '2026-08-20T11:00:00Z',
     reason: null,
-    decided_as_deputy: false,
     emergency: false,
     ...over,
   };
@@ -110,12 +109,6 @@ describe('buildActivityLog', () => {
     const rejected = rows.find((r) => r.event.startsWith('Rejected'))!;
     expect(rejected.event).toBe('Rejected — Security Head');
     expect(rejected.detail).toBe('Vendor not cleared.');
-  });
-
-  it('says when a deputy signed rather than the holder', () => {
-    const rows = buildActivityLog([pass()], [approval({ decided_as_deputy: true })], [], NAMES);
-    expect(rows.find((r) => r.event.startsWith('Approved'))!.detail)
-      .toBe('standing deputy for the Security Head');
   });
 
   it('NEVER reads an emergency release as an approval', () => {

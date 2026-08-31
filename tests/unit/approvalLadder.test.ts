@@ -54,8 +54,6 @@ function role(key: string, name: string, dept: string | null = 'Security'): Appr
     full_name: name,
     department_name: dept,
     designated_at: '2026-08-01T00:00:00Z',
-    deputy_id: null,
-    deputy_name: null,
   };
 }
 
@@ -256,13 +254,12 @@ function approval(over: Partial<PassApprovalRow> = {}): PassApprovalRow {
     decided_name: null,
     decided_at: null,
     reason: null,
-    decided_as_deputy: false,
     ...over,
   };
 }
 
 const HELD: ApprovalRoleRow[] = [
-  { role_key: 'security_head', user_id: 'u9', full_name: 'Sanjay Rao', department_name: 'Security', designated_at: '2026-08-19T04:00:00Z', deputy_id: null, deputy_name: null },
+  { role_key: 'security_head', user_id: 'u9', full_name: 'Sanjay Rao', department_name: 'Security', designated_at: '2026-08-19T04:00:00Z' },
 ];
 
 describe('buildApprovalSteps — a pass with a real ladder of its own (046)', () => {
@@ -335,57 +332,6 @@ describe('buildApprovalSteps — a pass with a real ladder of its own (046)', ()
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 054 — a STANDING DEPUTY may sign in the holder's place, and the rung says so.
-// The stamp is read off the decision (`decided_as_deputy`), never off today's
-// ladder: both seats move, and re-pointing an office next month must not
-// rewrite who signed a pass last month.
-// ─────────────────────────────────────────────────────────────────────────────
-describe('buildApprovalSteps — a level signed by the office deputy (054)', () => {
-  it('names the seat that signed, in place of the department', () => {
-    // Workday's "On Behalf Of" line. An unlabelled deputy reads as the office
-    // holder, which is the one thing an audit trail must not let happen — and
-    // the deputy's own department is not the fact this rung is about.
-    const steps = buildApprovalSteps(
-      pass(),
-      HELD,
-      'hod',
-      [approval({ status: 'approved', decided_name: 'Priya Nair', decided_as_deputy: true, decided_at: '2026-08-20T05:30:00Z' })],
-    );
-    const level = steps.find((s) => s.key === 'level-security_head')!;
-    expect(level.detail).toBe('Standing deputy for the Security Head');
-    expect(level.who).toBe('Security Head (Priya Nair)');
-    expect(level.state).toBe('done');
-  });
-
-  it('still shows the department when the holder signed it themselves', () => {
-    const steps = buildApprovalSteps(
-      pass(),
-      HELD,
-      'hod',
-      [approval({ status: 'approved', decided_name: 'Sanjay Rao', decided_as_deputy: false })],
-    );
-    expect(steps.find((s) => s.key === 'level-security_head')!.detail).toBe('Security');
-  });
-
-  it('says so on a REJECTION too, without displacing the reason', () => {
-    // The reason is the only answer the raising HOD gets, so it keeps the note;
-    // the seat goes where the department was.
-    const steps = buildApprovalSteps(
-      pass(),
-      HELD,
-      'hod',
-      [approval({
-        status: 'rejected',
-        decided_name: 'Priya Nair',
-        decided_as_deputy: true,
-        reason: 'Vendor not cleared for this material.',
-      })],
-    );
-    const level = steps.find((s) => s.key === 'level-security_head')!;
-    expect(level.detail).toBe('Standing deputy for the Security Head');
-    expect(level.note).toBe('Vendor not cleared for this material.');
-    expect(level.state).toBe('blocked');
-  });
-});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // A LEVEL CLOSED BY THE ROLLOUT (migration 058)
@@ -495,19 +441,6 @@ describe('buildApprovalSteps — a delegated decision (062)', () => {
   });
 
   // A decision taken by the holder themselves is untouched by any of this, and
-  // a deputy's rung still reads as a deputy's (054).
-  it('leaves an ordinary decision and a deputy decision exactly as they were', () => {
-    const own = buildApprovalSteps(pass(), HELD, 'hod', [
-      approval({ status: 'approved', decided_name: 'Sanjay Rao' }),
-    ]).find((s) => s.key === 'level-security_head')!;
-    expect(own.who).toBe('Security Head (Sanjay Rao)');
-    expect(own.detail).toBe('Security');
-
-    const deputy = buildApprovalSteps(pass(), HELD, 'hod', [
-      approval({ status: 'approved', decided_name: 'Priya Nair', decided_as_deputy: true }),
-    ]).find((s) => s.key === 'level-security_head')!;
-    expect(deputy.detail).toBe('Standing deputy for the Security Head');
-  });
 
   // A ROLLOUT-CLOSED RUNG STILL NAMES NOBODY (058). That precedence is what
   // stops a grandfathered row acquiring a bracket it has no author for.
@@ -528,8 +461,8 @@ describe('buildApprovalSteps — a delegated decision (062)', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 describe('buildApprovalSteps — the shared last rung (063)', () => {
   const LADDER: ApprovalRoleRow[] = [
-    { role_key: 'coo', user_id: 'u2', full_name: 'Vikram Singh', department_name: 'Operations', designated_at: '2026-08-19T04:00:00Z', deputy_id: null, deputy_name: null },
-    { role_key: 'ceo', user_id: 'u3', full_name: 'Neha Sharma', department_name: 'Executive', designated_at: '2026-08-19T04:00:00Z', deputy_id: null, deputy_name: null },
+    { role_key: 'coo', user_id: 'u2', full_name: 'Vikram Singh', department_name: 'Operations', designated_at: '2026-08-19T04:00:00Z' },
+    { role_key: 'ceo', user_id: 'u3', full_name: 'Neha Sharma', department_name: 'Executive', designated_at: '2026-08-19T04:00:00Z' },
   ];
 
   it('a rung nobody had to sign names NOBODY and says why', () => {

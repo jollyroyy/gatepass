@@ -9,6 +9,8 @@ import { quantityCell } from '../../lib/units';
 import { buildApprovalSteps } from '../../lib/approvalLadder';
 import { useApprovalRoles } from '../../lib/useApprovalRoles';
 import { usePassApprovals } from '../../lib/usePassApprovals';
+import { useEscalationHours } from '../../lib/useEscalationHours';
+import { printedSteps } from '../../lib/printCeoBox';
 import QrPass from '../../components/QrPass';
 import { QuestLockup } from '../../components/QuestMark';
 
@@ -53,6 +55,10 @@ export default function PassPrint(): React.ReactElement {
   // they are called before the loading/not-found returns below.
   const { roles } = useApprovalRoles();
   const approvals = usePassApprovals(id);
+  // The COO's window, for the ONE question this sheet asks of it: has level 3
+  // become the CEO's to sign? See `printCeoBox.ts`. The hook falls back to the
+  // shipped default, so a failed settings read prints the same slip.
+  const escalationHours = useEscalationHours();
 
   useEffect(() => {
     let cancelled = false;
@@ -104,7 +110,13 @@ export default function PassPrint(): React.ReactElement {
   // the printed pass" fiction exists for a GUARD reading a screen with the
   // paper in their hand, and this IS the paper — asserting a signature to the
   // sheet that would have carried it is circular.
-  const steps = buildApprovalSteps(pass, roles, null, approvals);
+  // …and the CEO's rung is dropped unless the CEO is the office actually in
+  // play on it (client, 2026-08-31). The record on screen still draws it; the
+  // paper has no room for a box nobody will ever sign. `printCeoBox.ts`.
+  const steps = printedSteps(
+    buildApprovalSteps(pass, roles, null, approvals),
+    approvals, pass.created_at, escalationHours,
+  );
   const companyInfo = parseCompanyInfo(pass.visitor_company);
 
   return (

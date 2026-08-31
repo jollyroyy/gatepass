@@ -28,17 +28,12 @@ export interface PassApprovalRow {
   decided_name: string | null;
   decided_at: string | null;
   reason: string | null;
-  /** True when `decided_name` signed as the office's STANDING DEPUTY rather
-   *  than as its holder (migration 054). Stored on the decision, not derived
-   *  from today's ladder: both seats move, and re-pointing an office next month
-   *  must not rewrite who signed this pass last month. */
-  decided_as_deputy: boolean;
   /** True when `decided_name` signed under a TIME-BOXED DELEGATION of that
-   *  office (migration 062) rather than as its holder or standing deputy.
-   *  Stored on the decision for the reason `decided_as_deputy` is: a delegation
-   *  expires, and a rung must not quietly re-credit the holder the day after
-   *  the window closed. OPTIONAL, and falsy is the safe reading — a fixture or
-   *  a row decided before 062 describes an ordinary decision. */
+   *  office (migration 062) rather than as its holder. Stored on the decision,
+   *  not derived from today's ladder: a delegation expires, and a rung must not
+   *  quietly re-credit the holder the day after the window closed. OPTIONAL,
+   *  and falsy is the safe reading — a fixture or a row decided before 062
+   *  describes an ordinary decision. */
   decided_as_delegate?: boolean;
   /** Who delegated the office, resolved through `delegation_id` at read time
    *  (client, 2026-08-22: the record must name "the approver who was delegated

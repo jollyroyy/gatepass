@@ -12,7 +12,7 @@
 // somebody go on leave with their queue uncovered.
 //
 // THE CANDIDATE LIST IS ALLOWED TO FAIL ON ITS OWN. `list_delegation_candidates`
-// refuses anybody who does not HOLD an office, so a standing deputy or a current
+// refuses anybody who does not HOLD an office, so a current
 // delegate opening this page gets a refusal from it while their own history
 // reads perfectly well. That is not an error state: they have nothing to
 // delegate, and the page says so rather than showing them a red bar.
@@ -24,7 +24,7 @@ import type { DelegateCandidate, DelegationRow } from './approvalDelegation';
 export interface DelegationsState {
   rows: DelegationRow[];
   candidates: DelegateCandidate[];
-  /** False when this reader holds no office of their own — a deputy or a
+  /** False when this reader holds no office of their own — a
    *  delegate, who may act but may not hand on what they are covering. */
   canDelegate: boolean;
   loading: boolean;

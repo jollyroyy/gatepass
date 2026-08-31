@@ -1,17 +1,14 @@
-// THE TWO DECISIONS a mismatch notification leads to (client, 2026-08-17):
-// "there will be two options — completely reject, or raise it again. If he
-// rejects it, it will be completely void and null. If he decides to raise the
-// pass again, it will directly take him to the gate pass raise, automatically
-// populating all those things."
-//
-// WHY THE ORDER OF OPERATIONS IS THE INTERESTING PART. "Raise it again" is two
-// facts, not one: a new pass exists, and the old one is void. Doing the second
-// first — voiding on the button press — destroys the record of what the gate
-// stopped for anyone who then closes the tab, and leaves the gate with nothing
-// at all if the replacement is never submitted. So the supersede is asserted
-// here to happen only AFTER `raise_pass` returns, and a failure to supersede is
-// asserted to be a WARNING rather than a submit error: the new pass exists
-// either way, and reporting "that failed" would invite a third one.
+// THERE IS NOW EXACTLY ONE THING TO DO HERE, AND IT IS NOT A DECISION. Client,
+// 2026-08-31: "once a guard rejects a pass he has to mention the justification
+// as to why is he rejecting the pass and then the entire pass will be cancelled
+// and a new pass needs to be raised." Migration 070 dropped
+// `hod_review_flagged_pass` accordingly, so the two answers this screen used to
+// offer (client, 2026-08-17: "completely reject, or raise it again") are both
+// gone — "Reject Permanently" because the pass is ALREADY closed when this page
+// opens, and the approve/uphold override because the RPC behind it no longer
+// exists. What is left is RAISE IT AGAIN, and nothing is voided by pressing
+// it: there is nothing left to void, so the RPC mock here must never be called
+// with `hod_review_flagged_pass` at all.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
@@ -103,29 +100,33 @@ describe('the mismatch review screen', () => {
     expect(screen.getAllByText(/RGP-OUT-20260817-0009/).length).toBeGreaterThan(0);
   });
 
-  it('offers exactly the two decisions, and no approve-override', async () => {
-    // The override still exists on the pass detail page. It is a DIFFERENT
-    // decision — "the paperwork is fine, release the material" — and three
-    // buttons under a heading that promises two is how a screen gets misread at
-    // speed.
+  it('offers exactly one thing to do, and no approve-override', async () => {
+    // Client, 2026-08-31: a guard's rejection is now final, so there is no
+    // longer a decision to make here at all. "Reject Permanently" is gone
+    // because the pass is ALREADY cancelled when this page opens; the
+    // approve/uphold override lived on the pass detail page and is deleted
+    // with the RPC behind it (migration 070 drops `hod_review_flagged_pass`).
     renderReview();
     expect(await screen.findByRole('button', { name: 'Raise It Again' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Reject Permanently' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reject Permanently' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Approve/ })).not.toBeInTheDocument();
   });
 
-  it('rejects behind a confirmation, never on the first click', async () => {
-    // There is no undo in the database: `hod_review_flagged_pass(reject)` moves
-    // the pass to `cancelled` and nothing moves it back.
+  it('states plainly that the pass is cancelled', async () => {
+    // The heading and body copy are the client's finality requirement made
+    // visible: nothing on this screen suggests the pass could still go out.
     renderReview();
-    fireEvent.click(await screen.findByRole('button', { name: 'Reject Permanently' }));
-    expect(rpcCalls).toEqual([]);
+    expect(await screen.findByText('This pass is cancelled')).toBeInTheDocument();
+    expect(screen.getByText(/A rejection at the gate is final/)).toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm — Reject Permanently' }));
-    await waitFor(() => expect(rpcCalls).toHaveLength(1));
-    expect(rpcCalls[0].fn).toBe('hod_review_flagged_pass');
-    expect(rpcCalls[0].args.p_action).toBe('reject');
-    expect(rpcCalls[0].args.p_pass_id).toBe('p-flagged');
+  it('never calls the retired review RPC', async () => {
+    // Migration 070 drops `hod_review_flagged_pass` entirely — there is no
+    // server call left for this page to make about the pass it is showing.
+    renderReview();
+    await screen.findByRole('button', { name: 'Raise It Again' });
+    fireEvent.click(screen.getByRole('button', { name: 'Raise It Again' }));
+    expect(rpcCalls.some((c) => c.fn === 'hod_review_flagged_pass')).toBe(false);
   });
 
   it('"raise it again" carries the pass being corrected to the raise form', async () => {
@@ -144,17 +145,6 @@ describe('the mismatch review screen', () => {
     renderReview();
     fireEvent.click(await screen.findByRole('button', { name: 'Raise It Again' }));
     expect(rpcCalls).toEqual([]);
-  });
-
-  it('offers no decision on a pass that is no longer flagged', async () => {
-    // Decided in another tab, or overridden at the gate. Buttons that would be
-    // refused by the RPC must not be drawn.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    passRow = { ...PASS, status: 'cancelled' } as any;
-    renderReview();
-    expect(await screen.findByText(/no longer awaiting your decision/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Raise It Again' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Reject Permanently' })).not.toBeInTheDocument();
   });
 
   it('says so plainly when the pass cannot be read at all', async () => {

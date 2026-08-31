@@ -6,6 +6,53 @@ For current rules and architecture, see CLAUDE.md.
 
 ## Current state (session-by-session history)
 
+## 2026-08-31 — the standing deputy is removed from the approval ladder (`068`)
+
+**Client instruction: remove the deputy field completely from the gate pass approval ladder**
+(Admin → Settings / Users → Gate pass approval ladder). 054's second permanent seat is gone at
+every layer — screen, types, mail, RPCs and schema. An approval office is one person again.
+
+**Why it could go cleanly.** 062 shipped the date-bounded delegation the standing deputy was
+chosen *instead* of, and it covers the same absence with a window, a value ceiling, a revocation
+and a record of who handed it over. Cover survives; the second permanent seat does not.
+
+**Nothing was lost, and that was checked before the migration was written.** On the live project
+`approval_roles` had **0** rows with a `deputy_id` and `pass_approvals` had **0** rows with
+`decided_as_deputy = true` — no signature in the history was ever given by a deputy, so dropping
+the stamp erased no fact. Had either count been non-zero the column would have had to stay.
+
+- **`068_no_standing_deputy.sql`** restates every function 054 widened, each at its latest version
+  (062/063/066/067) minus the deputy arm and nothing else: `my_approval_role`,
+  `set_approval_role`, `admin_soft_delete_user`, `list_delegation_candidates`,
+  `create_approval_delegation`, `approve_pass_level`, `reject_pass_level`,
+  `approval_notice_payload`, plus `get_pass_approvals` and `get_approval_ladder` **dropped and
+  recreated** (both lose a return column, and the grant goes with the drop). Then the schema
+  itself: `set_approval_deputy` / `clear_approval_deputy` dropped, and
+  `approval_roles.deputy_id`, `pass_approvals.decided_as_deputy`,
+  `approval_roles_one_deputy_per_person` and `approval_roles_deputy_is_not_holder` with them —
+  an unused SECURITY DEFINER function and a dead column are both still reachable over PostgREST.
+  **NOT APPLIED to the database yet** — the file and `APPLY_ALL.sql` are written; a human still
+  has to paste it.
+- **One person, one seat survives and is simpler to state**: 049's unique `user_id` and 062's
+  overlapping-delegation refusal are now the whole rule. The four-eyes property is unchanged —
+  removing a seat cannot create one.
+- **Client**: the ladder card drops its second select and its deputy paragraph;
+  `ApprovalRoleRow` loses `deputy_id` / `deputy_name`, `PassApprovalRow` loses
+  `decided_as_deputy`, `WaitingRow` loses `deputy`, `NoticeApproval` loses both addresses. The
+  pass record's rung no longer prints "Standing deputy for the X"; a delegated rung still prints
+  "Delegated X — signed for Y". The approval letter and the emergency-release letter go to one
+  address per office again.
+- **Tests**: `approvalDeputyCard.test.tsx` → `approvalLadderCard.test.tsx`, which now pins the
+  ABSENCE (no `{title} deputy` control, neither deputy RPC ever called). `sqlInvariants`' 054
+  block is replaced by a 068 block whose load-bearing case reads the LAST definition of EVERY
+  function in the schema and fails if any live body still names a deputy — the one assertion that
+  cannot be satisfied by deleting a line in the test file. `scripts/verify-054.mjs` deleted (it
+  proved a feature that no longer exists); `verify-055` / `verify-061` and the e2e seed/restore
+  scripts no longer snapshot or write `deputy_id`.
+- **Left alone deliberately**: the e2e cast member keyed `deputy` (`e2e.deputy@e2e.local`, "Test
+  Deputy HOD") is an ordinary HOD used as a DELEGATION target. Renaming it would re-seed a real
+  auth account and every `.state/` fixture for no behavioural gain; the name is now only a label.
+
 ## 2026-08-24 — the old super admin's approval history is destroyed (DATA CHANGE, no migration)
 
 **Client decision, this session: "those records which were approved by the previous super admin …

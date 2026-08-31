@@ -2,19 +2,20 @@
 //
 // Client, 2026-08-20: the guard's screen says APPROVE and REJECT — never
 // "Match", "Mismatch" or "Hold". The RPCs behind them are unchanged
-// (`match_pass` and `flag_pass`), so a rejection still returns the pass to the
-// raising HOD for review; only the words the guard reads changed. The reason
+// (`match_pass` and `flag_pass`); only the words the guard reads changed. The reason
 // on a rejection is MANDATORY, and the 500-character box is the same one the
 // approval ladder's RejectApprovalModal uses, so every written refusal in this
 // app is the same shape of field.
 //
-// AND ON 2026-08-23 THE SECOND ANSWER BECAME "FLAG TO REQUESTER" (client:
-// "replace the reject with flag to requestor button"). The transition is the
-// same one it always was -- `flag_pass`, status `flagged`, straight to the
-// raising HOD -- and the new wording is the honest description of it: the pass
-// is NOT closed, it is handed back to the person who raised it, who either
-// upholds the flag or sends it back to this gate. Calling that a rejection told
-// the guard the material had been refused when it had only been stopped.
+// AND ON 2026-08-31 IT WENT BACK TO "REJECT PASS", because the thing it does
+// changed. Between 2026-08-23 and then it read "Flag to Requester", which was
+// the honest description of a transition that HANDED THE PASS BACK: the raising
+// HOD either upheld the flag or sent the pass to this gate again. The client
+// has removed that answer (migration 070: "the entire pass will be cancelled
+// and a new pass needs to be raised"), so the guard's second button now closes
+// the pass where it stands. `flag_pass` and the `flagged` status are unchanged
+// — what changed is that nothing can move the pass afterwards, and the word on
+// the button has to say so.
 import React, { useState } from 'react';
 import type { GatePassItemView, GatePassView } from '../../types';
 import ModalShell from '../../components/ModalShell';
@@ -148,15 +149,15 @@ export function FlagPanel({ submitting, error, onCancel, onConfirm }: FlagPanelP
 
   return (
     <ModalShell onClose={onCancel} labelledBy="flag-panel-title">
-        <h2 id="flag-panel-title" className="modal-title mb-1">Flag to Requester</h2>
+        <h2 id="flag-panel-title" className="modal-title mb-1">Reject Gate Pass</h2>
         <p className="text-sm text-navy-500 mb-5">
-          This goes straight to the department that raised the pass — not to the approvers. They are
-          notified at once, and either uphold the flag or send the pass back to this gate. Say why —
-          this is required.
+          This is final. The pass is cancelled, the material is not released, and the department that
+          raised it is notified at once and must raise a new pass. Say why — this is required, and
+          your reason is what they will act on.
         </p>
 
         <div className="mb-1">
-          <label className="label" htmlFor="gate-flag-reason">Reason for flagging *</label>
+          <label className="label" htmlFor="gate-flag-reason">Reason for rejecting *</label>
           <textarea
             id="gate-flag-reason"
             className="input"
@@ -184,7 +185,7 @@ export function FlagPanel({ submitting, error, onCancel, onConfirm }: FlagPanelP
             disabled={submitting || !valid}
             onClick={() => onConfirm(reason.trim())}
           >
-            {submitting ? 'Sending…' : 'Send to Requester'}
+            {submitting ? 'Rejecting…' : 'Reject and Cancel Pass'}
           </button>
         </div>
     </ModalShell>

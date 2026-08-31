@@ -39,10 +39,6 @@
 //     receipt restated something they had just done themselves. It is sent
 //     when the LAST rung is signed and never before, so it cannot be confused
 //     with the per-level chatter that was removed.
-//     SINCE 054 THAT ONE REQUEST MAY GO TO TWO PEOPLE — the office's holder and
-//     its standing deputy — because either of them may sign it. That is still
-//     one office being asked one question; it is not a second kind of letter,
-//     and nobody who cannot act on the pass is written to.
 //     COST, STATED: the HOD learns of a rejection in the app alone — the bell's
 //     notice, derived on mount from `status = 'cancelled' and flag_reason is
 //     null` — and hears nothing by mail. That is the client's instruction; if
@@ -95,11 +91,6 @@ export interface NoticeApproval {
   approver_id: string;
   approver_name: string | null;
   approver_email: string | null;
-  /** The office's STANDING DEPUTY (migration 054), resolved TODAY exactly as
-   *  the holder is — authority is read at the moment of the press, so the
-   *  address has to be too. Null is the ordinary case: an office with no cover. */
-  deputy_name?: string | null;
-  deputy_email?: string | null;
   decided_at: string | null;
   reason: string | null;
 }
@@ -504,36 +495,6 @@ export function buildApprovalNotices(
     },
   ];
 
-  // THE STANDING DEPUTY IS ASKED TOO (054). Either seat may sign, so a deputy
-  // who is never written to is cover that only works for somebody already
-  // watching the screen — which is precisely the person who did not need cover.
-  //
-  // Its own lead, not a copy of the holder's: "you hold the CEO office" is
-  // false for a deputy, and a letter that misstates why it is asking is how a
-  // reader learns to distrust the rest of it.
-  //
-  // The address is compared case-insensitively before sending twice. One person
-  // seated as both is already refused by the database, but a holder and deputy
-  // sharing a mailbox is not — and two identical letters in one inbox reads as
-  // a bug in the system rather than a quirk of the mailbox.
-  const deputyEmail = current.deputy_email?.trim();
-  if (deputyEmail && deputyEmail.toLowerCase() !== current.approver_email.trim().toLowerCase()) {
-    const dGreeting = current.deputy_name ? `Hello ${current.deputy_name},` : 'Hello,';
-    const dLead =
-      `${dGreeting} you are the standing deputy for the ${title} office` +
-      `${current.approver_name ? `, held by ${current.approver_name}` : ''}. This gate pass has ` +
-      `reached that level (${rung}) and cannot leave the gate until it is approved. ` +
-      'You may approve or reject it yourself.';
-    messages.push({
-      to: deputyEmail,
-      toName: current.deputy_name ?? null,
-      kind: 'awaiting_you',
-      subject,
-      text: wrapText(heading, dLead, pass, link, tail),
-      html: wrapHtml(heading, dLead, pass, link, tail),
-    });
-  }
-
   return messages;
 }
 
@@ -547,8 +508,8 @@ export function buildApprovalNotices(
  * remembers to mention it — NIST AU-6 and SAP GRC's Firefighter controller step
  * both put alerting at the moment of use, not in a monthly report.
  *
- * WHO IS WRITTEN TO: every office the pass owed, holder and standing deputy
- * alike, deduplicated by address. NOT the raising HOD — the same client rule
+ * WHO IS WRITTEN TO: the holder of every office the pass owed, deduplicated by
+ * address. NOT the raising HOD — the same client rule
  * that removed every other receipt (see the header); their pass moved, which is
  * what they wanted, and the record carries the banner.
  *
@@ -576,33 +537,30 @@ export function buildEmergencyNotices(
   const messages: NoticeMessage[] = [];
 
   for (const a of approvals) {
-    // Both seats of every office, in ladder order. `to` is deduplicated because
-    // a holder and deputy may share a mailbox, and two identical letters read
-    // as a bug rather than as thoroughness.
-    for (const [addr, name] of [
-      [a.approver_email, a.approver_name] as const,
-      [a.deputy_email ?? null, a.deputy_name ?? null] as const,
-    ]) {
-      const clean = addr?.trim();
-      if (!clean) continue;
-      const key = clean.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
+    // One letter per office, in ladder order. `to` is still deduplicated
+    // because two rungs can resolve to one address — a vacant office falls back
+    // to the holder snapshotted at raise — and two identical letters in one
+    // inbox read as a bug rather than as thoroughness.
+    const clean = a.approver_email?.trim();
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
 
-      const greeting = name ? `Hello ${name},` : 'Hello,';
-      const lead =
-        `${greeting} ${who} released this gate pass past the approval ladder, so it can leave ` +
-        `the gate without the ${titleOf(a.role_key)} approval you would normally give. ` +
-        `The reason recorded was: "${reason}"`;
-      messages.push({
-        to: clean,
-        toName: name,
-        kind: 'emergency_release',
-        subject: `Released without approval — ${pass.pass_number} (${pass.type})`,
-        text: wrapText(heading, lead, pass, link, tail),
-        html: wrapHtml(heading, lead, pass, link, tail),
-      });
-    }
+    const name = a.approver_name;
+    const greeting = name ? `Hello ${name},` : 'Hello,';
+    const lead =
+      `${greeting} ${who} released this gate pass past the approval ladder, so it can leave ` +
+      `the gate without the ${titleOf(a.role_key)} approval you would normally give. ` +
+      `The reason recorded was: "${reason}"`;
+    messages.push({
+      to: clean,
+      toName: name,
+      kind: 'emergency_release',
+      subject: `Released without approval — ${pass.pass_number} (${pass.type})`,
+      text: wrapText(heading, lead, pass, link, tail),
+      html: wrapHtml(heading, lead, pass, link, tail),
+    });
   }
 
   return messages;

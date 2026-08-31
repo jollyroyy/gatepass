@@ -9,8 +9,10 @@
 // Overdue Items, Scheduled Returns, My Passes, the notification bell — routes
 // to `/pass/:id`. So this is one assertion in one place: `/pass/:id` renders
 // `PassRecordView`, the exact component `GateConsole` renders after a search,
-// and nothing that only the detail page could do (the flagged override) was
-// lost in the swap.
+// and nothing that only the detail page could do was lost in the swap. The
+// flagged override used to be one of those things; client, 2026-08-31, made a
+// guard's rejection final, and migration 070 dropped it along with the RPC
+// behind it, leaving "Raise It Again" as the raising HOD's only answer.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -144,16 +146,26 @@ describe('/pass/:id renders the Search Pass record, not a second format', () => 
     expect(screen.getAllByText('₹5,000').length).toBeGreaterThan(0);
   });
 
-  it('still offers the raising HOD the flagged override, above the record', async () => {
-    row = pass({ status: 'flagged', flag_reason: 'Count did not match', verified_at: '2026-08-18T08:00:00Z' });
+  // Client, 2026-08-31: "once a guard rejects a pass he has to mention the
+  // justification ... and then the entire pass will be cancelled and a new
+  // pass needs to be raised." Migration 070 drops `hod_review_flagged_pass`
+  // with it, so "Send Back to the Gate" and the approve/uphold override it sat
+  // beside are both gone — the raising HOD's only answer left is a fresh pass.
+  it('offers the raising HOD "Raise It Again", and no override, above the record', async () => {
+    row = pass({
+      status: 'flagged',
+      flag_reason: 'Count did not match',
+      verified_at: '2026-08-18T08:00:00Z',
+      raised_by: 'u1',
+    });
     renderDetail();
     await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
-    // Twice on purpose: the override panel above the record states it, and the
+    // Twice on purpose: the banner above the record states it, and the
     // approval ladder's gate rung carries it as the reason that rung is blocked.
     expect(screen.getAllByText('Count did not match').length).toBeGreaterThan(0);
-    // "Send Back to the Gate" since 2026-08-23 — the requester's answer that
-    // returns the pass to the guard who flagged it, and to nobody else.
-    expect(screen.getByRole('button', { name: 'Send Back to the Gate' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Raise It Again' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send Back to the Gate' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Approve/ })).not.toBeInTheDocument();
   });
 });
 

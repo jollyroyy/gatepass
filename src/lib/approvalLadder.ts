@@ -68,11 +68,6 @@ export interface ApprovalRoleRow {
   full_name: string | null;
   department_name: string | null;
   designated_at: string;
-  /** The office's optional STANDING DEPUTY (migration 054) — a second person
-   *  who may approve exactly what the holder may, with no date window. Null is
-   *  the ordinary case: an office with no cover. */
-  deputy_id: string | null;
-  deputy_name: string | null;
 }
 
 /** The title printed beside the level. "Finance HOD" and not "Finance Head"
@@ -214,22 +209,15 @@ export function buildApprovalSteps(
           : own.decided_as_delegate
             ? delegatedLine(title, own.decided_name ?? own.routed_name ?? row?.full_name, own.delegated_by_name)
             : approverLine(title, own.decided_name ?? own.routed_name ?? row?.full_name),
-        // WHICH SEAT SIGNED IT, where the department would otherwise sit. A
-        // deputy's or a delegate's own department is not the fact a reader of
-        // this rung wants, and an unlabelled stand-in reads as the office
-        // holder — the thing Workday's "On Behalf Of" line exists to prevent.
-        //
-        // A DELEGATION OUTRANKS A DEPUTY LABEL. The two seats are mutually
-        // exclusive by the one-seat rule (049/054/062), so both flags cannot be
-        // true of one decision — but if a row ever carried both, the delegation
-        // is the more specific fact and the one with a window on it.
+        // WHO SIGNED IT IN WHAT CAPACITY, where the department would otherwise
+        // sit. A delegate's own department is not the fact a reader of this rung
+        // wants, and an unlabelled stand-in reads as the office holder — the
+        // thing Workday's "On Behalf Of" line exists to prevent.
         detail: own.grandfathered || own.status === 'not_required'
           ? null
           : own.decided_as_delegate
             ? `Delegated ${title} — signed for ${own.delegated_by_name ?? 'the office holder'}`
-            : own.decided_as_deputy
-              ? `Standing deputy for the ${title}`
-              : row?.department_name ?? null,
+            : row?.department_name ?? null,
         at: own.decided_at,
         state: APPROVAL_STATE[own.status],
         // A rejection's reason IS the note — it is the sentence somebody typed

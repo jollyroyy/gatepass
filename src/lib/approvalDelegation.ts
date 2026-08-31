@@ -8,10 +8,11 @@
 // delegated"). The database says the same thing — `create_approval_delegation`
 // is gated on holding the office yourself, not on `is_admin()`.
 //
-// NOT THE STANDING DEPUTY, AND NOT A REPLACEMENT FOR IT. `approval_roles.
-// deputy_id` (054) is permanent cover an ADMIN names and that never needs
-// switching on. This is a window the HOLDER declares before leave, and it ends
-// by itself. Both exist; the pass record says which seat signed a rung.
+// THE ONLY COVER THERE IS. 054's standing deputy — permanent cover an ADMIN
+// named, with no window — was withdrawn by the client and removed in 068, so a
+// delegation is now the whole answer to an absent approver. It is a window the
+// HOLDER declares before leave and it ends by itself; the pass record says when
+// a rung was signed under one, and by whom for whom.
 //
 // NO GATE, NO SITE, NO PASS-TYPE SCOPE. The client's mock-up drew an Approval
 // Type, a Location / Site and a Gate Pass Type scope and struck all three out
@@ -247,7 +248,7 @@ export function delegateEligibilityNote(office: ApprovalRoleKey | null): string 
   if (office === 'ceo') {
     return 'The CEO office can only be delegated to the COO, who signs the same level. Nobody else may cover it.';
   }
-  return 'Department heads only. Anyone active who does not already hold an approval office, deputy seat or delegation.';
+  return 'Department heads only. Anyone active who does not already hold an approval office or a delegation.';
 }
 
 /** "Priya Mehta (Housekeeping)" — the person, with where they work in brackets

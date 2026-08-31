@@ -1,32 +1,30 @@
-// MISMATCH REVIEW — where a mismatch notification lands.
+// REJECTED AT THE GATE — where a rejection notification lands.
 //
-// The client's flow, in full (2026-08-17): security flags a pass at the gate,
-// the raising HOD is notified on the bell, and clicking that notice must show
-// what the pass was, WHY it was stopped and WHO stopped it, then offer exactly
-// two decisions:
+// Security stops a pass at the barrier in writing, the raising HOD is notified
+// on the bell, and clicking that notice shows what the pass was, WHY it was
+// stopped and WHO stopped it (client, 2026-08-17).
 //
-//   Reject Permanently — the pass is void and can never be verified. This is
-//                        `hod_review_flagged_pass(p_action => 'reject')`, which
-//                        moves it to `cancelled` and writes a `verifications`
-//                        row. There is no undo, so it sits behind an inline
-//                        confirmation (never `window.confirm` — it blocks the
-//                        page and breaks automation).
-//   Raise It Again     — opens the raise form pre-filled from this pass. The
-//                        OLD pass is voided by that form once the new one is
-//                        actually submitted, not now: an HOD who opens the form
-//                        and walks away must not have destroyed the only record
-//                        of what the gate stopped.
+// THERE IS NOW EXACTLY ONE THING TO DO HERE, AND IT IS NOT A DECISION. Client,
+// 2026-08-31: "once a guard rejects a pass he has to mention the justification
+// as to why is he rejecting the pass and then the entire pass will be cancelled
+// and a new pass needs to be raised." Migration 070 dropped
+// `hod_review_flagged_pass` accordingly, so the two answers this page used to
+// offer are both gone:
 //
-// THIS PAGE HAS NO "APPROVE OVERRIDE" BUTTON, and that is deliberate rather than
-// an omission. The override still exists — it is on the pass detail page, where
-// it always was — but it is a different decision (the paperwork is fine, release
-// the material) and the client asked for these two. Putting three buttons under
-// a heading that promises two is how a screen gets misread at speed.
+//   Reject Permanently — the pass is ALREADY closed when this page opens.
+//                        Asking the HOD to reject what security already
+//                        rejected was a button that changed nothing.
+//   Send Back to the Gate — the override, which lived on the pass record. It is
+//                        deleted with the RPC behind it: a guard's refusal can
+//                        no longer be answered by the requester at all.
 //
-// AUTHORITY IS THE DATABASE'S. `hod_review_flagged_pass` refuses anyone who did
-// not raise the pass; this page only decides what to draw. A reader who reaches
-// it for someone else's pass, or for a pass that is no longer flagged, gets a
-// plain explanation instead of buttons that would fail.
+// WHAT IS LEFT IS RAISE IT AGAIN — the raise form, pre-filled from this pass so
+// the HOD corrects it rather than retyping it. Nothing is voided when it is
+// pressed, because there is nothing left to void.
+//
+// AUTHORITY IS STILL THE DATABASE'S: this page reads a pass through
+// `gate_passes_select` and draws it. A reader who reaches it for someone else's
+// pass gets a plain explanation instead of a screen that would fail.
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { gp } from '../../supabaseClient';
@@ -36,7 +34,6 @@ import { useNotifications } from '../../lib/notifications';
 import { formatDateTime } from '../../lib/formatDate';
 import { categoryFor } from '../../lib/passTypes';
 import PassRow from '../../components/PassRow';
-import PassDecisionPanel from './PassDecisionPanel';
 
 export default function MismatchReview(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
@@ -46,7 +43,6 @@ export default function MismatchReview(): React.ReactElement {
   const [pass, setPass] = useState<GatePassView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -69,25 +65,6 @@ export default function MismatchReview(): React.ReactElement {
   useEffect(() => {
     void load();
   }, [load]);
-
-  async function reject(reason: string | null) {
-    if (!id) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const { error: rpcErr } = await gp().rpc('hod_review_flagged_pass', {
-        p_pass_id: id,
-        p_action: 'reject',
-        p_reason: reason,
-      });
-      if (rpcErr) throw rpcErr;
-      dismissPass(id);
-      navigate('/dashboard');
-    } catch (err) {
-      setError(safeErrorMessage(err));
-      setBusy(false);
-    }
-  }
 
   if (loading) {
     return (
@@ -113,8 +90,6 @@ export default function MismatchReview(): React.ReactElement {
       </div>
     );
   }
-
-  const settled = pass.status !== 'flagged';
 
   return (
     <div>
@@ -153,24 +128,34 @@ export default function MismatchReview(): React.ReactElement {
         <PassRow pass={pass} onOpen={(passId) => navigate(`/pass/${passId}`)} compact />
       </div>
 
-      <PassDecisionPanel
-        settled={settled}
-        settledContent={
-          <>
-            This pass is no longer awaiting your decision — nothing further is needed here.{' '}
-            <Link to={`/pass/${pass.id}`} className="text-accent-600 hover:underline font-semibold">
-              View the pass
-            </Link>
-            .
-          </>
-        }
-        voidLabel="Reject Permanently"
-        voidWarning="This is final. The pass will be void and the material will not be released."
-        help="Raising it again opens a new gate pass pre-filled from this one. This pass is voided only once the corrected one is submitted."
-        busy={busy}
-        onRaise={() => navigate('/raise', { state: { copyFrom: pass.id } })}
-        onVoid={(reason) => void reject(reason)}
-      />
+      {/* ONE ACTION, and it is not a decision about this pass: the pass is
+          closed, and the only thing that moves the material is a new one. The
+          notice is dismissed as the HOD leaves — they have now read it, and it
+          must not sit on the bell for a pass nothing can be done about. */}
+      <div className="card p-5">
+        <h2 className="card-title mb-2">This pass is cancelled</h2>
+        <p className="text-body text-navy-700 mb-4">
+          A rejection at the gate is final — the material was not released and this pass cannot be
+          used again. Raising it again opens a new gate pass pre-filled from this one, so you correct
+          what security stopped rather than retype it.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => {
+              dismissPass(pass.id);
+              navigate('/raise', { state: { copyFrom: pass.id } });
+            }}
+          >
+            Raise It Again
+          </button>
+          <Link to={`/pass/${pass.id}`} className="btn-secondary text-center">
+            View the pass
+          </Link>
+        </div>
+      </div>
+
     </div>
   );
 }

@@ -204,34 +204,23 @@ describe('the raise form, arrived at from a mismatch', () => {
     expect(dates.map((d) => d.value)).toEqual(['', TOMORROW]);
   });
 
-  it('voids the mismatched pass ONLY after the replacement is in the database', async () => {
+  // Client, 2026-08-31: a guard's rejection is now final, so the FLAGGED
+  // source this describe-block re-raises from is already closed by `flag_pass`
+  // itself. Migration 070 drops `hod_review_flagged_pass` entirely — there is
+  // nothing left to void, and nothing left to call.
+  it('voids nothing for a flagged source — it is already closed', async () => {
     renderReraise();
     await waitFor(() => expect(screen.getByDisplayValue('Ladder')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
 
-    await waitFor(() => expect(rpcCalls.some((c) => c.fn === 'hod_review_flagged_pass')).toBe(true));
-    const order = rpcCalls.map((c) => c.fn).filter((f) => f === 'raise_pass' || f === 'hod_review_flagged_pass');
-    expect(order).toEqual(['raise_pass', 'hod_review_flagged_pass']);
-
-    const supersede = rpcCalls.find((c) => c.fn === 'hod_review_flagged_pass')!;
-    expect(supersede.args.p_pass_id).toBe('p-flagged');
-    expect(supersede.args.p_action).toBe('reject');
-    // The audit trail says WHY it was voided, in the `verifications` row the RPC
-    // writes — "rejected" alone would read as the HOD refusing their own pass.
-    expect(supersede.args.p_reason).toBe('Superseded by RGP-OUT-20260817-0011');
-  });
-
-  it('a failed supersede is a warning, never a submit error', async () => {
-    // The new pass exists either way. Telling the HOD "that failed" would invite
-    // them to raise a third.
-    supersedeError = { message: 'permission denied' };
-    renderReraise();
-    await waitFor(() => expect(screen.getByDisplayValue('Ladder')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
-
-    expect(await screen.findByText(/could not be closed/)).toBeInTheDocument();
-    expect(screen.getByText(/could not be closed/).textContent).toMatch(/RGP-OUT-20260817-0009/);
+    await waitFor(() => expect(rpcCalls.some((c) => c.fn === 'raise_pass')).toBe(true));
+    // No supersede call of any kind follows the replacement — not the retired
+    // RPC, and no other void call in its place.
+    expect(rpcCalls.some((c) => c.fn === 'hod_review_flagged_pass')).toBe(false);
+    expect(rpcCalls.some((c) => c.fn === 'hod_void_expired_pass')).toBe(false);
+    // Nothing to fail, so nothing to warn about either.
+    expect(screen.queryByText(/could not be closed/)).not.toBeInTheDocument();
   });
 });
 
@@ -268,5 +257,23 @@ describe('the raise form, arrived at from an EXPIRED pass', () => {
     const supersede = rpcCalls.find((c) => c.fn === 'hod_void_expired_pass')!;
     expect(supersede.args.p_pass_id).toBe('p-flagged');
     expect(supersede.args.p_reason).toBe('Superseded by RGP-OUT-20260817-0011');
+  });
+
+  // A REJECTED source has nothing left to fail at, since 070 leaves it with no
+  // void call at all. An EXPIRED source is the only one still voided by an RPC
+  // that can be refused — `hod_void_expired_pass` — so it is the only source
+  // this warning path can still be driven from.
+  it('a failed supersede is a warning, never a submit error', async () => {
+    // The new pass exists either way. Telling the HOD "that failed" would invite
+    // them to raise a third.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sourceRow = { ...SOURCE, status: 'pending', is_expired: true, flag_reason: null } as any;
+    supersedeError = { message: 'permission denied' };
+    renderReraise();
+    await waitFor(() => expect(screen.getByDisplayValue('Ladder')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Request' }));
+
+    expect(await screen.findByText(/could not be closed/)).toBeInTheDocument();
+    expect(screen.getByText(/could not be closed/).textContent).toMatch(/RGP-OUT-20260817-0009/);
   });
 });

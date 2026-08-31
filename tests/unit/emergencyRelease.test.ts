@@ -125,12 +125,9 @@ describe('buildEmergencyNotices — telling the offices that were skipped', () =
   ];
   const REASON = 'Four approvers unreachable overnight; material needed for a lift repair.';
 
-  it('writes to every office on the ladder, holders and deputies alike', () => {
-    const withDeputy = LADDER.map((a) =>
-      a.level_no === 1 ? { ...a, deputy_name: 'Priya', deputy_email: 'priya@example.com' } : a,
-    );
-    const out = buildEmergencyNotices(PASS, withDeputy, 'Sudeshna Pal', REASON, 'https://x.test');
-    expect(out.map((m) => m.to)).toEqual(['demi@example.com', 'priya@example.com', 'coo@example.com']);
+  it('writes to the holder of every office on the ladder', () => {
+    const out = buildEmergencyNotices(PASS, LADDER, 'Sudeshna Pal', REASON, 'https://x.test');
+    expect(out.map((m) => m.to)).toEqual(['demi@example.com', 'coo@example.com']);
     expect(out.every((m) => m.kind === 'emergency_release')).toBe(true);
   });
 
@@ -144,10 +141,12 @@ describe('buildEmergencyNotices — telling the offices that were skipped', () =
   });
 
   it('never writes twice to one mailbox', () => {
+    // Two rungs can resolve to one address — a vacant office falls back to the
+    // holder snapshotted at raise.
     const shared = LADDER.map((a) =>
-      a.level_no === 1 ? { ...a, deputy_name: 'Priya', deputy_email: 'DEMI@example.com' } : a,
+      a.level_no === 2 ? { ...a, approver_email: 'DEMI@example.com' } : a,
     );
-    expect(buildEmergencyNotices(PASS, shared, null, REASON, 'https://x.test')).toHaveLength(2);
+    expect(buildEmergencyNotices(PASS, shared, null, REASON, 'https://x.test')).toHaveLength(1);
   });
 
   it('sends nothing when no office on the ladder has an address', () => {

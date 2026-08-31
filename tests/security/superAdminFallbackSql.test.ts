@@ -112,7 +112,7 @@ describe('067 — the super admin fallback', () => {
     expect(
       /r\.user_id\s*=\s*auth\.uid\(\)/i.test(holder.body) && !/deputy_id/i.test(holder.body),
       `gatepass.holds_fallback_office (in ${holder.file}) must match the HOLDER only. Emergency ` +
-        `release is the last door in the system and does not travel to a deputy or a delegate.`,
+        `release is the last door in the system and does not travel to a delegate.`,
     ).toBe(true);
     expect(
       /is_user_active\s*\(\s*auth\.uid\(\)\s*\)/i.test(holder.body),

@@ -52,8 +52,6 @@ function role(over: Partial<ApprovalRoleRow>): ApprovalRoleRow {
     full_name: 'Demi',
     department_name: null,
     designated_at: '2026-08-19T00:00:00Z',
-    deputy_id: null,
-    deputy_name: null,
     ...over,
   };
 }
@@ -159,10 +157,6 @@ describe('buildWaitingWith', () => {
     expect(waitingPersonLabel(rows.find((r) => r.key === GATE_KEY)!)).toBe('Guard on duty');
   });
 
-  it('names the standing deputy too — either of them can clear it', () => {
-    const rows = buildWaitingWith([], [], [role({ deputy_id: 'u9', deputy_name: 'Asha' })]);
-    expect(waitingPersonLabel(rows.find((r) => r.key === 'security_head')!)).toBe('Demi · deputy Asha');
-  });
 });
 
 describe('the strip counts every pending pass, whatever day it was raised', () => {
