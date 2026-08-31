@@ -9,8 +9,8 @@ For current rules and architecture, see CLAUDE.md.
 ## 2026-08-31 — the CEO leaves the printed slip, the COO and CEO raise passes, and a gate rejection becomes final (`069`, `070`)
 
 Three client instructions in one session, on top of the same day's `068`. Two migrations, both
-written and **NOT yet applied** — `068`, `069` and `070` are all still unapplied on the live
-project, and they must be pasted in that order.
+written and **APPLIED to the live project the same day** — `068`, `069`, `070`, in that order,
+each with `psql --single-transaction -v ON_ERROR_STOP=1` over the session pooler.
 
 ### 1. The CEO's box leaves the printed slip unless the CEO is signing it
 
@@ -89,10 +89,29 @@ that the pass is now closed where the guard leaves it.
 
 ### Checks
 
-`npm run check` green — typecheck plus 2194 vitest cases across 171 files, including the new
-`printCeoBox` and route-office suites and the `069` / `070` SQL invariants. The e2e suite was not
-run (it drives the real project). **Nothing is applied to the database**; `069`'s RLS change wants
-a `scripts/verify-069.mjs` run with real JWTs once it is.
+`npm run check` green — typecheck plus 2203 vitest cases across 173 files, including the new
+`printCeoBox`, route-office, office-raise-form and `MyRaisedPasses` suites and the `069` / `070`
+SQL invariants. The e2e suite was not run (it drives the real project).
+
+**Applied, 2026-08-31.** `068`, `069` and `070` went in through the session pooler in that order.
+Checked BEFORE `068`, because it drops two columns: `approval_roles` had **0** rows with a
+`deputy_id` and `pass_approvals` **0** with `decided_as_deputy` — the drop erased no signature.
+Confirmed in `pg_catalog` afterwards: `hod_review_flagged_pass` gone, `set_approval_deputy` gone,
+`approval_roles.deputy_id` gone, `gatepass.raised_by_me(uuid)` present, `gate_passes_select`
+carrying the `raised_by = auth.uid()` arm, and `raise_pass` naming `holds_fallback_office`. All
+four offices are seated (a COO and a CEO among them), so the raise feature is reachable.
+
+**Still owed: a `scripts/verify-069.mjs` run.** The catalog proves the objects exist; only real
+JWTs prove the POLICY — psql connects as `postgres` and bypasses every one. The probe needs the
+sitting COO's credentials in `PROBE_COO_EMAIL` / `PROBE_COO_PASSWORD`.
+
+**Grant drift found while verifying, NOT introduced here and NOT fixed here.** `anon` holds
+EXECUTE on `raise_pass`, `flag_pass` and `match_pass` — the drift `009` exists to correct, caused
+by toggling **Exposed schemas** in the dashboard, which re-runs `grant all … to anon`. It is not
+an exposure: all three read `auth.uid()` and refuse an anonymous caller in their first guard, and
+every RLS policy still applies. It is worth re-running `009` on the next maintenance pass. The
+functions added today are clean — `raised_by_me` revokes from `public` and grants only
+`authenticated`.
 
 ### Session note
 
