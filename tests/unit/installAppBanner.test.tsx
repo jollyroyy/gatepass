@@ -106,3 +106,24 @@ describe('InstallAppBanner', () => {
     expect(container.firstElementChild?.className).toContain('no-print');
   });
 });
+
+describe('InstallAppBanner — the browsers that fire no event', () => {
+  it('gives Firefox for Android its own menu item, and no dead button', () => {
+    setUserAgent('Mozilla/5.0 (Android 14; Mobile; rv:121.0) Gecko/121.0 Firefox/121.0');
+    render(<InstallAppBanner />);
+    expect(screen.getByText(/⋮ menu/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^install app/i })).not.toBeInTheDocument();
+  });
+
+  it('tells an in-app webview to open a real browser instead of pretending', () => {
+    setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 [FBAN/FBIOS]');
+    render(<InstallAppBanner />);
+    expect(screen.getByText(/Chrome or Safari/)).toBeInTheDocument();
+  });
+
+  it('stays silent on a Chromium that has not offered the event', () => {
+    setUserAgent('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36');
+    const { container } = render(<InstallAppBanner />);
+    expect(container).toBeEmptyDOMElement();
+  });
+});

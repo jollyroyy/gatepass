@@ -3,11 +3,11 @@ import {
   dismissInstall,
   getInstallPrompt,
   installDismissed,
-  isIosDevice,
   isStandalone,
   promptInstall,
   subscribeInstallPrompt,
 } from '../lib/installPrompt';
+import { installGuidance, manualInstallHint } from '../lib/installGuidance';
 
 // The offer to install, and the only place in the app that makes one.
 //
@@ -18,14 +18,11 @@ import {
 // install bar since 2019. It fires `beforeinstallprompt` at the page and waits
 // to be asked. This is the asking.
 //
-// TWO PLATFORMS, TWO ANSWERS, AND THEY ARE NOT INTERCHANGEABLE:
-//   Chrome/Edge  — a real button. `promptInstall()` opens the browser's own
-//                  dialog, which is the only thing that can install anything;
-//                  no page can do it directly.
-//   iOS Safari   — a sentence. WebKit fires no event and exposes no API, and
-//                  every browser on iOS is WebKit, so Chrome on an iPhone
-//                  cannot install this either. Share → Add to Home Screen is
-//                  the whole mechanism, and it is invisible until described.
+// WHICH of the five possible answers a given browser needs is decided in
+// lib/installGuidance.ts — Chromium's event, Safari's Share sheet, the same
+// sheet reached through Chrome-on-iOS's own menu, Firefox for Android's ⋮
+// Install, or "you are inside an app's webview and cannot install from here".
+// This file only renders them.
 //
 // It renders NOTHING inside the installed app, and nothing once dismissed. A
 // banner on every screen that cannot be got rid of is an advertisement.
@@ -68,8 +65,9 @@ export default function InstallAppBanner(): React.ReactElement | null {
   if (hidden) return null;
   if (isStandalone()) return null;
 
-  const ios = isIosDevice();
-  if (!canPrompt && !ios) return null;
+  const { kind } = installGuidance({ canPrompt });
+  if (kind === 'none') return null;
+  const prompting = kind === 'prompt';
 
   return (
     <div
@@ -77,22 +75,16 @@ export default function InstallAppBanner(): React.ReactElement | null {
       aria-label="Install this app"
       className="no-print mb-5 rounded-2xl px-4 py-3 flex items-start gap-3
                  border border-accent-600/25 bg-accent-600/5">
-      {ios && !canPrompt ? IosShareIcon : InstallIcon}
+      {prompting ? InstallIcon : IosShareIcon}
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-bold text-navy-800">Install Gate Pass on this phone</p>
-        {ios && !canPrompt ? (
-          <p className="text-sm text-navy-600 mt-0.5">
-            Tap <span className="font-semibold">Share</span> at the bottom of Safari, then{' '}
-            <span className="font-semibold">Add to Home Screen</span>. It opens full screen,
-            without the address bar.
-          </p>
-        ) : (
-          <p className="text-sm text-navy-600 mt-0.5">
-            Opens full screen from your home screen, without the address bar.
-          </p>
-        )}
+        <p className="text-sm font-bold text-navy-800">Install Gate Pass</p>
+        <p className="text-sm text-navy-600 mt-0.5">
+          {prompting
+            ? 'Opens full screen from your home screen, without the address bar.'
+            : manualInstallHint()}
+        </p>
         <div className="mt-2.5 flex items-center gap-2">
-          {canPrompt && (
+          {prompting && (
             <button type="button" className="btn-primary !px-4 !py-2" onClick={() => { void install(); }}>
               Install app
             </button>

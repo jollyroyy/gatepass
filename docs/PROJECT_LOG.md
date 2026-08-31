@@ -6,6 +6,36 @@ For current rules and architecture, see CLAUDE.md.
 
 ## Current state (session-by-session history)
 
+## 2026-08-31 (same day, follow-up) — every mobile browser, and the sign-in screen
+
+**Client, twice.** "Make sure it's followed across all mobile browsers." Then: "Still unable to
+see the install button — I had this installed earlier, but after uninstallation it's still not
+showing while loading the gatepass vercel page in Chrome on my Android phone."
+
+**The deploy was fine.** `curl` on the live bundle (`/assets/index-CHWzaMAN.js`) found
+`beforeinstallprompt` in it, so the earlier commit had shipped. Two real holes behind the report:
+
+1. **The banner rendered only inside `AppShell` — behind the login.** A phone opening the URL
+   lands on `/login` and saw nothing. Fixed with `src/components/InstallHint.tsx`, a quiet
+   disclosure under the sign-in form. **Literal colours, no `navy-*`/`surface-*`** — the login
+   photograph is a fixed-context surface and the neutral ramp inverts under `.dark`.
+2. **Chrome can refuse to fire the event for an origin it has installed before**, uninstall or
+   no uninstall. So the hint is UNCONDITIONAL: `manualInstallHint()` always names a gesture that
+   works (⋮ → Install app), and the real button is the bonus when the event does turn up. The
+   in-app banner stays conservative — silent on an eventless Chromium, because volunteering
+   "install this" to somebody who already has it installed is worse than saying nothing.
+
+**`src/lib/installGuidance.ts` — five answers, not two.** `beforeinstallprompt` is a Chromium
+extension, not a standard: Chrome/Edge/Opera/Samsung on Android fire it; **Firefox for Android
+never does** and installs from its ⋮ menu; Chrome/Firefox/Edge on iOS are WebKit underneath, so
+they need the Share sheet reached through *their own* menu and must NOT be told about "the bar
+at the bottom of Safari"; Facebook/Instagram/WhatsApp/Android-WebView shells cannot install at
+all and are told to open a real browser. **The in-app test runs BEFORE the iOS test** — Facebook's
+iOS UA says iPhone. A live event outranks every sniff. `tests/unit/installGuidance.test.ts` pins
+19 real user-agent strings.
+
+**Still unverified on hardware** — the Chromium branch is driven by a synthetic event in jsdom.
+
 ## 2026-08-31 (later still) — the phone finally offers to install the app
 
 **Symptom (client).** "We don't see the PWA app install button in phone."

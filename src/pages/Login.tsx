@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { safeErrorMessage } from '../lib/errors';
 import AuthField from '../components/AuthField';
 import { QuestLockup } from '../components/QuestMark';
+import InstallHint from '../components/InstallHint';
 
 /**
  * Password reset is administrator-assisted, not self-service (user's call,
@@ -269,6 +270,10 @@ export default function Login(): React.ReactElement {
           </svg>
           Accounts are provisioned by an administrator.
         </p>
+
+        {/* The install route lives HERE and not only inside the app: a phone
+            lands on this screen, and the AppShell banner is behind the login. */}
+        <InstallHint />
       </div>
     </div>
   );
