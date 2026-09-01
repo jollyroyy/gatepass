@@ -6,6 +6,8 @@ import type { UserRole } from './types/index';
 import { homeFor, isForbidden } from './lib/roleRoutes';
 import { isResumableTarget, loginPathFor, nextAfterLogin, pathnameOf } from './lib/postLoginRedirect';
 import { fetchMyApprovalOffices, primaryOffice } from './lib/approverAccess';
+import { fetchMyRaisingGrant } from './lib/usePassRaisers';
+import type { RaisingGrant } from './lib/passRaising';
 import type { ApprovalRoleKey } from './lib/approvalLadder';
 import { fetchAccessState } from './lib/profiles';
 import { ThemeProvider } from './lib/theme';
@@ -21,6 +23,7 @@ import RaisePass from './pages/HOD/RaisePass';
 import MismatchReview from './pages/HOD/MismatchReview';
 import ExpiredReview from './pages/HOD/ExpiredReview';
 import HodReports from './pages/HOD/HodReports';
+import PassRaisers from './pages/HOD/PassRaisers';
 import GateConsole from './pages/Security/GateConsole';
 import Verify from './pages/Security/Verify';
 import GuardDashboard from './pages/Security/GuardDashboard';
@@ -52,6 +55,7 @@ import ReturnsDueTodayPage from './pages/Shared/ReturnsDueTodayPage';
 function RouteGuard({
   role,
   office,
+  raises,
   children,
 }: {
   role: UserRole | null;
@@ -59,11 +63,15 @@ function RouteGuard({
   // screens no other office does (`/raise`, `/my-passes`), so "does this reader
   // hold an office" is no longer a fine enough question to guard a route with.
   office: ApprovalRoleKey | null;
+  // A THIRD GRANT, and the whole of what such an account may do here (077): an
+  // HOD authorised them to raise passes for one department. Their VMS role is
+  // `staff`, so without this they would be bounced off every path in the app.
+  raises: boolean;
   children: React.ReactNode;
 }): React.ReactElement {
   const { pathname } = useLocation();
-  if (isForbidden(pathname, role, office)) {
-    return <Navigate to={homeFor(role, office)} replace />;
+  if (isForbidden(pathname, role, office, raises)) {
+    return <Navigate to={homeFor(role, office, raises)} replace />;
   }
   return <>{children}</>;
 }
@@ -79,13 +87,18 @@ function RouteGuard({
  *  `isForbidden` still grades the destination on top of that: the parameter is
  *  attacker-supplied, and a wrong-role target must land on this reader's home
  *  rather than on a screen that will bounce. */
-function resumeAfterLogin(search: string, role: UserRole | null, office: ApprovalRoleKey | null): string {
+function resumeAfterLogin(
+  search: string,
+  role: UserRole | null,
+  office: ApprovalRoleKey | null,
+  raises: boolean,
+): string {
   const target = nextAfterLogin(search);
   const path = target ? pathnameOf(target) : null;
-  if (target && path && isResumableTarget(path) && !isForbidden(path, role, office)) {
+  if (target && path && isResumableTarget(path) && !isForbidden(path, role, office, raises)) {
     return target;
   }
-  return homeFor(role, office);
+  return homeFor(role, office, raises);
 }
 
 function FullPageLoader(): React.ReactElement {
@@ -126,6 +139,12 @@ export default function App(): React.ReactElement {
   // decides what may be signed.
   const [offices, setOffices] = useState<ApprovalRoleKey[]>([]);
   const office = primaryOffice(offices);
+  // The raising authority an HOD handed this account (077), or null — read
+  // alongside the role and the office for exactly the same reason they are: it
+  // is a grant carried BESIDE a role, and the account that holds one has a VMS
+  // role with no place in this app at all.
+  const [grant, setGrant] = useState<RaisingGrant | null>(null);
+  const raises = grant !== null;
 
   useEffect(() => {
     let cancelled = false;
@@ -137,12 +156,14 @@ export default function App(): React.ReactElement {
           setMustChangePassword(false);
           setDeactivated(false);
           setOffices([]);
+          setGrant(null);
           setResolving(false);
         }
         return;
       }
       const r = await getUserRole();
       const held = await fetchMyApprovalOffices();
+      const raising = await fetchMyRaisingGrant();
       let mustChange = false;
       let active = true;
       try {
@@ -159,6 +180,7 @@ export default function App(): React.ReactElement {
       if (!cancelled) {
         setRole((r as UserRole | null) ?? null);
         setOffices(held);
+        setGrant(raising);
         setMustChangePassword(mustChange);
         setDeactivated(!active);
         setResolving(false);
@@ -240,8 +262,12 @@ export default function App(): React.ReactElement {
   // `isForbidden` call because it is what an approver's whole account is: their
   // VMS role really is `staff`, and without this line the one screen they exist
   // to use would be unreachable.
+  // `raises` joins the office here for the identical reason (077): an
+  // authorised raiser's VMS role really is `staff`, and without this line the
+  // one screen they exist to use would be unreachable.
   if (
     !office
+    && !raises
     && isForbidden('/dashboard', role)
     && isForbidden('/console', role)
     && isForbidden('/admin', role)
@@ -260,8 +286,15 @@ export default function App(): React.ReactElement {
   }
 
   return (
-    <AppShell session={session} role={role} isApprover={office !== null} office={office} offices={offices}>
-      <RouteGuard role={role} office={office}>
+    <AppShell
+      session={session}
+      role={role}
+      isApprover={office !== null}
+      office={office}
+      offices={offices}
+      raises={raises}
+    >
+      <RouteGuard role={role} office={office} raises={raises}>
         <Routes>
           {/* Signed in and still on `/login`: this is the moment the emailed
               deep link resumes. `isForbidden` still grades the destination —
@@ -271,7 +304,7 @@ export default function App(): React.ReactElement {
             path="/login"
             element={
               <Navigate
-                to={resumeAfterLogin(search, role, office)}
+                to={resumeAfterLogin(search, role, office, raises)}
                 replace
               />
             }
@@ -291,10 +324,19 @@ export default function App(): React.ReactElement {
               same screen with ONE addition, a department selector, because they
               head no department of their own. `RaisePass` decides that from the
               office alone. */}
-          <Route path="/raise" element={<RaisePass office={office} role={role} />} />
+          {/* …and, since 077, the raise form of somebody an HOD authorised: the
+              same screen again, with the department fixed to the one they were
+              given rather than chosen or looked up. */}
+          <Route path="/raise" element={<RaisePass office={office} role={role} grant={grant} />} />
           <Route path="/mismatch/:id" element={<MismatchReview />} />
           <Route path="/expired/:id" element={<ExpiredReview />} />
           <Route path="/reports" element={<HodReports />} />
+          {/* Where an HOD hands the raising of passes to somebody in their own
+              department, and takes it back (077). Their own act — no admin is
+              involved at any point, exactly as with the approvers' Delegation
+              tab, and `create_pass_raiser` is gated on heading a department
+              rather than on `is_admin()`. */}
+          <Route path="/raisers" element={<PassRaisers />} />
 
           {/* Security */}
           <Route path="/guard-dashboard" element={<GuardDashboard />} />
@@ -331,7 +373,15 @@ export default function App(): React.ReactElement {
 
           {/* The four approval offices (046). One screen, and it is the whole
               of what an office holder does here. */}
-          <Route path="/approvals" element={<PendingApprovals office={office} offices={offices} />} />
+          {/* ONE QUEUE SCREEN, TWO KINDS OF READER since 077: the four offices, and
+              an HOD answering for the level-0 rung of a pass raised in their
+              department under an authority they wrote. `role` is what tells the
+              page about the second — it is not an office and cannot arrive
+              through `offices`. */}
+          <Route
+            path="/approvals"
+            element={<PendingApprovals office={office} offices={offices} role={role} />}
+          />
           {/* Delegating that office to a stand-in for a stated period (062).
               The approver's own act — no admin is involved at any point. */}
           <Route path="/delegation" element={<ApprovalDelegation office={office} />} />
@@ -349,7 +399,7 @@ export default function App(): React.ReactElement {
           <Route path="/pass/:id" element={<PassDetail role={role} office={office} offices={offices} />} />
           <Route path="/profile" element={<ProfilePage session={session} role={role} office={office} />} />
 
-          <Route path="*" element={<Navigate to={homeFor(role, office)} replace />} />
+          <Route path="*" element={<Navigate to={homeFor(role, office, raises)} replace />} />
         </Routes>
       </RouteGuard>
     </AppShell>

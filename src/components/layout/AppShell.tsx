@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import type { UserRole } from '../../types';
-import type { ApprovalRoleKey } from '../../lib/approvalLadder';
+import type { ApprovalRoleKey, LadderRungKey } from '../../lib/approvalLadder';
+import { DEPARTMENT_HOD_RUNG } from '../../lib/approvalLadder';
 import Sidebar from './Sidebar';
 import NotificationBell from './NotificationBell';
 import SessionTimeout from '../SessionTimeout';
@@ -23,12 +24,15 @@ type Props = {
   /** Every office this reader may act for — two while a COO/CEO delegation is
    *  live (072). The bell counts what any of them may sign. */
   offices?: ApprovalRoleKey[];
+  /** Does this reader hold an HOD's raising authority (077)? A third grant
+   *  beside the role and the office; the sidebar draws its two tabs from it. */
+  raises?: boolean;
   children: React.ReactNode;
 };
 
 const COLLAPSE_KEY = 'gatepass-sidebar-collapsed';
 
-export default function AppShell({ session, role, isApprover = false, office = null, offices = [], children }: Props): React.ReactElement {
+export default function AppShell({ session, role, isApprover = false, office = null, offices = [], raises = false, children }: Props): React.ReactElement {
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try { return window.localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
   });
@@ -45,12 +49,20 @@ export default function AppShell({ session, role, isApprover = false, office = n
   // own approval notices are driven by `office` and are untouched. An admin is
   // exempt here for the same reason they are there.
   const noticeRole = isApprover && role !== 'admin' && role !== 'super_admin' ? null : role;
+  // THE HOD'S BELL COUNTS THEIR LEVEL-0 RUNG TOO (077). A pass raised by
+  // somebody they authorised waits on their signature exactly as an office's
+  // rung waits on its holder's, and the bell is the only push anybody gets in
+  // this app — so an HOD who never opens the Pending tab would otherwise never
+  // learn that a pass was sitting with them. Any HOD of the department may sign
+  // it, which is why this rides on the ROLE and not on this reader's own
+  // authorisations.
+  const noticeRungs: LadderRungKey[] = role === 'hod' ? [...offices, DEPARTMENT_HOD_RUNG] : offices;
 
   return (
-    <NotificationProvider session={session} role={noticeRole} offices={offices}>
+    <NotificationProvider session={session} role={noticeRole} offices={noticeRungs}>
       <SessionTimeout />
       <div className="min-h-screen bg-surface-50">
-        <Sidebar session={session} role={role} isApprover={isApprover} office={office} collapsed={collapsed} onCollapsedChange={setCollapsed} />
+        <Sidebar session={session} role={role} isApprover={isApprover} office={office} raises={raises} collapsed={collapsed} onCollapsedChange={setCollapsed} />
 
         <div className={`flex flex-col min-h-screen transition-[padding] duration-300 ease-in-out ${collapsed ? 'lg:pl-[84px]' : 'lg:pl-[264px]'}`}>
           {/* THE MOCK-UP'S SKIN IS THE WHOLE APP'S SKIN, ON EVERY TAB, FOR

@@ -25,8 +25,7 @@ import { useEffect } from 'react';
 import { gp } from '../supabaseClient';
 import { fetchAllRows } from './fetchAllRows';
 import type { GatePassView } from '../types';
-import type { ApprovalRoleKey } from './approvalLadder';
-import { APPROVAL_ROLE_TITLES } from './approvalLadder';
+import { rungTitle, type LadderRungKey } from './approvalLadder';
 import { inMyQueue, sortOldestFirst, type PassApproval } from './pendingApprovals';
 import { myStep, withEscalation } from './approvalDecision';
 
@@ -42,8 +41,11 @@ export interface ApprovalNoticeFact {
 /** The words. It names the office, because a person who has just been moved
  *  from one chair to another needs to know which desk is asking, and it says
  *  what to do — this notice is the only push an approver gets in the app. */
-export function approvalNoticeMessage(passNumber: string, office: ApprovalRoleKey): string {
-  return `${passNumber} is waiting for your approval as ${APPROVAL_ROLE_TITLES[office]}. Open it to read the request and approve or reject it.`;
+export function approvalNoticeMessage(passNumber: string, office: LadderRungKey): string {
+  // `rungTitle` and not the four-office map: since 077 an HOD is pushed a
+  // notice about the level-0 rung of a pass raised under their own authority,
+  // and that rung belongs to no office.
+  return `${passNumber} is waiting for your approval as ${rungTitle(office)}. Open it to read the request and approve or reject it.`;
 }
 
 /** Oldest first, exactly as the queue screen orders it: the thing that has
@@ -55,7 +57,7 @@ export function buildApprovalNotices(
    *  delegation is running (072) — and then the notice names the rung it is
    *  actually about, which may be the office being COVERED rather than the
    *  reader's own. Being asked to sign "as COO" is the whole message. */
-  offices: ApprovalRoleKey[],
+  offices: LadderRungKey[],
 ): ApprovalNoticeFact[] {
   const byPass = new Map<string, PassApproval[]>();
   for (const a of approvals) {
@@ -88,7 +90,7 @@ export function buildApprovalNotices(
  *  just arrived. A badge that under-counts is worse than no badge: it is an
  *  assurance that nothing is waiting. */
 export function useApprovalNotices(
-  offices: ApprovalRoleKey[],
+  offices: LadderRungKey[],
   onFact: (fact: ApprovalNoticeFact) => void,
 ): void {
   // A NEW ARRAY EVERY RENDER IS A NEW DEPENDENCY EVERY RENDER, and this effect
@@ -96,7 +98,7 @@ export function useApprovalNotices(
   // so their joined text is a sound identity for them.
   const key = offices.join(',');
   useEffect(() => {
-    const mine = key ? (key.split(',') as ApprovalRoleKey[]) : [];
+    const mine = key ? (key.split(',') as LadderRungKey[]) : [];
     if (mine.length === 0) return undefined;
     let cancelled = false;
 

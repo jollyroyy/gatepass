@@ -25,7 +25,7 @@
 // mine" from "this screen is broken".
 import React, { useEffect, useRef, useState } from 'react';
 import type { GatePassView } from '../../types';
-import { APPROVAL_ROLE_TITLES } from '../../lib/approvalLadder';
+import { rungTitle } from '../../lib/approvalLadder';
 import type { PassApprovalRow } from '../../lib/passApprovalState';
 import { approvePass, rejectPass } from '../../lib/approvalActions';
 import {
@@ -90,7 +90,10 @@ export default function ApprovalDecisionBar({
   // THE OFFICE THE RUNG BELONGS TO, not the one the reader IS. A CEO covering
   // an absent COO signs the COO's row, and the bar says so — `myStep` chose
   // that row by the same rule `gatepass.my_acting_role` (072) uses server-side.
-  const title = APPROVAL_ROLE_TITLES[mine.role_key];
+  // `rungTitle`, not the office map: since 077 the rung an HOD answers for
+  // belongs to no office at all, and indexing the four-office Record with it
+  // printed `undefined` at the one reader who has never seen this bar before.
+  const title = rungTitle(mine.role_key);
   const level = levelLabel(approvals, mine);
 
   if (!canDecideApproval(pass.status, approvals, offices)) {
@@ -106,11 +109,11 @@ export default function ApprovalDecisionBar({
               false the day the window runs out with the COO still silent. */}
           {held && mine.escalates_at
             ? `This pass is routed to you as ${title} (${level}), and it is with the `
-              + `${holder ? APPROVAL_ROLE_TITLES[holder] : 'office beside you'} until `
+              + `${holder ? rungTitle(holder) : 'office beside you'} until `
               + `${new Date(mine.escalates_at).toLocaleString('en-IN')}. `
               + 'You can sign it after that if they have not decided it.'
             : `This pass is routed to you as ${title} (${level}), but it is still with the `
-              + `${holder ? APPROVAL_ROLE_TITLES[holder] : 'office below you'}. `
+              + `${holder ? rungTitle(holder) : 'office below you'}. `
               + 'It reaches you once they have signed.'}
         </p>
       </div>

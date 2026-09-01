@@ -21,6 +21,7 @@
 // a pass.
 import type { GatePassView } from '../types';
 import type { ApprovalRoleKey } from './approvalLadder';
+import type { LadderRungKey } from './ladderRungs';
 import { APPROVAL_LADDER } from './approvalLadder';
 import {
   canDecideApproval,
@@ -38,7 +39,9 @@ import { holdsFallbackOffice, isPassStuck } from './superAdminFallback';
  *  `src/types/index.ts` (out of scope for this screen to add one there). */
 export interface PassApproval {
   gate_pass_id: string;
-  role_key: ApprovalRoleKey;
+  /** The RUNG (077): one of the four offices, or `department_hod` on a pass
+   *  raised by somebody an HOD authorised. */
+  role_key: LadderRungKey;
   level_no: number;
   routed_to: string | null;
   status: 'pending' | 'approved' | 'rejected';

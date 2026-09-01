@@ -1308,7 +1308,13 @@ describe('046 — the approval ladder becomes a workflow, and the gate stops see
       // 072: the caller's OFFICES, and the one of them that may act on this
       // pass. Never `my_approval_role()`, which is identity and dropped the
       // second office of the one person who has two.
-      expect(body, fn).toMatch(/gatepass\.my_approval_roles\(\)/i);
+      // 077 WIDENED THE SET, IT DID NOT REPLACE IT. `my_pass_rungs(pass)` is
+      // `my_approval_roles()` plus the level-0 `department_hod` rung of THIS
+      // pass — a set-returning function over the set-returning one, so the
+      // property this line exists to protect (authority is never resolved
+      // through a scalar that can silently drop a row) holds either way. The
+      // negative assertion below is what actually guards it and is unchanged.
+      expect(body, fn).toMatch(/gatepass\.(my_approval_roles|my_pass_rungs)\(/i);
       expect(body, fn).toMatch(/gatepass\.my_acting_role\(/i);
       expect(body, fn).not.toMatch(/gatepass\.my_approval_role\(\)/i);
       // The caller's level must be the LOWEST still-pending one.
@@ -2209,7 +2215,10 @@ describe('061 — ladder visibility is linear', () => {
     // 072 made it MEMBERSHIP. A person covering the other half of the shared
     // level-3 rung may act for two offices, and `=` against a scalar silently
     // hid the covered one — which is exactly a pass a delegate cannot see.
-    expect(body).toMatch(/a\.role_key in \(select t\.role_key from gatepass\.my_approval_roles\(\)/i);
+    // 077: the set is now `my_pass_rungs(p_pass_id)` — `my_approval_roles()`
+    // plus this pass's own level-0 HOD rung. Still membership, still a set;
+    // the alternation is the widening and not a loosening.
+    expect(body).toMatch(/a\.role_key in \(select t\.role_key from gatepass\.(my_approval_roles\(\)|my_pass_rungs\()/i);
   });
 
   it('stays SECURITY DEFINER with an empty search_path — it is read from a policy', () => {
@@ -2857,7 +2866,9 @@ describe('072 — a delegation moves the rung', () => {
       'gatepass.my_acting_role',
     ]) {
       const body = fnBody(fn);
-      expect(body, fn).toMatch(/gatepass\.my_approval_roles\(\)/i);
+      // `my_pass_rungs(pass)` (077) is the same set with one per-pass member
+      // added — a SETOF over a SETOF. What must never appear is the scalar.
+      expect(body, fn).toMatch(/gatepass\.(my_approval_roles|my_pass_rungs)\(/i);
       expect(body, fn).not.toMatch(/gatepass\.my_approval_role\(\)/i);
     }
   });
@@ -2928,6 +2939,132 @@ describe('072 — a delegation moves the rung', () => {
   });
 
   it('reloads PostgREST, so the new RPC and the new columns reach its cache', () => {
+    expect(bare).toMatch(/notify pgrst, 'reload schema';/i);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+describe('077 — an HOD delegates the raising, and signs what is raised', () => {
+  const migrations = sqlMigrations();
+  const sql = migrations.find((m) => m.name.startsWith('077'))!.sql;
+  const bare = stripSqlComments(sql);
+  const fns = extractFunctions(migrations);
+  const fnBody = (name: string) => fns.filter((f) => f.name === name).slice(-1)[0].body;
+
+  it('grants ONE verb — the raising table carries no policy and no grant', () => {
+    // 062's `approval_delegations` shape. The table says who may raise material
+    // in whose name; the RPCs are the only way in, so there is no query anybody
+    // can send that reaches it.
+    expect(bare).toMatch(/alter table gatepass\.pass_raisers enable row level security;/i);
+    expect(bare).not.toMatch(/create policy[^;]*pass_raisers/i);
+    expect(bare).not.toMatch(/grant\s+(select|insert|update|delete|all)[^;]*gatepass\.pass_raisers/i);
+  });
+
+  it('widens no policy at all — a raiser reads their own pass through 069 and nothing else', () => {
+    expect(bare).not.toMatch(/create policy/i);
+    expect(bare).not.toMatch(/drop policy/i);
+  });
+
+  it('confines a raiser to the ONE department their HOD named, and an HOD to their own', () => {
+    const body = fnBody('gatepass.raise_pass');
+    // 069's arm, still first and still exact.
+    expect(body).toMatch(/p_department_id not in \(select gatepass\.my_department_ids\(\)\)/i);
+    // 077's arm: the departments the caller was authorised for, never a free choice.
+    expect(body).toMatch(/gatepass\.my_raising_departments\(\)/i);
+    expect(body).toMatch(/p_department_id <> all\(v_raiser_depts\)/i);
+    // And 074's tenth argument survives — one function, never two overloads.
+    expect(body).toMatch(/p_pass_number\s+text default null/i);
+  });
+
+  it('writes the HOD rung from the row itself, in the trigger every insert path passes', () => {
+    const body = fnBody('gatepass.snapshot_pass_approvals');
+    expect(body).toMatch(/'department_hod', 0::smallint, r\.hod_id/i);
+    expect(body).toMatch(/r\.raiser_id = new\.raised_by/i);
+    expect(body).toMatch(/r\.department_id = new\.department_id/i);
+    expect(body).toMatch(/gatepass\.delegation_is_live/i);
+    // The four offices are still snapshotted, unchanged.
+    expect(body).toMatch(/from gatepass\.approval_roles r/i);
+  });
+
+  it('keeps the rung at level 0 — the two checks agree, and nothing is renumbered', () => {
+    const checks = extractCheckConstraints(bare);
+    expect(checks.some((c) => /role_key in \('department_hod'/i.test(c))).toBe(true);
+    expect(checks.some((c) => /when 'department_hod' then 0/i.test(c))).toBe(true);
+    // A renumbering would rewrite the level printed against every signature ever
+    // given. There is no update of level_no anywhere in this migration.
+    expect(bare).not.toMatch(/update gatepass\.pass_approvals[\s\S]*?set level_no/i);
+  });
+
+  it('authorises the rung on heading the department, not on being routed the row', () => {
+    const body = fnBody('gatepass.heads_pass_department');
+    expect(body).toMatch(/gatepass\.app_role\(\) = 'hod'/i);
+    expect(body).toMatch(/g\.department_id in \(select gatepass\.my_department_ids\(\)\)/i);
+    expect(body).toMatch(/security definer/i);
+    expect(body).toMatch(/set search_path = ''/i);
+    // Ungranted: it is read from inside other SECURITY DEFINER functions only.
+    expect(bare).toMatch(/revoke all on function gatepass\.heads_pass_department\(uuid\) from public;/i);
+    expect(bare).not.toMatch(/grant execute on function gatepass\.heads_pass_department\(uuid\) to authenticated/i);
+  });
+
+  it('adds the rung to the authority set only when the pass actually carries one', () => {
+    const body = fnBody('gatepass.my_pass_rungs');
+    expect(body).toMatch(/returns setof text/i);
+    expect(body).toMatch(/gatepass\.my_approval_roles\(\)/i);
+    expect(body).toMatch(/gatepass\.heads_pass_department\(p_pass_id\)/i);
+    expect(body).toMatch(/a\.role_key = 'department_hod'/i);
+    expect(bare).toMatch(/revoke all on function gatepass\.my_pass_rungs\(uuid\) from public;/i);
+    expect(bare).not.toMatch(/grant execute on function gatepass\.my_pass_rungs\(uuid\) to authenticated/i);
+  });
+
+  it('refuses the four kinds of person an HOD may not authorise, on the write and not only in the list', () => {
+    const body = fnBody('gatepass.create_pass_raiser');
+    // The client's own rule, and the one exclusion they did not name.
+    expect(body).toMatch(/v_role in \('hod', 'admin', 'super_admin'\)/i);
+    expect(body).toMatch(/v_role = 'guard'/i);
+    // An approver of any kind would be signing a pass they raised.
+    expect(body).toMatch(/from gatepass\.approval_roles r/i);
+    expect(body).toMatch(/from gatepass\.approval_delegations d/i);
+    // Same department, active account, and no overlapping window.
+    expect(body).toMatch(/v_pdept is distinct from v_dept/i);
+    expect(body).toMatch(/gatepass\.is_user_active\(p_raiser_id\)/i);
+    expect(body).toMatch(/r\.starts_at < p_ends_at/i);
+    expect(body).toMatch(/r\.ends_at\s+> p_starts_at/i);
+  });
+
+  it('lists only candidates the write would accept — a dropdown is not a control', () => {
+    const body = fnBody('gatepass.list_raiser_candidates');
+    expect(body).toMatch(/p\.department_id in \(select gatepass\.my_department_ids\(\)\)/i);
+    expect(body).toMatch(/p\.role::text not in \('hod', 'admin', 'super_admin', 'guard'\)/i);
+    expect(body).toMatch(/gatepass\.is_user_active\(p\.id\)/i);
+    expect(body).toMatch(/from gatepass\.approval_roles r where r\.user_id = p\.id/i);
+    expect(body).toMatch(/p\.id <> auth\.uid\(\)/i);
+  });
+
+  it('revokes rather than deletes, and only the HOD who wrote it may', () => {
+    const body = fnBody('gatepass.revoke_pass_raiser');
+    expect(body).toMatch(/v_hod <> auth\.uid\(\)/i);
+    expect(body).toMatch(/set revoked_at = now\(\)/i);
+    expect(bare).not.toMatch(/delete from gatepass\.pass_raisers/i);
+  });
+
+  it('every new function is SECURITY DEFINER with a pinned search_path', () => {
+    for (const fn of [
+      'gatepass.my_raising_departments',
+      'gatepass.my_raising_grant',
+      'gatepass.heads_pass_department',
+      'gatepass.my_pass_rungs',
+      'gatepass.create_pass_raiser',
+      'gatepass.revoke_pass_raiser',
+      'gatepass.list_raiser_candidates',
+      'gatepass.list_my_pass_raisers',
+    ]) {
+      const body = fnBody(fn);
+      expect(body, fn).toMatch(/security definer/i);
+      expect(body, fn).toMatch(/set search_path = ''/i);
+    }
+  });
+
+  it('reloads PostgREST, so the new RPCs reach its cache', () => {
     expect(bare).toMatch(/notify pgrst, 'reload schema';/i);
   });
 });

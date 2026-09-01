@@ -307,15 +307,32 @@ describe('A pass held up by an earlier office', () => {
   });
 });
 
-describe('No approval office', () => {
+describe('Nothing to approve', () => {
+  // THE WORDING BROADENED WITH MIGRATION 077, and so did the condition. This
+  // page is no longer the four offices' alone: an HOD reaches it with no office
+  // at all, to sign the level-0 rung of a pass raised in their department by
+  // somebody they authorised. So the empty state is about having no RUNG rather
+  // than no OFFICE, and an account with neither is told so in those words.
   it('renders the empty state and fires no query', async () => {
     render(
       <MemoryRouter>
         <PendingApprovals office={null} />
       </MemoryRouter>,
     );
-    expect(await screen.findByText('This account does not hold an approval office.')).toBeInTheDocument();
+    expect(await screen.findByText('This account has nothing to approve.')).toBeInTheDocument();
     expect(screen.queryByText('RGP-00057')).not.toBeInTheDocument();
+  });
+
+  // An HOD holds no office and still has a queue: `department_hod` is a rung of
+  // the pass, not a seat, so the page must not draw the empty state for them.
+  it('does not show it to an HOD, who answers for the level-0 rung', async () => {
+    render(
+      <MemoryRouter>
+        <PendingApprovals office={null} role="hod" />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText(/Signing as Department HOD/)).toBeInTheDocument();
+    expect(screen.queryByText('This account has nothing to approve.')).not.toBeInTheDocument();
   });
 });
 

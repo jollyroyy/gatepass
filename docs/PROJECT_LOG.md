@@ -6,7 +6,88 @@ For current rules and architecture, see CLAUDE.md.
 
 ## Current state (session-by-session history)
 
-## 2026-08-31 (latest) — a delegation actually moves the rung, COO ↔ CEO included (`072`, APPLIED)
+## 2026-09-01 (latest) — an HOD delegates the RAISING, and signs what is raised (`077`, APPLIED)
+
+Client: *"the HOD of all the departments should be able to delegate the pass creation capabilities in
+his left-hand side panel to the person he has asked. This should not be any of the department heads
+or CEO … it should be from his own department only. Show the names as a dropdown within his
+department under each HOD and whoever he chooses should be able to log in and create passes the way
+the HOD is raising it. In those scenarios those passes should be approved by the HOD as first-level
+approver and the following is routine, followed as usual."*
+
+**Index.** M1 `supabase/migrations/077_the_hod_delegates_the_raising.sql` · F1 `src/lib/passRaising.ts`
+· F2 `src/lib/usePassRaisers.ts` · F3 `src/lib/ladderRungs.ts` · P1 `src/pages/HOD/PassRaisers.tsx`
+
+### Four decisions the client made before anything was written
+
+Asked, with a recommendation each: **(1)** candidates come from accounts that already exist (no new
+admin control — an HOD with nobody eligible in `public.profiles` sees an empty dropdown and the form
+says so); **(2)** the new rung may be signed by **any active HOD of that department**, not only the
+one who wrote the authority (032 lets a department host several, and one of them may be away);
+**(3)** the authority is **time-boxed** like an approval delegation, not open-ended; **(4)** the
+person authorised sees **only the passes they raised** — no department board.
+
+### It is not an approval delegation, and it is not an office
+
+M1 adds `gatepass.pass_raisers` rather than a row in `approval_delegations`. That table grants
+`approve_pass_level`, RLS visibility of a whole rung and — through `my_approval_roles()` — the
+approver's entire set of routes; "raising" written into it would be one row meaning two unrelated
+grants. `pass_raisers` grants exactly one verb, and **M1 creates and drops no policy at all**: a
+raiser reads their own pass through 069's `raised_by = auth.uid()` arm, which already existed.
+
+### The HOD's signature is a real rung, at LEVEL 0
+
+`pass_approvals` gains `role_key = 'department_hod'`, `level_no = 0`, `routed_to` = the HOD who wrote
+the authority, written by the **046 snapshot trigger** (not by `raise_pass`, so no later rewrite can
+drop it). Everything after that signature is the ladder that already exists — `pass_awaits_approval`
+hides the pass from the gate, 061 hides it from the Security Head until level 0 closes,
+`reject_pass_level` cancels it, and `approval_notice_payload`'s `coalesce(…, a.routed_to)` addresses
+the letter with no change to the mail path.
+
+**Level 0 and not a renumbering**, unlike 057 and 063: renumbering would rewrite the level printed
+against every signature ever given, to make room for a rung those passes do not have.
+
+**A RUNG KEY IS NOT AN OFFICE KEY.** F3 splits the two types — `ApprovalRoleKey` stays the four
+seats, `LadderRungKey` is what a `pass_approvals` row can be — so no screen that seats an office can
+offer "Department HOD" as one. Authority is per pass now: `my_pass_rungs(pass)` = 072's
+`my_approval_roles()` ∪ the level-0 rung when `heads_pass_department()`, and `my_acting_role`,
+`pass_routed_to_me`, `approve_pass_level` and `reject_pass_level` all read it. 046/061/072's
+invariants were widened to `(my_approval_roles|my_pass_rungs)\(` **with the negative assertion
+untouched** — never the identity scalar.
+
+### Client surface
+
+P1 (`/raisers`, HOD sidebar) is the dropdown, the window and the revoke — the HOD's own act, no admin
+anywhere, the shape 062 gave the approvers' Delegation tab. `/approvals` becomes an **HOD** route
+too: one queue screen, two kinds of reader, `role === 'hod'` adding `department_hod` to the rungs it
+asks about. The bell counts it as well, so an HOD who never opens the tab still learns. The raiser
+gets `RAISER_ROUTES` — `/raise`, `/my-passes`, `/pass`, `/profile` and nothing else — with the
+department FIXED from `my_raising_grant()`, and `isForbidden`/`homeFor` take a third argument for it.
+An office still replaces everything, grant included.
+
+### `reserve_pass_number` had to move with it
+
+074's guard is a verbatim copy of `raise_pass`'s, so without the same third arm a raiser was refused
+a reservation and the form silently fell back to the `RGP-IT-####` placeholder while the submit
+worked. Section 7 of M1 carries 074's body from the advisory lock down, guard replaced.
+
+### Concurrent sessions
+
+Three Claude sessions in this repo at once; ownership agreed by cross-session message. **M1 was first
+applied to production without 074, which left TWO `raise_pass` overloads** (071's nine-argument and
+this ten-argument one — `create or replace` cannot drop an argument list, and the `drop function(9)`
+lives in 074). Another session reconciled it: drop both, re-run 074 → 075 → 077 in one transaction,
+verified one overload and the grants intact. **M1 must never be applied without 074 ahead of it** —
+its `reserve_pass_number` body references `next_pass_serial` and `pass_number_reservations`, and a
+plpgsql body is text until it runs.
+
+### Still not done
+
+Nothing tells the authorised person their window has opened or closed (no scheduler, as ever). The
+letter's own title map for the new rung lives in `src/lib/notice/noticeTypes.ts`, owned by a
+concurrent session — until it gains `department_hod` the mail prints the raw key.
+
+## 2026-08-31 — a delegation actually moves the rung, COO ↔ CEO included (`072`, APPLIED)
 
 Client: *"whenever any delegation of approval is created in either ceo/coo, it should appropriately
 go to the respective approver. I can see it's still going to coo for approval when he is on absence
@@ -4687,3 +4768,120 @@ Meena Patel → HOD FIN, `head@demo.vms` Abinash Mishra → HOD HS, `questhod@de
 → HOD DEV, `demi@vms.com` Demi → HOD SE. The sidebar name, the profile page and `raised_by_name`
 all read `profiles.full_name`, so one write covers every view — and VMS sees it too. The e2e cast,
 the office holders and the duplicate-department accounts were deliberately left alone.
+
+---
+
+## 2026-09-01 — the whole life of a pass sends email, and it sends it through Brevo
+
+**Client:** *"I want to send the notification automatically to multiple email accounts … I, as an
+HOD, have created one gate pass. I want to be notified that I have created the gate pass. Now it is
+awaiting the approval from the first-level approver … it will be giving the gate pass number and it
+will show the approval/rejection button to him. It should be for all the stakeholders … I want to
+implement it using Brevo."*
+
+Then, on who gets copied: *"put the one who raised the pass in all the communication, but for the
+approval emails the approver should be only notified about their own approval. Once it is approved
+by others and once it is completed, similarly do this for everybody."*
+
+### What already existed, and what did not
+
+The approver's letter, the pass number in it, and the **Approve / Reject buttons** were all built on
+2026-08-20 and needed nothing. What was missing was the rest of the pass's life: the raiser's own
+receipt, a rejection, and both gate outcomes — and the provider.
+
+### Index
+
+**M1** `supabase/functions/_shared/mailer.ts` · **M2** `_shared/mailConfig.ts` · **F1**
+`notify-approval/index.ts` · **N\*** `src/lib/notice/*` · **G1** migration `076` · **V1**
+`src/pages/Security/Verify.tsx`
+
+### Brevo replaces Resend (M1, M2)
+
+`POST https://api.brevo.com/v3/smtp/email`, auth by an **`api-key` header** — not a Bearer token,
+which answers 401 with a message that does not say why. Body is `{sender:{email,name}, to:[…],
+cc:[…], subject, htmlContent, textContent}`; success is `201 {messageId}`, logged as `provider_id`.
+Free tier **300/day, shared with marketing sends** (verified 2026-09-01). `parseSender` splits the
+stored `Name <address>` string, so `mail_settings` and the admin screen stay provider-agnostic —
+M1 remains the one swap point.
+
+- `BREVO_API_KEY`, falling back to `RESEND_API_KEY` so the swap is not a flag day. Delete both once
+  every deployment carries the new secret.
+- **`FALLBACK_FROM` is gone.** Resend granted every account `onboarding@resend.dev`; Brevo grants no
+  such address, so any constant invented here would be refused on every message — a silent outage
+  dressed as a safe default. A missing sender is now a refusal naming both places one can be set.
+- ⚠ **Live data needs a hand edit.** `mail_settings.from_email` still holds `onboarding@resend.dev`
+  (set 2026-08-23). Brevo will refuse every message until an admin changes it in Admin → Settings
+  to a Brevo-verified sender. `override_to` should be cleared the day a domain is authenticated.
+
+### Four new letters, and the copy rule (N\*)
+
+`raised` (to the raiser, copying nobody — the office gets its own letter in the same breath),
+`rejected` (to the raiser, copying the whole ladder, quoting the written reason verbatim),
+`gate_cleared` and `gate_flagged` (to the raiser, copying every office that signed). `awaiting_you`
+now copies the raiser and **no other office** — 046 admits only the lowest pending level, so a
+request to anyone else is a request the database refuses. `ccOf` dedupes by lowercased address,
+which is load-bearing: one person can hold an office and cover another (072). Copies are `cc`,
+never `bcc`. `MAIL_OVERRIDE_TO` **suppresses the copies too**, or a test letter reaches the live COO.
+
+`raisedNotices` reverses the 2026-08-19 instruction ("the HOD who raises the pass should not get any
+email") **for that one moment only**. What it adds over "you already know, you just did it" is the
+pass NUMBER and the OFFICE it routed to — neither of which the raiser can know until the server has
+allocated and routed them. Every other per-step receipt stays removed.
+
+### A live bug the work uncovered
+
+`fullyApprovedNotices` required **every** `pass_approvals` row to be `approved`. 063 writes the
+sibling level-3 row as **`not_required`** the moment the COO signs — so on the majority of real
+passes the ladder ends `approved, not_required`, the test found a rung outstanding that nobody was
+waiting on, and **the "fully approved" receipt has never sent**. Now `approved or not_required`,
+plus "at least one office actually signed", which is 063/072's own
+`status not in ('approved','not_required')` stated the positive way round.
+
+### The gate had no voice (G1, V1, F1)
+
+`Verify.tsx` has always flashed *"the raising department has been notified"* after a flag — true
+only of the in-app bell; **no mail was sent for a flag at all**, on the one outcome that closes a
+pass permanently (070) and forces a new one. V1 now calls `notifyApproval` after `match_pass` and
+`flag_pass`, unawaited, the same contract as every other call site. A guard can still SELECT a
+matched or flagged pass (069's policy: `guard and not pass_awaits_approval`), so F1's caller-side
+RLS check passes.
+
+**G1 adds three keys** to `approval_notice_payload` — `flag_reason`, and `verified_by_name` /
+`verified_at` from a lateral over `verifications` (001 indexes `(gate_pass_id, created_at desc)`;
+`order by created_at desc limit 1` is the gate's last word). F1 reads them defensively, so a
+function deployed ahead of the migration still sends its ladder mail.
+
+> ⚠ **G1 was written twice.** The first version rebuilt the function from **047's** body and
+> silently undid 051/072's three-step address fallback (delegate → current holder → raise-time
+> snapshot) and 055's `emergency` key — whose mere presence is what selects the release letter.
+> `tests/security/` caught all three within a minute. **Copy the CURRENT body of a function that has
+> been redefined six times; never the one in the migration that introduced it.**
+
+### The 567-line file, split (N\*)
+
+`approvalNotice.ts` could **import nothing at all**, because Deno needs a `.ts` suffix on a local
+import and the app's tooling then accepted none — so one file satisfied both by importing neither.
+That rule had pinned every letter into one 567-line module against the 300-line cap.
+`allowImportingTsExtensions` in `tsconfig.app.json` (legal alongside the `noEmit` already set)
+removes the conflict: every module in `src/lib/notice/` imports **with** the suffix, which both
+runtimes resolve. `approvalNotice.ts` is now a re-export barrel, so no caller changed. Eight modules,
+largest 189 lines. The replacement invariant — relative imports only, `.ts` suffix always, no
+packages — is enforced per file by `approvalNotice.test.ts`; its regex is anchored to line-start or
+`}` because a bare `/from\s+['"]/` matches English prose ("…is needed from ' + '…").
+
+`themeAudit`'s exemption list gained folder support (an entry ending `/`) and now exempts
+`src/lib/notice/` — mail HTML takes literal inline colour or none, the same rule `PassPrint` follows.
+
+**Gate:** `approvalNotice` 48/48, `passLifecycleNotices` 24/24 (new), `tests/security` 282/286 — the
+four reds are `applyAllIntegrity` (fixed by `npm run build:sql`, run) and `064`, which belongs to a
+concurrent session's migration `074`, not to this work.
+
+**Concurrent sessions.** Three Claude sessions were editing this repo at once; ownership was agreed
+by cross-session message. This work took `076` because `074`/`075` were claimed. `themeAudit` may
+still show `SendToVendorButton.tsx` and `slipImage.ts` as offenders — another session's files.
+
+### Still not done
+
+No letter when an escalation window elapses (no scheduler), none for a recorded or overdue return,
+no retry queue, and no SMTP transport (052's columns remain provision; Brevo's relay is
+`smtp-relay.brevo.com:587` if it is ever wanted).

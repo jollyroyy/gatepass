@@ -29,6 +29,10 @@ type Props = {
   /** WHICH office, not merely whether one is held: the profile block at the
    *  foot of the sidebar prints its title in place of the VMS role. */
   office?: ApprovalRoleKey | null;
+  /** Does this reader hold an HOD's raising authority (077)? Not a role and not
+   *  an office — a third grant, and the whole of what such an account may do
+   *  here, so it draws the same two tabs the COO and the CEO get. */
+  raises?: boolean;
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
 };
@@ -36,7 +40,7 @@ type Props = {
 
 const COLLAPSE_KEY = 'gatepass-sidebar-collapsed';
 
-export default function Sidebar({ session, role, isApprover = false, office = null, collapsed: collapsedProp, onCollapsedChange }: Props): React.ReactElement {
+export default function Sidebar({ session, role, isApprover = false, office = null, raises = false, collapsed: collapsedProp, onCollapsedChange }: Props): React.ReactElement {
   const loc = useLocation();
   const { theme, toggleTheme } = useTheme();
   const email = session.user.email ?? 'User';
@@ -77,6 +81,11 @@ export default function Sidebar({ session, role, isApprover = false, office = nu
   const links = officeOnly ? [] : roleLinks;
   if (isApprover) links.push(APPROVER_LINK, DELEGATION_LINK);
   if (officeRaises(office)) links.push(OFFICE_RAISE_LINK, OFFICE_PASSES_LINK);
+  // AN AUTHORISED RAISER GETS THOSE SAME TWO AND NOTHING ELSE (077). Their VMS
+  // role is `staff`, so `roleLinks` is already empty and this is their whole
+  // sidebar; an HOD who somehow held a grant as well keeps their own tabs and
+  // gains nothing here, because `/raise` is one of them already.
+  if (raises && !isApprover && role !== 'hod') links.push(OFFICE_RAISE_LINK, OFFICE_PASSES_LINK);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileName, setProfileName] = useState<string>('');
   const [collapsedInternal, setCollapsedInternal] = useState<boolean>(() => {

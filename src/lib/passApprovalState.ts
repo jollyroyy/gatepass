@@ -6,7 +6,8 @@
 // a database status into something a reader sees, and it is imported by the
 // ladder, by the hook that fetches it and by anything else that needs to say
 // what a level has decided — none of which should restate the mapping.
-import type { ApprovalRoleKey, ApprovalStepState } from './approvalLadder';
+import type { ApprovalStepState } from './approvalLadder';
+import type { LadderRungKey } from './ladderRungs';
 
 /** One row of `gatepass.get_pass_approvals()` — what THIS pass owes, and what
  *  has been decided about it (migration 046). `routed_name` is who held the
@@ -21,7 +22,10 @@ import type { ApprovalRoleKey, ApprovalStepState } from './approvalLadder';
 export type PassApprovalStatus = 'pending' | 'approved' | 'rejected' | 'not_required';
 
 export interface PassApprovalRow {
-  role_key: ApprovalRoleKey;
+  /** WHICH RUNG, not which office (077). A pass raised under an HOD's authority
+   *  carries a `department_hod` row at level 0 that belongs to no seat — see
+   *  `ladderRungs.ts` for why the two types are not the same type. */
+  role_key: LadderRungKey;
   level_no: number;
   status: PassApprovalStatus;
   routed_name: string | null;

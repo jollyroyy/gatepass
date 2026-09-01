@@ -72,7 +72,9 @@ import ApprovalCardActions from '../../components/approver/ApprovalCardActions';
 import ApprovalFilterBar from '../../components/approver/ApprovalFilterBar';
 import ApprovalKpiCards, { type ApprovalCardKey } from '../../components/approver/ApprovalKpiCards';
 import ApproverQuickActions from '../../components/approver/ApproverQuickActions';
-import { APPROVAL_ROLE_TITLES, type ApprovalRoleKey } from '../../lib/approvalLadder';
+import {
+  DEPARTMENT_HOD_RUNG, rungTitle, type ApprovalRoleKey, type LadderRungKey,
+} from '../../lib/approvalLadder';
 import {
   applyApprovalFilters,
   DEFAULT_APPROVAL_FILTERS,
@@ -84,7 +86,7 @@ import {
 } from '../../lib/pendingApprovals';
 import { decidedByMe } from '../../lib/approvalHistory';
 import { pageOf } from '../../lib/scheduledReturns';
-import type { GatePassView } from '../../types';
+import type { GatePassView, UserRole } from '../../types';
 import { usePendingApprovals } from '../../lib/usePendingApprovals';
 import { useEscalationHours } from '../../lib/useEscalationHours';
 import { holdsFallbackOffice } from '../../lib/superAdminFallback';
@@ -94,14 +96,29 @@ import { holdsFallbackOffice } from '../../lib/superAdminFallback';
 const PAGE_SIZE = 10;
 
 export default function PendingApprovals(
-  { office, offices }: { office: ApprovalRoleKey | null; offices?: ApprovalRoleKey[] },
+  { office, offices, role = null }: {
+    office: ApprovalRoleKey | null;
+    offices?: ApprovalRoleKey[];
+    /** THE READER'S VMS ROLE, for one thing (077): an HOD answers for the
+     *  level-0 `department_hod` rung of every pass raised in their department
+     *  under an authority they or a colleague wrote. That rung is not an office
+     *  — this account holds none — so it cannot arrive through `offices`. */
+    role?: UserRole | null;
+  },
 ): React.ReactElement {
   // THE DEFAULT IS THE IDENTITY. A caller that knows only which office the
   // reader IS gets exactly the behaviour it had before 072; `App.tsx`, which
   // asked the database for the whole list, passes the whole list.
-  const mine = useMemo(
-    () => offices ?? (office ? [office] : []),
-    [offices, office],
+  const mine: LadderRungKey[] = useMemo(
+    () => {
+      const held: LadderRungKey[] = offices ?? (office ? [office] : []);
+      // ANY ACTIVE HOD OF THE DEPARTMENT MAY SIGN IT, which is the database's
+      // own rule (`heads_pass_department`, 077) — so this rides on the role and
+      // not on whether this particular HOD wrote the authorisation. The
+      // colleague covering an absence is exactly the reader who needs the queue.
+      return role === 'hod' ? [...held, DEPARTMENT_HOD_RUNG] : held;
+    },
+    [offices, office, role],
   );
   const { passes, approvals, userId, loading, error, reload } = usePendingApprovals(mine);
   const [filters, setFilters] = useState<PendingApprovalFilters>(DEFAULT_APPROVAL_FILTERS);
@@ -182,7 +199,9 @@ export default function PendingApprovals(
     setPage(1);
   }
 
-  if (!office) {
+  // NOTHING TO SIGN AT ALL — no office, and not an HOD. The queue is not
+  // queried: `usePendingApprovals` makes no request for an empty list.
+  if (mine.length === 0) {
     return (
       <div className="gb-board gb-main">
         <GuardPageHeader
@@ -192,7 +211,7 @@ export default function PendingApprovals(
           tone="purple"
           stamp={stamp}
         />
-        <div className="gb-empty">This account does not hold an approval office.</div>
+        <div className="gb-empty">This account has nothing to approve.</div>
       </div>
     );
   }
@@ -201,7 +220,10 @@ export default function PendingApprovals(
     <div className="gb-board gb-main">
       <GuardPageHeader
         title="Pending for My Approval"
-        subtitle={`Signing as ${APPROVAL_ROLE_TITLES[office]}. Approve or reject below, or open a pass to read it in full.`}
+        // "Signing as Department HOD" for an HOD, and the office's own title
+        // for an office holder — `rungTitle` covers both, and two of them when
+        // a delegation leaves one person covering the other half of level 3.
+        subtitle={`Signing as ${mine.map(rungTitle).join(' and ')}. Approve or reject below, or open a pass to read it in full.`}
         glyph="exchange"
         tone="purple"
         stamp={stamp}
@@ -228,7 +250,9 @@ export default function PendingApprovals(
               `RAISING_OFFICES` and renders nothing at all for an office that
               has none, so the Security Head and the Finance HOD see no empty
               card where this one used to be absent. */}
-          <ApproverQuickActions office={office} />
+          {/* An HOD reaches this page with no office at all (077), and has
+              their own sidebar for everything this card offers. */}
+          {office && <ApproverQuickActions office={office} />}
 
           <ApprovalFilterBar filters={filters} departments={departments} onChange={narrow} />
 

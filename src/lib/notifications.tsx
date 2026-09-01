@@ -27,7 +27,7 @@ import type { Session } from '@supabase/supabase-js';
 import { gp, supabase } from '../supabaseClient';
 import { factKey, readDismissed, writeDismissed } from './notificationDismissals';
 import type { GatePassView, UserRole } from '../types';
-import type { ApprovalRoleKey } from './approvalLadder';
+import type { LadderRungKey } from './approvalLadder';
 import { useApprovalNotices } from './approvalNotices';
 
 export type NotificationType =
@@ -141,7 +141,7 @@ type Props = {
   /** Which of the four approval offices this reader holds (046), if any. It is
    *  not a role, so it travels beside one — an office holder's VMS role is
    *  `staff`, and the bell would otherwise have nothing to key on. */
-  offices?: ApprovalRoleKey[];
+  offices?: LadderRungKey[];
   children: React.ReactNode;
 };
 

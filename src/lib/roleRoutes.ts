@@ -58,6 +58,32 @@ export const APPROVER_ROUTES: string[] = ['/approvals', '/delegation', '/whiteli
 export const RAISING_OFFICES: ApprovalRoleKey[] = ['coo', 'ceo'];
 export const RAISING_OFFICE_ROUTES: string[] = ['/raise', '/my-passes'];
 
+/**
+ * THE WHOLE OF WHAT AN HOD'S AUTHORISED RAISER MAY REACH (migration 077;
+ * client, 2026-09-01: "whoever he chooses should be able to log in and create
+ * passes the way the HOD is raising it").
+ *
+ * FOUR PATHS, AND THE SAME PAIR THE COO AND THE CEO GET. `/my-passes` comes
+ * with `/raise` because it has to: this account heads no department, so
+ * `gate_passes_select` admits their own pass only through 069's
+ * `raised_by = auth.uid()` arm and no board of theirs lists it. Without the
+ * register a pass they raised is unreachable the moment they close the
+ * confirmation.
+ *
+ * NOTHING ELSE, and specifically not the HOD's dashboard, reports or returns:
+ * the authority is to RAISE, and RLS gives them no other pass to read anyway.
+ *
+ * THIS IS UX DEFENCE IN DEPTH, as the rest of this module is: `raise_pass`
+ * (077) admits a raiser for the one department their HOD named, whatever this
+ * list says.
+ */
+export const RAISER_ROUTES: string[] = ['/raise', '/my-passes', '/pass', '/profile'];
+
+/** Where somebody whose only access is a raising authority lands. The form, not
+ *  the register: raising is what the account exists for, and on the first day
+ *  the register is empty. */
+export const RAISER_HOME = '/raise';
+
 /** Where an office holder with no other role in this app lands. */
 export const APPROVER_HOME = '/approvals';
 
@@ -107,7 +133,17 @@ export const ROLE_ROUTES: Record<UserRole, string[]> = {
   // `/my-passes` IS GONE (client, 2026-08-23: "remove my passes"). The page,
   // its route and its tab went together — the HOD's register is Reports, and
   // every dashboard figure opens the very rows it counted.
-  hod: ['/dashboard', '/raise', '/overdue', '/reports', '/returns', '/mismatch', '/expired', '/pass', '/profile'],
+  // `/approvals` IS AN HOD'S SCREEN TOO since migration 077. A pass raised by
+  // somebody the HOD authorised carries a level-0 rung addressed to that
+  // department's HODs, and this is the queue it waits in — the same page the
+  // four offices read, because it is the same ladder. It is listed for EVERY
+  // HOD rather than only for one who has authorised somebody: any active HOD of
+  // the department may sign that rung (032 lets a department host several), so
+  // conditioning the route on this reader's own delegations would hide the queue
+  // from exactly the colleague covering for the one who is away.
+  // `/raisers` is where they authorise and revoke — the HOD's own act, no admin
+  // involved, the shape 062 gave the approvers' own Delegation tab.
+  hod: ['/dashboard', '/approvals', '/raise', '/raisers', '/overdue', '/reports', '/returns', '/mismatch', '/expired', '/pass', '/profile'],
   // Admin manages departments, users, and sees everything. THE ORDER OF THIS
   // LIST IS THE ORDER OF THE SIDEBAR (Sidebar.tsx sorts by it), so `/overdue`
   // sits second, straight under the board — client, 2026-08-18: "make the
@@ -172,18 +208,27 @@ export function isForbidden(
   pathname: string,
   role: UserRole | null,
   office: OfficeHeld = false,
+  // Does this reader hold an HOD's raising authority (077)? Like an office it is
+  // not a role — it is an extra grant read alongside one — and like an office it
+  // has to be able to open a screen for an account whose VMS role is `staff`.
+  raises = false,
 ): boolean {
   const isApprover = holdsOffice(office);
-  if (role === null && !isApprover) return false; // still resolving; App renders a loader
+  if (role === null && !isApprover && !raises) return false; // still resolving; App renders a loader
   // The COO's and the CEO's two extra screens ride on BOTH arms: the office
   // replaces a `staff` holder's (empty) routes and adds to an admin's, and in
   // either case raising a pass is something the office grants, not the role.
   const raising = officeRaises(office) ? RAISING_OFFICE_ROUTES : [];
+  // AN OFFICE STILL REPLACES EVERYTHING, raising authority included: the two
+  // cannot be held at once (`create_pass_raiser` refuses an office holder and a
+  // delegate outright), and if the database is ever wrong about that the narrow
+  // answer is the safe one.
   const allowed = officeReplacesRole(role, isApprover)
     ? [...APPROVER_ROUTES, ...raising]
     : [
       ...(role ? ROLE_ROUTES[role] : []),
       ...(isApprover ? [...APPROVER_ROUTES, ...raising] : []),
+      ...(raises ? RAISER_ROUTES : []),
     ];
   if (allowed.length === 0) return true;
   return !allowed.some((r) => pathname === r || pathname.startsWith(`${r}/`));
@@ -193,11 +238,15 @@ export function isForbidden(
  *  their VMS role says (client, 2026-08-22) — it is now the whole of what they
  *  do here, so it is also the only home they can have. An admin keeps their
  *  own board, for the reason `officeReplacesRole` gives. */
-export function homeFor(role: UserRole | null, office: OfficeHeld = false): string {
+export function homeFor(role: UserRole | null, office: OfficeHeld = false, raises = false): string {
   const isApprover = holdsOffice(office);
   if (officeReplacesRole(role, isApprover)) return APPROVER_HOME;
   if (role && ROLE_ROUTES[role].length > 0) return ROLE_HOME[role];
   if (isApprover) return APPROVER_HOME;
+  // A raising authority carried by an account with no role of its own (077) —
+  // the ordinary case, since the candidate list offers only people whose VMS
+  // role has no place in this app. Their home is the form.
+  if (raises) return RAISER_HOME;
   return role ? ROLE_HOME[role] : '/login';
 }
 

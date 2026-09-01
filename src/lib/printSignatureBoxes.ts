@@ -44,7 +44,7 @@
 // one at all because nothing on it is coming back.
 import type { GatePassView, PassType } from '../types';
 import type { ApprovalStep } from './passLadderLegs';
-import { APPROVAL_ROLE_TITLES, type ApprovalRoleKey } from './approvalLadder';
+import { rungTitle } from './approvalLadder';
 
 export type BoxState = 'signed' | 'rejected' | 'not_required' | 'awaiting' | 'blank';
 
@@ -161,7 +161,10 @@ function labelOf(step: ApprovalStep): string {
   if (step.key === 'raised') return step.boxLabel ?? 'Issuing HOD';
   if (step.key === 'gate') return 'Security Verification';
   if (step.office) {
-    return APPROVAL_ROLE_TITLES[step.office as ApprovalRoleKey] ?? step.office;
+    // `rungTitle` and not the four-office map: a pass raised under an HOD's
+    // authority (077) carries a level-0 rung belonging to no office, and its box
+    // is headed "Department HOD" rather than by the raw key.
+    return rungTitle(step.office);
   }
   return step.label;
 }

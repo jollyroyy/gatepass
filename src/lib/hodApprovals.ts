@@ -37,8 +37,8 @@
 //              not name individually.
 //   hod      ← nothing. See below.
 //
-// `hod` STAYS STRUCTURALLY ZERO — the one figure in this module that a real
-// workflow cannot move. The issuing HOD's own approval is granted by the act
+// `hod` WAS STRUCTURALLY ZERO UNTIL MIGRATION 077, and this paragraph used to
+// argue that nothing could ever move it. The issuing HOD's own approval is granted by the act
 // of raising the pass (`buildApprovalSteps` in `approvalLadder.ts` grades the
 // "Raised By" rung `done` with "Approved on raising", unconditionally); there
 // is no HOD row in `pass_approvals` for a designation to wait on and none is
@@ -61,7 +61,7 @@
 //     such pass; the card above it does, on its own "N pending gate review"
 //     line.
 import type { GatePassView } from '../types';
-import type { ApprovalRoleKey } from './approvalLadder';
+import type { LadderRungKey } from './approvalLadder';
 import type { PassApprovalStatus } from './passApprovalState';
 import { actingStep } from './approvalDecision';
 import { isWaitingAtGate } from './gateQueue';
@@ -88,11 +88,17 @@ export const APPROVAL_SLOTS: ApprovalSlot[] = [
 /** The office→slot mapping described in the header. A `Record` over
  *  `ApprovalRoleKey`, so a fifth ladder office added to migration 046's check
  *  constraint is a compile error here rather than a signature nobody counts. */
-export const ROLE_TO_SLOT: Record<ApprovalRoleKey, ApprovalOffice> = {
+export const ROLE_TO_SLOT: Record<LadderRungKey, ApprovalOffice> = {
   security_head: 'security',
   coo: 'other',
   ceo: 'other',
   finance_head: 'finance',
+  // 077 FILLED THE SLOT THAT WAS STRUCTURALLY ZERO. A pass raised by somebody
+  // the HOD authorised waits at level 0 with that department's HODs, so "HOD
+  // Approval" on the client's own strip finally counts something — the mock drew
+  // four slots and this is the fourth one becoming real. Every other pass still
+  // has no such rung and still counts nothing here.
+  department_hod: 'hod',
 };
 
 /** One row of `gatepass.pass_approvals`, narrowed to what this module needs to
@@ -102,7 +108,7 @@ export const ROLE_TO_SLOT: Record<ApprovalRoleKey, ApprovalOffice> = {
  *  copy of the slip order living here. */
 export interface PendingApprovalRow {
   gate_pass_id: string;
-  role_key: ApprovalRoleKey;
+  role_key: LadderRungKey;
   /** The rung's position on the pass's own ladder (063: Security Head 1 ·
    *  Finance HOD 2 · COO and CEO jointly 3). Load-bearing — it is what decides
    *  which single desk a pass is counted against. */

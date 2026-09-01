@@ -12,7 +12,7 @@
 // `approvalLadder.ts` re-exports both types, so no caller has to know this file
 // exists; it is a file-size boundary, not an API one — the same arrangement
 // `passApprovalState.ts` already has.
-import type { GatePassView } from '../types';
+import type { GatePassView, UserRole } from '../types';
 import { formatDateOnly } from './formatDate';
 
 /**
@@ -126,4 +126,25 @@ export function returnStep(pass: GatePassView): ApprovalStep | null {
       ? `Before ${formatDateOnly(pass.expected_return_date)}`
       : 'No return date recorded',
   };
+}
+
+/**
+ * May this reader still record a return on this pass?
+ *
+ * Both halves are the DATABASE's rule, restated so a button that would always
+ * fail is never drawn: `apply_item_returns` refuses anyone who is not security
+ * (`is_security()`), and refuses any pass whose `return_status` is outside
+ * awaiting/partially returned. A returned pass therefore has nothing editable
+ * left on it at all — which is the client's rule too (2026-08-19: "once it is
+ * marked as returned, nothing can be edited anymore").
+ */
+export function canRecordReturns(pass: GatePassView, role: UserRole | null): boolean {
+  if (role !== 'guard') return false;
+  return pass.return_status === 'awaiting_return' || pass.return_status === 'partially_returned';
+}
+
+/** The pass has been fully returned and is closed. Not the same as "has no
+ *  editable action": an NRGP has none either, but it was never awaiting one. */
+export function isReturnClosed(pass: GatePassView): boolean {
+  return pass.return_status === 'returned';
 }

@@ -22,6 +22,7 @@ import { useRaiseDepartments } from './useRaiseDepartments';
 import { createPass } from './raisePassRequest';
 import { officeRaises, homeFor } from '../../lib/roleRoutes';
 import type { ApprovalRoleKey } from '../../lib/approvalLadder';
+import type { RaisingGrant } from '../../lib/passRaising';
 import PassSubmittedModal from './PassSubmittedModal';
 import PassDetailsCards from './PassDetailsCards';
 import MaterialItemsCard from './MaterialItemsCard';
@@ -43,6 +44,12 @@ const STARTING_ITEMS = 2;
  * it" has to mean if the two forms are not to drift.
  */
 interface RaisePassProps {
+  /** THE AUTHORITY AN HOD HANDED THIS ACCOUNT (077), or null. It fixes the
+   *  department — this reader heads none and chooses none — and nothing else on
+   *  the form: everything below the department is the same code path the HOD and
+   *  the COO already use, which is what "exactly as the hod sees it" has to mean
+   *  if the forms are not to drift. */
+  grant?: RaisingGrant | null;
   /** The approval office this reader holds, or null. Only the COO and the CEO
    *  (`officeRaises`) reach this screen without being an HOD, and only they get
    *  the selector. */
@@ -53,7 +60,7 @@ interface RaisePassProps {
   role?: UserRole | null;
 }
 
-export default function RaisePass({ office = null, role = null }: RaisePassProps): React.ReactElement {
+export default function RaisePass({ office = null, role = null, grant = null }: RaisePassProps): React.ReactElement {
   // `/raise` is one screen; the pass TYPE may still arrive in the query string
   // from an older link or bookmark. Read ONCE, as the initial state: the reader
   // may change the type with the selector afterwards, and a `useEffect` that
@@ -83,7 +90,10 @@ export default function RaisePass({ office = null, role = null }: RaisePassProps
   const [supersedeWarning, setSupersedeWarning] = useState<string | null>(null);
   // Does this reader CHOOSE a department, or is theirs captured for them?
   const picksDepartment = officeRaises(office);
-  const { depts, autoSelect, error: deptError } = useRaiseDepartments(picksDepartment);
+  const { depts, autoSelect, error: deptError } = useRaiseDepartments(
+    picksDepartment,
+    grant?.department_id ?? null,
+  );
   // NO FALLBACK FOR A READER WHO PICKS. An HOD's department is selected for
   // them the moment the list loads, so `depts[0]` covers the frame before that
   // lands. A COO or CEO starts with nothing chosen ON PURPOSE — falling back to

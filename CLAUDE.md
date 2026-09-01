@@ -112,6 +112,28 @@ The letter (`approval_notice_payload`) and the "Waiting with" strip (`get_approv
 the ladder and NOT the emergency door: `holds_fallback_office()` (067), `raise_pass` (069) and the
 CEO's whitelist decision (053) still read `approval_roles` alone.
 
+**AN HOD DELEGATES THE RAISING, AND THEN SIGNS IT** (migration `077`; client, 2026-09-01: "the HOD
+… should be able to delegate the pass creation capabilities … to the person he has asked … it should
+be from his own department only"). `gatepass.pass_raisers` is a time-boxed authority an HOD writes
+over one ACTIVE MEMBER OF THEIR OWN DEPARTMENT — never an HOD, an admin, a guard or an approver of
+any kind (`list_raiser_candidates` narrows the dropdown, `create_pass_raiser` refuses the same on the
+write). It grants ONE verb: `raise_pass` admits `my_raising_departments()` for that department alone,
+and **no policy was widened** — the holder reads their own pass through 069's `raised_by` arm and no
+other pass at all. `RAISER_ROUTES` is `/raise`, `/my-passes`, `/pass`, `/profile`; `isForbidden` and
+`homeFor` take a third argument for it, and an OFFICE still replaces everything.
+
+**A RUNG KEY IS NOT AN OFFICE KEY** (`077`). Such a pass carries one more `pass_approvals` row —
+`role_key = 'department_hod'`, `level_no = 0`, written by 046's snapshot trigger, `routed_to` = the
+HOD who wrote the authority — and everything above it is the ordinary ladder. **Level 0, never a
+renumbering**: 057 and 063 could renumber because `level_no` is the order of the signatures still to
+come; here it would rewrite the level against every signature already given. Authority is PER PASS:
+`my_pass_rungs(pass)` = `my_approval_roles()` ∪ the rung when `heads_pass_department()` — any active
+HOD of the department may sign it, because 032 lets a department host several — and
+`my_acting_role`, `pass_routed_to_me` and both decision RPCs read that. On the client
+`ApprovalRoleKey` stays the four SEATS and `LadderRungKey` (`src/lib/ladderRungs.ts`, `RUNG_TITLES`,
+`rungTitle`) is what a pass's ladder row can be; never index the four-office map with a rung.
+`/approvals` is an HOD route now — one queue screen, two kinds of reader.
+
 **An approval office replaces a role's routes, not adds to them** (`officeReplacesRole` in
 `roleRoutes.ts`): an office holder gets `APPROVER_ROUTES` only — "Pending for My Approval" and
 "Delegation" — never their VMS role's screens. Admin/super_admin are exempt (an admin who lost

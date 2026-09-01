@@ -18,6 +18,7 @@
 // `src/lib` follows.
 import type { ApprovalRoleKey } from './approvalLadder';
 import type { PassApprovalStatus } from './passApprovalState';
+import type { LadderRungKey } from './ladderRungs';
 
 /**
  * THE OFFICES A READER MAY ACT FOR — one, several, or none.
@@ -31,18 +32,24 @@ import type { PassApprovalStatus } from './passApprovalState';
  * A bare key is still accepted everywhere a list is, so every caller that has
  * exactly one office reads exactly as it did.
  */
-export type ActingOffices = ApprovalRoleKey | ApprovalRoleKey[] | null | undefined;
+/** Since 077 a RUNG KEY, not only an office key: an HOD answering for the
+ *  level-0 `department_hod` rung of a pass raised under their authority holds no
+ *  office at all, and every rule below is about which row of a pass's ladder is
+ *  this reader's to press — a question that has never been about seats. */
+export type ActingOffices = LadderRungKey | LadderRungKey[] | null | undefined;
 
 /** `ActingOffices` as an array, always. Not exported as a convenience — the
  *  four functions below are the only things that should be asking. */
-function officeList(offices: ActingOffices): ApprovalRoleKey[] {
+function officeList(offices: ActingOffices): LadderRungKey[] {
   if (!offices) return [];
   return Array.isArray(offices) ? offices : [offices];
 }
 
 /** The fields the rule depends on. Anything wider satisfies it. */
 export interface ApprovalStepRow {
-  role_key: ApprovalRoleKey;
+  /** The RUNG (077), which is the office on four of them and the department's
+   *  HOD on the fifth. */
+  role_key: LadderRungKey;
   level_no: number;
   status: PassApprovalStatus;
   /** When this office's own decision was recorded. Read only to work out when a
@@ -210,7 +217,7 @@ export function canDecideApproval<T extends ApprovalStepRow>(
 export function heldByOffice<T extends ApprovalStepRow>(
   rows: T[],
   offices: ActingOffices,
-): ApprovalRoleKey | null {
+): LadderRungKey | null {
   const lowest = lowestPendingLevel(rows);
   if (lowest === null) return null;
   const mine = myStep(rows, offices);

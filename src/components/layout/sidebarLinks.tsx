@@ -29,12 +29,20 @@ export const DELEGATION_LINK: NavLink = {
 };
 
 /** THE TWO TABS THE COO AND THE CEO GET ON TOP OF THOSE (069; client,
- *  2026-08-31: "make sure CEO and COO has the ability to raise pass on behalf
- *  of any department in their logins"). Out of ALL_LINKS for the reason the
- *  other two are — the grant comes from `gatepass.approval_roles`, not from
- *  `profiles.role`, and `NavLink.roles` can only express the latter. Which
- *  offices get them is `RAISING_OFFICES` in roleRoutes.ts and is not restated
- *  here: this file is the label and the icon. */
+ *  2026-08-31), AND THE SAME TWO AN HOD'S AUTHORISED RAISER GETS AS THE WHOLE
+ *  OF THEIR SIDEBAR (077; client, 2026-09-01: "whoever he chooses should be
+ *  able to log in and create passes the way the HOD is raising it"). One pair
+ *  of links for both, because it is one pair of screens: the difference is
+ *  which department the form loads, and `RaisePass` decides that from the grant.
+ *
+ *  Out of ALL_LINKS for the reason the other two are — the grant comes from
+ *  `gatepass.approval_roles` or `gatepass.pass_raisers`, never from
+ *  `profiles.role`, and `NavLink.roles` can only express the latter.
+ *
+ *  (Historical note on the names: they were the COO's and the CEO's first.)
+ *  Which offices get them is `RAISING_OFFICES` in roleRoutes.ts, and what a
+ *  raiser reaches is `RAISER_ROUTES`; neither is restated here, because this
+ *  file is the label and the icon. */
 export const OFFICE_RAISE_LINK: NavLink = {
   to: '/raise', label: 'Raise Gate Pass', roles: [],
   icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>,
@@ -59,6 +67,24 @@ export const ALL_LINKS: NavLink[] = [
   // everything they raised, and each dashboard figure opens the very rows it
   // counted. `/my-passes` is out of ROLE_ROUTES too, so the path is forbidden
   // rather than merely unlinked.
+  {
+    // THE HOD'S OWN APPROVAL QUEUE (077). A pass raised by somebody they
+    // authorised waits at level 0 with the department's HODs, and this is the
+    // page it waits on — the very screen the four offices read, because it is
+    // the same ladder. Drawn for every HOD, not only for one who has authorised
+    // somebody: any active HOD of the department may sign that rung, and the
+    // colleague covering an absence is exactly the reader who would otherwise
+    // have no tab to reach it by.
+    to: '/approvals', label: 'Pending for My Approval', roles: ['hod'],
+    icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75l2.25 2.25 4.5-4.5" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 3.75l7.5 3v5.25c0 4.06-3.1 7.44-7.5 8.25-4.4-.81-7.5-4.19-7.5-8.25V6.75l7.5-3z" /></svg>,
+  },
+  {
+    // Where an HOD hands the raising of passes to somebody in their department
+    // and takes it back (077). Their own act, no admin in it anywhere — the
+    // shape 062 gave the approvers' Delegation tab, one floor down.
+    to: '/raisers', label: 'Pass Raisers', roles: ['hod'],
+    icon: <svg {...ICON_PROPS}><circle cx="9" cy="8" r="3" /><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 19.5a5.25 5.25 0 0110.5 0" /><path strokeLinecap="round" strokeLinejoin="round" d="M17.25 8.25v6m3-3h-6" /></svg>,
+  },
   {
     to: '/guard-dashboard', label: 'Dashboard', roles: ['guard'],
     icon: <svg {...ICON_PROPS}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>,

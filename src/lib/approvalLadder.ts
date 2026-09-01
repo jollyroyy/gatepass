@@ -53,6 +53,12 @@ import {
   GRANDFATHERED_NOTE,
   type PassApprovalRow,
 } from './passApprovalState';
+// APPROVAL_ROLE_TITLES and approverLine now LIVE in `ladderRungs.ts` and are
+// re-exported below, unchanged. They moved because the rung titles are built
+// from them and a module cannot import a value from a module that imports a
+// value from it — every existing importer names them through this file and is
+// untouched.
+import { DEPARTMENT_HOD_RUNG, departmentHodStep, APPROVAL_ROLE_TITLES, approverLine } from './ladderRungs';
 
 /** The four offices between the issuing HOD and the gate. Mirrors the
  *  `approval_roles_key_known` check in migration 043 — a fifth office is a
@@ -83,15 +89,6 @@ export interface ApprovalRoleRow {
   delegated?: boolean | null;
 }
 
-/** The title printed beside the level. "Finance HOD" and not "Finance Head"
- *  because that is the word on the slip, and the two documents must agree. */
-export const APPROVAL_ROLE_TITLES: Record<ApprovalRoleKey, string> = {
-  security_head: 'Security Head',
-  coo: 'COO',
-  ceo: 'CEO',
-  finance_head: 'Finance HOD',
-};
-
 /** Ladder order, and the order the levels are numbered in. An array rather
  *  than the Record's key order, because level numbers depend on it and object
  *  key order is a language detail, not a promise.
@@ -114,13 +111,6 @@ export const APPROVAL_LADDER: { key: ApprovalRoleKey; level: number }[] = [
   { key: 'coo', level: 3 },
   { key: 'ceo', level: 3 },
 ];
-
-/** "COO (Vikram Singh)" — the office first, the person in brackets (client).
- *  The office is the fact that matters on an audit trail; the holder changes.
- *  A vacant office prints its own title alone, never "COO (—)". */
-export function approverLine(title: string, name: string | null | undefined): string {
-  return name && name.trim() ? `${title} (${name.trim()})` : title;
-}
 
 /**
  * "COO (Priya Mehta — delegated by Sudeshna Pal)" — the same bracket, saying in
@@ -150,8 +140,13 @@ export function delegatedLine(
 }
 
 // Re-exported so a reader of the ladder does not have to know either lives next
-// door: both files exist for the file-size cap, not as boundaries.
+// door: these files exist for the file-size cap, not as boundaries.
 export type { PassApprovalRow } from './passApprovalState';
+export {
+  DEPARTMENT_HOD_RUNG, RUNG_TITLES, isDepartmentHodRung, rungTitle,
+  APPROVAL_ROLE_TITLES, approverLine, departmentHodStep,
+} from './ladderRungs';
+export type { LadderRungKey } from './ladderRungs';
 export type { ApprovalStep, ApprovalStepState } from './passLadderLegs';
 
 function byKey(roles: ApprovalRoleRow[]): Map<ApprovalRoleKey, ApprovalRoleRow> {
@@ -203,6 +198,15 @@ export function buildApprovalSteps(
       boxLabel: issuingBoxLabel(raisedBy),
     },
   ];
+
+  // LEVEL 0, AND ONLY WHEN THE PASS CARRIES IT (migration 077). A pass raised
+  // by somebody the HOD authorised owes that HOD's signature BEFORE the Security
+  // Head's, so the rung is drawn directly under "Raised By" and above the four
+  // offices — the order the database numbers them in, and the order the paper
+  // has to carry. It is built next door because it belongs to no office and so
+  // is not part of `APPROVAL_LADDER`; see `ladderRungs.ts`.
+  const hodRung = departmentHodStep(decided.get(DEPARTMENT_HOD_RUNG), pass.department_name);
+  if (hodRung) steps.push(hodRung);
 
   for (const { key, level } of APPROVAL_LADDER) {
     const row = held.get(key);
@@ -290,23 +294,7 @@ export function buildApprovalSteps(
   return steps;
 }
 
-/**
- * May this reader still record a return on this pass?
- *
- * Both halves are the DATABASE's rule, restated so a button that would always
- * fail is never drawn: `apply_item_returns` refuses anyone who is not security
- * (`is_security()`), and refuses any pass whose `return_status` is outside
- * awaiting/partially returned. A returned pass therefore has nothing editable
- * left on it at all — which is the client's rule too (2026-08-19: "once it is
- * marked as returned, nothing can be edited anymore").
- */
-export function canRecordReturns(pass: GatePassView, role: UserRole | null): boolean {
-  if (role !== 'guard') return false;
-  return pass.return_status === 'awaiting_return' || pass.return_status === 'partially_returned';
-}
-
-/** The pass has been fully returned and is closed. Not the same as "has no
- *  editable action": an NRGP has none either, but it was never awaiting one. */
-export function isReturnClosed(pass: GatePassView): boolean {
-  return pass.return_status === 'returned';
-}
+// The two return questions live in `passLadderLegs.ts` with the return leg of
+// the ladder itself, and are re-exported here because every caller names them
+// through this module. They moved for the 300-line cap — see that file.
+export { canRecordReturns, isReturnClosed } from './passLadderLegs';

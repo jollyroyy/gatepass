@@ -39,7 +39,17 @@ export interface RaiseDepartments {
   error: string | null;
 }
 
-export function useRaiseDepartments(picksDepartment: boolean): RaiseDepartments {
+export function useRaiseDepartments(
+  picksDepartment: boolean,
+  // 077: THE ONE DEPARTMENT AN AUTHORISED RAISER MAY RAISE FOR, handed down
+  // from `my_raising_grant()`. A third reader with a third answer, and the
+  // narrowest of the three: not chosen (they head nothing to choose from) and
+  // not looked up in `hod_departments` (they are not an HOD), but named by the
+  // authority itself. The row is still READ from `public.departments`, because
+  // the form needs the CODE for 074's reference number and the grant carries
+  // only the name.
+  fixedDepartmentId: string | null = null,
+): RaiseDepartments {
   const [depts, setDepts] = useState<DeptOption[]>([]);
   const [autoSelect, setAutoSelect] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +58,19 @@ export function useRaiseDepartments(picksDepartment: boolean): RaiseDepartments 
     let cancelled = false;
     async function load() {
       try {
+        if (fixedDepartmentId) {
+          const { data, error: oneErr } = await pub()
+            .from('departments')
+            .select('id, name, code')
+            .eq('id', fixedDepartmentId);
+          if (oneErr) throw oneErr;
+          if (cancelled) return;
+          const list = (data ?? []) as DeptOption[];
+          setDepts(list);
+          if (list.length > 0) setAutoSelect(list[0].id);
+          return;
+        }
+
         if (picksDepartment) {
           const { data, error: allErr } = await pub()
             .from('departments')
@@ -83,7 +106,7 @@ export function useRaiseDepartments(picksDepartment: boolean): RaiseDepartments 
     }
     load();
     return () => { cancelled = true; };
-  }, [picksDepartment]);
+  }, [picksDepartment, fixedDepartmentId]);
 
   return { depts, autoSelect, error };
 }

@@ -11,7 +11,7 @@ describe('HOD sidebar navigation', () => {
   // ("remove ... the tab name from the left-hand side panel"). The page is
   // unchanged and still narrowed to this HOD's own passes; the dashboard's
   // Overdue card is the door to it.
-  it('shows exactly Dashboard and Reports, in that order', () => {
+  it('shows exactly Dashboard, Pending for My Approval, Pass Raisers and Reports, in that order', () => {
     // Raise Gate Pass was a tab until 2026-08-20; the client removed it, and
     // the dashboard's Quick Action tile is now the only way into the form.
     // Reports was ADDED the same day — the HOD's own copy of the admin's
@@ -21,7 +21,14 @@ describe('HOD sidebar navigation', () => {
     // MY PASSES IS GONE (client, 2026-08-23: "remove my passes"). The page,
     // its route and its sidebar tab went together; the HOD's own register is
     // Reports, and the dashboard's figures open the rows they counted.
-    expect(hodLabels).toEqual(['Dashboard', 'Reports']);
+    // TWO TABS ARRIVED WITH MIGRATION 077 (client, 2026-09-01: "the HOD of all
+    // the departments should be able to delegate the pass creation capabilities
+    // in his left-hand side panel"). Pass Raisers is where that delegation is
+    // written and revoked; Pending for My Approval is the queue the passes it
+    // produces wait in, because such a pass carries a level-0 rung addressed to
+    // this department's HODs. Neither is Raise Gate Pass, which is still not a
+    // tab — the dashboard tile is still the only way into the form.
+    expect(hodLabels).toEqual(['Dashboard', 'Pending for My Approval', 'Pass Raisers', 'Reports']);
   });
 
   it('has no nav link anywhere pointing at /my-passes', () => {
