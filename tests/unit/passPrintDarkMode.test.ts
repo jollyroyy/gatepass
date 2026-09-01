@@ -20,7 +20,11 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const CSS = readFileSync(resolve(__dirname, '../../src/index.css'), 'utf8');
-const PRINT_TSX = readFileSync(resolve(__dirname, '../../src/pages/Shared/PassPrint.tsx'), 'utf8');
+// THE SHEET MOVED INTO `PassSlip` on 2026-09-01, when WhatsApp became its
+// second reader (the vendor is sent a photograph of this very component). The
+// rule is about the sheet, so it follows the sheet — `PassPrint.tsx` is now
+// only the Back/Print chrome around it.
+const PRINT_TSX = readFileSync(resolve(__dirname, '../../src/components/print/PassSlip.tsx'), 'utf8');
 
 /** Strip comments so a rule quoted in prose can never satisfy these tests. */
 const RULES = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -43,7 +47,7 @@ describe('the printed slip stays light under the dark theme', () => {
   it('the slip itself still uses literal light colours, not theme tokens', () => {
     expect(PRINT_TSX).toContain('bg-white text-black');
     // Only the sheet is a fixed-light surface — the "pass not found" state
-    // above it is ordinary app chrome and SHOULD follow the theme.
+    // on the page around it is ordinary app chrome and SHOULD follow the theme.
     const sheet = PRINT_TSX.slice(PRINT_TSX.indexOf('className="pass-sheet'));
     // A tokenised ramp inside the sheet would invert with the theme and
     // re-break the slip.

@@ -1,18 +1,24 @@
 // AN HOD CAN FORWARD A PASS TO THE VENDOR ON WHATSAPP (client, 2026-08-22),
-// FROM THE PASS DETAILS PAGE.
+// FROM THE PASS DETAILS PAGE — AND WHAT TRAVELS IS THE PRINTED PASS ITSELF
+// (client, 2026-09-01: "the same exact print pass page should be sent out to
+// the vendor using the WhatsApp as well").
 //
-// Nothing is sent by this app: the button opens `wa.me` with the text prepared
-// and the HOD presses send in their own WhatsApp. So what is testable — and
-// what matters — is the number, the text and who is offered the button:
+// Nothing is sent by this app: the share sheet is opened with the slip and the
+// text prepared and the HOD presses send in their own WhatsApp. So what is
+// testable — and what matters — is the number, the text, the attachment and
+// who is offered the button:
 //
 //   * a vendor with no number gets no button at all ("if it is available");
 //   * a bare 10-digit mobile is given the country code, because `wa.me`
 //     refuses a number without one, and anything too short is refused rather
 //     than guessed at — a wrong number is a stranger's chat;
+//   * the text names the department and every item's make and model, and the
+//     QR code reaches the vendor the only way a chat can carry one — on the
+//     photographed slip;
 //   * the message carries no portal link: a vendor has no account here.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import type { GatePassItemView, GatePassView } from '../../src/types';
 import {
@@ -48,7 +54,7 @@ function pass(over: Partial<GatePassView> = {}): GatePassView {
 function line(over: Record<string, unknown> = {}): GatePassItemView {
   return {
     id: 'i1', gate_pass_id: 'p1', line_no: 1, name: 'Headset',
-    description: 'Sony', serial_no: null, quantity: 8, unit: 'nos',
+    description: 'Sony', make_model: 'Sony WH-1000XM4', serial_no: null, quantity: 8, unit: 'nos',
     returned_qty: 0, returned_at: null, approx_value: 5000,
     expected_return_date: '2026-08-24', outstanding_qty: 8,
     ...over,
@@ -75,6 +81,20 @@ vi.mock('../../src/supabaseClient', () => {
   };
 });
 
+// The capture is `html-to-image`'s job and is not what this spec is about —
+// jsdom paints nothing. What matters is that a PNG named after the pass
+// reaches the share sheet.
+vi.mock('html-to-image', () => ({
+  toPng: () => Promise.resolve('data:image/png;base64,aGVsbG8='),
+}));
+
+const shared: { files?: File[]; text?: string }[] = [];
+Object.defineProperty(navigator, 'canShare', { value: () => true, configurable: true });
+Object.defineProperty(navigator, 'share', {
+  value: (d: { files?: File[]; text?: string }) => { shared.push(d); return Promise.resolve(); },
+  configurable: true,
+});
+
 const { default: PassDetail } = await import('../../src/pages/Shared/PassDetail');
 
 async function renderAs(role: 'guard' | 'hod' | 'admin') {
@@ -91,6 +111,7 @@ async function renderAs(role: 'guard' | 'hod' | 'admin') {
 beforeEach(() => {
   row = pass();
   items = [line()];
+  shared.length = 0;
 });
 
 describe('the vendor number', () => {
@@ -124,7 +145,9 @@ describe('the message', () => {
     expect(text).toContain('Carried by: Ravi Kumar');
     expect(text).toContain('Vehicle: KA01AB1234');
     expect(text).toContain('Purpose: Equipment repair');
-    expect(text).toContain('1. Headset — 8');
+    // MAKE / MODEL RIDES WITH THE NAME (client, 2026-09-01) — "Headset" does
+    // not tell the vendor or the guard which headset is leaving the mall.
+    expect(text).toContain('1. Headset (Sony WH-1000XM4) — 8');
     expect(text).not.toContain('http');
     expect(text).not.toContain('/pass/');
   });
@@ -146,13 +169,22 @@ describe('the message', () => {
 });
 
 describe('the button on the pass record', () => {
-  it('is offered to the HOD, and opens WhatsApp in a new tab', async () => {
+  it('is offered to the HOD, and sends the printed slip with the message', async () => {
     await renderAs('hod');
-    const link = screen.getByTestId('share-whatsapp');
-    expect(link).toHaveAttribute('href', expect.stringContaining('https://wa.me/919876543210?text='));
-    expect(link).toHaveAttribute('target', '_blank');
-    expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
-    expect(link).toHaveTextContent('Send to Vendor');
+    const button = screen.getByTestId('share-whatsapp');
+    expect(button).toHaveTextContent('Send to Vendor');
+
+    await act(async () => { button.click(); });
+
+    // THE ATTACHMENT IS THE PRINT PASS PAGE ITSELF (client, 2026-09-01), which
+    // is why the QR code, the department and every make/model reach the vendor
+    // at all — a chat cannot carry a web page, and the gate scans the code off
+    // the sheet.
+    await waitFor(() => expect(shared).toHaveLength(1));
+    expect(shared[0].files?.[0]?.name).toBe('RGP-20260818-0003.png');
+    expect(shared[0].text).toContain('Department: Engineering (MEP)');
+    expect(shared[0].text).toContain('Sony WH-1000XM4');
+    expect(shared[0].text).toContain('attached');
   });
 
   it('is not drawn when the pass carries no vendor number', async () => {

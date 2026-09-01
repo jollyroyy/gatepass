@@ -18,8 +18,14 @@
 //
 // THE MESSAGE CARRIES WHAT A VENDOR CAN ACT ON and no portal link: they have no
 // account here, and a link every recipient is refused at is an invitation to a
-// support call. Pass number, type, department, purpose, the material lines, and
-// the return date when there is one.
+// support call. Pass number, type, department, purpose, the material lines with
+// their make / model, and the return date when there is one.
+//
+// THE PRINTED SLIP RIDES WITH IT AS A PICTURE (client, 2026-09-01: "the same
+// exact print pass page should be sent out to the vendor using the WhatsApp as
+// well") — see `slipImage.ts` and `vendorShare.ts`. That is where the QR code
+// reaches the vendor: a chat cannot carry a web page, and the gate scans the
+// code off the sheet. This module still owns the TEXT and the NUMBER alone.
 import type { GatePassItemView, GatePassView } from '../types';
 import { parseCompanyInfo } from './companyInfo';
 import { formatDateOnly } from './formatDate';
@@ -50,10 +56,18 @@ export function vendorWhatsappNumber(
   return null;
 }
 
-/** One material line, as it reads in a chat message: "1. Headset — 8 Numbers". */
+/** One material line, as it reads in a chat message:
+ *  "1. Headset (Sony WH-1000XM4) — 8 Numbers".
+ *
+ *  THE MAKE / MODEL / SIZE IS PART OF THE ITEM'S IDENTITY, not a detail
+ *  (client, 2026-09-01) — "Headset" is not enough for the vendor to know which
+ *  headset is leaving the mall, and it is the fact the guard checks the
+ *  material against at the barrier. It rides in brackets beside the name, the
+ *  same way it rides under the name on the printed slip. */
 function itemLine(item: GatePassItemView, index: number): string {
   const qty = quantityCell(item.quantity, item.unit);
-  return `${index + 1}. ${item.name} — ${qty}`;
+  const name = item.make_model ? `${item.name} (${item.make_model})` : item.name;
+  return `${index + 1}. ${name} — ${qty}`;
 }
 
 /**
@@ -66,6 +80,7 @@ function itemLine(item: GatePassItemView, index: number): string {
 export function passShareMessage(
   pass: GatePassView,
   items: GatePassItemView[] = [],
+  opts: { withSlip?: boolean } = {},
 ): string {
   const vendor = parseCompanyInfo(pass.visitor_company);
   const lines: string[] = [
@@ -85,6 +100,14 @@ export function passShareMessage(
   if (items.length > 0) {
     lines.push('', 'Items:', ...items.map(itemLine));
   }
+  // THE SLIP ITSELF IS ATTACHED, and it carries the QR code the gate scans
+  // (client, 2026-09-01). Said out loud because a picture in a chat is easy to
+  // scroll past and because a vendor who arrives without it is turned back at
+  // the barrier — and only when a slip is actually going with the message:
+  // `sendToVendor` may have had nothing to attach.
+  if (opts.withSlip) {
+    lines.push('', 'The gate pass is attached. Show it at the gate — the QR code on it is scanned there.');
+  }
   return lines.join('\n');
 }
 
@@ -102,8 +125,9 @@ export function whatsappHref(number: string, message: string): string {
 export function vendorWhatsappLink(
   pass: GatePassView,
   items: GatePassItemView[] = [],
+  opts: { withSlip?: boolean } = {},
 ): string | null {
   const number = vendorWhatsappNumber(pass);
   if (!number) return null;
-  return whatsappHref(number, passShareMessage(pass, items));
+  return whatsappHref(number, passShareMessage(pass, items, opts));
 }

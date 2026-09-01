@@ -152,7 +152,10 @@ describe('a printed sheet states its heading once', () => {
   });
 
   it('the slip prints one identity — the lockup with no subtitle over one h1', () => {
-    const slip = code('src/pages/Shared/PassPrint.tsx');
+    // `PassSlip` is the sheet itself since 2026-09-01 — `PassPrint` is the
+    // screen around it, and the vendor's WhatsApp copy is a photograph of the
+    // same component.
+    const slip = code('src/components/print/PassSlip.tsx');
     // The lockup's own subtitle is suppressed because the h1 under it already
     // says "…Gate Pass"; the two together were the duplicate heading.
     expect(slip).toMatch(/QuestLockup[^/]*subtitle=\{null\}/);

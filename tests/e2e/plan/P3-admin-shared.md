@@ -225,7 +225,7 @@ tables below.
 | Password field | label "Password", placeholder "••••••••", `id="password"`, `autoComplete="current-password"` | `page.getByLabel('Password')` | `Login.tsx:169-177` |
 | Show/hide toggle | `aria-label="Hide password"` / `"Show password"` (dynamic) | `page.getByRole('button', {name: 'Show password'})` | `Login.tsx:187` |
 | Submit button | "Sign In" (idle), "Signing in…" (busy) | `page.getByRole('button', {name: 'Sign In'})` | `Login.tsx:236-255`, `type="submit"` |
-| Forgot-password sentence | "Forgot your password? Contact the administrator at admin@demo.vms to have it reset." | `page.getByText('Contact the administrator at')` | mailto link, `ADMIN_CONTACT_EMAIL = 'admin@demo.vms'` (`Login.tsx:16`) — **there is no self-service reset flow/button on this screen**, only a `mailto:` anchor |
+| Forgot-password sentence | "Forgot your password? Contact the administrator at admin@demo.quest to have it reset." | `page.getByText('Contact the administrator at')` | mailto link, `ADMIN_CONTACT_EMAIL = 'admin@demo.quest'` (`Login.tsx:16`) — **there is no self-service reset flow/button on this screen**, only a `mailto:` anchor |
 | Error banner | dynamic text from `safeErrorMessage` | `page.getByText(<exact message>)` | see §3 for every possible string |
 | Heading | "Welcome back" / "Sign in" | `page.getByRole('heading', {name: 'Welcome back'})` | literal-color fixed surface, no `dark:` needed here (exempt per CLAUDE.md) |
 | Tagline | "Gate Pass Control" | decorative | `Login.tsx:121` |
@@ -602,7 +602,7 @@ row count equals the number shown on the card BEFORE navigating.
 |---|---|---|---|
 | Root | `data-testid="pass-record"` | `getByTestId('pass-record')` — EXISTING |
 | Emergency banner | `data-testid="emergency-banner"` | `getByTestId('emergency-banner')` — conditional, `released` truthy |
-| Send to Vendor | `data-testid="share-whatsapp"`, `<a href target=_blank rel=noopener noreferrer>` | `getByTestId('share-whatsapp')` — only when `whatsapp` prop truthy (readerRole==='hod') |
+| Send to Vendor | `data-testid="share-whatsapp"`, a `<button>` that photographs `PassSlip` and opens the share sheet | `getByTestId('share-whatsapp')` — only when `canShare` (readerRole==='hod') and the pass carries a vendor number |
 | Print Pass link | "Print Pass" → `/pass/{id}/print` | `getByRole('link',{name:'Print Pass'})` |
 | Clear (stacked context only) | "Clear" (`btn-ghost`) | `getByRole('button',{name:'Clear'})` — not on `/pass/:id` route |
 | Copy pass number | `aria-label="Copy pass number"` / `"Pass number copied"` (toggles for 1.5s) | `getByRole('button',{name:/Copy pass number|Pass number copied/})` |
@@ -827,7 +827,7 @@ text.
 - **P3-13** — Busy state disables the form. Steps: submit, before response resolves. Assertions:
   button text is "Signing in…", `disabled` true.
 - **P3-14** — Forgot-password affordance is a `mailto:` link only, no self-service flow.
-  Assertions: `getByRole('link', {name: 'admin@demo.vms'})` has `href="mailto:admin@demo.vms"`; no
+  Assertions: `getByRole('link', {name: 'admin@demo.quest'})` has `href="mailto:admin@demo.quest"`; no
   "Forgot password?" BUTTON exists anywhere on the page (only the sentence).
 - **P3-15** — Each error-message row in §3 renders verbatim for its trigger (network failure,
   rate limit, unconfirmed email, etc.) — one test per row, mocking the Supabase response.

@@ -92,15 +92,21 @@ describe('PassSubmittedModal — close behaviour', () => {
 // FORWARDING THE PASS THE MOMENT IT IS RAISED (client, 2026-08-22: "the hod,
 // after raising the pass, should have the option to send the pass … have an
 // option to send the pass using WhatsApp to the vendor's WhatsApp number").
+//
+// It is a BUTTON now, not a link (client, 2026-09-01): what goes to the vendor
+// is the printed slip itself, photographed off `PassSlip` and handed to the
+// device's share sheet, because a `wa.me` href cannot carry an attachment and
+// a QR code cannot be typed into a chat. Pressing it is exercised in
+// tests/unit/whatsappShare.test.tsx, where the share sheet is stubbed; here
+// what matters is only that the raising HOD is offered it, and only when the
+// pass carries a vendor number.
 describe('PassSubmittedModal — sending it on', () => {
-  it('offers the vendor WhatsApp link, with the pass in the message', () => {
+  it('offers Send to Vendor on a pass that carries a vendor number', () => {
     renderModal();
-    const link = screen.getByRole('link', { name: 'Send to Vendor' }) as HTMLAnchorElement;
-    // Nothing is sent by this app: the link opens the HOD's own WhatsApp with
-    // the text prepared, and they press send.
-    expect(link.href).toContain('wa.me/919800000000');
-    expect(decodeURIComponent(link.href)).toContain('RGP-OUT-20260810-0007');
-    expect(link.target).toBe('_blank');
+    // Nothing is sent by this app: the share sheet opens with the slip and the
+    // text prepared, and the HOD presses send in their own WhatsApp.
+    const button = screen.getByRole('button', { name: /Send to Vendor/ });
+    expect(button).toBeEnabled();
   });
 
   it('draws no button when the pass carries no vendor number', () => {
@@ -116,7 +122,7 @@ describe('PassSubmittedModal — sending it on', () => {
     );
     // "If it is available" is the client's own condition, and a control that
     // opens an empty chat is worse than no control.
-    expect(screen.queryByRole('link', { name: 'Send to Vendor' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Send to Vendor/ })).toBeNull();
   });
 
   it('offers the printed sheet too — the boxes are what the vendor is sent', () => {

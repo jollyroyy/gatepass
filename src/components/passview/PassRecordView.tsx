@@ -43,7 +43,6 @@ import { withEscalation } from '../../lib/approvalDecision';
 import { usePassEmergencyRelease } from '../../lib/usePassEmergencyRelease';
 import { formatDateTime } from '../../lib/formatDate';
 import { buildReturnTimeline } from '../../lib/returnTimeline';
-import { vendorWhatsappLink } from '../../lib/whatsappShare';
 import { EMPTY_DRAFT, type ReturnDraft } from '../../lib/returnDraft';
 import PassRecordHeader from './PassRecordHeader';
 import PassRecordSummary from './PassRecordSummary';
@@ -128,10 +127,11 @@ export default function PassRecordView({
   // figures the table above is showing while the guard types.
   const returnLines = buildReturnTimeline(items, pass, draft);
   // FORWARD TO THE VENDOR ON WHATSAPP — the raising side only (client,
-  // 2026-08-22), and only when the pass actually carries a usable number.
-  // Null draws nothing: "if it is available" is the client's own condition, and
-  // a button that opens an empty chat is worse than no button.
-  const whatsapp = readerRole === 'hod' ? vendorWhatsappLink(pass, items) : null;
+  // 2026-08-22). Whether the pass carries a usable number is the button's own
+  // question ("if it is available" is the client's condition, and a control
+  // that opens an empty chat is worse than none); this decides only WHO is
+  // offered it.
+  const canShare = readerRole === 'hod';
 
   // The entrance the guard named when they cleared it. Nothing invents one:
   // there is no gate entity in this schema, so an unnamed exit shows no fact.
@@ -142,7 +142,7 @@ export default function PassRecordView({
       <PassRecordHeader
         pass={pass}
         stage={stage}
-        whatsapp={whatsapp}
+        canShare={canShare}
         onClear={onClear}
       />
 
