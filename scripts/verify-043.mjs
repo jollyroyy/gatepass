@@ -20,7 +20,7 @@ const url = process.env.VITE_SUPABASE_URL;
 const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
 if (!url || !anonKey) { console.error('missing env (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)'); process.exit(1); }
 
-const ADMIN = { email: 'admin@demo.vms', password: 'demo123' };
+const ADMIN = { email: 'admin@demo.quest', password: 'demo123' };
 const GUARD = { email: 'guard@demo.vms', password: 'demo123' };
 
 const results = [];

@@ -77,8 +77,8 @@ test.describe('login — happy path and form behaviour', () => {
 
   test('P3-14 forgot-password is a mailto sentence, no self-service button', async ({ page }) => {
     await page.goto('/login');
-    const link = page.getByRole('link', { name: 'admin@demo.vms' });
-    await expect(link).toHaveAttribute('href', 'mailto:admin@demo.vms');
+    const link = page.getByRole('link', { name: 'admin@demo.quest' });
+    await expect(link).toHaveAttribute('href', 'mailto:admin@demo.quest');
     await expect(page.getByRole('button', { name: /forgot password/i })).toHaveCount(0);
   });
 

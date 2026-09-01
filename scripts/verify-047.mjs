@@ -40,7 +40,7 @@ if (!url || !anonKey) {
 
 const PW = 'demo123';
 const HOD = { email: 'hod.it@demo.vms', password: PW };
-const ADMIN = { email: 'admin@demo.vms', password: PW };
+const ADMIN = { email: 'admin@demo.quest', password: PW };
 
 const results = [];
 const record = (name, ok, detail) => {

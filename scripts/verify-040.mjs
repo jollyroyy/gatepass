@@ -18,7 +18,7 @@ const url = process.env.VITE_SUPABASE_URL;
 const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
 if (!url || !anonKey) { console.error('missing env (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)'); process.exit(1); }
 
-const ADMIN_EMAIL = 'admin@demo.vms';
+const ADMIN_EMAIL = 'admin@demo.quest';
 const ADMIN_PASSWORD = 'demo123';
 const LEGACY_STAFF_EMAIL = 'staff@demo.vms'; // read-only: only ever a refused target
 
@@ -122,7 +122,7 @@ async function main() {
       error ? error.message : 'NO ERROR — the admin locked themselves out');
   }
   info('the admin-target refusal is not exercised here',
-    'admin@demo.vms is the only admin, so that branch is unreachable behind the self-check above; ' +
+    'admin@demo.quest is the only admin, so that branch is unreachable behind the self-check above; ' +
     'sqlInvariants pins it statically');
 
   // ── 5. suspend the guard ──────────────────────────────────────────────────

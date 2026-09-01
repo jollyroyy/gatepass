@@ -33,7 +33,7 @@ if (!url || !anonKey) {
 }
 
 const PW = 'demo123';
-const ADMIN = { email: 'admin@demo.vms', password: PW };
+const ADMIN = { email: 'admin@demo.quest', password: PW };
 const GUARD = { email: 'guard@demo.vms', password: PW };
 const HOD = { email: 'hod.it@demo.vms', password: PW };
 // A SECOND HOD, so the ladder can be driven end to end by accounts this probe
@@ -49,7 +49,7 @@ const HOD = { email: 'hod.it@demo.vms', password: PW };
 const OFFICERS = {
   security_head: { email: 'hod.hr@demo.vms', password: PW },
   coo: { email: 'hod.fin@demo.vms', password: PW },
-  ceo: { email: 'admin@demo.vms', password: PW },
+  ceo: { email: 'admin@demo.quest', password: PW },
   finance_head: { email: 'staff.it@demo.vms', password: PW },
 };
 

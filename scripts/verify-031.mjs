@@ -27,7 +27,7 @@ async function main() {
   try {
     guard = await signIn('guard', 'guard@demo.vms');
     hod = await signIn('hod', 'hod.it@demo.vms');
-    admin = await signIn('admin', 'admin@demo.vms');
+    admin = await signIn('admin', 'admin@demo.quest');
   } catch (e) {
     console.error('SETUP FAILED:', e.message);
     process.exit(2);

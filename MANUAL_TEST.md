@@ -26,7 +26,7 @@ real realtime across two windows, real printing, real cameras. The 2026-08-08 DB
 |---|---|
 | HOD (IT) | `hod.it@demo.vms` |
 | Security | `guard@demo.vms` |
-| Admin | `admin@demo.vms` |
+| Admin | `admin@demo.quest` |
 
 Other accounts, same password: `hod.fin`, `hod.hr`, `hod2.fin`, `hod2.hr`, `hod2.it`,
 `staff@`, `staff.fin`, `staff.hr`, `staff.it`, `delegate.it` (all `@demo.vms`), and
@@ -163,7 +163,7 @@ the KPI/drill board; `/console` is the pending queue; `/returns` is the returnab
 
 ---
 
-## Part 4 — Admin (`admin@demo.vms`)
+## Part 4 — Admin (`admin@demo.quest`)
 
 1. Sign in. ✅ You land on **`/admin-dashboard`** — the four-KPI board (Total, Awaiting
    Return, Return Rate, Overdue). These four are deliberately **not** clickable.

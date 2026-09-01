@@ -33,7 +33,7 @@ if (!url || !anonKey || !dbUrl) {
   process.exit(1);
 }
 
-const ADMIN = { email: 'admin@demo.vms', password: 'demo123' };
+const ADMIN = { email: 'admin@demo.quest', password: 'demo123' };
 const PROBE_EMAIL = `verify048-${Date.now()}@example.com`;
 const FIRST_PASSWORD = 'probe-first-pw-1';
 const RESET_PASSWORD = 'probe-reset-pw-2';

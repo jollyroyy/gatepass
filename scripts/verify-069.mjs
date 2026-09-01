@@ -60,7 +60,7 @@ if (!url || !anonKey) {
 }
 
 const PW = 'demo123';
-const ADMIN = { email: 'admin@demo.vms', password: PW };
+const ADMIN = { email: 'admin@demo.quest', password: PW };
 const GUARD = { email: 'guard@demo.vms', password: PW };
 // The raising HOD's own department (IT) is the one the probe office holder
 // asks to raise for instead — proving the widened branch, not the ordinary one.

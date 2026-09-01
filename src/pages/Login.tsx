@@ -14,7 +14,7 @@ import InstallHint from '../components/InstallHint';
  * button that usually fails. The admin triggers the recovery mail instead, and
  * its link still lands on /reset-password (that page stays for exactly this).
  */
-export const ADMIN_CONTACT_EMAIL = 'admin@demo.vms';
+export const ADMIN_CONTACT_EMAIL = 'admin@demo.quest';
 
 const MailIcon = (
   <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>

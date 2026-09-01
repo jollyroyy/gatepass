@@ -62,7 +62,7 @@ if (!url || !anonKey || !serviceKey) {
 }
 
 const PW = 'demo123';
-const ADMIN = { email: 'admin@demo.vms', password: PW };
+const ADMIN = { email: 'admin@demo.quest', password: PW };
 const GUARD = { email: 'guard@demo.vms', password: PW };
 const HOD = { email: 'hod.it@demo.vms', password: PW };
 

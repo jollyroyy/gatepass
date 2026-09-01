@@ -23,7 +23,7 @@ if (!url || !anonKey) {
   process.exit(1);
 }
 
-const ADMIN_EMAIL = 'admin@demo.vms';
+const ADMIN_EMAIL = 'admin@demo.quest';
 const ADMIN_PASSWORD = 'demo123';
 const GUARD_EMAIL = 'guard@demo.vms';
 const GUARD_PASSWORD = 'demo123';
