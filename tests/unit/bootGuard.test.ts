@@ -27,6 +27,8 @@ interface Env {
   listeners: Record<string, ((e: unknown) => void)[]>;
   timers: (() => void)[];
   fetched: { url: string; init?: { cache?: string } }[];
+  unregistered: number;
+  cachesDeleted: string[];
   reloads: number;
   session: Map<string, string>;
   rootChildren: number;
@@ -34,12 +36,28 @@ interface Env {
   runTimers(): void;
 }
 
-function boot(assets: string[], rootChildren = 0): Env {
+function boot(assets: string[], rootChildren = 0, opts: { swSupport?: boolean; cacheSupport?: boolean } = {}): Env {
   const listeners: Env['listeners'] = {};
   const timers: (() => void)[] = [];
   const fetched: Env['fetched'] = [];
   const session = new Map<string, string>();
   const env = { reloads: 0, rootChildren } as { reloads: number; rootChildren: number };
+  const unregistered: { n: number } = { n: 0 };
+  const cachesDeleted: string[] = [];
+
+  // The order the repair must run in is what these two record. Both are
+  // optional in the browser, so both are optional here.
+  const navigatorStub = opts.swSupport === false ? {} : {
+    serviceWorker: {
+      getRegistrations: async () => [
+        { unregister: async () => { unregistered.n += 1; return true; } },
+      ],
+    },
+  };
+  const cachesStub = opts.cacheSupport === false ? undefined : {
+    keys: async () => ['gatepass-shell-v2', 'gatepass-assets-v2'],
+    delete: async (name: string) => { cachesDeleted.push(name); return true; },
+  };
 
   const addEventListener = (name: string, fn: (e: unknown) => void) => {
     (listeners[name] ||= []).push(fn);
@@ -61,14 +79,18 @@ function boot(assets: string[], rootChildren = 0): Env {
 
   // eslint-disable-next-line no-new-func
   new Function(
-    'addEventListener', 'document', 'sessionStorage', 'fetch', 'location', 'setTimeout', SRC,
-  )(addEventListener, document, sessionStorage, fetchFn, location, setTimeout);
+    'addEventListener', 'document', 'sessionStorage', 'fetch', 'location', 'setTimeout',
+    'navigator', 'caches', SRC,
+  )(addEventListener, document, sessionStorage, fetchFn, location, setTimeout,
+    navigatorStub, cachesStub);
 
   return {
     listeners,
     timers,
     fetched,
     session,
+    get unregistered() { return unregistered.n; },
+    cachesDeleted,
     get reloads() { return env.reloads; },
     get rootChildren() { return env.rootChildren; },
     set rootChildren(n: number) { env.rootChildren = n; },
@@ -133,5 +155,36 @@ describe('a bundle that loads but renders nothing', () => {
     await flush();
     expect(env.fetched).toHaveLength(0);
     expect(env.reloads).toBe(0);
+  });
+});
+
+// A REPAIR THAT LEAVES THE OLD WORKER INSTALLED IS NOT A REPAIR. That worker
+// intercepts the repair's own `cache: 'reload'` requests and can answer them
+// out of Cache Storage, so the reload lands on the same blank page — and the
+// once-per-tab guard has already been spent. iOS is where this bites: Safari
+// keeps a home-screen app's worker and caches indefinitely, and there is no
+// per-site cache reset a guard on a shift is going to find.
+describe('the repair clears the worker and the caches first', () => {
+  it('unregisters every service worker and empties every cache, then reloads', async () => {
+    const env = boot([BUNDLE, CSS]);
+    env.fireError(BUNDLE);
+    await flush();
+    await flush();
+
+    expect(env.unregistered).toBe(1);
+    expect(env.cachesDeleted).toEqual(['gatepass-shell-v2', 'gatepass-assets-v2']);
+    expect(env.fetched.map((f) => f.url)).toEqual([BUNDLE, CSS]);
+    expect(env.reloads).toBe(1);
+  });
+
+  it('still re-fetches and reloads where there are no service workers at all', async () => {
+    const env = boot([BUNDLE], 0, { swSupport: false, cacheSupport: false });
+    env.fireError(BUNDLE);
+    await flush();
+    await flush();
+
+    expect(env.unregistered).toBe(0);
+    expect(env.fetched.map((f) => f.url)).toEqual([BUNDLE]);
+    expect(env.reloads).toBe(1);
   });
 });

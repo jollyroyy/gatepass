@@ -58,4 +58,20 @@ describe('vercel.json Content-Security-Policy', () => {
   it('does not weaken img-src to a wildcard', () => {
     expect(directive('img-src')).not.toContain('*');
   });
+
+  // `src/index.css` opens with an `@import` of Google Fonts, which fetches a
+  // stylesheet from fonts.googleapis.com and the faces themselves from
+  // fonts.gstatic.com. `style-src 'self'` blocked the first and the absence of
+  // `font-src` sent the second to `default-src 'self'`, so PRODUCTION rendered
+  // every heading in a fallback serif while localhost — which is sent no CSP at
+  // all — looked correct. Same shape of bug as the avatar one above.
+  it('allows the Google Fonts stylesheet index.css imports', () => {
+    expect(directive('style-src')).toContain('https://fonts.googleapis.com');
+  });
+
+  it('allows the font files that stylesheet points at', () => {
+    // Declared at all: without a font-src the fetch falls back to default-src.
+    expect(directive('font-src')).toContain('https://fonts.gstatic.com');
+    expect(directive('font-src')).toContain("'self'");
+  });
 });

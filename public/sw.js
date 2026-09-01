@@ -24,7 +24,12 @@
  * LAUNCH offline, which is a different and much smaller promise.
  */
 
-const VERSION = 'v2';
+/* Bumped to v3 on 2026-09-01. The number is not decoration: `activate` deletes
+ * every `gatepass-` cache that is not in CURRENT_CACHES, so raising it is the
+ * one lever that makes a phone already holding this app throw its stored shell
+ * and assets away. Any handset carrying a bad entry from the 2026-08-31 deploy
+ * window loses it the moment this worker activates. */
+const VERSION = 'v3';
 const SHELL_CACHE = `gatepass-shell-${VERSION}`;
 const ASSET_CACHE = `gatepass-assets-${VERSION}`;
 const CURRENT_CACHES = [SHELL_CACHE, ASSET_CACHE];

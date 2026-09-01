@@ -20,8 +20,21 @@
  *   an /assets/ resource fails to load   → the bundle is not going to run
  *   #root is still empty after the wait  → it ran and produced nothing
  *
- * The repair re-fetches what the document names with `cache: 'reload'`, which
- * evicts the poisoned entries, then reloads the page.
+ * THE REPAIR IS SCORCHED EARTH, and it has to be. Re-fetching with
+ * `cache: 'reload'` alone is not enough on a browser whose OLD service worker
+ * is still installed: that worker intercepts the repair's own requests and can
+ * answer them out of Cache Storage, so the reload lands on the very same blank
+ * page — and `sessionStorage` has by then spent the one attempt. That is a
+ * PERMANENT blank page, and it is worst on an iPhone, where Safari holds a
+ * home-screen app's worker and caches indefinitely and there is no per-site
+ * "clear cache" a guard on a shift would ever find.
+ *
+ * So the repair, in order: unregister every service worker, delete every Cache
+ * Storage bucket, THEN re-fetch what the document names with `cache: 'reload'`,
+ * then reload. After that reload the page is uncontrolled and reads the network
+ * directly; `sw.js` re-registers itself a moment later from a clean slate.
+ * Everything this app caches is a hashed build artefact, so there is nothing
+ * here that deleting costs anybody.
  *
  * AT MOST ONCE PER TAB. A repair that can fire twice is a reload loop, and a
  * looping tab is worse than the blank page — sessionStorage is what makes the
@@ -58,12 +71,46 @@
     }
     repairing = true;
 
+    demolish().then(refetch).then(function () { location.reload(); });
+  }
+
+  /* Unregister every worker and empty every cache. Each half is optional: a
+   * browser without service workers, or with storage denied in private mode,
+   * still gets the re-fetch below. Nothing here is allowed to reject, because a
+   * rejection would strand the tab on the blank page it is trying to leave. */
+  function demolish() {
+    var jobs = [];
+    try {
+      var sw = typeof navigator !== 'undefined' && navigator.serviceWorker;
+      if (sw && sw.getRegistrations) {
+        jobs.push(sw.getRegistrations().then(function (regs) {
+          var gone = [];
+          for (var i = 0; i < regs.length; i += 1) gone.push(regs[i].unregister());
+          return Promise.all(gone);
+        }).catch(function () { return null; }));
+      }
+    } catch (e) { /* SecurityError on an opaque origin */ }
+    try {
+      if (typeof caches !== 'undefined' && caches.keys) {
+        jobs.push(caches.keys().then(function (names) {
+          var gone = [];
+          for (var i = 0; i < names.length; i += 1) gone.push(caches.delete(names[i]));
+          return Promise.all(gone);
+        }).catch(function () { return null; }));
+      }
+    } catch (e) { /* storage denied */ }
+    return Promise.all(jobs).catch(function () { return null; });
+  }
+
+  /* Past the HTTP cache, which is the entry the deploy-window 404 is pinned in
+   * and the one thing neither an unregister nor a cache delete can reach. */
+  function refetch() {
     var urls = appAssets();
     var pending = [];
     for (var i = 0; i < urls.length; i += 1) {
       pending.push(fetch(urls[i], { cache: 'reload' }).catch(function () { return null; }));
     }
-    Promise.all(pending).then(function () { location.reload(); });
+    return Promise.all(pending);
   }
 
   /* Capture phase: a failed `<script>` or `<link>` fires an error event that
