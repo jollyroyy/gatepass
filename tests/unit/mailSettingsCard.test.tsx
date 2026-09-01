@@ -12,6 +12,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import {
+  senderDomainWarning,
   validateMailSettings,
   explainSendError,
   senderNote,
@@ -55,6 +56,7 @@ beforeEach(() => {
     override_to: 'someone@example.com', from_email: null, from_name: null,
     smtp_host: null, smtp_port: null, smtp_username: null, smtp_security: null,
     smtp_password_set: true, updated_at: '2026-08-20T05:00:00Z', updated_by_name: 'Alice Admin',
+    notify_cc: [],
   };
   rpc = vi.fn((name: string) => thenable({ data: stored, error: null }));
   lastSend = [];
@@ -70,7 +72,12 @@ describe('the approval mail settings card', () => {
     await renderCard();
     const box = screen.getByLabelText(/send all approval mail to/i) as HTMLInputElement;
     expect(box.value).toBe('someone@example.com');
-    expect(screen.getByText(/someone@example\.com/)).toBeInTheDocument();
+    // TWO places name it since 078: `deliveryNote` at the top, and the copy
+    // list's own note, which has to say that the standing copies are suppressed
+    // while everything is redirected here. Both are correct, so this asserts
+    // the sentence that was always the point rather than uniqueness.
+    expect(screen.getByText(/Every approval letter is sent to someone@example\.com/))
+      .toBeInTheDocument();
     expect(box.readOnly).toBe(false);
   });
 
@@ -113,7 +120,7 @@ describe('the approval mail settings card', () => {
   });
 
   // The provider is the only thing that knows whether a changed address can
-  // actually be written to — an unverified Resend account refuses every
+  // actually be written to — an unverified account refuses every
   // address but the one that owns it, and that refusal used to be visible
   // nowhere but `email_log`.
   it('shows the last send attempt, and the provider s refusal verbatim', async () => {
@@ -145,40 +152,67 @@ describe('the approval mail settings card', () => {
 // A gmail.com address was saved as the SENDER and every approval letter since
 // was refused with "The gmail.com domain is not verified". Nothing in the form
 // objected, and the only symptom was an empty inbox. These are the regression.
-describe('the sender address cannot be one nobody is allowed to send from', () => {
+// ═══ REWRITTEN 2026-09-01, WHEN THE PROVIDER CHANGED ═══
+//
+// These cases used to assert that a consumer mailbox as SENDER was a hard
+// validation error that blocked Save. That was right for the previous provider,
+// which answered such a sender with a flat 403 and delivered nothing.
+//
+// Brevo does not refuse it: free webmail domains cannot be authenticated, so it
+// REWRITES the sending domain to a provider-owned one and delivers anyway
+// (verified 2026-09-01 by sending a real message from a gmail.com sender —
+// accepted, 201). Blocking a configuration that demonstrably delivers is the
+// bigger error, so the rule moved from `validateMailSettings` to
+// `senderDomainWarning`: a sentence on the screen, not a locked button.
+//
+// WHAT MUST NOT COME BACK is silence. The rewrite is invisible from inside this
+// app and costs deliverability, so the warning has to name the domain and say
+// what it costs.
+describe('a consumer mailbox as SENDER warns, and no longer blocks', () => {
   const blank: MailSettingsForm = {
     overrideTo: '', fromEmail: '', fromName: '', smtpHost: '',
     smtpPort: '', smtpUsername: '', smtpSecurity: '', smtpPassword: '',
+    notifyCc: [],
   };
 
-  it('refuses a consumer mailbox as the sender, naming the domain', () => {
-    const errors = validateMailSettings({ ...blank, fromEmail: 'jitubhi89@gmail.com' });
-    expect(errors.fromEmail).toBeTruthy();
-    expect(errors.fromEmail).toContain('gmail.com');
+  it('warns about a consumer mailbox, naming the domain and the cost', () => {
+    const warning = senderDomainWarning('jitubhi89@gmail.com');
+    expect(warning).toBeTruthy();
+    expect(warning).toContain('gmail.com');
+    expect(warning).toMatch(/rewritten|rewrite/i);
+    expect(warning).toMatch(/spam|filtered/i);
   });
 
-  it('refuses the other common ones too', () => {
+  it('warns about the other common ones too', () => {
     for (const addr of ['a@outlook.com', 'b@yahoo.com', 'c@hotmail.com', 'd@icloud.com']) {
-      expect(validateMailSettings({ ...blank, fromEmail: addr }).fromEmail).toBeTruthy();
+      expect(senderDomainWarning(addr)).toBeTruthy();
     }
   });
 
-  it('allows a corporate address — this app cannot know which domains are verified', () => {
+  it('does NOT block the save — the mail still gets delivered', () => {
+    expect(validateMailSettings({ ...blank, fromEmail: 'jitubhi89@gmail.com' }).fromEmail)
+      .toBeUndefined();
+  });
+
+  it('says nothing about a corporate address — this app cannot know which domains are authenticated', () => {
+    expect(senderDomainWarning('gatepass@questmall.in')).toBeNull();
     expect(validateMailSettings({ ...blank, fromEmail: 'gatepass@questmall.in' }).fromEmail)
       .toBeUndefined();
   });
 
-  it('allows a blank sender — blank falls back to the provider shared sender', () => {
+  it('says nothing about a blank sender', () => {
+    expect(senderDomainWarning('')).toBeNull();
     expect(validateMailSettings(blank).fromEmail).toBeUndefined();
   });
 
-  it('says "not an address" before "cannot send" for a malformed gmail entry', () => {
+  it('still refuses something that is not an address at all', () => {
     expect(validateMailSettings({ ...blank, fromEmail: 'not-an-address' }).fromEmail)
       .toBe('Enter one email address.');
   });
 
-  // A RECIPIENT may be a gmail address. Only the sender is constrained, and
-  // confusing the two is the whole reason this bug took a day to find.
+  // A RECIPIENT may be a gmail address, and always could be. Only the sender is
+  // constrained, and confusing the two is the whole reason the original bug
+  // took a day to find.
   it('leaves a consumer address alone as the redirect recipient', () => {
     expect(validateMailSettings({ ...blank, overrideTo: 'sohampatra866@gmail.com' }).overrideTo)
       .toBeUndefined();
@@ -197,7 +231,7 @@ describe('explainSendError tells the two 403s apart', () => {
     const msg = explainSendError(
       '403 You can only send testing emails to your own email address.'
     );
-    expect(msg).toContain('resend.com/domains');
+    expect(msg).toMatch(/authenticat/i);
     expect(msg).toContain('sender is fine');
   });
 

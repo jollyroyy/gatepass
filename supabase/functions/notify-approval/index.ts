@@ -42,12 +42,10 @@ import { loadMailConfig } from '../_shared/mailConfig.ts';
 // The `.ts` extension is required by Deno and is why `approvalNotice.ts` is
 // forbidden from importing anything itself — see that file's header, and the
 // test that fails if an import appears in it.
-import {
-  buildApprovalNotices,
-  buildEmergencyNotices,
-  type NoticeApproval,
-  type NoticePass,
-} from '../../../src/lib/approvalNotice.ts';
+import { buildNotices } from '../../../src/lib/notice/noticeDispatch.ts';
+import { ccOf } from '../../../src/lib/notice/noticeLadder.ts';
+import { buildEmergencyNotices } from '../../../src/lib/notice/noticeEmergency.ts';
+import type { NoticeApproval, NoticePass } from '../../../src/lib/notice/noticeTypes.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -133,14 +131,23 @@ Deno.serve(async (req: Request) => {
     purpose: (p.purpose as string | null) ?? null,
     department_name: (p.department_name as string | null) ?? null,
     raised_by_name: (p.raised_by_name as string | null) ?? null,
-    // For the `fully_approved` receipt alone (client, 2026-08-22). Already in
-    // `approval_notice_payload` since 047 — it was simply never read, because
-    // nothing was addressed to the raising HOD.
+    // THE RAISER IS ON EVERY LETTER ABOUT THEIR OWN PASS (client, 2026-09-01),
+    // so this address is now load-bearing on all of them and not just the
+    // `fully_approved` receipt it was added for. It has been in
+    // `approval_notice_payload` since 047.
     raised_by_email: (p.raised_by_email as string | null) ?? null,
     item_count: Number(p.item_count ?? 0),
     total_value: p.total_value == null ? null : Number(p.total_value),
     expected_return_date: (p.expected_return_date as string | null) ?? null,
     created_at: String(p.created_at),
+    // THE GATE'S OWN WORDS, added to the payload by migration 076 for the two
+    // letters that report what security did. Null on every pass the gate has
+    // not decided, and read defensively: a function deployed against a database
+    // that has not yet run 076 must still send its ladder mail, so a missing
+    // key is a missing FACT and never a failed send.
+    flag_reason: (p.flag_reason as string | null) ?? null,
+    verified_by_name: (p.verified_by_name as string | null) ?? null,
+    verified_at: (p.verified_at as string | null) ?? null,
   };
 
   // WHICH LETTER TO WRITE IS DERIVED, NEVER TOLD. The caller sends a pass id
@@ -163,7 +170,7 @@ Deno.serve(async (req: Request) => {
         emergency.reason ?? '',
         baseUrl,
       )
-    : buildApprovalNotices(pass, raw.approvals ?? [], baseUrl);
+    : buildNotices(pass, raw.approvals ?? [], baseUrl);
 
   // Read ONCE per invocation, not per letter: the settings cannot change
   // half way through a send, and a second round trip per message would be a
@@ -176,7 +183,28 @@ Deno.serve(async (req: Request) => {
   // the shape of `buildApprovalNotices` is "every letter this state calls for",
   // and a second kind must not need this function rewritten.
   const results: { to: string; kind: string; ok: boolean }[] = [];
-  for (const m of messages) {
+  for (const raw of messages) {
+    // ═══ THE STANDING COPY LIST IS ADDED HERE, NOT IN THE BUILDERS (078) ═══
+    //
+    // `src/lib/notice/*` decides who is written to FROM THE PASS — the raiser,
+    // the offices on its ladder — and it is pure, testable and knows nothing
+    // about settings. The watch list is a deployment setting, read once per
+    // invocation beside the sender's credentials, and it applies uniformly to
+    // every letter. Threading it through six builders would put a settings
+    // lookup inside the one part of this system that has none.
+    //
+    // `ccOf` again, and it is not redundant: a listed watcher may also be the
+    // raiser or an office holder already copied, and two copies of one letter
+    // in one inbox read as a bug rather than as thoroughness.
+    const m = mailConfig.notifyCc.length
+      ? {
+          ...raw,
+          cc: ccOf(raw.to, [
+            ...(raw.cc ?? []),
+            ...mailConfig.notifyCc.map((email) => ({ email, name: null })),
+          ]),
+        }
+      : raw;
     const sent = await sendMail(m, mailConfig);
     results.push({ to: sent.deliveredTo, kind: m.kind, ok: sent.ok });
 
@@ -187,15 +215,24 @@ Deno.serve(async (req: Request) => {
       gate_pass_id: passId,
       kind: m.kind,
       // WHERE IT WENT, and where it was aimed when those differ. With
-      // MAIL_OVERRIDE_TO set (an unverified Resend account can only write to
-      // one inbox) every letter is delivered to that address, and a log saying
+      // MAIL_OVERRIDE_TO set (a testing valve for a deployment whose sending
+      // domain is not authenticated yet) every letter is delivered to that
+      // address, and a log saying
       // only "sent to the test inbox" could not tell the four offices' mails
       // apart afterwards.
       recipient:
         sent.deliveredTo.toLowerCase() === m.to.toLowerCase()
           ? m.to
           : `${sent.deliveredTo} (redirected from ${m.to})`,
-      subject: m.subject,
+      // WHO ELSE SAW IT. Since 2026-09-01 most letters copy the requester and
+      // the offices that signed, and a log naming only the addressee cannot
+      // answer "was the COO told this pass was stopped?" — which is the whole
+      // question an admin opens this table to settle. Appended to the subject
+      // rather than given a column: `email_log` is an append-only record of
+      // attempts, and a migration to widen it buys nothing a reader needs.
+      subject: m.cc && m.cc.length > 0
+        ? `${m.subject}  [cc: ${m.cc.map((c) => c.email).join(', ')}]`
+        : m.subject,
       ok: sent.ok,
       provider_id: sent.providerId,
       error: sent.error,

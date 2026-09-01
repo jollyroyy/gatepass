@@ -21,6 +21,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { supabase, gp } from '../../supabaseClient';
+import { notifyApproval } from '../../lib/notifyApproval';
 import type { GatePassItemView, GatePassView, PassStatus } from '../../types';
 import { TypeChip } from '../../components/Badge';
 
@@ -139,6 +140,13 @@ export default function Verify(): React.ReactElement {
         p_remarks: remarks || null,
       });
       if (error) throw error;
+      // TELL THE REQUESTER THEIR MATERIAL LEFT, and copy the offices that
+      // signed for it (client, 2026-09-01). AFTER the RPC has committed and
+      // NOT awaited, the same contract every other call site follows: the
+      // guard's screen must move at the speed of the gate, not of a mail
+      // provider, and `notifyApproval` swallows every failure so a letter can
+      // never turn a cleared pass into a red banner.
+      void notifyApproval(pass.id);
       navigate('/console', { state: { flash: `${pass.pass_number} approved — cleared to proceed.` } });
     } catch (err) {
       setActionError(safeErrorMessage(err));
@@ -153,6 +161,14 @@ export default function Verify(): React.ReactElement {
     try {
       const { error } = await gp().rpc('flag_pass', { p_pass_id: pass.id, p_reason: reason });
       if (error) throw error;
+      // ⚠ THE FLASH BELOW HAS ALWAYS SAID "the raising department has been
+      // notified". Until this line existed that was true only of the in-app
+      // bell — no mail was sent for a flag at all, on the one outcome that
+      // closes a pass permanently (070) and forces a new one to be raised.
+      // The letter quotes the guard's written reason verbatim and copies every
+      // office that signed, because it is their signatures the gate has just
+      // contradicted.
+      void notifyApproval(pass.id);
       navigate('/console', { state: { flash: `${pass.pass_number} rejected and cancelled — the raising department has been notified.` } });
     } catch (err) {
       setActionError(safeErrorMessage(err));

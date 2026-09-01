@@ -14,6 +14,7 @@ import { gp } from '../../supabaseClient';
 import { safeErrorMessage } from '../../lib/errors';
 import { formatDateTime } from '../../lib/formatDate';
 import {
+  senderDomainWarning,
   formFromSettings,
   validateMailSettings,
   mailSettingsPayload,
@@ -26,6 +27,7 @@ import {
   type MailSettingsErrors,
 } from '../../lib/mailSettings';
 import SettingField from './SettingField';
+import NotifyCcFields from './NotifyCcFields';
 import LastSendNote, { type SendAttempt } from './LastSendNote';
 
 export default function MailSettingsCard(): React.ReactElement {
@@ -85,11 +87,24 @@ export default function MailSettingsCard(): React.ReactElement {
     })();
   }, []);
 
+  /** The copy list is the one field that is not a string, so it gets its own
+   *  setter rather than widening `set` and losing the type on every caller. */
+  function setNotifyCc(rows: string[]) {
+    setForm((f) => ({ ...f, notifyCc: rows }));
+    setSaved(false);
+  }
+
   function set(field: keyof MailSettingsForm, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
     setSaved(false);
     if (field === 'smtpPassword') setPasswordTouched(true);
   }
+
+  // A WARNING, NOT AN ERROR (2026-09-01). The provider accepts a free-mailbox
+  // sender and rewrites the sending domain rather than refusing it, so this
+  // must not block Save — but it must be visible, because the rewrite is
+  // invisible from inside this app and costs deliverability.
+  const senderWarning = senderDomainWarning(form.fromEmail);
 
   async function handleSave() {
     const found = validateMailSettings(form);
@@ -175,9 +190,17 @@ export default function MailSettingsCard(): React.ReactElement {
           // what "must belong to a verified domain" told anybody on the day it
           // happened. The hint now says what to do instead, and
           // `senderDomainProblem` refuses to save one at all.
-          hint="A domain you have verified with the mail provider — never a Gmail or Outlook address. Leave blank to use the provider's shared sender."
+          hint="A domain you have authenticated with the mail provider. A Gmail or Outlook address still sends, but the provider rewrites the sender and the mail is far more likely to be filtered."
         />
+        {senderWarning && <p className="text-xs text-pending-700 sm:col-span-2">{senderWarning}</p>}
       </div>
+
+      <NotifyCcFields
+        rows={form.notifyCc}
+        onChange={setNotifyCc}
+        errors={errors.notifyCcRows}
+        overrideTo={settings?.override_to ?? null}
+      />
 
       <div className="border-t border-surface-200 dark:border-navy-700 pt-4 space-y-3">
         <div>

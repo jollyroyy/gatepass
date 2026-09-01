@@ -32,6 +32,10 @@ describe('reading the settings back onto a form', () => {
     expect(formFromSettings(null)).toEqual({
       overrideTo: '', fromEmail: '', fromName: '',
       smtpHost: '', smtpPort: '', smtpUsername: '', smtpSecurity: '', smtpPassword: '',
+      // Four blank rows for the standing copy list (078) — the number the
+      // client asked to be able to configure, offered up front so adding one
+      // needs no button.
+      notifyCc: ['', '', '', ''],
     });
   });
 
@@ -103,6 +107,9 @@ describe('the payload sent to set_mail_settings', () => {
       p_override_to: null, p_from_email: null, p_from_name: null,
       p_smtp_host: null, p_smtp_port: null, p_smtp_username: null,
       p_smtp_security: null, p_smtp_password: '',
+      // Blank rows are dropped on the way out, so an untouched form stores an
+      // empty list rather than four empty strings the CHECK would refuse.
+      p_notify_cc: [],
     });
   });
 

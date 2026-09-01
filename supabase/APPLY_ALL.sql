@@ -18142,6 +18142,2350 @@ drop function if exists gatepass.normalize_material(text);
 notify pgrst, 'reload schema';
 
 -- ═══════════════════════════════════════════════════════════
+-- 074_the_reference_number_is_reserved.sql
+-- ═══════════════════════════════════════════════════════════
+-- ============================================================================
+-- 074 — the reference number is REAL while the form is still being filled
+--
+-- Client, 2026-09-01: "make the gate pass reference number visible fully while
+-- they are creating the pass in that page."
+--
+--   before   RGP-IT-####     a shape, with the serial honestly unknown
+--   after    RGP-IT-0042     the number this pass will actually carry
+--
+-- ═══ WHAT THIS COSTS, STATED UP FRONT ═══
+--
+-- A number is now allocated when the FORM OPENS rather than when the pass is
+-- inserted, so a form opened and abandoned burns one and leaves a permanent gap
+-- in that department's series. The client was shown this trade and chose it:
+-- being able to read, write down and quote the reference before submitting is
+-- worth more here than a gapless sequence. `set_pass_number`'s own comment
+-- (064) is now partly overtaken — the serial is no longer "honestly unknown
+-- until the pass exists", it is knowable because we now make it exist first.
+--
+-- TWO THINGS KEEP THE GAPS RARE RATHER THAN ROUTINE:
+--
+--   1. RELEASE. Changing the pass type or the department changes the PREFIX, so
+--      the reserved number no longer belongs to the pass being written. The
+--      client releases it (`release_pass_number`) before taking the next one,
+--      and because the counter is a live `max()` over both tables rather than a
+--      stored cursor, releasing the highest number genuinely hands it back —
+--      the next reservation for that prefix takes it again. Toggling RGP/NRGP
+--      four times therefore burns nothing.
+--   2. EXPIRY. A reservation is good for `RESERVATION_HOURS` (12 — longer than
+--      a shift, shorter than a weekend). `reserve_pass_number` sweeps expired,
+--      unconsumed rows for its own prefix before it counts, so a form left open
+--      overnight returns its number to the pool by itself.
+--
+-- If a reservation HAS expired by the time the form is submitted, nothing
+-- breaks and nothing is refused: the trigger simply falls through and allocates
+-- a fresh number the ordinary way. The confirmation screen renders the number
+-- the RPC returned, never the one the form was holding, so the person is always
+-- shown what the pass really carries.
+--
+-- ═══ THE COUNTER IS ONE RULE OVER TWO TABLES ═══
+--
+-- `set_pass_number` counted `max(serial)` over `gate_passes` alone. It now
+-- takes the greater of that and the same max over `pass_number_reservations`,
+-- under the SAME advisory lock on the SAME prefix string that 064/042/010 used.
+-- Both readers and both writers therefore serialise against each other, and a
+-- reserved-but-unsubmitted number cannot be handed to a second person.
+--
+-- ═══ THE TRIGGER VALIDATES, NOT THE RPC ═══
+--
+-- `raise_pass` passes the client's number straight through to the INSERT and
+-- makes no decision about it. `set_pass_number` — which is BEFORE INSERT and
+-- which nothing can bypass, since no client holds INSERT on `gate_passes`
+-- directly — is what checks that the number was really reserved, by THIS
+-- caller, for THIS type and department, and is unexpired and unconsumed. Only
+-- then is it honoured; otherwise it is discarded and a number is generated.
+--
+-- That placement is the security property. A crafted `p_pass_number` cannot
+-- pre-register a label for a pass nobody held, cannot steal a colleague's
+-- reserved number, and cannot collide with an existing one — the same three
+-- things 001 wrote the trigger to guarantee in the first place.
+--
+-- ═══ TWO-SCHEMA RULE ═══
+--
+-- The new table lives in `gatepass` and references `public.departments` and
+-- `public.profiles` by foreign key only, with no cascade and no DDL of any kind
+-- on VMS's side.
+-- ============================================================================
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 1. The reservations
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- `pass_number` is the primary key because that IS the identity of the thing
+-- being reserved, and a unique constraint on it is what stops the same label
+-- being handed out twice even if the advisory lock were somehow bypassed.
+--
+-- `consumed_at` is kept rather than the row deleted on use: it is the audit
+-- answer to "who reserved the number this pass carries", and it also stops a
+-- released-and-reused number being double-consumed by a retried insert.
+create table if not exists gatepass.pass_number_reservations (
+  pass_number   text primary key,
+  type          gatepass.pass_type not null,
+  department_id uuid not null references public.departments(id),
+  reserved_by   uuid not null references public.profiles(id),
+  reserved_at   timestamptz not null default now(),
+  expires_at    timestamptz not null,
+  consumed_at   timestamptz
+);
+
+comment on table gatepass.pass_number_reservations is
+  'A pass number handed to a raiser while the form is still open (074), so the '
+  'reference can be read in full before submitting. Consumed by '
+  'set_pass_number() on insert; released by release_pass_number() or by expiry. '
+  'An unconsumed, unreleased row that expires leaves a gap in the series — the '
+  'accepted cost of showing a real number up front.';
+
+-- The one index the sweep and the counter both want: every query in this
+-- migration is "the live reservations for this prefix", which is a
+-- (type, department) scan.
+create index if not exists pass_number_reservations_prefix_idx
+  on gatepass.pass_number_reservations (type, department_id)
+  where consumed_at is null;
+
+-- RLS ON, AND DELIBERATELY NO POLICY. Nothing reads this table over PostgREST:
+-- the reserve/release RPCs below are SECURITY DEFINER and return the one string
+-- their caller needs. With RLS enabled and no policy, a direct
+-- `from('pass_number_reservations')` returns nothing to anybody, which is the
+-- correct answer — one person's unsubmitted reference is not another's business,
+-- and the table is a counter, not a record.
+alter table gatepass.pass_number_reservations enable row level security;
+
+-- No grants either. `authenticated` was granted table privileges wholesale on
+-- this schema by 002, so the grant is REVOKED here explicitly rather than
+-- merely not given — a table created after that grant does not inherit it, but
+-- re-toggling Exposed schemas in the dashboard re-runs `grant all` (see 009),
+-- and this revoke is what 009 will need to restate.
+revoke all on gatepass.pass_number_reservations from anon, authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 2. The next serial, defined once, over both tables
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- Callers MUST already hold the advisory lock for this prefix. It is not taken
+-- here because both callers need it held across more than this read — the
+-- reserver holds it through its INSERT, the trigger through the pass's own.
+create or replace function gatepass.next_pass_serial(p_prefix text)
+returns integer
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select greatest(
+    coalesce((
+      select max(substring(g.pass_number from '(\d+)$')::integer)
+        from gatepass.gate_passes g
+       where g.pass_number like p_prefix || '-%'
+    ), 0),
+    -- Reservations count whether or not they were consumed: a consumed one is
+    -- already a pass and would be counted by the arm above anyway, and an
+    -- unconsumed one is precisely the number that must not be handed out twice.
+    coalesce((
+      select max(substring(r.pass_number from '(\d+)$')::integer)
+        from gatepass.pass_number_reservations r
+       where r.pass_number like p_prefix || '-%'
+    ), 0)
+  ) + 1;
+$$;
+
+comment on function gatepass.next_pass_serial(text) is
+  'The next serial for a TYPE-DEPTCODE prefix (074): one more than the highest '
+  'already taken by a raised pass OR an outstanding reservation. The caller '
+  'must already hold the advisory lock for the prefix.';
+
+-- Called only from the trigger and from reserve_pass_number, both of which are
+-- SECURITY DEFINER themselves. No signed-in role needs it, so none gets it —
+-- an unused SECURITY DEFINER function is EXECUTE-able over PostgREST by every
+-- authenticated user, and this project's rule is that it must not be.
+revoke all on function gatepass.next_pass_serial(text) from public;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 3. Reserving one
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- THE GUARD IS `raise_pass`'S OWN, restated rather than referenced, because a
+-- reservation is the first half of raising and must not be obtainable by
+-- somebody who could not go on to submit it. An HOD may reserve for a
+-- department they head; the sitting COO or CEO for any real one (069). Anyone
+-- else is refused in the same words the submit would use.
+create or replace function gatepass.reserve_pass_number(
+  p_type          gatepass.pass_type,
+  p_department_id uuid
+)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_prefix   text;
+  v_number   text;
+  v_office   text;
+  v_any_dept boolean;
+begin
+  v_office   := gatepass.my_fallback_office();
+  v_any_dept := v_office is not null;
+
+  if gatepass.app_role() <> 'hod' and not v_any_dept then
+    raise exception 'Only an HOD, the COO or the CEO can raise a gate pass.';
+  end if;
+
+  if p_department_id is null then
+    raise exception 'A gate pass must name a department.';
+  end if;
+
+  if v_any_dept then
+    if not exists (select 1 from public.departments d where d.id = p_department_id) then
+      raise exception 'That department does not exist.';
+    end if;
+  elsif p_department_id not in (select gatepass.my_department_ids()) then
+    raise exception 'You can only raise a pass for a department you head.';
+  end if;
+
+  v_prefix := p_type::text || '-' || gatepass.dept_code(p_department_id);
+
+  -- The same lock, on the same string, that set_pass_number takes. Held to the
+  -- end of the transaction, so the read and the insert below cannot interleave
+  -- with another reserver or with a pass being raised.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtext('gatepass_pass_number_' || v_prefix)
+  );
+
+  -- SWEEP FIRST, so an abandoned form's number is back in the pool before we
+  -- count. Scoped to this prefix: there is no reason to touch another
+  -- department's rows while holding only this department's lock, and doing so
+  -- would deadlock two reservers working on different prefixes.
+  delete from gatepass.pass_number_reservations
+   where consumed_at is null
+     and expires_at <= now()
+     and type = p_type
+     and department_id = p_department_id;
+
+  v_number := v_prefix || '-' || lpad(gatepass.next_pass_serial(v_prefix)::text, 4, '0');
+
+  insert into gatepass.pass_number_reservations
+    (pass_number, type, department_id, reserved_by, expires_at)
+  values
+    (v_number, p_type, p_department_id, auth.uid(), now() + interval '12 hours');
+
+  return v_number;
+end;
+$$;
+
+comment on function gatepass.reserve_pass_number(gatepass.pass_type, uuid) is
+  'Hands the caller the real pass number their next pass will carry (074), so '
+  'the Raise form can show it in full. Same authorisation as raise_pass. Good '
+  'for 12 hours; release_pass_number() gives it back.';
+
+revoke all on function gatepass.reserve_pass_number(gatepass.pass_type, uuid) from public;
+grant execute on function gatepass.reserve_pass_number(gatepass.pass_type, uuid) to authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 4. Giving one back
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- Called when the form's type or department changes, which changes the prefix
+-- and so orphans the number already held. Deleting the row is a true release
+-- because `next_pass_serial` is a live max rather than a stored cursor: if this
+-- was the highest number for its prefix, the next reserver takes it again.
+--
+-- YOUR OWN, AND ONLY IF UNUSED. Scoping the delete to `reserved_by = auth.uid()`
+-- and `consumed_at is null` means this cannot be turned into a way to free a
+-- number somebody else is holding, or to detach a number from a raised pass.
+-- It is silent about a row it does not find: the client calls this on a
+-- best-effort basis while navigating away, and a reservation that already
+-- expired is not an error worth surfacing to somebody filling in a form.
+create or replace function gatepass.release_pass_number(p_pass_number text)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  delete from gatepass.pass_number_reservations
+   where pass_number = p_pass_number
+     and reserved_by = auth.uid()
+     and consumed_at is null;
+$$;
+
+comment on function gatepass.release_pass_number(text) is
+  'Gives back an unconsumed pass number this caller reserved (074), so changing '
+  'the pass type or department does not burn a serial. Silent when there is '
+  'nothing to release.';
+
+revoke all on function gatepass.release_pass_number(text) from public;
+grant execute on function gatepass.release_pass_number(text) to authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 5. The generator honours a reservation, and validates it itself
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- Reproduced whole from 064 because a plpgsql body cannot be patched in place.
+-- The advisory lock, the prefix, the four server-owned columns and the lpad are
+-- byte-for-byte 064's; what is new is the block at the top that tries to
+-- consume a reservation, and the counter now reading `next_pass_serial`.
+--
+-- WHY THE VALIDATION IS HERE AND NOT IN `raise_pass`: this trigger is BEFORE
+-- INSERT and no client holds INSERT on `gate_passes` (001/007), so it is the
+-- one place every pass number in this database has ever been decided. A check
+-- in the RPC could be bypassed by any future second caller; a check here cannot
+-- be bypassed at all.
+create or replace function gatepass.set_pass_number()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  dept    text;
+  prefix  text;
+  seq_val integer;
+  tz      text := gatepass.site_tz();
+begin
+  -- The ONE derivation. See gatepass.dept_code (064).
+  dept   := gatepass.dept_code(new.department_id);
+  prefix := new.type::text || '-' || dept;
+
+  -- Serialise number generation for this prefix, and for the reservation table
+  -- alongside it. A plain max()+1 lets two concurrent inserts pick the same
+  -- value and collide on the unique index.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('gatepass_pass_number_' || prefix));
+
+  -- A NUMBER THE CALLER BROUGHT IS HONOURED ONLY IF IT WAS REALLY THEIRS (074).
+  -- Every clause is load-bearing: the row must exist, be this caller's, be
+  -- unspent, be unexpired, and describe THIS pass's type and department — a
+  -- reservation for RGP/IT cannot label an NRGP, or a pass raised for Finance.
+  if new.pass_number is not null then
+    update gatepass.pass_number_reservations
+       set consumed_at = now()
+     where pass_number   = new.pass_number
+       and reserved_by   = auth.uid()
+       and consumed_at   is null
+       and expires_at    > now()
+       and type          = new.type
+       and department_id = new.department_id;
+
+    -- Not theirs, spent, expired or for something else: discard it in silence
+    -- and number the pass the ordinary way. Refusing instead would turn a form
+    -- left open over lunch into a lost pass, and the confirmation screen shows
+    -- whatever number the row really ends up with.
+    if not found then
+      new.pass_number := null;
+    end if;
+  end if;
+
+  if new.pass_number is null then
+    seq_val := gatepass.next_pass_serial(prefix);
+    new.pass_number := prefix || '-' || lpad(seq_val::text, 4, '0');
+  end if;
+
+  -- Server-owned columns. The client must never choose any of these: the number
+  -- and timestamp are the audit anchor, and a crafted qr_token could pre-register
+  -- a code for a pass nobody ever held.
+  new.created_at  := now();
+  new.updated_at  := now();
+  new.qr_token    := gen_random_uuid();
+  new.expires_at  := ((date_trunc('day', (now() at time zone tz)) + interval '2 days')
+                       at time zone tz) - interval '1 microsecond';
+
+  return new;
+end;
+$$;
+
+comment on function gatepass.set_pass_number() is
+  'Assigns pass_number as TYPE-DEPTCODE-NNNN (064; e.g. RGP-IT-0001), honouring '
+  'a reservation the caller took from reserve_pass_number() when it is theirs, '
+  'unspent, unexpired and for this same type and department (074) — and '
+  'generating one otherwise. Counter is per (type, department) over both raised '
+  'passes and outstanding reservations, serialised by an advisory lock on the '
+  'prefix.';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 6. Raising carries the number through
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- 071's function verbatim but for two lines: the new trailing parameter, and
+-- `pass_number` in the INSERT's column list. The RPC makes NO decision about
+-- the value — see section 5 — it only stops discarding it.
+--
+-- THE OLD SIGNATURE IS DROPPED, not left beside this one. Adding a parameter
+-- with a default creates an OVERLOAD, and PostgREST resolving between two
+-- `raise_pass` functions by the argument names in the body is exactly the
+-- ambiguity CLAUDE.md's drop-and-recreate rule exists to prevent.
+drop function if exists gatepass.raise_pass(
+  gatepass.pass_type, gatepass.pass_direction, uuid, text, text, text, text, date, jsonb
+);
+
+create function gatepass.raise_pass(
+  p_type                 gatepass.pass_type,
+  p_direction            gatepass.pass_direction,
+  p_department_id        uuid,
+  p_visitor_name         text,
+  p_visitor_company      text,
+  p_vehicle_number       text,
+  p_purpose              text default null,
+  p_expected_return_date date default null,
+  p_items                jsonb default null,
+  p_pass_number          text default null
+)
+returns gatepass.gate_passes
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_pass           gatepass.gate_passes;
+  v_item           jsonb;
+  v_line           int := 0;
+  v_office         text;
+  v_any_department boolean;
+begin
+  -- Read ONCE: it decides both guards AND what is stamped on the row.
+  v_office         := gatepass.my_fallback_office();
+  v_any_department := v_office is not null;
+
+  if gatepass.app_role() <> 'hod' and not v_any_department then
+    raise exception 'Only an HOD, the COO or the CEO can raise a gate pass.';
+  end if;
+
+  if p_department_id is null then
+    raise exception 'A gate pass must name a department.';
+  end if;
+
+  if v_any_department then
+    -- ANY department, but a REAL one. The `gate_passes.department_id` foreign
+    -- key would refuse an invented uuid anyway; this refuses it in a sentence a
+    -- person can read instead of as a constraint violation.
+    if not exists (select 1 from public.departments d where d.id = p_department_id) then
+      raise exception 'That department does not exist.';
+    end if;
+  elsif p_department_id not in (select gatepass.my_department_ids()) then
+    raise exception 'You can only raise a pass for a department you head.';
+  end if;
+
+  if p_items is null or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'A gate pass needs at least one material line.';
+  end if;
+
+  if jsonb_array_length(p_items) > 50 then
+    raise exception 'A gate pass cannot carry more than 50 material lines.';
+  end if;
+
+  insert into gatepass.gate_passes
+    (type, direction, department_id, raised_by, raised_by_office, visitor_name,
+     visitor_company, vehicle_number, purpose, expected_return_date, pass_number)
+  values
+    (p_type, p_direction, p_department_id, auth.uid(), v_office, p_visitor_name,
+     p_visitor_company, p_vehicle_number, p_purpose, p_expected_return_date,
+     -- Nothing is trusted about this yet; set_pass_number() decides.
+     nullif(trim(coalesce(p_pass_number, '')), ''))
+  returning * into v_pass;
+
+  for v_item in select * from jsonb_array_elements(p_items)
+  loop
+    v_line := v_line + 1;
+    insert into gatepass.gate_pass_items
+      (gate_pass_id, line_no, name, description, purpose, quantity, unit,
+       serial_no, approx_value, expected_return_date, department_id,
+       make_model, invoice_no, remarks)
+    values (
+      v_pass.id,
+      v_line,
+      v_item ->> 'name',
+      v_item ->> 'description',
+      -- THE LINE'S REASON IS THE PASS'S REASON when the caller sends none (045).
+      coalesce(
+        nullif(trim(coalesce(v_item ->> 'purpose', '')), ''),
+        nullif(trim(coalesce(p_purpose, '')), ''),
+        'Material movement'
+      ),
+      (v_item ->> 'quantity')::numeric,
+      coalesce(nullif(trim(coalesce(v_item ->> 'unit', '')), ''), 'nos'),
+      nullif(trim(coalesce(v_item ->> 'serial_no', '')), ''),
+      nullif(v_item ->> 'approx_value', '')::numeric,
+      nullif(v_item ->> 'expected_return_date', '')::date,
+      p_department_id,
+      nullif(trim(coalesce(v_item ->> 'make_model', '')), ''),
+      nullif(trim(coalesce(v_item ->> 'invoice_no', '')), ''),
+      nullif(trim(coalesce(v_item ->> 'remarks', '')), '')
+    );
+  end loop;
+
+  return v_pass;
+end;
+$$;
+
+comment on function gatepass.raise_pass(
+  gatepass.pass_type, gatepass.pass_direction, uuid, text, text, text, text, date, jsonb, text
+) is
+  'Raises a gate pass. An HOD may raise only for a department they head; the '
+  'sitting COO or CEO (my_fallback_office(), 071) may raise for any department '
+  'and has that office stamped onto the row. p_pass_number carries a number '
+  'reserved by reserve_pass_number() (074) and is validated — not trusted — by '
+  'set_pass_number(). See migrations 069, 071 and 074.';
+
+revoke all on function gatepass.raise_pass(
+  gatepass.pass_type, gatepass.pass_direction, uuid, text, text, text, text, date, jsonb, text
+) from public;
+grant execute on function gatepass.raise_pass(
+  gatepass.pass_type, gatepass.pass_direction, uuid, text, text, text, text, date, jsonb, text
+) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ═══════════════════════════════════════════════════════════
+-- 075_a_signature_is_uploaded_once_and_printed_when_earned.sql
+-- ═══════════════════════════════════════════════════════════
+-- ============================================================================
+-- 075 — the printed slip carries the signature of everybody who signed it
+--
+-- Client, 2026-09-01: "in the print pass you put a signature column under each
+-- of them — each of the HOD, and all those approvals, like finance approval and
+-- security approval. Give one option for them to upload their signature in one
+-- of the left-side panels. Whatever they have uploaded there, the same
+-- signature will be shown on the print pass page after they approve it.
+-- Suppose I'm the security head and I have approved one of the passes — once I
+-- approve it, whatever I uploaded, that signature should show up in the print
+-- pass. Don't show the signature until and unless I approve."
+--
+-- ═══ THE WHOLE RULE IS IN THE LAST SENTENCE ═══
+--
+-- A signature is a MARK OF ASSENT, and printing one on a box nobody has signed
+-- would be a forgery this system performed by itself. So the image never
+-- travels with the person; it travels with the DECISION. `get_pass_signatures`
+-- below returns a signature for exactly the slots where this database holds a
+-- recorded act by that person on THIS pass:
+--
+--   raised     the pass exists, and they raised it        (gate_passes.raised_by)
+--   an office  they APPROVED it — not rejected, not routed (pass_approvals)
+--   gate       they cleared it outward                     (status = 'matched')
+--   receiver   they took every line back in                (return_status = 'returned')
+--
+-- A pending rung, a rejected one, a rung closed as `not_required` by the other
+-- office on level 3 (063), a pass still at the barrier, a partially returned
+-- one: all return NO ROW, and the box prints as it does today. A rejection is
+-- deliberately excluded even though it is a real decision — the client's
+-- sentence is "until and unless I approve", and a signature under a refusal
+-- reads on paper as consent to the movement.
+--
+-- ═══ WHERE THE IMAGE LIVES ═══
+--
+-- In the `avatars` storage bucket, at `<uid>/signature`, beside the profile
+-- photo it sits next to on the same screen. That bucket belongs to VMS
+-- (its migration 053) and is PUBLIC, which the client was asked about
+-- explicitly and chose: a signature is readable by anyone holding its URL, the
+-- same exposure a profile photo already has. No storage DDL is written here and
+-- none may be — the bucket and its policies are VMS's, and its RLS already
+-- keys writes on the first path segment being the caller's own uid, which is
+-- exactly the rule this feature needs.
+--
+-- WHAT LIVES HERE IS THE POINTER, and it lives in `gatepass` rather than as a
+-- column on `public.profiles`: that table is VMS's and this schema may not add
+-- to it (the two-schema rule). `set_my_avatar` (025) writes VMS's own
+-- pre-existing `avatar_url` column, which is a different thing — writing a
+-- value into a column VMS defined is allowed, defining one is not.
+-- ============================================================================
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 1. One signature per person
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- Keyed by user, not by office: an office CHANGES HANDS, and a signature does
+-- not. Keying this on `approval_roles` would mean the Finance HOD's mark
+-- following the seat to whoever holds it next, which is the one thing a
+-- signature must never do. It is also why every raiser and every guard can have
+-- one — the raise and gate boxes are signed by people who hold no office at all.
+create table if not exists gatepass.user_signatures (
+  user_id       uuid primary key references public.profiles(id),
+  signature_url text not null,
+  updated_at    timestamptz not null default now()
+);
+
+comment on table gatepass.user_signatures is
+  'Where each person''s uploaded signature image lives (075) — a URL into the '
+  'shared avatars bucket at <uid>/signature. Keyed by USER, never by office: an '
+  'office changes hands and a signature does not. Printed only against a '
+  'decision that person actually made; see get_pass_signatures().';
+
+alter table gatepass.user_signatures enable row level security;
+
+-- YOUR OWN ROW, AND NOTHING ELSE. This policy exists so the profile screen can
+-- show you the signature you uploaded; it is deliberately NOT a directory.
+-- Every OTHER read in this feature goes through get_pass_signatures(), which is
+-- SECURITY DEFINER and hands back only the marks belonging to one pass the
+-- caller may already read in full. Without that split, any signed-in account
+-- could enumerate every signature in the mall.
+drop policy if exists user_signatures_select_own on gatepass.user_signatures;
+create policy user_signatures_select_own on gatepass.user_signatures
+  for select to authenticated
+  using (user_id = auth.uid());
+
+-- A NEW TABLE INHERITS NO GRANT IN THIS SCHEMA — 002/009 grant table by table
+-- and there are no default privileges — so SELECT is given explicitly. It is
+-- narrowed to nothing by the policy above; the grant is what lets the policy
+-- get a turn at all, and without it the profile card reads 42501.
+grant select on gatepass.user_signatures to authenticated;
+
+-- No INSERT / UPDATE / DELETE grant and no policy for them either: writes go
+-- through set_my_signature() below, the same shape `set_my_avatar` (025) uses,
+-- so there is exactly one statement in this database that can change a
+-- signature. The revoke is belt to that braces, and is what migration 009 will
+-- need to restate if anybody re-toggles Exposed schemas and re-runs
+-- `grant all on all tables in schema gatepass`.
+revoke insert, update, delete on gatepass.user_signatures from anon, authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 2. Setting your own
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- Null or blank REMOVES it, so one function covers upload, replace and remove —
+-- and a removal is a real need: a signature uploaded by mistake is a mark
+-- attributed to a person on paper, and they must be able to take it down
+-- without an admin. Passes already printed are unaffected; passes printed
+-- afterwards show the box without an image, exactly as before they uploaded.
+create or replace function gatepass.set_my_signature(p_signature_url text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_url text := nullif(trim(coalesce(p_signature_url, '')), '');
+begin
+  if auth.uid() is null then
+    raise exception 'You must be signed in to set a signature.';
+  end if;
+
+  if v_url is null then
+    delete from gatepass.user_signatures where user_id = auth.uid();
+    return;
+  end if;
+
+  insert into gatepass.user_signatures (user_id, signature_url, updated_at)
+  values (auth.uid(), v_url, now())
+  on conflict (user_id)
+  do update set signature_url = excluded.signature_url, updated_at = now();
+end;
+$$;
+
+comment on function gatepass.set_my_signature(text) is
+  'Stores, replaces or (on null/blank) removes the caller''s own signature URL '
+  '(075). Scoped to auth.uid() — there is no way to set anybody else''s.';
+
+revoke all on function gatepass.set_my_signature(text) from public;
+grant execute on function gatepass.set_my_signature(text) to authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 3. The signatures ONE pass has actually earned
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- `slot` names the box on the printed slip, in the vocabulary the client's own
+-- ladder already uses: 'raised', an `approval_roles.role_key`, 'gate', or
+-- 'receiver'. The print page maps a box to a slot; nothing here knows about
+-- pixels.
+--
+-- THE GUARD IS `can_see_pass`, the same one `get_pass_approvals` (068) uses. A
+-- caller who may not read the pass may not read who signed it, and asking is
+-- refused in the same sentence rather than answered with an empty set — an
+-- empty set would let somebody probe which pass ids exist.
+create or replace function gatepass.get_pass_signatures(p_pass_id uuid)
+returns table (slot text, signature_url text)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not gatepass.can_see_pass(p_pass_id) then
+    raise exception 'That gate pass does not exist, or is not yours to read.';
+  end if;
+
+  return query
+    -- THE RAISER. Raising IS their act — the issuing HOD (or, since 069, the
+    -- COO or CEO who raised for a department) has nothing further to sign, and
+    -- the pass existing is the record of it.
+    select 'raised'::text, s.signature_url
+      from gatepass.gate_passes g
+      join gatepass.user_signatures s on s.user_id = g.raised_by
+     where g.id = p_pass_id
+
+    union all
+
+    -- AN OFFICE THAT APPROVED IT. `status = 'approved'` is the whole of the
+    -- client's "not until I approve": a pending rung has no `decided_by`, a
+    -- rejected one is excluded by the status test, and a level-3 rung closed as
+    -- 'not_required' because the other office signed (063) has no decider
+    -- either — nobody signed it, so nothing prints in it.
+    --
+    -- `decided_by` is the person who really pressed it, which on a delegated
+    -- rung is the DELEGATE and not the office holder (072). That is correct and
+    -- deliberate: the delegate signed it, so the delegate's mark belongs in the
+    -- box, beside the name `get_pass_approvals` already prints there.
+    select a.role_key, s.signature_url
+      from gatepass.pass_approvals a
+      join gatepass.user_signatures s on s.user_id = a.decided_by
+     where a.gate_pass_id = p_pass_id
+       and a.status = 'approved'
+
+    union all
+
+    -- THE GATE, once it cleared the material OUTWARD. `status = 'matched'`
+    -- only: a flagged pass was refused, and 070 makes that terminal, so there
+    -- is no clearance to sign for.
+    select 'gate'::text, s.signature_url
+      from gatepass.gate_passes g
+      join gatepass.user_signatures s on s.user_id = g.verified_by
+     where g.id = p_pass_id
+       and g.status = 'matched'
+
+    union all
+
+    -- THE RECEIVER, once EVERY line is back. The same trigger the paper's tick
+    -- already uses (`returnReceipt`): `return_status = 'returned'`, which
+    -- `apply_item_returns` sets only when no line is still owing. The guard is
+    -- the one who recorded the LAST return — `order by created_at desc limit 1`
+    -- over that pass's `returned` verifications, which is the movement that
+    -- brought the final line in.
+    select 'receiver'::text, s.signature_url
+      from gatepass.gate_passes g
+      join lateral (
+        select v.security_user_id
+          from gatepass.verifications v
+         where v.gate_pass_id = g.id
+           and v.action = 'returned'
+         order by v.created_at desc
+         limit 1
+      ) last_return on true
+      join gatepass.user_signatures s on s.user_id = last_return.security_user_id
+     where g.id = p_pass_id
+       and g.type = 'RGP'
+       and g.return_status = 'returned';
+end;
+$$;
+
+comment on function gatepass.get_pass_signatures(uuid) is
+  'The signature image for each box on ONE pass''s printed slip (075), returned '
+  'ONLY where this database holds a recorded act by that person on that pass: '
+  'raised it, approved a rung, cleared it out, or took every line back. A '
+  'pending, rejected or not_required rung returns no row, so the paper can '
+  'never show assent nobody gave. Guarded by can_see_pass().';
+
+revoke all on function gatepass.get_pass_signatures(uuid) from public;
+grant execute on function gatepass.get_pass_signatures(uuid) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ═══════════════════════════════════════════════════════════
+-- 076_the_gate_speaks_in_the_letter.sql
+-- ═══════════════════════════════════════════════════════════
+-- ============================================================================
+-- 076 — the letter can say what the GATE did
+--
+-- Client, 2026-09-01: "I want to send it to multiple email IDs about the
+-- lifecycle notification or status changes of that same gate pass."
+--
+-- Until now the mail knew only about the APPROVAL LADDER. A pass could be
+-- cleared out of the gate, or stopped at the barrier and closed for ever (070),
+-- and nobody was written to at all — the requester found out by opening the
+-- app, and the offices whose signatures the gate had just contradicted found out
+-- not at all. Worse, `Verify.tsx` has always flashed "the raising department has
+-- been notified" after a flag, which was true only of the in-app bell.
+--
+-- Two new letters need three facts this payload did not carry:
+--
+--   `flag_reason`       the guard's written justification (035 made it
+--                       compulsory, 070 made it final). It is the ONLY thing
+--                       that tells a requester what to fix before raising the
+--                       new pass they now have to raise, so the mail quotes it
+--                       verbatim and never summarises it.
+--   `verified_by_name`  who at the gate decided, and
+--   `verified_at`       when. A letter that says "security did not clear this"
+--                       and cannot say who or when sends its reader hunting.
+--
+-- ═══ THIS IS 072's FUNCTION WITH THREE KEYS ADDED, AND NOTHING ELSE ═══
+--
+-- ⚠ READ THIS BEFORE EDITING. `approval_notice_payload` has been redefined five
+-- times (047, 051, 054, 055, 068, 072) and each redefinition carries load-
+-- bearing work that is INVISIBLE from the shape of the JSON:
+--
+--   * 051/072: `approver_email` is a THREE-STEP FALLBACK — live delegate, else
+--     the office's current holder, else the person the pass was routed to at
+--     raise. Writing to the raise-time snapshot alone asks a person the database
+--     would refuse, while whoever must actually sign is never written to. 051's
+--     own sentence: "the ladder silently stops, and the only symptom is an inbox
+--     that stays empty."
+--   * 055: the `emergency` key. Its PRESENCE is what tells the sender to write
+--     the release letter instead of the ladder one — the caller never says which
+--     letter it wants, which is the whole reason a browser cannot make this
+--     system claim an approval that did not happen.
+--
+-- Rebuilding this function from 047's body silently undoes both. It was done
+-- once while writing this migration and `tests/security/` caught it — 051, 068
+-- and 072 each pin their own clause. Copy the CURRENT body, add to it, and let
+-- those specs check the result.
+--
+-- ═══ WHY A LATERAL OVER `verifications` AND NOT A COLUMN ═══
+--
+-- `gate_passes` records the OUTCOME (`status`, `flag_reason`); `verifications`
+-- records the ACT, and it is the only place the actor and the moment exist. 001
+-- indexes it on `(gate_pass_id, created_at desc)`, which is exactly this lookup,
+-- so the newest row is an index hit and not a scan.
+--
+-- ORDER BY created_at DESC LIMIT 1 — the LAST word the gate had. A pass can
+-- carry several rows (an RGP's returns each write one, and
+-- `hod_void_expired_pass` writes one too), and the letter is about the decision
+-- just taken.
+--
+-- ═══ WHAT THIS MIGRATION DOES NOT DO ═══
+--
+-- No table, no column, no policy, no grant. The function keeps its signature, so
+-- 047's `revoke … from public` / `grant execute … to service_role` still stands
+-- and is not restated: no signed-in role gains anything, because this payload
+-- carries the office holders' addresses. The gate's own facts are already
+-- readable by anyone who can read the pass, through `v_gate_passes`.
+--
+-- The Edge Function reads the three new keys DEFENSIVELY, so a function deployed
+-- against a database that has not yet run this migration still sends its ladder
+-- mail — a missing key is a missing FACT, never a failed send.
+-- ============================================================================
+
+create or replace function gatepass.approval_notice_payload(p_pass_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $fn$
+  select (
+    select jsonb_build_object(
+      'pass', (
+        select jsonb_build_object(
+                 'id',                   p.id,
+                 'pass_number',          p.pass_number,
+                 'type',                 p.type,
+                 'status',               p.status,
+                 'visitor_name',         p.visitor_name,
+                 'purpose',              p.purpose,
+                 'vendor_name',          gatepass.company_name_of(p.visitor_company),
+                 'department_name',      d.name,
+                 'raised_by',            p.raised_by,
+                 'raised_by_name',       rb.full_name,
+                 -- THE RAISER IS ON EVERY LETTER ABOUT THEIR OWN PASS since
+                 -- 2026-09-01, so this address is load-bearing on all of them
+                 -- and no longer only on the `fully_approved` receipt.
+                 'raised_by_email',      rb.email,
+                 'item_count',           coalesce(it.item_count, 0),
+                 'total_value',          coalesce(it.total_value, 0),
+                 'expected_return_date', p.expected_return_date,
+                 'created_at',           p.created_at,
+                 -- ─── 076: what the gate did ───────────────────────────────
+                 -- The guard's written reason for stopping it. Null on every
+                 -- pass the gate has not flagged; 001's check constraint is
+                 -- what guarantees it is non-empty when `status = 'flagged'`.
+                 'flag_reason',          p.flag_reason,
+                 -- Who decided at the gate, and when. Null on every pass still
+                 -- on the ladder, which the letter renders as an absent fact
+                 -- rather than as "by null on null".
+                 'verified_by_name',     vf.security_name,
+                 'verified_at',          vf.created_at
+               )
+          from gatepass.gate_passes p
+          left join public.departments d on d.id = p.department_id
+          left join public.profiles   rb on rb.id = p.raised_by
+          left join lateral (
+                 select count(*) as item_count, sum(i.approx_value) as total_value
+                   from gatepass.gate_pass_items i
+                  where i.gate_pass_id = p.id
+               ) it on true
+          -- THE GATE'S LAST WORD. 001 indexes `(gate_pass_id, created_at desc)`,
+          -- so this is an index hit. LEFT, and LEFT again into VMS's profiles:
+          -- a narrowed VMS policy must degrade this to a letter with no name in
+          -- it, never to no letter.
+          left join lateral (
+                 select v.created_at, sp.full_name as security_name
+                   from gatepass.verifications v
+                   left join public.profiles sp on sp.id = v.security_user_id
+                  where v.gate_pass_id = p.id
+                  order by v.created_at desc
+                  limit 1
+               ) vf on true
+         where p.id = p_pass_id
+      ),
+      'approvals', coalesce((
+        select jsonb_agg(jsonb_build_object(
+                 'role_key',       a.role_key,
+                 'level_no',       a.level_no,
+                 'status',         a.status,
+                 -- 051/072's three-step fallback. Do not simplify: see the
+                 -- header. Live delegate → current holder → raise-time snapshot.
+                 'approver_id',    coalesce(dg.delegate_id, r.user_id, a.routed_to),
+                 'approver_name',  coalesce(dp.full_name, cur.full_name, ap.full_name),
+                 'approver_email', coalesce(dp.email, cur.email, ap.email),
+                 'delegated',      (dg.delegate_id is not null),
+                 'holder_name',    cur.full_name,
+                 'decided_at',     a.decided_at,
+                 'reason',         a.reason
+               ) order by a.level_no)
+          from gatepass.pass_approvals a
+          left join gatepass.approval_roles r on r.role_key = a.role_key
+          left join public.profiles       cur on cur.id = r.user_id
+          left join public.profiles        ap on ap.id  = a.routed_to
+          left join lateral (
+                 select dd.delegate_id
+                   from gatepass.approval_delegations dd
+                  where dd.role_key = a.role_key
+                    and gatepass.delegation_is_live(dd.revoked_at, dd.starts_at, dd.ends_at)
+                  order by dd.starts_at desc
+                  limit 1
+               ) dg on true
+          left join public.profiles        dp on dp.id = dg.delegate_id
+         where a.gate_pass_id = p_pass_id
+      ), '[]'::jsonb)
+    )
+  )
+  || jsonb_build_object(
+       'emergency', (
+         select jsonb_build_object(
+                  'released_at',   e.released_at,
+                  'released_name', rp.full_name,
+                  'reason',        e.reason,
+                  'reviewed_at',   e.reviewed_at
+                )
+           from gatepass.emergency_releases e
+           left join public.profiles rp on rp.id = e.released_by
+          where e.gate_pass_id = p_pass_id
+       )
+     );
+$fn$;
+
+comment on function gatepass.approval_notice_payload(uuid) is
+  'One notification''s worth of facts, addresses included (047/051/072), plus the emergency release that cleared this pass if there was one (055), plus the gate''s own decision and the guard who took it (076). Each level is addressed to whoever may SIGN it today — the live delegate, else the office''s current holder, else the holder snapshotted at raise. The presence of the `emergency` key is what tells the sender which letter to write — the caller never says. service_role ONLY.';
+
+notify pgrst, 'reload schema';
+
+-- ═══════════════════════════════════════════════════════════
+-- 077_the_hod_delegates_the_raising.sql
+-- ═══════════════════════════════════════════════════════════
+-- ============================================================================
+-- 077 — AN HOD HANDS THE RAISING OF PASSES TO SOMEBODY IN THEIR OWN DEPARTMENT,
+--       AND THEN SIGNS WHAT THAT PERSON RAISES
+--
+-- Client, 2026-09-01: "the HOD of all the departments should be able to delegate
+-- the pass creation capabilities … to the person he has asked. This should not
+-- be any of the department heads or CEO … it should be from his own department
+-- only. Show the names as a dropdown within his department under each HOD and
+-- whoever he chooses should be able to log in and create passes the way the HOD
+-- is raising it. In those scenarios those passes should be approved by the HOD
+-- as first-level approver and the following is routine, followed as usual."
+--
+-- ── IT IS NOT AN APPROVAL DELEGATION, AND IT IS NOT AN OFFICE. ──────────────
+-- 062 hands over a rung on the ladder; this hands over the KEYBOARD. The two
+-- must not share a table: an `approval_delegations` row grants
+-- `approve_pass_level`, RLS visibility of every pass routed to that rung and —
+-- through `my_approval_roles()` — the approver's whole set of routes. Writing
+-- "raising" into it would be one row meaning two unrelated grants, and the next
+-- widening of that function would quietly hand a department assistant the CEO's
+-- queue. `gatepass.pass_raisers` grants exactly one verb: `raise_pass`.
+--
+-- THE RAISER SEES NOTHING NEW. 069 already admits `raised_by = auth.uid()` on
+-- `gate_passes_select` and `raised_by_me()` on the items, which is the whole of
+-- what this account may read — their own passes, and no other pass in the
+-- department. No policy is touched by this migration, deliberately: a grant that
+-- widens RLS is a grant that has to be argued about, and this one does not.
+--
+-- ── THE HOD'S SIGNATURE IS A REAL RUNG, AT LEVEL 0. ─────────────────────────
+-- "Approved by the HOD as first-level approver, and the following is routine"
+-- is the whole design constraint: everything AFTER that signature has to be the
+-- ladder this app already has. So the HOD is not a fifth office and not a flag
+-- on the pass — it is one more `pass_approvals` row, at a level BELOW the
+-- Security Head's 1, and every mechanism the ladder already owns then applies to
+-- it unchanged:
+--
+--   * `pass_awaits_approval` tests `pending`, so the gate cannot see the pass
+--     until the HOD has signed it — the same blindness 046 gave the four
+--     offices, with no new code;
+--   * 061's linear visibility hides the pass from the Security Head until the
+--     HOD has signed, because level 0 is a rung below theirs;
+--   * `reject_pass_level` cancels the pass and writes the `verifications` row;
+--   * `approval_notice_payload` (051/076) resolves an approver's name and email
+--     through `coalesce(…, a.routed_to)`, so the letter reaches the HOD with
+--     nothing added to it;
+--   * `get_pass_approvals` returns the rung and the record draws it.
+--
+-- ⚠ LEVEL 0 AND NOT A RENUMBERING. 057 and 063 both renumbered, and both said
+-- why they could: `level_no` is the ORDER the remaining signatures are collected
+-- in. Here renumbering would rewrite the level printed against every signature
+-- ever given, on every live row, to make room for a rung those passes do not
+-- have. Zero is free, sorts first, and is what "before level 1" means.
+--
+-- ⚠ `role_key = 'department_hod'` IS A RUNG KEY, NOT AN OFFICE KEY. It never
+-- appears in `approval_roles`, in `approval_delegations`, in `ApprovalRoleKey`
+-- or on the admin's ladder card. `approval_office_title` learns the words for it
+-- because three of the sentences these RPCs raise are built from that function,
+-- and nothing else about an office follows.
+--
+-- ── WHO MAY SIGN IT: ANY ACTIVE HOD OF THAT DEPARTMENT. ─────────────────────
+-- `routed_to` is the HOD who wrote the delegation — that is the fact the letter
+-- and the record state — but the AUTHORITY is `heads_pass_department()`, on the
+-- back of 032, which lets a department host several HODs. It cannot widen
+-- anything: an HOD who heads the department already reads, and already answers
+-- for, every pass raised in it.
+--
+-- THE AUTHORITY TEST IS PER PASS, WHICH 072 SAID IT WOULD HAVE TO BE. That
+-- migration split "what may I sign" (a set) from "who am I" (a scalar).
+-- `my_pass_rungs(pass)` is the same set, with one member that exists only in the
+-- context of one pass, and `my_acting_role` picks from it exactly as before.
+-- ============================================================================
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 1. The grant
+-- ═══════════════════════════════════════════════════════════════════════════
+-- `department_id` is SNAPSHOTTED from the HOD's own department at the moment the
+-- authority is written, on 062's precedent for `role_key`: an HOD who moves
+-- department must not silently take their assistant's authority into a
+-- department that assistant was never a member of.
+create table if not exists gatepass.pass_raisers (
+  id            uuid primary key default gen_random_uuid(),
+  hod_id        uuid        not null references public.profiles(id)    on delete cascade,
+  raiser_id     uuid        not null references public.profiles(id)    on delete cascade,
+  department_id uuid        not null references public.departments(id) on delete cascade,
+  starts_at     timestamptz not null,
+  ends_at       timestamptz not null,
+  reason        text,
+  revoked_at    timestamptz,
+  revoked_by    uuid references public.profiles(id) on delete set null,
+  created_at    timestamptz not null default now(),
+
+  -- Delegating to yourself is the no-op that would put a rung on the pass
+  -- addressed to the person who raised it.
+  constraint pass_raisers_not_self
+    check (raiser_id <> hod_id),
+  constraint pass_raisers_window_forward
+    check (ends_at > starts_at),
+  -- Blank is null (045's rule): a reason of three spaces reads as a stated
+  -- reason on screen and is not one.
+  constraint pass_raisers_reason_not_blank
+    check (reason is null or btrim(reason) <> '')
+);
+
+comment on table gatepass.pass_raisers is
+  'A time-boxed authority to RAISE gate passes for one department, written by an HOD of that department. It grants raise_pass and nothing else — never an approval, never a route of the HOD''s. Each pass so raised carries a level-0 department_hod rung that HOD signs. See migration 077.';
+
+comment on column gatepass.pass_raisers.department_id is
+  'The department as it stood when the authority was written — snapshotted, not resolved, so an HOD moving department cannot carry their raiser into a new one.';
+
+create index if not exists pass_raisers_raiser_idx
+  on gatepass.pass_raisers (raiser_id, starts_at, ends_at);
+create index if not exists pass_raisers_hod_idx
+  on gatepass.pass_raisers (hod_id, created_at desc);
+
+-- RLS ON, NO POLICY AND NO GRANT — 052's `mail_settings` and 062's
+-- `approval_delegations` both take this shape. The RPCs below are the only
+-- readers and the only writers, so there is no query anybody can send that
+-- reaches this table directly.
+alter table gatepass.pass_raisers enable row level security;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 2. What the grant answers
+-- ═══════════════════════════════════════════════════════════════════════════
+-- `delegation_is_live` (062) is REUSED rather than restated: it takes the three
+-- columns and no table, is half-open at both ends, and "is this window running"
+-- is one question this schema should answer in one place.
+--
+-- SETOF, NOT A SCALAR — 072's lesson, applied before it can bite. Section 5
+-- refuses a second overlapping grant, so this returns at most one row today;
+-- writing it as a scalar would mean a later widening silently discards a row
+-- instead of erroring, which is exactly how `my_approval_role()` broke.
+create or replace function gatepass.my_raising_departments()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $fn$
+  select r.department_id
+    from gatepass.pass_raisers r
+   where r.raiser_id = auth.uid()
+     and gatepass.delegation_is_live(r.revoked_at, r.starts_at, r.ends_at)
+     and gatepass.is_user_active(auth.uid());
+$fn$;
+
+comment on function gatepass.my_raising_departments() is
+  'The departments this caller may raise a gate pass for under an HOD''s standing authority (077). Empty for everybody else, and for a suspended account (040).';
+
+-- Ungranted: nothing outside `raise_pass` and the read below has any business
+-- asking, and an ungranted function is one fewer thing reachable over PostgREST.
+revoke all on function gatepass.my_raising_departments() from public;
+
+-- What the CLIENT needs: the department it may raise for, and whose authority it
+-- is acting under — the sidebar draws a Raise tab from the first, and the form
+-- says the second out loud. Granted, and it can tell a caller nothing about
+-- anybody but themselves.
+create or replace function gatepass.my_raising_grant()
+returns table (
+  id              uuid,
+  department_id   uuid,
+  department_name text,
+  hod_id          uuid,
+  hod_name        text,
+  starts_at       timestamptz,
+  ends_at         timestamptz
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $fn$
+  select r.id, r.department_id, d.name, r.hod_id, h.full_name, r.starts_at, r.ends_at
+    from gatepass.pass_raisers r
+    left join public.departments d on d.id = r.department_id
+    left join public.profiles    h on h.id = r.hod_id
+   where r.raiser_id = auth.uid()
+     and gatepass.delegation_is_live(r.revoked_at, r.starts_at, r.ends_at)
+     and gatepass.is_user_active(auth.uid())
+   order by r.starts_at desc;
+$fn$;
+
+comment on function gatepass.my_raising_grant() is
+  'The live raising authority this caller holds, if any — the department, and the HOD who granted it. The client draws the Raise Gate Pass tab from this. See migration 077.';
+
+revoke all on function gatepass.my_raising_grant() from public;
+grant execute on function gatepass.my_raising_grant() to authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 3. The rung, and who may sign it
+-- ═══════════════════════════════════════════════════════════════════════════
+-- The two checks 046 wrote, each with one branch added. Existing rows satisfy
+-- both unchanged, so neither needs a data fix.
+alter table gatepass.pass_approvals
+  drop constraint if exists pass_approvals_key_known;
+alter table gatepass.pass_approvals
+  add constraint pass_approvals_key_known
+  check (role_key in ('department_hod', 'security_head', 'coo', 'ceo', 'finance_head'));
+
+alter table gatepass.pass_approvals
+  drop constraint if exists pass_approvals_level_matches;
+alter table gatepass.pass_approvals
+  add constraint pass_approvals_level_matches
+  check (level_no = case role_key
+                      when 'department_hod' then 0
+                      when 'security_head'  then 1
+                      when 'finance_head'   then 2
+                      when 'coo'            then 3
+                      when 'ceo'            then 3
+                    end);
+
+-- 054's title function, with the words for the new rung. It is NOT an office —
+-- see the header — but three sentences below are built from this function and
+-- would otherwise print the raw key at a person.
+create or replace function gatepass.approval_office_title(p_role_key text)
+returns text
+language sql
+immutable
+as $$
+  select case p_role_key
+           when 'department_hod' then 'Department HOD'
+           when 'security_head'  then 'Security Head'
+           when 'coo'            then 'COO'
+           when 'ceo'            then 'CEO'
+           when 'finance_head'   then 'Finance HOD'
+           else                       p_role_key
+         end;
+$$;
+
+revoke all on function gatepass.approval_office_title(text) from public;
+
+-- 063's trigger with the level-0 rung written FIRST when — and only when — the
+-- raiser held a live authority for this department at the moment of the insert.
+--
+-- IT IS STILL A TRIGGER AND NOT A LINE IN `raise_pass`, for 046's reason: every
+-- insert path gets it, and no later rewrite of the raise RPC can quietly drop
+-- the HOD's signature by forgetting a line.
+--
+-- THE AUTHORITY IS RE-READ HERE RATHER THAN PASSED IN. `new.raised_by` and
+-- `new.department_id` are the two facts it needs and both are on the row, so the
+-- rung cannot disagree with the pass it belongs to.
+create or replace function gatepass.snapshot_pass_approvals()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $fn$
+begin
+  -- Level 0 — the HOD whose authority this pass was raised under (077). At most
+  -- one row: section 5 refuses an overlapping grant, and `order by`/`limit` says
+  -- so rather than relying on it.
+  insert into gatepass.pass_approvals (gate_pass_id, role_key, level_no, routed_to)
+  select new.id, 'department_hod', 0::smallint, r.hod_id
+    from gatepass.pass_raisers r
+   where r.raiser_id = new.raised_by
+     and r.department_id = new.department_id
+     and gatepass.delegation_is_live(r.revoked_at, r.starts_at, r.ends_at)
+   order by r.starts_at desc
+   limit 1;
+
+  insert into gatepass.pass_approvals (gate_pass_id, role_key, level_no, routed_to)
+  select new.id,
+         r.role_key,
+         (case r.role_key
+            when 'security_head' then 1
+            when 'finance_head'  then 2
+            when 'coo'           then 3
+            when 'ceo'           then 3
+          end)::smallint,
+         r.user_id
+    from gatepass.approval_roles r;
+
+  return new;
+end;
+$fn$;
+
+-- Does this caller head the department this pass belongs to?
+--
+-- SECURITY DEFINER for the reason every other predicate these policies reach
+-- through is (046's 42P17 note): it reads `gate_passes`, whose own policy would
+-- otherwise recurse through it. It answers about `auth.uid()` alone, so it can
+-- tell a caller nothing about anybody else.
+--
+-- `my_department_ids()` returns NOTHING for a suspended account (040), so a
+-- suspended HOD holds no rung — the same rule every office arm already obeys.
+create or replace function gatepass.heads_pass_department(p_pass_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $fn$
+  select gatepass.app_role() = 'hod'
+     and exists (
+           select 1
+             from gatepass.gate_passes g
+            where g.id = p_pass_id
+              and g.department_id in (select gatepass.my_department_ids())
+         );
+$fn$;
+
+comment on function gatepass.heads_pass_department(uuid) is
+  'True when the caller is an active HOD of the department this pass was raised for. The authority behind the level-0 department_hod rung (077) — routed_to names the HOD who wrote the delegation, but any HOD of the department may sign, because a department may host several (032) and one of them may be away.';
+
+revoke all on function gatepass.heads_pass_department(uuid) from public;
+
+-- EVERY RUNG THIS CALLER MAY ACT FOR ON THIS PASS — 072's `my_approval_roles()`
+-- plus the one rung that exists only in the context of a pass. This is now the
+-- authority test the two decision RPCs read.
+--
+-- The `department_hod` arm is gated on the ROW EXISTING as well as on the
+-- caller heading the department, so an HOD's own ordinary pass — which carries
+-- no such rung — grants them nothing to press.
+create or replace function gatepass.my_pass_rungs(p_pass_id uuid)
+returns setof text
+language sql
+stable
+security definer
+set search_path = ''
+as $fn$
+  select t.role_key from gatepass.my_approval_roles() t(role_key)
+  union all
+  select 'department_hod'
+   where gatepass.heads_pass_department(p_pass_id)
+     and exists (
+           select 1 from gatepass.pass_approvals a
+            where a.gate_pass_id = p_pass_id
+              and a.role_key = 'department_hod'
+         );
+$fn$;
+
+comment on function gatepass.my_pass_rungs(uuid) is
+  'Every rung of THIS pass''s ladder the caller may act for: their approval offices (072) and, on a pass raised under their authority, the level-0 department_hod rung (077). THE AUTHORITY TEST for approve_pass_level and reject_pass_level.';
+
+revoke all on function gatepass.my_pass_rungs(uuid) from public;
+
+-- 072's `my_acting_role`, reading the per-pass set. Everything else — the lowest
+-- open rung, the escalation window, a covered office preferred on a shared rung —
+-- is its, unchanged. `my_live_delegation()` never matches `department_hod`, so
+-- the HOD's rung sorts as an un-delegated one and the tie-break is untouched.
+create or replace function gatepass.my_acting_role(
+  p_pass_id             uuid,
+  p_respect_escalation  boolean default true
+)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $fn$
+  with mine as (
+    select t.role_key,
+           exists (
+             select 1 from gatepass.my_live_delegation() d
+              where d.role_key = t.role_key
+           ) as delegated
+      from gatepass.my_pass_rungs(p_pass_id) t(role_key)
+  ),
+  open_rungs as (
+    select a.role_key, a.level_no
+      from gatepass.pass_approvals a
+     where a.gate_pass_id = p_pass_id
+       and a.status = 'pending'
+  ),
+  lowest as (
+    select min(level_no) as level_no from open_rungs
+  )
+  select m.role_key
+    from mine m
+    join open_rungs o on o.role_key = m.role_key
+    join lowest    l on l.level_no  = o.level_no
+   where not p_respect_escalation
+      or coalesce(gatepass.level_escalates_at(p_pass_id, m.role_key) <= now(), true)
+   order by m.delegated desc, m.role_key
+   limit 1;
+$fn$;
+
+comment on function gatepass.my_acting_role(uuid, boolean) is
+  'Which rung of this pass the caller may decide right now — lowest pending rung, escalation window respected unless a rejection asks it not to be, a covered office preferred over their own on a shared rung. Reads my_pass_rungs (077), so the HOD''s level-0 rung is one of the answers. Null when none may.';
+
+revoke all on function gatepass.my_acting_role(uuid, boolean) from public;
+
+-- 061's linear visibility, matching on the per-pass set so an HOD sees a pass
+-- routed to their own rung. It changes nothing for them in practice — the
+-- department arm of `gate_passes_select` already admits it — and it is stated
+-- because `pass_routed_to_me` is what the ladder's own name means, and a rung
+-- this caller may sign that this function denies is a disagreement waiting to be
+-- read as a bug.
+create or replace function gatepass.pass_routed_to_me(p_pass_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $fn$
+  select exists (
+    select 1
+      from gatepass.pass_approvals a
+     where a.gate_pass_id = p_pass_id
+       and a.role_key in (select t.role_key from gatepass.my_pass_rungs(p_pass_id) t(role_key))
+       and not exists (
+         select 1
+           from gatepass.pass_approvals b
+          where b.gate_pass_id = a.gate_pass_id
+            and b.level_no < a.level_no
+            and b.status not in ('approved', 'not_required')
+       )
+  );
+$fn$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 4. Raising, under somebody else's authority
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 074's function — TEN arguments, `p_pass_number` last — with ONE arm added to
+-- each of its two guards and NOTHING else changed. `create or replace` cannot
+-- change an argument list, so restating 074's signature exactly is what keeps
+-- this a REPLACEMENT rather than a second overload sitting beside it: two
+-- candidates and PostgREST resolving between them by the argument names in the
+-- request body is how half the callers would silently miss this migration.
+--
+-- `p_pass_number` is passed straight through to the INSERT and validated by
+-- 074's `set_pass_number()` BEFORE INSERT trigger, never here. Nothing about a
+-- delegated raiser changes that: the trigger checks the reservation was the
+-- CALLER'S OWN, unspent, unexpired and for this same type and department, and
+-- discards it otherwise.
+--
+-- THE DEPARTMENT IS NOT A RAISER'S TO CHOOSE. Their list is the one department
+-- they were given, and this refuses any other in a sentence rather than as a
+-- foreign-key violation.
+create or replace function gatepass.raise_pass(
+  p_type                 gatepass.pass_type,
+  p_direction            gatepass.pass_direction,
+  p_department_id        uuid,
+  p_visitor_name         text,
+  p_visitor_company      text,
+  p_vehicle_number       text,
+  p_purpose              text default null,
+  p_expected_return_date date default null,
+  p_items                jsonb default null,
+  p_pass_number          text default null
+)
+returns gatepass.gate_passes
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_pass           gatepass.gate_passes;
+  v_item           jsonb;
+  v_line           int := 0;
+  v_office         text;
+  v_any_department boolean;
+  v_raiser_depts   uuid[];
+begin
+  -- Read ONCE: it decides both guards AND what is stamped on the row.
+  v_office         := gatepass.my_fallback_office();
+  v_any_department := v_office is not null;
+  -- 077: the departments an HOD has authorised this caller to raise for. Empty
+  -- for everybody else, which is why every branch below reads as it did.
+  v_raiser_depts   := array(select gatepass.my_raising_departments());
+
+  if gatepass.app_role() <> 'hod'
+     and not v_any_department
+     and cardinality(v_raiser_depts) = 0 then
+    raise exception 'Only an HOD, somebody their HOD has authorised to raise on their behalf, the COO or the CEO can raise a gate pass.';
+  end if;
+
+  if p_department_id is null then
+    raise exception 'A gate pass must name a department.';
+  end if;
+
+  if v_any_department then
+    -- ANY department, but a REAL one. The `gate_passes.department_id` foreign
+    -- key would refuse an invented uuid anyway; this refuses it in a sentence a
+    -- person can read instead of as a constraint violation.
+    if not exists (select 1 from public.departments d where d.id = p_department_id) then
+      raise exception 'That department does not exist.';
+    end if;
+  elsif gatepass.app_role() = 'hod' then
+    -- 069's arm, unmoved and tested BEFORE the raiser arm: an HOD who has also
+    -- been handed somebody else's authority is still confined to the department
+    -- they head.
+    if p_department_id not in (select gatepass.my_department_ids()) then
+      raise exception 'You can only raise a pass for a department you head.';
+    end if;
+  else
+    -- 077: raising under an HOD's standing authority, for that HOD's department
+    -- and no other. The level-0 rung is written by the snapshot trigger.
+    if p_department_id <> all(v_raiser_depts) then
+      raise exception 'You can only raise a pass for the department your HOD authorised you for.';
+    end if;
+  end if;
+
+  if p_items is null or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'A gate pass needs at least one material line.';
+  end if;
+
+  if jsonb_array_length(p_items) > 50 then
+    raise exception 'A gate pass cannot carry more than 50 material lines.';
+  end if;
+
+  insert into gatepass.gate_passes
+    (type, direction, department_id, raised_by, raised_by_office, visitor_name,
+     visitor_company, vehicle_number, purpose, expected_return_date, pass_number)
+  values
+    (p_type, p_direction, p_department_id, auth.uid(), v_office, p_visitor_name,
+     p_visitor_company, p_vehicle_number, p_purpose, p_expected_return_date,
+     -- Nothing is trusted about this yet; set_pass_number() decides.
+     nullif(trim(coalesce(p_pass_number, '')), ''))
+  returning * into v_pass;
+
+  for v_item in select * from jsonb_array_elements(p_items)
+  loop
+    v_line := v_line + 1;
+    insert into gatepass.gate_pass_items
+      (gate_pass_id, line_no, name, description, purpose, quantity, unit,
+       serial_no, approx_value, expected_return_date, department_id,
+       make_model, invoice_no, remarks)
+    values (
+      v_pass.id,
+      v_line,
+      v_item ->> 'name',
+      v_item ->> 'description',
+      -- THE LINE'S REASON IS THE PASS'S REASON when the caller sends none (045).
+      coalesce(
+        nullif(trim(coalesce(v_item ->> 'purpose', '')), ''),
+        nullif(trim(coalesce(p_purpose, '')), ''),
+        'Material movement'
+      ),
+      (v_item ->> 'quantity')::numeric,
+      coalesce(nullif(trim(coalesce(v_item ->> 'unit', '')), ''), 'nos'),
+      nullif(trim(coalesce(v_item ->> 'serial_no', '')), ''),
+      nullif(v_item ->> 'approx_value', '')::numeric,
+      nullif(v_item ->> 'expected_return_date', '')::date,
+      p_department_id,
+      nullif(trim(coalesce(v_item ->> 'make_model', '')), ''),
+      nullif(trim(coalesce(v_item ->> 'invoice_no', '')), ''),
+      nullif(trim(coalesce(v_item ->> 'remarks', '')), '')
+    );
+  end loop;
+
+  return v_pass;
+end;
+$$;
+
+comment on function gatepass.raise_pass(
+  gatepass.pass_type, gatepass.pass_direction, uuid, text, text, text, text, date, jsonb, text
+) is
+  'Raises a gate pass. An HOD may raise only for a department they head; a '
+  'person holding an HOD''s raising authority (077) only for that HOD''s '
+  'department; the sitting COO or CEO (my_fallback_office(), 071) for any '
+  'department, with that office stamped onto the row. p_pass_number carries a '
+  'number reserved by reserve_pass_number() (074) and is validated — not '
+  'trusted — by set_pass_number(). See migrations 069, 071, 074 and 077.';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 5. The two decisions read the per-pass set
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 072's bodies with ONE line changed in each — `my_approval_roles()` becomes
+-- `my_pass_rungs(p_pass_id)` — and one sentence reworded, because "you do not
+-- hold a gate pass approval office" is now the wrong thing to tell an HOD.
+-- Every other refusal is made in the same order and with the same words.
+create or replace function gatepass.approve_pass_level(p_pass_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $fn$
+declare
+  v_roles       text[] := array(select t.role_key from gatepass.my_pass_rungs(p_pass_id) t(role_key));
+  v_role        text;
+  v_mine        smallint;
+  v_lowest      smallint;
+  v_status      text;
+  v_deleg_id    uuid;
+  v_deleg_limit numeric;
+  v_value       numeric;
+  v_escalates   timestamptz;
+begin
+  if cardinality(v_roles) = 0 then
+    raise exception 'You have nothing to approve on this gate pass.';
+  end if;
+
+  select g.status::text into v_status
+    from gatepass.gate_passes g where g.id = p_pass_id;
+  if v_status is null then
+    raise exception 'That gate pass does not exist.';
+  end if;
+  if v_status <> 'pending' then
+    raise exception 'This gate pass is no longer waiting for approval.';
+  end if;
+
+  select min(a.level_no) into v_mine
+    from gatepass.pass_approvals a
+   where a.gate_pass_id = p_pass_id
+     and a.role_key = any(v_roles)
+     and a.status = 'pending';
+  if v_mine is null then
+    raise exception 'This gate pass is not waiting on your approval.';
+  end if;
+
+  select min(a.level_no) into v_lowest
+    from gatepass.pass_approvals a
+   where a.gate_pass_id = p_pass_id
+     and a.status = 'pending';
+
+  if v_mine <> v_lowest then
+    raise exception 'An earlier approval level has not signed this pass yet.';
+  end if;
+
+  v_role := gatepass.my_acting_role(p_pass_id);
+
+  -- THE ESCALATION GATE, reached the only way it can still be reached: my rung
+  -- is the lowest one open and I am STILL not allowed to sign it. Only the CEO
+  -- behind a COO who has time left can be in that position (063).
+  if v_role is null then
+    v_escalates := gatepass.level_escalates_at(p_pass_id, 'ceo');
+    if v_escalates is not null then
+      raise exception 'This pass is with the COO until %. It escalates to the CEO only if they have not decided it by then.',
+        to_char(v_escalates, 'DD Mon YYYY HH24:MI');
+    end if;
+    raise exception 'This gate pass is not waiting on your approval.';
+  end if;
+
+  select d.id, d.approval_limit into v_deleg_id, v_deleg_limit
+    from gatepass.my_live_delegation() d
+   where d.role_key = v_role;
+
+  if v_deleg_id is not null and v_deleg_limit is not null then
+    select coalesce(sum(i.approx_value), 0) into v_value
+      from gatepass.gate_pass_items i
+     where i.gate_pass_id = p_pass_id;
+
+    if v_value > v_deleg_limit then
+      raise exception 'Your delegation of the % office is limited to %. This pass is worth % — the office holder has to sign it.',
+        gatepass.approval_office_title(v_role),
+        to_char(v_deleg_limit, 'FM999,999,999,990.00'),
+        to_char(v_value,       'FM999,999,999,990.00');
+    end if;
+  end if;
+
+  update gatepass.pass_approvals a
+     set status              = 'approved',
+         decided_by          = auth.uid(),
+         decided_at          = now(),
+         decided_as_delegate = (v_deleg_id is not null),
+         delegation_id       = v_deleg_id
+   where a.gate_pass_id = p_pass_id
+     and a.role_key = v_role;
+
+  -- ONE SIGNATURE CLOSES THE RUNG (063). Level 0 has exactly one row, so this is
+  -- a no-op there; it is what makes the COO's delegate signing the COO's row
+  -- also discharge the CEO's.
+  update gatepass.pass_approvals a
+     set status     = 'not_required',
+         decided_at = now(),
+         reason     = 'Not required — level ' || v_mine || ' was approved by the '
+                      || gatepass.approval_office_title(v_role) || '.'
+   where a.gate_pass_id = p_pass_id
+     and a.level_no = v_mine
+     and a.role_key <> v_role
+     and a.status = 'pending';
+end;
+$fn$;
+
+create or replace function gatepass.reject_pass_level(p_pass_id uuid, p_reason text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $fn$
+declare
+  v_roles     text[] := array(select t.role_key from gatepass.my_pass_rungs(p_pass_id) t(role_key));
+  v_role      text;
+  v_mine      smallint;
+  v_lowest    smallint;
+  v_status    text;
+  v_deleg_id  uuid;
+  v_reason    text := btrim(coalesce(p_reason, ''));
+begin
+  if cardinality(v_roles) = 0 then
+    raise exception 'You have nothing to reject on this gate pass.';
+  end if;
+
+  if length(v_reason) = 0 then
+    raise exception 'A rejection needs a reason.';
+  end if;
+  v_reason := left(v_reason, 500);
+
+  select g.status::text into v_status
+    from gatepass.gate_passes g where g.id = p_pass_id;
+  if v_status is null then
+    raise exception 'That gate pass does not exist.';
+  end if;
+  if v_status <> 'pending' then
+    raise exception 'This gate pass is no longer waiting for approval.';
+  end if;
+
+  select min(a.level_no) into v_mine
+    from gatepass.pass_approvals a
+   where a.gate_pass_id = p_pass_id
+     and a.role_key = any(v_roles)
+     and a.status = 'pending';
+  if v_mine is null then
+    raise exception 'This gate pass is not waiting on your approval.';
+  end if;
+
+  select min(a.level_no) into v_lowest
+    from gatepass.pass_approvals a
+   where a.gate_pass_id = p_pass_id
+     and a.status = 'pending';
+
+  if v_mine <> v_lowest then
+    raise exception 'An earlier approval level has not signed this pass yet.';
+  end if;
+
+  -- `false`: a rejection is never withheld for a clock (063's rule).
+  v_role := gatepass.my_acting_role(p_pass_id, false);
+  if v_role is null then
+    raise exception 'This gate pass is not waiting on your approval.';
+  end if;
+
+  select d.id into v_deleg_id
+    from gatepass.my_live_delegation() d
+   where d.role_key = v_role;
+
+  update gatepass.pass_approvals a
+     set status              = 'rejected',
+         decided_by          = auth.uid(),
+         decided_at          = now(),
+         decided_as_delegate = (v_deleg_id is not null),
+         delegation_id       = v_deleg_id,
+         reason              = v_reason
+   where a.gate_pass_id = p_pass_id
+     and a.role_key = v_role;
+
+  update gatepass.gate_passes
+     set status = 'cancelled'::gatepass.pass_status
+   where id = p_pass_id;
+
+  insert into gatepass.verifications
+    (gate_pass_id, action, security_user_id, remarks)
+  values
+    (p_pass_id, 'cancelled'::gatepass.verify_action, auth.uid(), v_reason);
+end;
+$fn$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 6. The HOD's dropdown, and the write behind it
+-- ═══════════════════════════════════════════════════════════════════════════
+-- TWO PLACES, BECAUSE A DROPDOWN IS NOT A CONTROL — 066's rule. The list narrows
+-- what the HOD is offered; `create_pass_raiser` refuses the same things on the
+-- write, since the RPC is reachable over PostgREST by any authenticated caller
+-- with a user id they typed themselves.
+--
+-- WHO IS ELIGIBLE, and why each exclusion is here (client, 2026-09-01: "this
+-- should not be any of the department heads or CEO … it should be from his own
+-- department only"):
+--
+--   * SAME DEPARTMENT — `profiles.department_id`, VMS's own column and the one
+--     032 mirrors an HOD's assignment into. Read, never altered.
+--   * NOT AN HOD — the client's words, and an HOD already raises for their own
+--     department without anybody's permission.
+--   * NOT AN ADMIN OR SUPER ADMIN — they hold every screen already, and 067's
+--     fallback pair are super admins by office.
+--   * NOT A GUARD — the person who clears material at the barrier must not
+--     originate it. This is the four-eyes property `officeReplacesRole` and 069
+--     both exist to protect, and it is the one exclusion the client did not name.
+--   * NOT AN APPROVER of any kind — an office holder, or anybody covering one
+--     under a live-or-future delegation. They would be signing a rung of a pass
+--     they raised.
+--   * ACTIVE (040), and not the HOD themselves.
+create or replace function gatepass.list_raiser_candidates()
+returns table (id uuid, full_name text, department_name text)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $fn$
+begin
+  if gatepass.app_role() <> 'hod' then
+    raise exception 'Only a department head can authorise somebody to raise passes.';
+  end if;
+
+  return query
+    select p.id, p.full_name, d.name
+      from public.profiles p
+      left join public.departments d on d.id = p.department_id
+     where p.id <> auth.uid()
+       and p.department_id in (select gatepass.my_department_ids())
+       and p.role::text not in ('hod', 'admin', 'super_admin', 'guard')
+       and gatepass.is_user_active(p.id)
+       and not exists (
+             select 1 from gatepass.approval_roles r where r.user_id = p.id
+           )
+       and not exists (
+             select 1 from gatepass.approval_delegations dl
+              where dl.delegate_id = p.id
+                and dl.revoked_at is null
+                and dl.ends_at > now()
+           )
+     order by p.full_name;
+end;
+$fn$;
+
+comment on function gatepass.list_raiser_candidates() is
+  'The people an HOD may authorise to raise passes for them: active members of their own department who are not department heads, admins, guards or approvers of any kind. See migration 077.';
+
+revoke all on function gatepass.list_raiser_candidates() from public;
+grant execute on function gatepass.list_raiser_candidates() to authenticated;
+
+-- The write. 062's shape — the HOD's own act, no admin anywhere in it.
+create or replace function gatepass.create_pass_raiser(
+  p_raiser_id uuid,
+  p_starts_at timestamptz,
+  p_ends_at   timestamptz,
+  p_reason    text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $fn$
+declare
+  v_dept   uuid;
+  v_role   text;
+  v_found  boolean := false;
+  v_pdept  uuid;
+  v_seat   text;
+  v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
+  v_id     uuid;
+begin
+  if gatepass.app_role() <> 'hod' then
+    raise exception 'Only a department head can authorise somebody to raise passes.';
+  end if;
+
+  -- 032: one department per person, so this is the department. A `limit` on a
+  -- unique index is a statement of that fact, not a truncation of a real set.
+  select d into v_dept from gatepass.my_department_ids() d limit 1;
+  if v_dept is null then
+    raise exception 'You do not head a department yet, so there is nothing to hand over.';
+  end if;
+
+  if p_raiser_id is null then
+    raise exception 'Choose somebody to authorise.';
+  end if;
+
+  if p_raiser_id = auth.uid() then
+    raise exception 'You already raise passes for your own department.';
+  end if;
+
+  if p_starts_at is null or p_ends_at is null then
+    raise exception 'An authority needs a start and an end.';
+  end if;
+
+  if p_ends_at <= p_starts_at then
+    raise exception 'The authority has to end after it starts.';
+  end if;
+
+  -- A window already over grants nothing to anybody and would sit in the history
+  -- reading "Expired" the moment it was written.
+  if p_ends_at <= now() then
+    raise exception 'That authority would already have ended. Choose an end in the future.';
+  end if;
+
+  select true, p.role::text, p.department_id
+    into v_found, v_role, v_pdept
+    from public.profiles p
+   where p.id = p_raiser_id;
+
+  if not v_found then
+    raise exception 'That person does not exist.';
+  end if;
+
+  if not gatepass.is_user_active(p_raiser_id) then
+    raise exception 'That account is deactivated. Reactivate it first, or choose somebody else.';
+  end if;
+
+  if v_pdept is distinct from v_dept then
+    raise exception 'You can only authorise somebody in your own department.';
+  end if;
+
+  -- Stated as a rule rather than as a fault: an HOD reading it has picked a real
+  -- colleague and needs to know WHO is eligible, not that something went wrong.
+  if v_role in ('hod', 'admin', 'super_admin') then
+    raise exception 'A department head, an admin or a super admin already raises passes in their own right. Choose somebody else in your department.';
+  end if;
+
+  if v_role = 'guard' then
+    raise exception 'The gate cannot raise the material it clears. Choose somebody else in your department.';
+  end if;
+
+  select r.role_key into v_seat
+    from gatepass.approval_roles r
+   where r.user_id = p_raiser_id;
+
+  if v_seat is not null then
+    raise exception 'That person holds the % office, so they would be signing a pass they raised.',
+      gatepass.approval_office_title(v_seat);
+  end if;
+
+  select d.role_key into v_seat
+    from gatepass.approval_delegations d
+   where d.delegate_id = p_raiser_id
+     and d.revoked_at is null
+     and d.ends_at > now();
+
+  if v_seat is not null then
+    raise exception 'That person is covering the % office under a delegation, so they would be signing a pass they raised.',
+      gatepass.approval_office_title(v_seat);
+  end if;
+
+  -- OVERLAP, not existence — 062's rule, and the reason `my_raising_departments`
+  -- can be relied on to answer with one department. Half-open at both ends, so
+  -- back-to-back windows do not collide. It is deliberately GLOBAL rather than
+  -- per-HOD: two HODs authorising one person over the same days is exactly the
+  -- ambiguity this refuses.
+  if exists (
+       select 1 from gatepass.pass_raisers r
+        where r.raiser_id = p_raiser_id
+          and r.revoked_at is null
+          and r.starts_at < p_ends_at
+          and r.ends_at   > p_starts_at
+     ) then
+    raise exception 'That person is already authorised to raise passes over part of that period.';
+  end if;
+
+  insert into gatepass.pass_raisers
+    (hod_id, raiser_id, department_id, starts_at, ends_at, reason)
+  values
+    (auth.uid(), p_raiser_id, v_dept, p_starts_at, p_ends_at, v_reason)
+  returning id into v_id;
+
+  return v_id;
+end;
+$fn$;
+
+comment on function gatepass.create_pass_raiser(uuid, timestamptz, timestamptz, text) is
+  'An HOD authorises one active member of their own department to raise gate passes on their behalf, for a stated window. Never an HOD, an admin, a guard or an approver. See migration 077.';
+
+revoke all on function gatepass.create_pass_raiser(uuid, timestamptz, timestamptz, text) from public;
+grant execute on function gatepass.create_pass_raiser(uuid, timestamptz, timestamptz, text) to authenticated;
+
+-- End one early. NOT a delete — the row stays in the history saying who was
+-- authorised and that it was stopped before its time. The passes already raised
+-- under it keep their level-0 rung, which is the whole point of snapshotting.
+create or replace function gatepass.revoke_pass_raiser(p_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $fn$
+declare
+  v_hod uuid;
+begin
+  select r.hod_id into v_hod from gatepass.pass_raisers r where r.id = p_id;
+
+  if v_hod is null then
+    raise exception 'That authority does not exist.';
+  end if;
+
+  if v_hod <> auth.uid() then
+    raise exception 'Only the department head who wrote this authority can revoke it.';
+  end if;
+
+  update gatepass.pass_raisers
+     set revoked_at = now(),
+         revoked_by = auth.uid()
+   where id = p_id
+     and revoked_at is null;
+end;
+$fn$;
+
+revoke all on function gatepass.revoke_pass_raiser(uuid) from public;
+grant execute on function gatepass.revoke_pass_raiser(uuid) to authenticated;
+
+-- Everything this HOD has ever authorised, newest first. `status` is DERIVED
+-- (062's `delegation_status`), never stored — this schema has no scheduler and
+-- ages nothing.
+create or replace function gatepass.list_my_pass_raisers()
+returns table (
+  id              uuid,
+  raiser_id       uuid,
+  raiser_name     text,
+  department_name text,
+  starts_at       timestamptz,
+  ends_at         timestamptz,
+  reason          text,
+  revoked_at      timestamptz,
+  status          text,
+  created_at      timestamptz
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $fn$
+  select r.id,
+         r.raiser_id,
+         p.full_name,
+         d.name,
+         r.starts_at,
+         r.ends_at,
+         r.reason,
+         r.revoked_at,
+         gatepass.delegation_status(r.revoked_at, r.starts_at, r.ends_at),
+         r.created_at
+    from gatepass.pass_raisers r
+    left join public.profiles    p on p.id = r.raiser_id
+    left join public.departments d on d.id = r.department_id
+   where r.hod_id = auth.uid()
+   order by r.created_at desc;
+$fn$;
+
+comment on function gatepass.list_my_pass_raisers() is
+  'Every raising authority this HOD has written, live, scheduled, expired or revoked. See migration 077.';
+
+revoke all on function gatepass.list_my_pass_raisers() from public;
+grant execute on function gatepass.list_my_pass_raisers() to authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 7. The reference number, for a raiser too
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 074's `reserve_pass_number` hands the Raise form the REAL number the pass will
+-- carry, and its guard is a verbatim copy of `raise_pass`'s — "a reservation is
+-- the first half of raising and must not be obtainable by somebody who could not
+-- go on to submit it". So the two have to move together: without this, a raiser
+-- is REFUSED a reservation and the form falls back to the `RGP-IT-####`
+-- placeholder while the submit itself succeeds — a screen quietly telling one
+-- reader less than it tells everybody else.
+--
+-- The guard below is 077's `raise_pass` guard, arm for arm and sentence for
+-- sentence. Everything under it — the advisory lock, the sweep, the serial and
+-- the twelve-hour reservation — is 074's, untouched.
+create or replace function gatepass.reserve_pass_number(
+  p_type          gatepass.pass_type,
+  p_department_id uuid
+)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_prefix       text;
+  v_number       text;
+  v_office       text;
+  v_any_dept     boolean;
+  v_raiser_depts uuid[];
+begin
+  v_office       := gatepass.my_fallback_office();
+  v_any_dept     := v_office is not null;
+  v_raiser_depts := array(select gatepass.my_raising_departments());
+
+  if gatepass.app_role() <> 'hod'
+     and not v_any_dept
+     and cardinality(v_raiser_depts) = 0 then
+    raise exception 'Only an HOD, somebody their HOD has authorised to raise on their behalf, the COO or the CEO can raise a gate pass.';
+  end if;
+
+  if p_department_id is null then
+    raise exception 'A gate pass must name a department.';
+  end if;
+
+  if v_any_dept then
+    if not exists (select 1 from public.departments d where d.id = p_department_id) then
+      raise exception 'That department does not exist.';
+    end if;
+  elsif gatepass.app_role() = 'hod' then
+    if p_department_id not in (select gatepass.my_department_ids()) then
+      raise exception 'You can only raise a pass for a department you head.';
+    end if;
+  else
+    if p_department_id <> all(v_raiser_depts) then
+      raise exception 'You can only raise a pass for the department your HOD authorised you for.';
+    end if;
+  end if;
+
+  v_prefix := p_type::text || '-' || gatepass.dept_code(p_department_id);
+
+  -- The same lock, on the same string, that set_pass_number takes. Held to the
+  -- end of the transaction, so the read and the insert below cannot interleave
+  -- with another reserver or with a pass being raised.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtext('gatepass_pass_number_' || v_prefix)
+  );
+
+  -- SWEEP FIRST, so an abandoned form's number is back in the pool before we
+  -- count. Scoped to this prefix: there is no reason to touch another
+  -- department's rows while holding only this department's lock, and doing so
+  -- would deadlock two reservers working on different prefixes.
+  delete from gatepass.pass_number_reservations
+   where consumed_at is null
+     and expires_at <= now()
+     and type = p_type
+     and department_id = p_department_id;
+
+  v_number := v_prefix || '-' || lpad(gatepass.next_pass_serial(v_prefix)::text, 4, '0');
+
+  insert into gatepass.pass_number_reservations
+    (pass_number, type, department_id, reserved_by, expires_at)
+  values
+    (v_number, p_type, p_department_id, auth.uid(), now() + interval '12 hours');
+
+  return v_number;
+end;
+$$;
+
+comment on function gatepass.reserve_pass_number(gatepass.pass_type, uuid) is
+  'Hands the caller the real pass number their next pass will carry (074), so '
+  'the Raise form can show it in full. Same authorisation as raise_pass, which '
+  'since 077 includes a person their HOD authorised to raise. Good for 12 '
+  'hours; release_pass_number() gives it back.';
+
+revoke all on function gatepass.reserve_pass_number(gatepass.pass_type, uuid) from public;
+grant execute on function gatepass.reserve_pass_number(gatepass.pass_type, uuid) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ═══════════════════════════════════════════════════════════
+-- 078_a_standing_copy_list.sql
+-- ═══════════════════════════════════════════════════════════
+-- ============================================================================
+-- 078 — a standing copy list, editable by an admin
+--
+-- Client, 2026-09-01: "admin should be able to configure three to four email
+-- IDs in the setting part and all those emails should be receiving the
+-- notifications about the gate pass raising and all those status changes …
+-- gate pass creations and approvals."
+--
+-- Every address the mail system used until now was DERIVED from the pass: the
+-- person who raised it, and the office holders on its ladder. That is correct
+-- and it is not enough — it cannot copy anybody who is not a participant. A
+-- facilities manager, an auditor, a mall GM who wants to see every movement:
+-- none of them hold an office, several have no login at all, and there was no
+-- way to write to them short of creating them an account.
+--
+-- ═══ WHY A COLUMN ON `mail_settings` AND NOT A TABLE ═══
+--
+-- Because the client asked for "three to four email IDs in the setting part",
+-- which is a FIELD, not a directory. A table would buy per-recipient event
+-- selection, an active flag and an audit trail of who added whom — none of
+-- which was asked for, all of which needs a screen to manage. `mail_settings`
+-- is already the one row an admin edits, already has the RPC pair that reads
+-- and writes it, and already has the grant shape this needs. One column, and
+-- the whole feature reaches the Edge Function through `mail_config()`, which
+-- the sender already calls once per invocation.
+--
+-- If per-event selection is ever wanted, THAT is the moment to promote this to
+-- `gatepass.mail_recipients` — and the column converts to it cleanly.
+--
+-- ═══ THE CAP IS FIVE, AND IT IS DELIBERATE ═══
+--
+-- A standing copy list is a blunt instrument: every address on it receives
+-- every letter about every pass, including the approval REQUESTS that the
+-- 2026-09-01 routing rule otherwise sends to exactly one office. Past a
+-- handful of people that stops being oversight and becomes noise nobody reads,
+-- which is worse than no list at all. Five leaves headroom over the four the
+-- client asked for; a sixth should be a conversation, not a silent insert.
+--
+-- ═══ WHAT THE CHECKS ARE FOR ═══
+--
+-- Each element is validated as ONE address by the SAME regex `override_to`
+-- uses (052): no separator, so an element cannot smuggle a list; no whitespace
+-- or angle brackets, so it cannot smuggle a second recipient through a display
+-- name. That mattered for `override_to` and it matters more here, because
+-- these strings are concatenated into a `cc` array by the sender.
+--
+-- Duplicates are refused case-insensitively. The Edge Function deduplicates
+-- again at send time (`ccOf`, which has to, because a listed address may also
+-- be the raiser's), but a settings screen that silently accepts the same
+-- person twice is a settings screen that lies about what it will do.
+--
+-- ═══ NULL IS NOT A STATE HERE ═══
+--
+-- `not null default '{}'` — an empty ARRAY, never null. "Nobody is copied" has
+-- exactly one spelling, so neither the RPC nor the Edge Function has to decide
+-- what a null list means. Every existing row gets `{}` on this migration, so
+-- applying it changes the behaviour of nothing.
+-- ============================================================================
+
+alter table gatepass.mail_settings
+  add column if not exists notify_cc text[] not null default '{}';
+
+-- ═══ THE RULE IS A FUNCTION, BECAUSE A CHECK MAY NOT HOLD A SUBQUERY ═══
+--
+-- Validating "every element of this array is one address, and no two are the
+-- same person" needs `unnest`, and Postgres refuses a subquery inside a CHECK
+-- ("cannot use subquery in check constraint"). A check MAY call a function,
+-- provided it is IMMUTABLE — which this is: it reads no table, no setting and
+-- no clock, only its own argument.
+--
+-- `search_path` is pinned and every reference qualified even though this is
+-- not SECURITY DEFINER. A function named in a constraint is evaluated on every
+-- write by whatever role is writing, and a resolvable-by-search-path call is
+-- how that becomes somebody else's function.
+create or replace function gatepass.notify_cc_is_valid(p_list text[])
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $fn$
+  select
+    -- At most five, for the reason argued in the header.
+    coalesce(cardinality(p_list), 0) <= 5
+    -- Every element is ONE address, by 052's own rule: no separator, so an
+    -- element cannot smuggle a list; no whitespace or angle brackets, so it
+    -- cannot smuggle a second recipient through a display name. That mattered
+    -- for `override_to` and it matters more here, because these strings are
+    -- concatenated into a `cc` array by the sender.
+    and not exists (
+      select 1
+        from unnest(coalesce(p_list, '{}'::text[])) as a(addr)
+       where a.addr is null
+          or a.addr !~ '^[^@[:space:],;<>]+@[^@[:space:],;<>]+\.[^@[:space:],;<>]+$'
+    )
+    -- No duplicates, case-insensitively. The Edge Function deduplicates again
+    -- at send time (`ccOf`, which has to, because a listed address may also be
+    -- the raiser's), but a settings screen that silently accepts the same
+    -- person twice is a settings screen that lies about what it will do.
+    and (
+      select count(distinct lower(a.addr))
+        from unnest(coalesce(p_list, '{}'::text[])) as a(addr)
+    ) = coalesce(cardinality(p_list), 0);
+$fn$;
+
+comment on function gatepass.notify_cc_is_valid(text[]) is
+  'True when a standing copy list is storable: at most five entries, each one well-formed single address, no case-insensitive duplicates. Immutable so that mail_settings CHECK can call it (078).';
+
+-- Dropped and re-added so a re-run tightens an existing deployment rather than
+-- silently keeping an older rule. `if exists` keeps the paste idempotent.
+alter table gatepass.mail_settings
+  drop constraint if exists mail_settings_notify_cc_is_addresses;
+alter table gatepass.mail_settings
+  add constraint mail_settings_notify_cc_is_addresses
+  check (gatepass.notify_cc_is_valid(notify_cc));
+
+comment on column gatepass.mail_settings.notify_cc is
+  'Up to five addresses copied on EVERY gate pass letter — raised, awaiting approval, approved, rejected, and both gate outcomes. Editable by an admin in Admin -> Settings (078). Empty array = nobody. Suppressed entirely while override_to is set, like every other copy.';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- What an ADMIN may see — 052's function, with the list
+-- ═══════════════════════════════════════════════════════════════════════════
+create or replace function gatepass.get_mail_settings()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $fn$
+declare
+  v jsonb;
+begin
+  if not gatepass.is_admin() then
+    raise exception 'Only an admin can read the mail settings.';
+  end if;
+
+  select jsonb_build_object(
+           'override_to',       s.override_to,
+           'from_email',        s.from_email,
+           'from_name',         s.from_name,
+           'notify_cc',         to_jsonb(s.notify_cc),
+           'smtp_host',         s.smtp_host,
+           'smtp_port',         s.smtp_port,
+           'smtp_username',     s.smtp_username,
+           'smtp_security',     s.smtp_security,
+           -- The password itself is never returned. This is the only thing a
+           -- screen needs to know about it: whether one is stored.
+           'smtp_password_set', s.smtp_password is not null,
+           'updated_at',        s.updated_at,
+           'updated_by_name',   p.full_name
+         )
+    into v
+    from gatepass.mail_settings s
+    left join public.profiles p on p.id = s.updated_by
+   where s.id;
+
+  -- A settings table that has never been written is not an error: it is the
+  -- state every deployment starts in, and it means "use the function's
+  -- environment". The caller gets nulls, not a null document, so a screen can
+  -- render the same fields either way. `notify_cc` is an empty ARRAY here too
+  -- — the client must never have to treat "unwritten" and "nobody" apart.
+  return coalesce(v, jsonb_build_object('smtp_password_set', false, 'notify_cc', '[]'::jsonb));
+end;
+$fn$;
+
+grant execute on function gatepass.get_mail_settings() to authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Writing them — a NEW SIGNATURE, so the old one is dropped
+-- ═══════════════════════════════════════════════════════════════════════════
+-- A default argument does not replace a function, it OVERLOADS it: leaving
+-- 052's eight-argument version in place would give PostgREST two candidates
+-- for `set_mail_settings` and let a stale client keep writing settings that
+-- silently clear nothing. Drop first, then create, then re-grant — all three,
+-- because a dropped function takes its grants with it.
+drop function if exists gatepass.set_mail_settings(text, text, text, text, int, text, text, text);
+
+create or replace function gatepass.set_mail_settings(
+  p_override_to   text default null,
+  p_from_email    text default null,
+  p_from_name     text default null,
+  p_smtp_host     text default null,
+  p_smtp_port     int  default null,
+  p_smtp_username text default null,
+  p_smtp_security text default null,
+  p_smtp_password text default null,
+  -- NULL means "the form did not touch this list", the same three-state rule
+  -- `p_smtp_password` follows. An EMPTY ARRAY is the explicit "copy nobody".
+  -- Without that distinction, any older caller — a cached tab, the e2e suite —
+  -- would wipe the list every time it saved an unrelated field.
+  p_notify_cc     text[] default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $fn$
+declare
+  v_cc text[];
+begin
+  if not gatepass.is_admin() then
+    raise exception 'Only an admin can change the mail settings.';
+  end if;
+
+  -- Normalise before the constraint sees it: trim every element and drop the
+  -- blanks, so a half-filled form of five inputs stores the two that were
+  -- typed rather than three empty strings the CHECK would reject. The person
+  -- typing gets a saved setting, not a constraint violation.
+  if p_notify_cc is null then
+    select s.notify_cc into v_cc from gatepass.mail_settings s where s.id;
+    v_cc := coalesce(v_cc, '{}');
+  else
+    select coalesce(array_agg(t.addr order by t.ord), '{}')
+      into v_cc
+      from (
+        select btrim(a.addr) as addr, a.ord
+          from unnest(p_notify_cc) with ordinality as a(addr, ord)
+         where btrim(coalesce(a.addr, '')) <> ''
+      ) t;
+  end if;
+
+  insert into gatepass.mail_settings as m (
+    id, override_to, from_email, from_name, notify_cc,
+    smtp_host, smtp_port, smtp_username, smtp_security, smtp_password,
+    updated_by, updated_at
+  )
+  values (
+    true,
+    nullif(btrim(coalesce(p_override_to, '')), ''),
+    nullif(btrim(coalesce(p_from_email, '')), ''),
+    nullif(btrim(coalesce(p_from_name, '')), ''),
+    v_cc,
+    nullif(btrim(coalesce(p_smtp_host, '')), ''),
+    p_smtp_port,
+    nullif(btrim(coalesce(p_smtp_username, '')), ''),
+    nullif(btrim(coalesce(p_smtp_security, '')), ''),
+    nullif(coalesce(p_smtp_password, ''), ''),
+    auth.uid(), now()
+  )
+  on conflict (id) do update
+    set override_to   = excluded.override_to,
+        from_email    = excluded.from_email,
+        from_name     = excluded.from_name,
+        notify_cc     = excluded.notify_cc,
+        smtp_host     = excluded.smtp_host,
+        smtp_port     = excluded.smtp_port,
+        smtp_username = excluded.smtp_username,
+        smtp_security = excluded.smtp_security,
+        smtp_password = case
+                          when p_smtp_password is null then m.smtp_password
+                          else nullif(p_smtp_password, '')
+                        end,
+        updated_by    = auth.uid(),
+        updated_at    = now();
+
+  return gatepass.get_mail_settings();
+end;
+$fn$;
+
+grant execute on function gatepass.set_mail_settings(text, text, text, text, int, text, text, text, text[])
+  to authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- What the SENDER reads — 052's function, with the list
+-- ═══════════════════════════════════════════════════════════════════════════
+-- service_role ONLY, unchanged: this is the one function in the schema that
+-- returns a stored password.
+create or replace function gatepass.mail_config()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $fn$
+  select coalesce(
+    (select jsonb_build_object(
+              'override_to',   s.override_to,
+              'from_email',    s.from_email,
+              'from_name',     s.from_name,
+              'notify_cc',     to_jsonb(s.notify_cc),
+              'smtp_host',     s.smtp_host,
+              'smtp_port',     s.smtp_port,
+              'smtp_username', s.smtp_username,
+              'smtp_security', s.smtp_security,
+              'smtp_password', s.smtp_password
+            )
+       from gatepass.mail_settings s
+      where s.id),
+    '{}'::jsonb
+  );
+$fn$;
+
+grant execute on function gatepass.mail_config() to service_role;
+
+notify pgrst, 'reload schema';
+
+-- ═══════════════════════════════════════════════════════════
 -- 005_seed_hod_departments.sql
 -- ═══════════════════════════════════════════════════════════
 -- ============================================================================

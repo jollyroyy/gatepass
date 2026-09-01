@@ -57,7 +57,11 @@ const HEX_EXEMPT_TSX = [
   // deliberately black-on-white with no colour-dependent information, the same
   // rule PassPrint follows, so the letter reads on a client that strips styles
   // entirely.
-  'src/lib/approvalNotice.ts',
+  // The letter's own palette. It moved out of `approvalNotice.ts` on
+  // 2026-09-01 when that file was split under the 300-line cap; the whole
+  // folder is exempt because every module in it composes mail HTML, and a
+  // colour there is as always-light as one in `noticeFormat.ts` itself.
+  'src/lib/notice/',
 ];
 
 describe('theme audit — no stray hardcoded hex on an in-app (theme-following) surface', () => {
@@ -69,7 +73,12 @@ describe('theme audit — no stray hardcoded hex on an in-app (theme-following) 
     const offenders: string[] = [];
     for (const file of files) {
       const rel = relative(join(__dirname, '../..'), file).split('\\').join('/');
-      if (HEX_EXEMPT_TSX.some((ex) => rel === ex)) continue;
+      // An entry ending in `/` exempts a whole FOLDER, which is how one
+      // always-light surface that outgrew a single file stays exempt without
+      // listing every module it was split into. Everything else is still an
+      // exact path — a prefix match by default would silently exempt
+      // `src/lib/notice*` and anything else sharing a leading string.
+      if (HEX_EXEMPT_TSX.some((ex) => (ex.endsWith('/') ? rel.startsWith(ex) : rel === ex))) continue;
       const content = readFileSync(file, 'utf-8');
       const matches = content.match(/#[0-9a-fA-F]{3,8}\b/g);
       if (matches) offenders.push(`${rel}: ${matches.join(', ')}`);

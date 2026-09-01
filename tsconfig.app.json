@@ -4,6 +4,14 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
+    // `src/lib/notice/*` is loaded by TWO runtimes: Vite/Vitest here, and Deno
+    // in `supabase/functions/notify-approval`. Deno resolves a local import
+    // only WITH a `.ts` suffix. Allowing the suffix here is what lets ONE set
+    // of modules satisfy both, which is what replaced the old rule that
+    // `approvalNotice.ts` may import nothing at all — a rule that had pinned
+    // every letter this system sends into a single 567-line file.
+    // Legal only alongside `noEmit`, which is set below.
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "strict": true,
     "noUnusedLocals": true,

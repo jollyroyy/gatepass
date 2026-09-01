@@ -17,7 +17,10 @@ import {
   type NoticeApproval,
   type NoticePass,
 } from '../../src/lib/approvalNotice';
-import { APPROVAL_ROLE_TITLES } from '../../src/lib/approvalLadder';
+// RUNG_TITLES, not APPROVAL_ROLE_TITLES. The four offices are the SEATS; a
+// pass's ladder can also carry `department_hod` (077), and a letter is written
+// about a pass's rungs rather than about the seating plan.
+import { RUNG_TITLES } from '../../src/lib/approvalLadder';
 import { formatCurrency } from '../../src/lib/formatCurrency';
 
 const BASE = 'https://gatepass.example.com';
@@ -57,20 +60,56 @@ const LADDER: NoticeApproval[] = [
   approval({ role_key: 'ceo', level_no: 3, approver_id: 'u-ceo', approver_name: 'Meera Nair', approver_email: 'meera@example.com' }),
 ];
 
-describe('approvalNotice — the file itself', () => {
-  // The header's hard rule. Deno resolves a local import only WITH a `.ts`
-  // extension and the app's tooling only WITHOUT one, so the single way this
-  // file can be loaded by both is to import nothing at all. A future import
-  // here would break the Edge Function at runtime and nowhere else.
-  it('imports nothing, so Deno and Vite can both load it', () => {
-    const src = readFileSync(join(process.cwd(), 'src/lib/approvalNotice.ts'), 'utf8');
+describe('approvalNotice — the modules themselves', () => {
+  // ═══ THE RULE THAT REPLACED "IMPORT NOTHING" (2026-09-01) ═══
+  //
+  // These modules are loaded by TWO runtimes: Vite/Vitest here, and Deno in
+  // `supabase/functions/notify-approval`. Deno resolves a local import only
+  // WITH a `.ts` suffix, so every relative import in this folder must carry
+  // one — `allowImportingTsExtensions` in `tsconfig.app.json` is what lets the
+  // app's own tooling accept the same form.
+  //
+  // Until this date the rule was harder — `approvalNotice.ts` could import
+  // NOTHING AT ALL — which worked, and pinned every letter this system sends
+  // into one 567-line file, against the repo's 300-line cap.
+  //
+  // A miss here breaks the Edge Function AT RUNTIME and nowhere else: the app
+  // builds, this suite passes, and the mail silently stops.
+  const NOTICE_FILES = [
+    'src/lib/approvalNotice.ts',
+    'src/lib/notice/noticeTypes.ts',
+    'src/lib/notice/noticeFormat.ts',
+    'src/lib/notice/noticeLadder.ts',
+    'src/lib/notice/noticeApproval.ts',
+    'src/lib/notice/noticeLifecycle.ts',
+    'src/lib/notice/noticeGate.ts',
+    'src/lib/notice/noticeEmergency.ts',
+    'src/lib/notice/noticeDispatch.ts',
+  ];
+
+  it.each(NOTICE_FILES)('%s imports only siblings, always with a .ts suffix', (file) => {
+    const src = readFileSync(join(process.cwd(), file), 'utf8');
     const code = src.replace(/^\s*(\/\/.*|\*.*|\/\*.*)$/gm, '');
-    expect(code).not.toMatch(/^\s*import\s/m);
     expect(code).not.toMatch(/\brequire\s*\(/);
+    // ANCHORED, because these files are full of English prose in string
+    // literals and a bare /from\s+['"]/ matches "…is needed from ' + '…". A
+    // module specifier only ever follows the start of a line (a side-effect
+    // import) or the `}` that closes a named list.
+    const specifiers = [
+      ...code.matchAll(/(?:^|})\s*from\s+['"]([^'"]+)['"]/gm),
+      ...code.matchAll(/^\s*import\s+['"]([^'"]+)['"]/gm),
+    ].map((m) => m[1]);
+    expect(specifiers.length).toBeGreaterThanOrEqual(file.endsWith('noticeTypes.ts') ? 0 : 1);
+    for (const spec of specifiers) {
+      // A bare specifier is a PACKAGE, which Deno would have to resolve from a
+      // registry these files must never depend on.
+      expect(spec.startsWith('.')).toBe(true);
+      expect(spec.endsWith('.ts')).toBe(true);
+    }
   });
 
   it('spells the four offices exactly as the ladder and the printed slip do', () => {
-    expect(NOTICE_ROLE_TITLES).toEqual(APPROVAL_ROLE_TITLES);
+    expect(NOTICE_ROLE_TITLES).toEqual(RUNG_TITLES);
   });
 
   it('formats rupees the way the rest of the app does — exact, never abbreviated', () => {

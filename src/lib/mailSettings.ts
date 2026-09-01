@@ -5,10 +5,10 @@
 //
 // `override_to` is a REDIRECT: when it is set, every approval letter the
 // ladder sends is handed to that ONE address whatever office it was aimed at,
-// and the log records both. It exists because an unverified Resend account may
-// only write to the address that owns it, so the four offices' letters have to
-// land in one inbox to be seen at all. Clearing it is half of the production
-// switch-over (the other half is a verified sending domain).
+// and the log records both. It is a testing valve: before a sending domain is
+// authenticated, the offices' letters land in one inbox to be seen at all.
+// Clearing it is half of the production switch-over (the other half is an
+// authenticated sending domain).
 //
 // ONE ADDRESS, NEVER A LIST (client, 2026-08-20). The database says the same
 // thing in a CHECK; this module says it first, so the person typing gets a
@@ -17,9 +17,11 @@
 // ═══ THE SMTP FIELDS SEND NOTHING YET ═══
 //
 // They are stored provision (client: "keep a provision for later-stage SMTP
-// server and SMTP configuration"). The Edge Function still posts to the Resend
+// server and SMTP configuration"). The Edge Function posts to the Brevo HTTP
 // API, and `smtpNote` below is what says so on the screen — a settings form
 // that looks live but is not is worse than one that admits it.
+
+import { copyListPayload, copyRowsFrom, validateCopyList } from './mailRecipients';
 
 export type SmtpSecurity = 'none' | 'starttls' | 'tls';
 
@@ -35,6 +37,10 @@ export interface MailSettings {
   smtp_username: string | null;
   smtp_security: SmtpSecurity | null;
   smtp_password_set: boolean;
+  /** The standing copy list (078). Always an array — `get_mail_settings`
+   *  returns `[]` for a settings row that has never been written, so "nobody"
+   *  and "unwritten" are the same value here on purpose. */
+  notify_cc: string[];
   updated_at: string | null;
   updated_by_name: string | null;
 }
@@ -50,6 +56,9 @@ export interface MailSettingsForm {
   smtpUsername: string;
   smtpSecurity: string;
   smtpPassword: string;
+  /** Fixed-length rows, blanks included, so clearing row 2 does not renumber
+   *  rows 3 and 4 under the person's cursor. See `mailRecipients.ts`. */
+  notifyCc: string[];
 }
 
 export const SMTP_SECURITY_LABELS: Record<SmtpSecurity, string> = {
@@ -68,19 +77,19 @@ export function isOneEmailAddress(value: string): boolean {
   return ONE_ADDRESS.test(value.trim());
 }
 
-// ═══ THE SENDER ADDRESS IS THE ONE THAT STOPS ALL MAIL ═══
+// ═══ THE SENDER ADDRESS IS THE ONE THAT DECIDES WHERE MAIL LANDS ═══
 //
-// On 2026-08-22 somebody set the sender address to a gmail.com address, and
-// every approval letter since was refused by the provider with
+// On 2026-08-22 somebody set the sender to a gmail.com address and every
+// letter after it was refused outright, with a message naming the DOMAIN and
+// reading like a problem with the recipient. It is not: a mail provider will
+// only send FROM a domain whose DNS you control and have proved you control.
+// The field was accepted, saved, and silently broke every letter, and the only
+// symptom was an inbox that stayed empty.
 //
-//   403 The gmail.com domain is not verified. Please, add and verify your
-//       domain on https://resend.com/domains
-//
-// That reads like a problem with the RECIPIENT and is not: a mail provider
-// will only send FROM a domain whose DNS you control and have proved you
-// control. Nobody can send from gmail.com through Resend — not the owner of
-// the gmail account, not anyone. The field was accepted, saved, and silently
-// broke every letter, and the only symptom was an inbox that stayed empty.
+// The current provider is gentler and therefore sneakier — it accepts a free
+// mailbox as sender and rewrites the sending domain rather than refusing — so
+// the same mistake now costs deliverability instead of everything. That is why
+// the list below survives as a WARNING; see `senderDomainWarning`.
 //
 // So the check lives here, in front of the person typing, and NOT in a
 // database CHECK: "is one address" is a permanent truth about the field and
@@ -99,23 +108,38 @@ export function domainOf(email: string): string {
 }
 
 /**
- * Why this address cannot be a sender, or null if it can be.
+ * What is WRONG with this sender address, or null if nothing is.
  *
- * Only free consumer mailboxes are refused, and only as SENDERS. They are the
- * whole of the mistake this guards against — an address somebody owns and
- * reasonably assumes they may therefore send from. A corporate domain is
- * allowed through even when it is unverified, because this app cannot know
- * which domains the account has verified and refusing one it has would be the
- * worse error.
+ * ═══ A WARNING SINCE 2026-09-01, NOT A REFUSAL, AND THE PROVIDER IS WHY ═══
+ *
+ * The previous provider made this block the save: it answered a gmail.com
+ * sender with a flat `403 … domain is not verified` and every letter died. That
+ * was the right call for that provider.
+ *
+ * Brevo does not refuse. Free webmail domains cannot be AUTHENTICATED with it —
+ * that part is unchanged and is why this warning still exists — but rather than
+ * rejecting the message Brevo silently REWRITES the sending domain to
+ * `@brevosend.com` and delivers it. Verified 2026-09-01 by sending one.
+ *
+ * So the cost changed shape: mail still arrives, but it arrives from a domain
+ * nobody at this company owns, which is worse for trust and much worse for
+ * spam filtering — and it is invisible from inside the app. Blocking a
+ * configuration that demonstrably delivers would be the bigger error, so this
+ * is now a sentence on the screen and not a locked Save button.
+ *
+ * Only free consumer mailboxes are named. A corporate domain is left alone even
+ * when unverified, because this app cannot know which domains the account has
+ * authenticated and refusing one it has would be the worse error.
  */
-export function senderDomainProblem(email: string): string | null {
+export function senderDomainWarning(email: string): string | null {
   const domain = domainOf(email);
   if (!domain || !PUBLIC_MAILBOX_DOMAINS.has(domain)) return null;
   return (
-    `Mail cannot be sent FROM ${domain} — a provider only sends from a domain ` +
-    `you have verified, so this address is refused for everybody. Use an address ` +
-    `at your own verified domain, or leave this blank to use the provider's ` +
-    `shared sender.`
+    `${domain} cannot be authenticated with the mail provider, so letters will ` +
+    `be delivered with the sender rewritten to a provider-owned domain ` +
+    `(@brevosend.com). They will still arrive, but they will look like they came ` +
+    `from a stranger and are far more likely to be filtered as spam. Use an ` +
+    `address at a domain you have authenticated as soon as you have one.`
   );
 }
 
@@ -132,10 +156,15 @@ export function formFromSettings(s: MailSettings | null): MailSettingsForm {
     // means "leave the stored one alone", which is what `mailSettingsPayload`
     // sends when nobody typed in it.
     smtpPassword: '',
+    notifyCc: copyRowsFrom(s?.notify_cc),
   };
 }
 
-export type MailSettingsErrors = Partial<Record<keyof MailSettingsForm, string>>;
+export type MailSettingsErrors = Partial<Record<keyof MailSettingsForm, string>> & {
+  /** One message per wrong ROW of the copy list, keyed by index (078). A
+   *  single string could not say WHICH of four addresses is the duplicate. */
+  notifyCcRows?: Record<number, string>;
+};
 
 export function validateMailSettings(f: MailSettingsForm): MailSettingsErrors {
   const errors: MailSettingsErrors = {};
@@ -149,9 +178,14 @@ export function validateMailSettings(f: MailSettingsForm): MailSettingsErrors {
     // Only reached when the address is well-formed: "that is not an address"
     // and "that address cannot send" are different sentences and the first
     // one has to come first.
-    const problem = senderDomainProblem(f.fromEmail);
-    if (problem) errors.fromEmail = problem;
+    // ⚠ NOT AN ERROR ANY MORE — see `senderDomainWarning`. The previous
+    // provider refused a free-mailbox sender outright and had to block the save;
+    // Brevo accepts it and rewrites the sending domain instead, so blocking it
+    // would now refuse a configuration that demonstrably delivers.
   }
+
+  const rows = validateCopyList(f.notifyCc);
+  if (Object.keys(rows).length > 0) errors.notifyCcRows = rows;
 
   const port = f.smtpPort.trim();
   if (port) {
@@ -177,6 +211,7 @@ export interface MailSettingsPayload {
   p_smtp_username: string | null;
   p_smtp_security: string | null;
   p_smtp_password: string | null;
+  p_notify_cc: string[];
 }
 
 const or_null = (v: string): string | null => (v.trim() ? v.trim() : null);
@@ -200,6 +235,11 @@ export function mailSettingsPayload(f: MailSettingsForm, passwordTouched: boolea
     p_smtp_username: or_null(f.smtpUsername),
     p_smtp_security: or_null(f.smtpSecurity),
     p_smtp_password: passwordTouched ? f.smtpPassword.trim() : null,
+    // ALWAYS SENT, never null. Null means "leave the stored list alone" to the
+    // RPC, which is the right default for a caller that does not know about
+    // the field — but this form always shows it, so an untouched empty form
+    // genuinely means "copy nobody" and must be able to say so.
+    p_notify_cc: copyListPayload(f.notifyCc),
   };
 }
 
@@ -252,8 +292,16 @@ export function explainSendError(error: string | null): string | null {
   if (e.includes('can only send testing emails') || e.includes('own email address')) {
     return (
       'The sender is fine — the mail account is unverified, so the provider will only deliver ' +
-      'to the address that owns it. Verify a domain at resend.com/domains and set a Sender ' +
-      'address at that domain to reach any other recipient.'
+      'to the address that owns it. Authenticate a sending domain with the mail provider and set ' +
+      'a Sender address at that domain to reach any other recipient.'
+    );
+  }
+  // Brevo names the sender rather than the domain when the From address is not
+  // one it will send from. Different words, same fix as the branch above.
+  if (e.includes('sender') && (e.includes('not valid') || e.includes('not found'))) {
+    return (
+      'The Sender address below is not one the mail provider will send from. Add and verify it ' +
+      'under Senders in the provider, or set a Sender address at a domain you have authenticated.'
     );
   }
   return null;
@@ -262,7 +310,7 @@ export function explainSendError(error: string | null): string | null {
 /** What the stored SMTP server is doing, which is nothing yet — and says so. */
 export function smtpNote(s: MailSettings | null): string {
   const host = s?.smtp_host?.trim();
-  if (!host) return 'No SMTP server is configured. Mail is sent through the Resend API.';
+  if (!host) return 'No SMTP server is configured. Mail is sent through the Brevo API.';
   const where = s?.smtp_port ? `${host}:${s.smtp_port}` : host;
-  return `Saved: ${where}. It is not used for sending yet — mail still goes through the Resend API.`;
+  return `Saved: ${where}. It is not used for sending yet — mail still goes through the Brevo API.`;
 }

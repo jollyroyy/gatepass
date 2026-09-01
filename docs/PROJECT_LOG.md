@@ -4885,3 +4885,93 @@ still show `SendToVendorButton.tsx` and `slipImage.ts` as offenders — another 
 No letter when an escalation window elapses (no scheduler), none for a recorded or overdue return,
 no retry queue, and no SMTP transport (052's columns remain provision; Brevo's relay is
 `smtp-relay.brevo.com:587` if it is ever wanted).
+
+---
+
+## 2026-09-01 (later) — Brevo goes live, and an admin can name who else gets copied
+
+Continues the session above. Four things: the provider is configured and proven, Resend is gone, an
+admin can type up to five standing copy addresses, and 076/078 are applied to production.
+
+### Brevo is live and PROVEN, not assumed
+
+A real message was sent through `POST https://api.brevo.com/v3/smtp/email` and accepted —
+`201 {"messageId":"<202609010743.91244328186@smtp-relay.mailin.fr>"}`. Secrets set on the function:
+`BREVO_API_KEY`, `MAIL_FROM`. `RESEND_API_KEY` was **unset**, and `notify-approval` redeployed with
+all eight `src/lib/notice/*` modules bundled.
+
+⚠ **The user first supplied an `xsmtpsib-` key.** That is Brevo's SMTP-relay password, not the v3 API
+key the HTTP sender needs (`xkeysib-`); posting it to `/v3/smtp/email` answers 401 with a message
+that does not say why. Both are generated on the same screen. Worth checking the prefix first.
+
+### Live settings that were silently wrong
+
+`mail_settings` held `from_email = onboarding@resend.dev` — **the table wins over `MAIL_FROM`**
+(052), so setting the secret alone would have left every message refused. Now
+`from_email = jollyroyy@gmail.com`, `override_to = jollyroyy@gmail.com` (testing), `notify_cc =
+{jollyroyy@gmail.com}`.
+
+**Clear `override_to` in Admin → Settings to go live.** While it is set, every letter is redirected
+to that one inbox AND every copy is suppressed — including the new standing list.
+
+### A gmail SENDER is now a warning, not a refusal
+
+`senderDomainProblem` → **`senderDomainWarning`**, and it no longer blocks Save. The old rule was
+right for Resend, which answered a `gmail.com` sender with a flat 403 and delivered nothing. Brevo
+does not refuse: free webmail domains **cannot be authenticated**, so it silently **rewrites the
+sending domain to `@brevosend.com`** and delivers anyway — verified by sending one. Blocking a
+configuration that demonstrably delivers is the bigger error; the cost (a sender nobody owns, much
+worse filtering) is now a sentence on the screen. The domain list survives unchanged.
+
+### 078 — the standing copy list
+
+`mail_settings.notify_cc text[] not null default '{}'`, up to **five** addresses, each validated as
+ONE address by 052's regex, no case-insensitive duplicates. Copied on EVERY letter. These people need
+no account, which is the whole point — a derived recipient list can never reach a mall GM or an
+auditor.
+
+- **A CHECK may not hold a subquery** (`cannot use subquery in check constraint`). The rule is
+  `gatepass.notify_cc_is_valid(text[])`, `immutable` with `search_path` pinned, called by the check.
+- `set_mail_settings` **dropped and recreated with a ninth argument** (`p_notify_cc text[]`). A
+  default argument OVERLOADS rather than replaces; leaving the 8-arg version would give PostgREST two
+  candidates. `null` = "the form did not touch the list" (the `p_smtp_password` three-state rule);
+  `{}` = copy nobody.
+- Client: `src/lib/mailRecipients.ts` (pure) + `src/pages/Admin/NotifyCcFields.tsx` — four fixed rows,
+  blanks allowed, a row removed by emptying it. Separate files because `mailSettings.ts` was at 268
+  of its 300 lines. `copyListNote` says out loud when a filled list is sending nothing because of
+  the redirect, which is the one way this feature silently does nothing.
+
+### `department_hod` reached the letters (gatepass-af's 077)
+
+`NoticeRoleKey` is five keys now, `NOTICE_ROLE_TITLES.department_hod = 'Department HOD'`, and
+`approvalNotice.test.ts` compares against **`RUNG_TITLES`**, not `APPROVAL_ROLE_TITLES` — a rung key
+is not an office key. Without it a raise receipt read "now with the department_hod" at a human.
+`approval_notice_payload` needed no change.
+
+### ⚠ AN APPLY MISTAKE, AND THE RULE THAT COMES OUT OF IT
+
+**I applied 077 while 074 was still unapplied, and left production with TWO `raise_pass` overloads** —
+a live break on the RPC that creates gate passes. 077 uses `create or replace` at ten arguments; the
+`drop function …(9 args)` that removes the old one lives in **074**. `create or replace` cannot change
+an argument list, so it added a second function and PostgREST had two candidates. 077's
+`reserve_pass_number` also called 074's `next_pass_serial()`, which did not exist — a plpgsql body is
+stored as text, so it created cleanly and would have failed at first call. gatepass-46 repaired it
+(dropped both, applied 074, 075, then re-applied 077 last).
+
+**THE RULE: green tests are not evidence that an apply is safe.** `sqlInvariants` reads the migration
+FILES; it cannot see what is already in the database or in what order things were applied. Prefer
+pasting the whole `APPLY_ALL.sql` in one transaction — its ordering is what makes the drop-then-create
+pairs work — over hand-picking migrations. Verified after repair: one `raise_pass`, one
+`set_mail_settings`, `notify_cc` present, `pass_number_reservations` present.
+
+### Not proven, and why
+
+The Edge Function's own send path is **untested end to end**. It authorises by asking the CALLER's
+client whether it can see the pass, and `service_role` deliberately holds no grant on
+`v_gate_passes` (007) — so a curl with the service key gets `Could not check that pass`, which is the
+check working, not a bug. Testing it needs a real signed-in JWT, i.e. somebody raising or approving a
+pass in the app. Proven separately: the Brevo credentials and sender (a real 201), and every routing
+decision (unit tests).
+
+**Gate:** `npm run check` — **193 files, 2505 tests, green**, typecheck clean, with all four sessions'
+work in the tree. `APPLY_ALL.sql` regenerated at 78 sections.
