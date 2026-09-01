@@ -6,7 +6,62 @@ For current rules and architecture, see CLAUDE.md.
 
 ## Current state (session-by-session history)
 
-## 2026-09-01 (latest) — an HOD delegates the RAISING, and signs what is raised (`077`, APPLIED)
+## 2026-09-01 (latest) — the vendor is sent the printed pass itself, on WhatsApp
+
+Client, in two goes: the message an HOD forwards to a vendor *"should have all the information …
+the make and model, the department name, the QR code for the pass"* — and then, plainly, *"I want the
+same exact as it is appearing in the print pass page. The same exact print pass page should be sent
+out to the vendor using the WhatsApp as well."*
+
+**Index.** F1 `src/components/print/PassSlip.tsx` · F2 `src/lib/slipImage.ts` · F3
+`src/lib/vendorShare.ts` · F4 `src/lib/usePrintSlipData.ts` · F5
+`src/components/SendToVendorButton.tsx` · F6 `src/lib/whatsappShare.ts` · P1
+`src/pages/Shared/PassPrint.tsx`
+
+### A chat cannot carry a web page, so the slip is photographed
+
+There is no portal link in the message and there never was one — a vendor has no account here and
+every route is behind RLS. A QR code cannot be typed into a chat either. So F5 mounts F1 **off-screen
+at paper width, photographs it (F2, `html-to-image`, lazily imported) and hands the PNG plus the text
+to `navigator.share`**. On a desktop, which has no file share, the slip is downloaded and `wa.me`
+opens with the text prepared (F3). Still **nothing is sent by this app**: the HOD picks the chat and
+presses send, as before.
+
+A cancelled share (`AbortError`) is not a failure and drops no file; a share sheet that errors falls
+back rather than reporting; a capture that fails still sends the message, because the text alone
+carries the pass number, the department and the material.
+
+### ONE sheet, because two would drift
+
+P1 was the only place the printed slip existed, so the slip **moved into F1 verbatim** and P1 became
+the Back/Print chrome around it; F4 holds the reads both need (pass, items, verifications, roles,
+approvals, escalation hours, and 075's signatures). A copy of that markup would have disagreed with
+the paper on the next change to either — which is the exact complaint that produced this work.
+`passPrintDarkMode` and `printChrome` now read F1, because they assert on the SHEET; every
+render-based print spec passed untouched, which is what proves the lift was verbatim.
+
+F6 keeps the TEXT and the NUMBER: item lines now read `1. Headset (Sony WH-1000XM4) — 8 Numbers`,
+because the name alone does not say which headset is leaving the mall.
+
+### Verified in a real browser, and it found two things
+
+Rendering F1 in headless Chromium and running the real capture produced a 1520×1954 PNG of the whole
+slip — QR, department, both make/models, six approval boxes, no console errors. It also showed the
+serial/date row **wrapping**: the capture lays the sheet out inside an SVG foreignObject, where a
+flex child may be shrunk below its content, so "2026" dropped through the grey box's bottom border
+while the paper was perfect. Pinned with `shrink-0 whitespace-nowrap` (805c201). **Anything added to
+the sheet should prefer a table or a grid over a bare flex — the paper will not show you this bug.**
+
+Second: `passSubmittedModal.test.tsx` now stubs the Supabase client, because Send to Vendor makes the
+popup import it and demand `VITE_SUPABASE_URL`.
+
+### Known, unowned
+
+On a checkout with no `.env`, **11 unit test FILES fail at import** on `supabaseUrl is required` —
+every test inside them passes, so it is import-time only, but it would be red on arrival in CI. The
+fix is a default URL/key in `tests/setup.ts`. Not claimed by any session.
+
+## 2026-09-01 — an HOD delegates the RAISING, and signs what is raised (`077`, APPLIED)
 
 Client: *"the HOD of all the departments should be able to delegate the pass creation capabilities in
 his left-hand side panel to the person he has asked. This should not be any of the department heads
