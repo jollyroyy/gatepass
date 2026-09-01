@@ -1,14 +1,14 @@
 // EVERYTHING THE PRINTED SLIP IS MADE OF, read once, for whoever is drawing it.
 //
-// Two callers now: `/pass/:id/print` and the Send to Vendor button, which
-// mounts the very same slip off-screen and photographs it (`slipImage.ts`).
-// They must not read the pass differently — a WhatsApp picture that disagreed
-// with the paper in the guard's hand would be worse than sending nothing — so
-// the reads live here rather than in either screen.
+// One caller today — `/pass/:id/print` — and it was two: Send to Vendor mounted
+// the same slip off-screen and photographed it until the picture was dropped on
+// 2026-09-01 (see `whatsappShare.ts`). The reads stay out here anyway, because
+// the point of them was that two drawings of one pass cannot disagree, and the
+// next renderer of the sheet must inherit that.
 //
-// `passId` is NULLABLE and that is the enable switch: the share button holds it
-// null until the HOD presses the button, so a pass record does not pay for
-// three extra queries nobody asked for.
+// `passId` is NULLABLE and that is the enable switch: a caller holds it null
+// until the sheet is actually wanted, so no screen pays for three extra queries
+// nobody asked for.
 //
 // EVERY READ DEGRADES TO EMPTY, never to an error screen — the same rule
 // `useApprovalRoles` and `usePassApprovals` already follow. The ladder, the

@@ -7,7 +7,7 @@
 // every permission is decided by the record and handed down.
 import React from 'react';
 import { Link } from 'react-router-dom';
-import type { GatePassView } from '../../types';
+import type { GatePassItemView, GatePassView } from '../../types';
 import type { StatusStyle } from '../../lib/statusStyles';
 import { OVERDUE_STYLE } from '../../lib/statusStyles';
 import Badge from '../Badge';
@@ -18,9 +18,11 @@ type Props = {
   /** The pass's live stage badge, already derived by the record. */
   stage: StatusStyle;
   /** Whether this reader may forward the pass to the vendor — the raising
-   *  side only. The button decides for itself whether the pass carries a
+   *  side only. The control decides for itself whether the pass carries a
    *  usable number, and draws nothing when it does not. */
   canShare: boolean;
+  /** The material lines, so the forwarded message names every one of them. */
+  items: GatePassItemView[];
   onClear?: () => void;
 };
 
@@ -39,7 +41,7 @@ const PrinterGlyph = (
 // carries its own spacing inside the record's flex column), so it makes
 // the reservation itself.
 export default function PassRecordHeader({
-  pass, stage, canShare, onClear,
+  pass, stage, canShare, items, onClear,
 }: Props): React.ReactElement {
   return (
       <div className="flex flex-wrap items-start justify-between gap-3 pr-[76px]">
@@ -63,14 +65,14 @@ export default function PassRecordHeader({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* IT PREPARES THE MESSAGE AND THE SHEET; IT DOES NOT SEND
-              ANYTHING. The HOD picks the chat and presses send themselves —
-              this app has no WhatsApp account and delivers no message on
-              anybody's behalf. What travels with the text is the PRINTED SLIP
-              itself, photographed off the same component the Print Pass link
-              below renders (client, 2026-09-01), so the vendor gets the QR
-              code, the department and every item's make and model. */}
-          {canShare && <SendToVendorButton pass={pass} />}
+          {/* ONE PRESS, STRAIGHT INTO THE VENDOR'S OWN CHAT, with the mall,
+              the department, the vehicle and every item's make and model
+              already typed (client, 2026-09-01). It does not SEND: the HOD
+              presses send in their own WhatsApp. No picture rides with it —
+              a link that opens one known number's chat carries text alone,
+              and the QR code goes to the gate on the printed sheet the link
+              beside this one produces. */}
+          {canShare && <SendToVendorButton pass={pass} items={items} />}
           <Link to={`/pass/${pass.id}/print`} className="btn-secondary inline-flex items-center gap-2">
             {PrinterGlyph}
             Print Pass

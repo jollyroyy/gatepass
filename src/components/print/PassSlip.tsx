@@ -93,12 +93,10 @@ export default function PassSlip({
         </div>
 
         {/* Serial No. and Date */}
-        {/* `shrink-0 whitespace-nowrap` on both halves is not cosmetic. This
-            row is also PHOTOGRAPHED (`slipImage.ts`), and the capture lays the
-            sheet out inside an SVG foreignObject where a flex child is free to
-            be shrunk below its content: the date wrapped, "2026" dropped out
-            of the grey box, and the vendor's copy read as a damaged document
-            while the paper was perfect. Verified in Chromium, 2026-09-01. */}
+        {/* `shrink-0 whitespace-nowrap` on both halves is not cosmetic: a flex
+            child is free to be shrunk below its content, which wrapped the date
+            and dropped "2026" out of the grey box on a narrow render. Verified
+            in Chromium, 2026-09-01. */}
         <div className="flex justify-between items-center gap-3 text-sm border border-black bg-gray-100 px-3 py-2 mb-4">
           <div className="font-semibold text-black shrink-0 whitespace-nowrap">
             Serial No.: <span className="font-mono font-extrabold">{pass.pass_number}</span>

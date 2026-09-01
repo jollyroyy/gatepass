@@ -1,30 +1,26 @@
-// SEND TO VENDOR — the printed pass, in the vendor's WhatsApp.
+// SEND TO VENDOR — the vendor's own WhatsApp chat, in one press.
 //
-// The client asked for three things on this message (2026-09-01): the make and
-// model of the material, the department, and the pass's QR code. The first two
-// are text (`whatsappShare.ts`); the third is not — a QR code is a picture, and
-// then the client said what they actually wanted, which is "the same exact
-// print pass page should be sent out to the vendor using the WhatsApp as
-// well". So this button does exactly that:
+// It is an ANCHOR, not a button, and that is the whole point (client,
+// 2026-09-01: "I don't have to select the WhatsApp manually. It should
+// automatically send"). `wa.me/<number>` opens the chat belonging to the number
+// on the pass with the message already typed; the HOD presses send and picks
+// nothing.
 //
-//   1. reads what the printed sheet is made of (`usePrintSlipData`),
-//   2. mounts `PassSlip` — THE COMPONENT `/pass/:id/print` RENDERS, not a copy
-//      of it — off-screen, at paper width,
-//   3. photographs it (`slipImage.ts`),
-//   4. hands the PNG and the text to the device's share sheet, or falls back to
-//      a download plus `wa.me` on a desktop (`vendorShare.ts`).
+// FOR ONE DAY THIS SENT THE PRINTED SLIP AS A PICTURE and it was wrong for this
+// deployment. Attaching a file needs `navigator.share`, which is the only
+// browser mechanism that can carry one — and it opens the operating system's
+// app picker, so every send became "choose WhatsApp, then choose the chat". A
+// link that carries a file to one known number does not exist. Sending the
+// sheet itself, automatically, needs a WhatsApp Business API account, which
+// this deployment does not have. So the picture is gone and the direct chat is
+// back; the QR code reaches the gate on the HOD's printed sheet, as it did
+// before. See `whatsappShare.ts` for the message.
 //
-// STILL NOTHING IS SENT BY THIS APP. The HOD picks the chat and presses send.
-//
-// The slip is mounted ONLY while a send is in flight: a pass record must not
-// pay three queries and a hidden A5 sheet for a button nobody pressed.
-import React, { useEffect, useRef, useState } from 'react';
-import type { GatePassView } from '../types';
-import { usePrintSlipData } from '../lib/usePrintSlipData';
-import { renderSlipPng, slipFileName } from '../lib/slipImage';
-import { browserShareEnv, sendToVendor } from '../lib/vendorShare';
-import { passShareMessage, vendorWhatsappNumber, whatsappHref } from '../lib/whatsappShare';
-import PassSlip from './print/PassSlip';
+// STILL NOTHING IS SENT BY THIS APP. The HOD presses send in their own
+// WhatsApp, from their own number.
+import React from 'react';
+import type { GatePassItemView, GatePassView } from '../types';
+import { vendorWhatsappLink } from '../lib/whatsappShare';
 
 const WhatsappGlyph = (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -32,85 +28,36 @@ const WhatsappGlyph = (
   </svg>
 );
 
-/** Off the screen, not `display:none` — a hidden node has no layout and
- *  photographs as a blank sheet. Paper width, so the capture is the A5 slip and
- *  not a phone-narrow reflow of it. `aria-hidden` because it is a duplicate of
- *  a page the reader can already reach. */
-const OFFSCREEN: React.CSSProperties = {
-  position: 'fixed',
-  top: 0,
-  left: '-10000px',
-  width: '760px',
-  background: 'white',
-  pointerEvents: 'none',
-  zIndex: -1,
-};
-
 interface Props {
   pass: GatePassView;
+  /** The material lines, when the caller has them. Optional because the
+   *  raise-confirmation popup does not: the message is still complete without
+   *  the breakdown, and a second read to fetch them would delay a control
+   *  whose whole value is that it opens instantly. */
+  items?: GatePassItemView[];
   className?: string;
 }
 
-export default function SendToVendorButton({ pass, className }: Props): React.ReactElement | null {
-  const [sending, setSending] = useState(false);
-  const slipRef = useRef<HTMLDivElement>(null);
-  // Null until the button is pressed: that is the switch that keeps the reads,
-  // and the hidden sheet, off every pass record nobody is forwarding.
-  const data = usePrintSlipData(sending ? pass.id : null);
-  const number = vendorWhatsappNumber(pass);
-  const slipMounted = sending && data.ready && data.pass;
-
-  useEffect(() => {
-    if (!sending || !slipMounted || !slipRef.current || !number) return undefined;
-    let cancelled = false;
-    (async () => {
-      // A CAPTURE THAT FAILS STILL SENDS THE MESSAGE. The text carries the pass
-      // number, the department and the material with its make and model; a
-      // vendor holding that is not stranded, and an HOD staring at "could not
-      // generate an image" has no way forward at all.
-      const file = await renderSlipPng(slipRef.current!, slipFileName(pass)).catch(() => null);
-      const message = passShareMessage(data.pass!, data.items, { withSlip: !!file });
-      await sendToVendor(file, message, whatsappHref(number, message), browserShareEnv());
-      if (!cancelled) setSending(false);
-    })();
-    return () => { cancelled = true; };
-    // `data.items` and `data.pass` are settled by the time `ready` flips; the
-    // effect is keyed on the two facts that decide whether it may run at all.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sending, slipMounted]);
+export default function SendToVendorButton({
+  pass, items = [], className,
+}: Props): React.ReactElement | null {
+  const href = vendorWhatsappLink(pass, items);
 
   // "if it is available" is the client's own condition (2026-08-22): a pass
-  // with no vendor number offers no button, because a control that opens an
-  // empty chat is worse than no control.
-  if (!number) return null;
+  // with no vendor number offers no control, because one that opens an empty
+  // chat is worse than none.
+  if (!href) return null;
 
   return (
-    <>
-      <button
-        type="button"
-        data-testid="share-whatsapp"
-        className={className ?? 'btn-secondary inline-flex items-center gap-2'}
-        disabled={sending}
-        onClick={() => setSending(true)}
-      >
-        {WhatsappGlyph}
-        {sending ? 'Preparing pass…' : 'Send to Vendor'}
-      </button>
-      {slipMounted && (
-        <div style={OFFSCREEN} aria-hidden="true" data-testid="share-slip">
-          <div ref={slipRef}>
-            <PassSlip
-              pass={data.pass!}
-              items={data.items}
-              events={data.events}
-              roles={data.roles}
-              approvals={data.approvals}
-              escalationHours={data.escalationHours}
-              signatures={data.signatures}
-            />
-          </div>
-        </div>
-      )}
-    </>
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-testid="share-whatsapp"
+      className={className ?? 'btn-secondary inline-flex items-center gap-2'}
+    >
+      {WhatsappGlyph}
+      Send to Vendor
+    </a>
   );
 }

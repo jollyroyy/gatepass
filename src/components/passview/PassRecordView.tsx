@@ -143,6 +143,7 @@ export default function PassRecordView({
         pass={pass}
         stage={stage}
         canShare={canShare}
+        items={items}
         onClear={onClear}
       />
 

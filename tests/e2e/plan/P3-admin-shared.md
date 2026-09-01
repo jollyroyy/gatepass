@@ -602,7 +602,7 @@ row count equals the number shown on the card BEFORE navigating.
 |---|---|---|---|
 | Root | `data-testid="pass-record"` | `getByTestId('pass-record')` — EXISTING |
 | Emergency banner | `data-testid="emergency-banner"` | `getByTestId('emergency-banner')` — conditional, `released` truthy |
-| Send to Vendor | `data-testid="share-whatsapp"`, a `<button>` that photographs `PassSlip` and opens the share sheet | `getByTestId('share-whatsapp')` — only when `canShare` (readerRole==='hod') and the pass carries a vendor number |
+| Send to Vendor | `data-testid="share-whatsapp"`, an `<a>` to `wa.me/<vendor number>?text=<the pass>` | `getByTestId('share-whatsapp')` — only when `canShare` (readerRole==='hod') and the pass carries a vendor number |
 | Print Pass link | "Print Pass" → `/pass/{id}/print` | `getByRole('link',{name:'Print Pass'})` |
 | Clear (stacked context only) | "Clear" (`btn-ghost`) | `getByRole('button',{name:'Clear'})` — not on `/pass/:id` route |
 | Copy pass number | `aria-label="Copy pass number"` / `"Pass number copied"` (toggles for 1.5s) | `getByRole('button',{name:/Copy pass number|Pass number copied/})` |

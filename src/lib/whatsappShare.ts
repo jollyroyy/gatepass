@@ -21,11 +21,21 @@
 // support call. Pass number, type, department, purpose, the material lines with
 // their make / model, and the return date when there is one.
 //
-// THE PRINTED SLIP RIDES WITH IT AS A PICTURE (client, 2026-09-01: "the same
-// exact print pass page should be sent out to the vendor using the WhatsApp as
-// well") — see `slipImage.ts` and `vendorShare.ts`. That is where the QR code
-// reaches the vendor: a chat cannot carry a web page, and the gate scans the
-// code off the sheet. This module still owns the TEXT and the NUMBER alone.
+// NO PICTURE RIDES WITH IT, AND THAT IS A DELIBERATE TRADE (client,
+// 2026-09-01: "I don't have to select the WhatsApp manually. It should
+// automatically send"). For one day this button photographed the printed slip
+// and handed it to `navigator.share`, which is the ONLY browser mechanism that
+// can attach a file — and it opens the operating system's app picker, so the
+// HOD had to choose WhatsApp and then the chat. A `wa.me` link is the only
+// thing that opens ONE KNOWN NUMBER's chat in a single press, and a `wa.me`
+// link carries TEXT AND NOTHING ELSE. The client chose the direct chat over the
+// attachment, so the slip capture, the share sheet and the QR code are gone
+// from this path; the vendor still gets the pass number, and the gate scans the
+// code off the HOD's printed sheet as it always did.
+//
+// Sending the sheet itself, automatically, needs a WhatsApp Business API
+// account — which this deployment does not have. Do not reintroduce a share
+// sheet here without the client asking for the picker back.
 import type { GatePassItemView, GatePassView } from '../types';
 import { parseCompanyInfo } from './companyInfo';
 import { formatDateOnly } from './formatDate';
@@ -35,6 +45,13 @@ import { quantityCell } from './units';
  *  here and a bare 10-digit mobile is what people type. A number already
  *  carrying a country code keeps it — see `vendorWhatsappNumber`. */
 const DEFAULT_DIAL_CODE = '91';
+
+/** THE MALL IS NAMED ON THE MESSAGE (client, 2026-09-01: "just include quest
+ *  mall and department details"). A vendor serves several sites and a bare
+ *  pass number does not say whose gate it is for. Written here rather than
+ *  imported from the shell chrome: this is the text of an outgoing message, not
+ *  a heading, and the two are free to differ. */
+const SITE_NAME = 'Quest Mall';
 
 /**
  * The vendor's number in the digits-only form `wa.me` takes, or null when the
@@ -80,12 +97,17 @@ function itemLine(item: GatePassItemView, index: number): string {
 export function passShareMessage(
   pass: GatePassView,
   items: GatePassItemView[] = [],
-  opts: { withSlip?: boolean } = {},
 ): string {
   const vendor = parseCompanyInfo(pass.visitor_company);
+  // The department's CODE rides with its name because that is what the pass
+  // number carries (`RGP-IT-0001`, migration 064) — a vendor holding both can
+  // read one off the other.
+  const dept = pass.department_name
+    ? `${pass.department_name}${pass.department_code ? ` (${pass.department_code})` : ''}`
+    : '—';
   const lines: string[] = [
-    `${pass.type} Gate Pass ${pass.pass_number}`,
-    `Department: ${pass.department_name ?? '—'}`,
+    `${SITE_NAME} — ${pass.type} Gate Pass ${pass.pass_number}`,
+    `Department: ${dept}`,
   ];
   if (vendor.name) lines.push(`Vendor: ${vendor.name}`);
   if (pass.visitor_name) lines.push(`Carried by: ${pass.visitor_name}`);
@@ -99,14 +121,6 @@ export function passShareMessage(
   }
   if (items.length > 0) {
     lines.push('', 'Items:', ...items.map(itemLine));
-  }
-  // THE SLIP ITSELF IS ATTACHED, and it carries the QR code the gate scans
-  // (client, 2026-09-01). Said out loud because a picture in a chat is easy to
-  // scroll past and because a vendor who arrives without it is turned back at
-  // the barrier — and only when a slip is actually going with the message:
-  // `sendToVendor` may have had nothing to attach.
-  if (opts.withSlip) {
-    lines.push('', 'The gate pass is attached. Show it at the gate — the QR code on it is scanned there.');
   }
   return lines.join('\n');
 }
@@ -125,9 +139,8 @@ export function whatsappHref(number: string, message: string): string {
 export function vendorWhatsappLink(
   pass: GatePassView,
   items: GatePassItemView[] = [],
-  opts: { withSlip?: boolean } = {},
 ): string | null {
   const number = vendorWhatsappNumber(pass);
   if (!number) return null;
-  return whatsappHref(number, passShareMessage(pass, items, opts));
+  return whatsappHref(number, passShareMessage(pass, items));
 }

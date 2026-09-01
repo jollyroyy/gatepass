@@ -143,15 +143,14 @@ export default function PassSubmittedModal({
           after raising the pass, should have the option to send the pass … have
           an option to send the pass using WhatsApp to the vendor's WhatsApp
           number"). The same control the pass record carries, so there is one
-          message, one number rule and one attachment: the PRINTED SLIP itself,
-          photographed off `PassSlip` (client, 2026-09-01), which is how the QR
-          code, the department and every item's make and model reach the vendor.
-          Nothing is sent by this app — the HOD presses send in their own
-          WhatsApp. No vendor number on the pass, no button ("if it is
-          available").
+          message and one number rule: one press opens the vendor's own chat
+          with the mall, the department and the pass already typed (client,
+          2026-09-01). Nothing is sent by this app — the HOD presses send in
+          their own WhatsApp. No vendor number on the pass, no button ("if it
+          is available").
 
-          Print Pass stays beside it for the desk copy; the vendor's copy no
-          longer depends on somebody remembering to attach one. */}
+          Print Pass stays beside it: the QR code the gate scans travels on
+          paper, because a chat link cannot carry a picture. */}
       <div className="flex flex-wrap gap-3">
         <Link to={`/pass/${submittedPass.id}`} className="btn-primary flex-1 text-center">
           View Pass

@@ -1,24 +1,26 @@
 // AN HOD CAN FORWARD A PASS TO THE VENDOR ON WHATSAPP (client, 2026-08-22),
-// FROM THE PASS DETAILS PAGE — AND WHAT TRAVELS IS THE PRINTED PASS ITSELF
-// (client, 2026-09-01: "the same exact print pass page should be sent out to
-// the vendor using the WhatsApp as well").
+// FROM THE PASS DETAILS PAGE — AND IT OPENS THE VENDOR'S OWN CHAT DIRECTLY
+// (client, 2026-09-01: "I don't have to select the WhatsApp manually … put it
+// back and include the same text only, just include quest mall and department
+// details").
 //
-// Nothing is sent by this app: the share sheet is opened with the slip and the
-// text prepared and the HOD presses send in their own WhatsApp. So what is
-// testable — and what matters — is the number, the text, the attachment and
-// who is offered the button:
+// THE SLIP IMAGE IS GONE, and this spec is the record of why: attaching a file
+// is only possible through the device share sheet, which makes the sender pick
+// the app AND the chat by hand. A `wa.me` link is the ONLY thing that opens one
+// known number's chat in one press, and it carries text alone. The client chose
+// the direct chat over the picture, so what is testable is the number, the text
+// and who is offered the button:
 //
 //   * a vendor with no number gets no button at all ("if it is available");
 //   * a bare 10-digit mobile is given the country code, because `wa.me`
 //     refuses a number without one, and anything too short is refused rather
 //     than guessed at — a wrong number is a stranger's chat;
-//   * the text names the department and every item's make and model, and the
-//     QR code reaches the vendor the only way a chat can carry one — on the
-//     photographed slip;
+//   * the text names the MALL and the DEPARTMENT it comes from, and every
+//     item's make and model;
 //   * the message carries no portal link: a vendor has no account here.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import type { GatePassItemView, GatePassView } from '../../src/types';
 import {
@@ -81,20 +83,6 @@ vi.mock('../../src/supabaseClient', () => {
   };
 });
 
-// The capture is `html-to-image`'s job and is not what this spec is about —
-// jsdom paints nothing. What matters is that a PNG named after the pass
-// reaches the share sheet.
-vi.mock('html-to-image', () => ({
-  toPng: () => Promise.resolve('data:image/png;base64,aGVsbG8='),
-}));
-
-const shared: { files?: File[]; text?: string }[] = [];
-Object.defineProperty(navigator, 'canShare', { value: () => true, configurable: true });
-Object.defineProperty(navigator, 'share', {
-  value: (d: { files?: File[]; text?: string }) => { shared.push(d); return Promise.resolve(); },
-  configurable: true,
-});
-
 const { default: PassDetail } = await import('../../src/pages/Shared/PassDetail');
 
 async function renderAs(role: 'guard' | 'hod' | 'admin') {
@@ -111,7 +99,6 @@ async function renderAs(role: 'guard' | 'hod' | 'admin') {
 beforeEach(() => {
   row = pass();
   items = [line()];
-  shared.length = 0;
 });
 
 describe('the vendor number', () => {
@@ -137,10 +124,13 @@ describe('the vendor number', () => {
 });
 
 describe('the message', () => {
-  it('carries the pass, the vendor and the material — and NO portal link', () => {
+  it('carries the mall, the pass, the vendor and the material — and NO portal link', () => {
     const text = passShareMessage(pass(), [line()]);
-    expect(text).toContain('RGP Gate Pass RGP-20260818-0003');
-    expect(text).toContain('Department: Engineering (MEP)');
+    // THE MALL IS NAMED FIRST (client, 2026-09-01: "just include quest mall
+    // and department details"). A vendor works for several sites and a bare
+    // pass number does not say whose gate it is for.
+    expect(text.split('\n')[0]).toBe('Quest Mall — RGP Gate Pass RGP-20260818-0003');
+    expect(text).toContain('Department: Engineering (MEP) (ENG)');
     expect(text).toContain('Vendor: TechFix Solutions');
     expect(text).toContain('Carried by: Ravi Kumar');
     expect(text).toContain('Vehicle: KA01AB1234');
@@ -169,22 +159,20 @@ describe('the message', () => {
 });
 
 describe('the button on the pass record', () => {
-  it('is offered to the HOD, and sends the printed slip with the message', async () => {
+  it("is offered to the HOD, and links straight into the vendor's chat", async () => {
     await renderAs('hod');
-    const button = screen.getByTestId('share-whatsapp');
-    expect(button).toHaveTextContent('Send to Vendor');
+    const link = screen.getByTestId('share-whatsapp');
+    expect(link).toHaveTextContent('Send to Vendor');
 
-    await act(async () => { button.click(); });
-
-    // THE ATTACHMENT IS THE PRINT PASS PAGE ITSELF (client, 2026-09-01), which
-    // is why the QR code, the department and every make/model reach the vendor
-    // at all — a chat cannot carry a web page, and the gate scans the code off
-    // the sheet.
-    await waitFor(() => expect(shared).toHaveLength(1));
-    expect(shared[0].files?.[0]?.name).toBe('RGP-20260818-0003.png');
-    expect(shared[0].text).toContain('Department: Engineering (MEP)');
-    expect(shared[0].text).toContain('Sony WH-1000XM4');
-    expect(shared[0].text).toContain('attached');
+    // A PLAIN LINK, NOT A SHARE SHEET. One press lands in the one chat that
+    // number belongs to, with the message already typed — no app picker, no
+    // contact list, nothing for the HOD to choose.
+    const href = link.getAttribute('href') ?? '';
+    expect(href.startsWith('https://wa.me/919876543210?text=')).toBe(true);
+    const text = decodeURIComponent(href.split('?text=')[1]);
+    expect(text).toContain('Quest Mall — RGP Gate Pass');
+    expect(text).toContain('Department: Engineering (MEP) (ENG)');
+    expect(text).toContain('Sony WH-1000XM4');
   });
 
   it('is not drawn when the pass carries no vendor number', async () => {

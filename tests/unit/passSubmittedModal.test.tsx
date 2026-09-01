@@ -116,23 +116,23 @@ describe('PassSubmittedModal — close behaviour', () => {
 // after raising the pass, should have the option to send the pass … have an
 // option to send the pass using WhatsApp to the vendor's WhatsApp number").
 //
-// It is a BUTTON now, not a link (client, 2026-09-01): what goes to the vendor
-// is the printed slip itself, photographed off `PassSlip` and handed to the
-// device's share sheet, because a `wa.me` href cannot carry an attachment and
-// a QR code cannot be typed into a chat. Pressing it is exercised in
-// tests/unit/whatsappShare.test.tsx, where the share sheet is stubbed; here
-// what matters is only that the raising HOD is offered it, and only when the
-// pass carries a vendor number.
+// It is a LINK, and it must stay one (client, 2026-09-01: "I don't have to
+// select the WhatsApp manually"). A `wa.me` href opens the one chat that
+// number belongs to in a single press; the share sheet that briefly replaced it
+// could carry the printed slip as a picture but made the HOD pick the app and
+// the chat by hand. The message itself is exercised in
+// tests/unit/whatsappShare.test.tsx; here what matters is only that the raising
+// HOD is offered it, and only when the pass carries a vendor number.
 describe('PassSubmittedModal — sending it on', () => {
   it('offers Send to Vendor on a pass that carries a vendor number', () => {
     renderModal();
-    // Nothing is sent by this app: the share sheet opens with the slip and the
-    // text prepared, and the HOD presses send in their own WhatsApp.
-    const button = screen.getByRole('button', { name: /Send to Vendor/ });
-    expect(button).toBeEnabled();
+    // Nothing is sent by this app: the vendor's own chat opens with the text
+    // prepared, and the HOD presses send in their own WhatsApp.
+    const link = screen.getByRole('link', { name: /Send to Vendor/ });
+    expect(link.getAttribute('href')).toMatch(/^https:\/\/wa\.me\/\d+\?text=/);
   });
 
-  it('draws no button when the pass carries no vendor number', () => {
+  it('draws no control when the pass carries no vendor number', () => {
     render(
       <MemoryRouter>
         <PassSubmittedModal
@@ -145,7 +145,7 @@ describe('PassSubmittedModal — sending it on', () => {
     );
     // "If it is available" is the client's own condition, and a control that
     // opens an empty chat is worse than no control.
-    expect(screen.queryByRole('button', { name: /Send to Vendor/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Send to Vendor/ })).toBeNull();
   });
 
   it('offers the printed sheet too — the boxes are what the vendor is sent', () => {

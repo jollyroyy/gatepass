@@ -37,15 +37,13 @@ test.describe('Pass record — as the raising HOD, before any approval', () => {
   test('Send to Vendor is offered to the raising HOD (readerRole=hod)', async ({ page }) => {
     await page.goto(`/pass/${passId}`);
     await settled(page);
-    // It is a BUTTON now, not a link (2026-09-01): what it sends is the
-    // printed slip photographed off `PassSlip`, handed to the device's share
-    // sheet — a plain `wa.me` href cannot carry an attachment. Pressing it is
-    // deliberately NOT exercised here: it opens the OS share sheet or starts a
-    // download, neither of which Playwright should be made to answer.
+    // A LINK STRAIGHT INTO THE VENDOR'S CHAT (2026-09-01): one press, no app
+    // picker. Its href is asserted rather than followed — `wa.me` is somebody
+    // else's site and Playwright has no business opening it.
     const share = page.getByTestId('share-whatsapp');
     await expect(share).toBeVisible();
-    await expect(share).toBeEnabled();
     await expect(share).toHaveText(/Send to Vendor/);
+    await expect(share).toHaveAttribute('href', /^https:\/\/wa\.me\/\d+\?text=/);
   });
 
   test('Copy pass number toggles its accessible name', async ({ page }) => {

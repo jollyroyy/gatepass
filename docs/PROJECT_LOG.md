@@ -5060,3 +5060,45 @@ Tests: `tests/unit/passSubmittedDetails.test.tsx` (new, written failing first);
 `passSubmittedModal.test.tsx`'s em-dash assertion widened — more than one fact can be blank now.
 
 **Gate:** `npm run check` — 194 files, 2509 tests, green.
+
+---
+
+## 2026-09-01 — Send to Vendor goes back to one press, and loses the picture
+
+Client, within a day of the slip-photograph feature shipping: "earlier if I had to send to vendor,
+it was automatically sending to the vendor directly but now it's asking for permission for me to
+select … put it back to the previous one", then "leave it, I don't have WhatsApp business account,
+put it back and include the same text only, just include quest mall and department details".
+
+**The trade is forced by the platform, and it is worth writing down so nobody re-litigates it.**
+There are exactly two ways a web page can hand a message to WhatsApp:
+
+| | Opens the vendor's chat directly | Can attach a file |
+|---|---|---|
+| `wa.me/<number>?text=` | **yes**, one press | no — text only |
+| `navigator.share({ files })` | no — the OS app picker, then the chat | yes |
+
+Yesterday's commit (`c110d40`) chose the second, because the client had asked for the printed slip
+itself to reach the vendor. That made every send a two-step manual pick, which is what they reported.
+Sending the sheet automatically to a known number needs a **WhatsApp Business API** account (Meta
+Cloud API / Brevo / Twilio, an approved media template, a verified sender) — this deployment has
+none, and the client declined to obtain one. So the direct chat wins and the picture is gone.
+
+- **F1 `src/lib/whatsappShare.ts`** — `passShareMessage` lost its `withSlip` arm and the
+  "attached" sentence; the first line is now `Quest Mall — RGP Gate Pass RGP-IT-0001` and the
+  department carries its **code** beside its name, which is the code the pass number is built from
+  (064). `SITE_NAME` is local to this module on purpose: it is the text of an outgoing message, not
+  the shell's heading, and the two are free to diverge.
+- **F2 `src/components/SendToVendorButton.tsx`** — an `<a href={vendorWhatsappLink(...)}>` again,
+  no state, no reads, no hidden sheet. It takes the material lines as an optional prop
+  (`PassRecordView` has them, the raise-confirmation popup does not) rather than fetching them,
+  because a control whose whole value is that it opens instantly must not await a query.
+- **Deleted, not left lying about** (CLAUDE.md): `src/lib/slipImage.ts`, `src/lib/vendorShare.ts`,
+  `tests/unit/vendorSlipShare.test.ts` and the **`html-to-image`** dependency. `PassSlip` and
+  `usePrintSlipData` stay — `/pass/:id/print` is their caller and always was.
+
+Tests rewritten first, failing: `whatsappShare.test.tsx` now asserts the href and the mall line and
+no longer stubs a share sheet; `passSubmittedModal.test.tsx` asks for a `link`, not a `button`;
+`tests/e2e/shared/pass-record.spec.ts` asserts the `wa.me` href rather than pressing anything.
+
+**Gate:** `npm run check` — 193 files, 2502 tests, green, typecheck clean.
