@@ -44,8 +44,22 @@ function Box({ box }: { box: SignatureBoxView }): React.ReactElement {
       {/* The signing space. A box that has been signed digitally does not need
           the rule, so the name and the moment take its place; a box that has
           not keeps the empty height, so the sheet does not reflow as approvals
-          come in and two printouts of the same pass stay comparable. */}
-      <div className="mt-1 h-[34px] text-[9px] leading-tight text-black">
+          come in and two printouts of the same pass stay comparable.
+          THE UPLOADED SIGNATURE SITS ABOVE THE NAME (075), never instead of it:
+          a mark alone identifies nobody, and the printed name and moment are
+          what make the slip readable when the image did not load. It appears
+          ONLY on a box `buildSignatureBoxes` graded as signed — the whole of the
+          client's "don't show the signature until and unless I approve" — and
+          the height stays fixed for the same reason it always was. */}
+      <div className="mt-1 h-[34px] overflow-hidden text-[9px] leading-tight text-black">
+        {box.signatureUrl && (
+          <img
+            src={box.signatureUrl}
+            alt=""
+            aria-hidden="true"
+            className="block h-[16px] w-auto max-w-full object-contain object-left"
+          />
+        )}
         {box.signer && <span className="block font-semibold">{box.signer}</span>}
         {box.at && <span className="block">{formatDateTime(box.at)}</span>}
       </div>

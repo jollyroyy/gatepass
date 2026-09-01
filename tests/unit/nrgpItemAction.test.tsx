@@ -74,12 +74,17 @@ const RGP = pass({
 describe('an NRGP line is closed, not "not applicable"', () => {
   it('grades every NRGP line as closed', () => {
     expect(itemReturnStage(line(), 'NRGP')).toBe('closed');
-    expect(ITEM_RETURN_STYLES.closed.label).toBe('Closed');
+    // The STAGE key stays 'closed' — it is internal, and unrelated to the word
+    // printed. The WORD moved from "Closed" to "Out — No Return Due" (client,
+    // 2026-09-01: "once a NRGP gate pass is cleared out the status of it
+    // should show as out, not returned yet"), the same word the pass's own
+    // badge now uses, so a line never disagrees with the card above it.
+    expect(ITEM_RETURN_STYLES.closed.label).toBe('Out — No Return Due');
   });
 
-  it('says Closed in the status cell and offers no action at all', () => {
+  it('says Out — No Return Due in the status cell and offers no action at all', () => {
     renderItems(pass(), [line()]);
-    expect(screen.getByText('Closed')).toBeInTheDocument();
+    expect(screen.getByText('Out — No Return Due')).toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });

@@ -66,13 +66,12 @@
 // page renders take their light halves instead of the shipped dark default.
 import React, { useMemo, useState } from 'react';
 import GuardPageHeader from '../../components/guard/GuardPageHeader';
-import GuardIcon from '../../components/guard/GuardIcon';
 import GuardPager from '../../components/guard/GuardPager';
-import { Link } from 'react-router-dom';
 import PassStack from '../../components/PassStack';
 import ApprovalCardActions from '../../components/approver/ApprovalCardActions';
 import ApprovalFilterBar from '../../components/approver/ApprovalFilterBar';
 import ApprovalKpiCards, { type ApprovalCardKey } from '../../components/approver/ApprovalKpiCards';
+import ApproverQuickActions from '../../components/approver/ApproverQuickActions';
 import { APPROVAL_ROLE_TITLES, type ApprovalRoleKey } from '../../lib/approvalLadder';
 import {
   applyApprovalFilters,
@@ -220,22 +219,16 @@ export default function PendingApprovals(
         <>
           <ApprovalKpiCards counts={counts} active={card} onSelect={pickCard} />
 
-          {/* THE CEO'S SECOND QUEUE (client, 2026-08-20; migration 053). One
-              link, drawn for that office alone — a COO or a Security Head has
-              nothing to decide there and `list_whitelist_requests` would show
-              them an empty page. */}
-          {office === 'ceo' && (
-            <div className="gb-card gb-quick">
-              <h2 className="gb-quick-title">Quick Actions</h2>
-              <div className="gb-raise-grid">
-                <Link to="/whitelist" className="gb-raise-tile">
-                  <GuardIcon glyph="alert" tone="red" shape="square" />
-                  <span className="gb-raise-title">Whitelist of Vendors</span>
-                  <span className="gb-raise-note">Take a vendor off the blacklist</span>
-                </Link>
-              </div>
-            </div>
-          )}
+          {/* WHAT THIS OFFICE CAN ACTUALLY DO, beyond signing the stack below.
+              The CEO's whitelist queue (053) used to be the only thing here and
+              was written inline; it now sits beside Raise Gate Pass and My
+              Raised Passes for the COO and the CEO (client, 2026-09-01: "put
+              Create Gate Pass in the dashboard of all whoever can create gate
+              passes"). `ApproverQuickActions` reads the offering from
+              `RAISING_OFFICES` and renders nothing at all for an office that
+              has none, so the Security Head and the Finance HOD see no empty
+              card where this one used to be absent. */}
+          <ApproverQuickActions office={office} />
 
           <ApprovalFilterBar filters={filters} departments={departments} onChange={narrow} />
 

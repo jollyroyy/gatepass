@@ -45,36 +45,49 @@ export function rgpStage(p: Pick<GatePassView, 'return_status'>): RgpStage | nul
 }
 
 export const RGP_STAGE_STYLES: Record<RgpStage, StatusStyle> = {
-  // BOTH OPEN STAGES READ "Partially Returned", AND THEY SHARE ONE STYLE
-  // (client, 2026-08-21: "replace the 'in progress' with 'partially returned'
-  // across all the reporting everywhere in all the views"). The label was
-  // "In Progress" for a few hours earlier the same day, and "Out — Not
-  // Returned" before that.
+  // THE TWO OPEN STAGES SAY DIFFERENT THINGS AGAIN, and this reverses
+  // 2026-08-21's merge of them (client, 2026-09-01: "its status should be
+  // changed to returned or partially returned only when any of its items has
+  // been returned").
   //
-  // The two objects are identical ON PURPOSE. Once the words are the same, a
-  // different hue for each would be a distinction carried by colour alone —
-  // nothing at all on the mono laser the register is printed on, or in the CSV.
-  // Indigo, matching RETURN_STYLES.partially_returned, so the badge and the
-  // return legend agree.
+  // That merge printed "Partially Returned" for both, and flagged its own cost
+  // in this comment: "a pass with NOTHING back reads 'Partially Returned'
+  // too". It is the cost that has now been called in. A part-return is a claim
+  // about where the mall's material physically is, and on a pass the gate
+  // cleared five minutes ago it is simply false — the register exists to say
+  // that correctly. The client's earlier instruction was about retiring the
+  // words "In Progress", and "Out — Awaiting Return" retires them just as well.
   //
-  // ⚠ THE COST, FLAGGED: a pass with NOTHING back reads "Partially Returned"
-  // too. The states are still distinct in the data (`return_status`), and the
-  // record's item table still states each line's own outstanding quantity —
-  // only the badge no longer separates them.
-  //
-  // The STAGES themselves are kept apart rather than collapsed into one: they
-  // are what `apply_item_returns` actually advances through, and every
-  // predicate in the app that asks "is any material back yet" reads them.
+  // Both stay indigo: they are one situation at two depths, the words carry the
+  // distinction, and a hue-only difference is nothing at all on the mono laser
+  // the register prints on or in the CSV.
   out_open: {
-    bg: 'bg-accent-50', text: 'text-accent-700', dot: 'bg-accent-500', label: 'Partially Returned',
+    bg: 'bg-accent-50', text: 'text-accent-700', dot: 'bg-accent-500', label: 'Out — Awaiting Return',
   },
   partly_returned: {
     bg: 'bg-accent-50', text: 'text-accent-700', dot: 'bg-accent-500', label: 'Partially Returned',
   },
   // Green — this is the ONLY thing in the app that means an RGP is finished.
+  //
+  // "Returned", not "Closed" (same instruction): the badge names the MATERIAL's
+  // whereabouts on every other rung, so the last one should too. "Closed"
+  // survives on the timeline's own final rung (`passLadderLegs.returnStep`),
+  // where it means the end of the paperwork rather than the goods.
   closed: {
-    bg: 'bg-matched-50', text: 'text-matched-700', dot: 'bg-matched-500', label: 'Closed',
+    bg: 'bg-matched-50', text: 'text-matched-700', dot: 'bg-matched-500', label: 'Returned',
   },
+};
+
+/** A pass through the gate that owes nothing back — every cleared NRGP.
+ *
+ *  It is NOT an `RgpStage`: there is no return loop to be a stage of, which is
+ *  exactly what the words say. It reads green like `closed` because it is
+ *  equally finished, and it names the outward trip because that is the only
+ *  trip this pass has (client, 2026-09-01: "once a NRGP gate pass is cleared
+ *  out the status of it should show as out"). It replaced a flat "Closed",
+ *  which said the pass was over without saying the material had gone. */
+export const NO_RETURN_DUE_STYLE: StatusStyle = {
+  bg: 'bg-matched-50', text: 'text-matched-700', dot: 'bg-matched-500', label: 'Out — No Return Due',
 };
 
 /** Overdue RENAMES the open stages as well as re-toning them (client,

@@ -10,7 +10,7 @@
 // cell empty, as it already does for Serial / ID.
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { GatePassItemView, GatePassView } from '../../src/types';
 import PassRecordItems from '../../src/components/passview/PassRecordItems';
@@ -52,11 +52,19 @@ describe('every list of material lines names the make / model', () => {
   });
 
   it('leaves the record cell EMPTY on a line raised before migration 045 — never an em dash', () => {
-    const { container } = render(
+    render(
       <PassRecordItems pass={pass()} items={[line({ make_model: null })]} draft={EMPTY_DRAFT} canRecord={false} onAdd={vi.fn()} />,
     );
-    expect(container.textContent).not.toContain('—');
-    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toContain('Make / Model');
+    // Scoped to the Make / Model CELL, not the whole table: the status badge
+    // beside it now legitimately reads "Out — Awaiting Return", which itself
+    // contains an em dash (2026-09-01) — a container-wide search would catch
+    // that word rather than the empty-cell rule this test actually pins.
+    const headings = screen.getAllByRole('columnheader').map((h) => h.textContent);
+    expect(headings).toContain('Make / Model');
+    const makeModelCol = headings.indexOf('Make / Model');
+    const dataRow = screen.getAllByRole('row')[1];
+    const cells = within(dataRow).getAllByRole('cell');
+    expect(cells[makeModelCol].textContent).toBe('');
   });
 
   it("the guard's return panel gives it a column of its own", () => {

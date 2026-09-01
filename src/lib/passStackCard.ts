@@ -34,9 +34,14 @@ export const STAGE_TONES: Record<string, GbTone> = {
   'Voided': 'grey',
   // Moving, and nothing is wrong.
   'HOD Approved': 'blue',
+  // The two open halves of the return loop (2026-09-01): out with nothing back
+  // yet, and out with some of it back. One tone, because the words carry the
+  // difference and a hue cannot on a mono laser.
+  'Out — Awaiting Return': 'blue',
   'Partially Returned': 'blue',
-  // Finished.
-  'Closed': 'green',
+  // Finished — the goods are all back, or were never coming back.
+  'Returned': 'green',
+  'Out — No Return Due': 'green',
   'Matched': 'green',
 };
 

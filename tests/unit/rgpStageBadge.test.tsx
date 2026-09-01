@@ -1,10 +1,14 @@
-// RENAMED TWICE ON 2026-08-21, and this is the second pass. Every assertion
-// here that read "Out — Not Returned" briefly read "In Progress" and now
-// reads "Partially Returned" — the one word the client settled on for the
-// whole return leg ("replace the 'in progress' with 'partially returned'
-// across all the reporting everywhere in all the views"). Both open stages
-// therefore carry the SAME label and the same style; only the labels moved,
-// and no stage, tone or precedence rule changed with them.
+// RENAMED THREE TIMES. 2026-08-21 collapsed both open stages onto the SAME
+// word, "Partially Returned" ("replace the 'in progress' with 'partially
+// returned' across all the reporting everywhere in all the views"), and the
+// closed stage read "Closed". 2026-09-01 undid the collapse (client: "its
+// status should be changed to returned or partially returned only when any
+// of its items has been returned"; "once a NRGP gate pass is cleared out the
+// status of it should show as out, not returned yet") — nothing-back now
+// reads "Out — Awaiting Return", a fully returned RGP reads "Returned", and a
+// cleared NRGP reads "Out — No Return Due" rather than sharing the RGP's old
+// "Closed" word. Only the labels moved; no stage, tone or precedence rule
+// changed with them.
 // The ONE pill on a pass card, and the timeline behind it.
 //
 // Round one (2026-08-11): "once the RGP is cleared for going out it shows as
@@ -52,30 +56,31 @@ function renderRow(p: GatePassView, variant: 'row' | 'drill' = 'row') {
 }
 
 describe.each(['row', 'drill'] as const)('pass stage pill — %s variant', (variant) => {
-  it('reads "Partially Returned" ALONE for a pass still outside', () => {
+  it('reads "Out — Awaiting Return" ALONE for a pass still outside with nothing back', () => {
     renderRow(pass({ status: 'matched', return_status: 'awaiting_return' }), variant);
-    expect(screen.getByText('Partially Returned')).toBeInTheDocument();
+    expect(screen.getByText('Out — Awaiting Return')).toBeInTheDocument();
     expect(screen.queryByText('Matched')).toBeNull();
   });
 
-  it('reads "Closed" ALONE once every line is back', () => {
+  it('reads "Returned" ALONE once every line is back', () => {
     renderRow(pass({ status: 'matched', return_status: 'returned' }), variant);
-    expect(screen.getByText('Closed')).toBeInTheDocument();
+    expect(screen.getByText('Returned')).toBeInTheDocument();
     expect(screen.queryByText('Matched')).toBeNull();
-    expect(screen.queryByText('Returned')).toBeNull();
+    expect(screen.queryByText('Closed')).toBeNull();
     expect(screen.queryByText('Partially Returned')).toBeNull();
   });
 
-  it('reads "Partially Returned" in between', () => {
+  it('reads "Partially Returned" once a line is actually back', () => {
     renderRow(pass({ return_status: 'partially_returned' }), variant);
     expect(screen.getByText('Partially Returned')).toBeInTheDocument();
     expect(screen.queryByText('Matched')).toBeNull();
   });
 
-  // An NRGP never comes back, so the outward match IS its final state.
-  it('reads "Closed" for a cleared NRGP, never "Matched"', () => {
+  // An NRGP never comes back, so the outward match IS its final state, and it
+  // no longer borrows the RGP's own closing word (client, 2026-09-01).
+  it('reads "Out — No Return Due" for a cleared NRGP, never "Matched"', () => {
     renderRow(pass({ type: 'NRGP', return_status: 'not_applicable' }), variant);
-    expect(screen.getByText('Closed')).toBeInTheDocument();
+    expect(screen.getByText('Out — No Return Due')).toBeInTheDocument();
     expect(screen.queryByText('Matched')).toBeNull();
     expect(screen.queryByText('Partially Returned')).toBeNull();
   });
@@ -92,7 +97,7 @@ describe.each(['row', 'drill'] as const)('pass stage pill — %s variant', (vari
   it('names a late pill "Overdue"', () => {
     renderRow(pass({ return_status: 'awaiting_return', is_overdue: true }), variant);
     expect(screen.getByText('Overdue')).toBeInTheDocument();
-    expect(screen.queryByText('Partially Returned')).toBeNull();
+    expect(screen.queryByText('Out — Awaiting Return')).toBeNull();
   });
 });
 
@@ -107,6 +112,9 @@ describe('the expanded card carries the history the badge dropped', () => {
       'drill',
     );
     expect(screen.getByText('Cleared Out')).toBeInTheDocument();
-    expect(screen.getByText('Returned')).toBeInTheDocument();
+    // "Returned" now appears TWICE — the timeline's own event label and the
+    // status badge share the word since the badge stopped saying "Closed"
+    // (client, 2026-09-01). Both are real and both must render.
+    expect(screen.getAllByText('Returned').length).toBe(2);
   });
 });

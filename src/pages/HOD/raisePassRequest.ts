@@ -15,7 +15,16 @@ import { earliestReturnDate, packVendor } from '../../lib/raisePassForm';
  * Raises the pass and returns the row, with `awaits_approval` filled in where
  * it could be read.
  */
-export async function createPass(form: NewGatePass, departmentId: string): Promise<GatePassView> {
+export async function createPass(
+  form: NewGatePass,
+  departmentId: string,
+  /** The number reserved for this pass while the form was open (074), or null.
+   *  It is SENT, not trusted: `set_pass_number` re-checks that it was really
+   *  reserved by this caller for this type and department, is unspent and
+   *  unexpired, and numbers the pass the ordinary way when it was not. So a
+   *  null here, or a reservation that expired over lunch, costs nothing. */
+  reservedNumber: string | null = null,
+): Promise<GatePassView> {
   // THE PASS'S DEADLINE IS THE EARLIEST LINE'S. `v_gate_passes` grades
   // `is_overdue` / `due_state` off this one column, and a pass is late the
   // moment its first line is — see `earliestReturnDate`.
@@ -33,6 +42,7 @@ export async function createPass(form: NewGatePass, departmentId: string): Promi
     // instead of the literal 'Material movement' fallback.
     p_purpose: form.purpose.trim() || null,
     p_expected_return_date: returnDate,
+    p_pass_number: reservedNumber,
     p_items: form.items.map((item) => ({
       // ONE "Item Description" on the mock, two NOT NULL columns behind it.
       // `description` is what `normalize_material` keys the one-open-line-

@@ -154,7 +154,12 @@ describe('Gate Pass Report — the mock-up itself', () => {
     await waitFor(() => expect(screen.getByText('RGP-20260804-0001')).toBeInTheDocument());
 
     const figures = screen.getByRole('group', { name: 'Report figures' });
-    for (const label of ['Total Passes', 'RGP Passes', 'NRGP Passes', 'Completed', 'Pending', 'Partially Returned']) {
+    // The sixth card's word moved from "Partially Returned" to "Out" (client,
+    // 2026-09-01) — it lumps BOTH open halves of the return loop, and a card
+    // headed "Partially Returned" over passes with nothing back made the same
+    // false claim the badge stopped making. The report's ROW still says which
+    // half, exercised elsewhere (`outIsNotReturned.test.ts`).
+    for (const label of ['Total Passes', 'RGP Passes', 'NRGP Passes', 'Completed', 'Pending', 'Out']) {
       expect(figures).toHaveTextContent(label);
     }
     // The Cancelled card is gone (client, 2026-08-23) — the bucket still

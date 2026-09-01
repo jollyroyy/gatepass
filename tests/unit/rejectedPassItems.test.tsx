@@ -85,15 +85,18 @@ describe('itemLineView on a refused pass', () => {
   });
 
   it('leaves a live pass reading its own state, line by line', () => {
-    // Nothing back yet: the line repeats the pass. Some back: the line's own
-    // return outranks it. All back: "Returned".
-    expect(itemLineView(line(), pass({ status: 'matched' })).label).toBe('Partially Returned');
+    // Nothing back yet: the line repeats the pass — "Out — Awaiting Return"
+    // since 2026-09-01, not the old shared "Partially Returned". Some back:
+    // the line's own return outranks it. All back: "Returned".
+    expect(itemLineView(line(), pass({ status: 'matched' })).label).toBe('Out — Awaiting Return');
     expect(itemLineView(line({ returned_qty: 1 }), pass({ status: 'matched' })).label)
       .toBe('Partially Returned');
     expect(itemLineView(line({ returned_qty: 3 }), pass({ status: 'matched' })).label)
       .toBe('Returned');
+    // Was "Closed" — an NRGP line now repeats the pass's own "Out — No Return
+    // Due" instead of borrowing the RGP's closing word (client, 2026-09-01).
     const nrgp = pass({ type: 'NRGP', status: 'matched', return_status: 'not_applicable' });
-    expect(itemLineView(line(), nrgp).label).toBe('Closed');
+    expect(itemLineView(line(), nrgp).label).toBe('Out — No Return Due');
   });
 
   it('is styled in the flagged red the pass badge uses', () => {

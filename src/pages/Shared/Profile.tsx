@@ -12,6 +12,7 @@ import type { ApprovalRoleKey } from '../../lib/approvalLadder';
 import { gp, pub } from '../../supabaseClient';
 import { useMyProfile } from '../../lib/useMyProfile';
 import ProfilePhotoCard from './ProfilePhotoCard';
+import SignatureCard from './SignatureCard';
 import ProfileDetails from './ProfileDetails';
 
 type Props = {
@@ -75,13 +76,19 @@ export default function ProfilePage({ session, role, office = null }: Props): Re
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-[minmax(0,18rem)_1fr] items-start">
-          <ProfilePhotoCard
-            userId={userId}
-            fullName={profile.full_name ?? ''}
-            email={email}
-            avatarUrl={profile.avatar_url ?? null}
-            onAvatarChange={(url) => { setAvatarUrl(url); setAnnounce(url ? 'Photo updated' : 'Photo removed'); }}
-          />
+          <div className="flex flex-col gap-6">
+            <ProfilePhotoCard
+              userId={userId}
+              fullName={profile.full_name ?? ''}
+              email={email}
+              avatarUrl={profile.avatar_url ?? null}
+              onAvatarChange={(url) => { setAvatarUrl(url); setAnnounce(url ? 'Photo updated' : 'Photo removed'); }}
+            />
+            <SignatureCard
+              userId={userId}
+              onChange={(url) => setAnnounce(url ? 'Signature updated' : 'Signature removed')}
+            />
+          </div>
           <ProfileDetails
             fullName={profile.full_name ?? ''}
             email={email}

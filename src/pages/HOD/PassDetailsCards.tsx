@@ -42,6 +42,9 @@ interface PassDetailsCardsProps {
    *  chosen or captured — it is the middle segment of the reference number
    *  (064), so an HOD who is never shown the field still sees `RGP-IT-####`. */
   deptCode?: string | null;
+  /** The number really reserved for this pass (074), or null while it is being
+   *  taken — or if it could not be. Null falls back to the `####` preview. */
+  reservedNumber?: string | null;
 }
 
 function Legend({ children }: { children: React.ReactNode }): React.ReactElement {
@@ -59,6 +62,7 @@ export default function PassDetailsCards({
   onUpdate,
   departments,
   deptCode,
+  reservedNumber = null,
 }: PassDetailsCardsProps): React.ReactElement {
   const mobile = splitMobile(form.visitor_phone);
   // The reference number's middle segment is the DEPARTMENT's code (064), so
@@ -79,17 +83,27 @@ export default function PassDetailsCards({
             <label className="label" htmlFor="rp-ref">Reference Number</label>
             {/* READ-ONLY, never `disabled`: a disabled input is skipped by the
                 keyboard and greys the very characters the HOD is being asked to
-                note down. The number itself is assigned by the database when
-                the pass is inserted — the modal after the submit states it in
-                full. */}
+                note down.
+                IT IS THE REAL NUMBER NOW (client, 2026-09-01: "make the gate
+                pass reference number visible fully while they are creating the
+                pass"). Migration 074 reserves it when the form opens, so this
+                is what the pass will carry rather than a shape ending `####`.
+                The preview is still the fallback for the two moments there is
+                no number: while the reservation is in flight, and when it could
+                not be taken at all — in both, the pass still submits and the
+                database numbers it on insert. */}
             <input
               id="rp-ref"
               className="input rp-ref"
               aria-label="Reference Number"
-              value={passNumberPreview(form.type, deptCode)}
+              value={reservedNumber ?? passNumberPreview(form.type, deptCode)}
               readOnly
             />
-            <p className="rp-hint mt-1">The serial is assigned when the pass is submitted.</p>
+            <p className="rp-hint mt-1">
+              {reservedNumber
+                ? 'This is the number this pass will carry. Note it down if you need it.'
+                : 'The serial is assigned when the pass is submitted.'}
+            </p>
           </div>
 
           {departments && (

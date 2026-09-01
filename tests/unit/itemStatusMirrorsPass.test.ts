@@ -42,7 +42,7 @@ describe('itemLineView — the line says what the pass says', () => {
   it('repeats the pass badge on a line nothing has come back on', () => {
     const p = pass();
     expect(itemLineView(line(8, 0), p).label).toBe(passStageStyle(p).label);
-    expect(itemLineView(line(8, 0), p).label).toBe('Partially Returned');
+    expect(itemLineView(line(8, 0), p).label).toBe('Out — Awaiting Return');
   });
 
   it('says "Overdue" on the lines of an overdue pass, exactly as the badge does', () => {
@@ -61,9 +61,9 @@ describe('itemLineView — the line says what the pass says', () => {
     expect(itemLineView(line(8, 0), p).label).toBe('Pending Approval');
   });
 
-  it('says "Closed" on an NRGP line the gate cleared', () => {
+  it('says "Out — No Return Due" on an NRGP line the gate cleared', () => {
     const p = pass({ type: 'NRGP', return_status: 'not_applicable' });
-    expect(itemLineView(line(8, 0), p).label).toBe('Closed');
+    expect(itemLineView(line(8, 0), p).label).toBe('Out — No Return Due');
   });
 
   it('overrides the pass with the line: fully back reads "Returned"', () => {

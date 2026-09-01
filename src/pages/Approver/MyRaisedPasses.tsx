@@ -21,6 +21,7 @@
 // One read, no realtime: a pass here changes when an approver signs it, which
 // is minutes-to-days away and is what a refresh is for. The board that does
 // need the live view is the queue, and it has one.
+import { Link } from 'react-router-dom';
 import React, { useEffect, useState } from 'react';
 import { supabase, gp } from '../../supabaseClient';
 import type { GatePassView } from '../../types';
@@ -74,6 +75,12 @@ export default function MyRaisedPasses(): React.ReactElement {
             Raise Gate Pass takes you through the same form a department head uses — you choose which
             department it is raised for.
           </p>
+          {/* THE EMPTY STATE NAMES THE ACTION, SO IT MUST OFFER IT (client,
+              2026-09-01). It described "Raise Gate Pass" in prose and then left
+              the reader to find the form themselves, on the one screen in the
+              app that is guaranteed to be looked at by somebody who has not
+              raised anything yet. */}
+          <Link to="/raise" className="btn-primary mt-4 inline-flex">Raise Gate Pass</Link>
         </div>
       )}
       {passes !== null && passes.length > 0 && (

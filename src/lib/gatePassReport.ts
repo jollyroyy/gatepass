@@ -60,12 +60,16 @@ export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
   // register and the badge on the card above it cannot disagree.
   pending: 'Pending',
   // The KEY is unchanged — it is the bucket's identity, and it is what the
-  // report's Status filter is persisted under. Only the WORD moved (client,
-  // 2026-08-21): "replace the 'in progress' with 'partially returned' across
-  // all the reporting everywhere in all the views". It is the same word
-  // `RGP_STAGE_STYLES` now prints on a card, so the register and the badge over
-  // it cannot disagree.
-  in_progress: 'Partially Returned',
+  // report's Status filter is persisted under. The WORD has moved twice: from
+  // "In Progress" to "Partially Returned" (2026-08-21) and now to "Out"
+  // (2026-09-01), because this bucket counts BOTH open halves of the return
+  // loop and a card headed "Partially Returned" over passes with nothing back
+  // makes the same false claim the badge just stopped making.
+  //
+  // "Out" is the one true thing about every pass underneath it: the material
+  // has left. Which half each ROW is in, the row itself says — `reportStatusLabel`
+  // prints the badge's own words.
+  in_progress: 'Out',
   cancelled: 'Cancelled',
 };
 
@@ -121,8 +125,19 @@ export function reportStatusLabel(p: PassFacts): string {
   if (isExpiredPending(p)) return 'Expired';
   if (isOverduePass(p)) return 'Overdue';
   const bucket = reportStatusOf(p);
-  if (bucket === 'pending') return passStageStyle(p).label;
-  return REPORT_STATUS_LABELS[bucket];
+  // EVERY ROW BUT A REFUSED ONE PRINTS THE BADGE'S OWN WORD (client,
+  // 2026-09-01, extending 2026-08-22's rule from the pending desks to the rest
+  // of the register). A bucket is an aggregate — `in_progress` counts a pass
+  // with nothing back beside one half returned, and `completed` counts a
+  // returned RGP beside an NRGP that was never coming back — so printing the
+  // bucket's word on a ROW stated something about that pass which was not true
+  // of it. There is exactly one vocabulary now, and `passStageStyle` owns it.
+  //
+  // `cancelled` is the one bucket that keeps its own word: it lumps a gate
+  // refusal with a voided pass, and the register's Status column is filtered on
+  // that bucket. The row's badge still says which of the two it was.
+  if (bucket === 'cancelled') return REPORT_STATUS_LABELS.cancelled;
+  return passStageStyle(p).label;
 }
 
 /** Attention outranks the bucket's own colour, both in orange — the hue every
@@ -147,9 +162,13 @@ export const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'completed', label: 'Completed' },
   // The fourth bucket (2026-08-22). The two desk options below it are SUBSETS of
-  // this one, exactly as Overdue and Expired are subsets of Partially Returned.
+  // this one, exactly as Overdue and Expired are subsets of the return leg.
   { key: 'pending', label: 'Pending' },
-  { key: 'in_progress', label: 'Partially Returned' },
+  // READ, NEVER RETYPED. This option and the KPI card over the same rows are
+  // one bucket, and hardcoding the word here is how they came to disagree: the
+  // card said "Out" and the dropdown that filtered to it still said "Partially
+  // Returned" (2026-09-01). One constant, one word.
+  { key: 'in_progress', label: REPORT_STATUS_LABELS.in_progress },
   { key: 'cancelled', label: 'Cancelled' },
   // The two desks a pass that has not moved can be sitting on (client,
   // 2026-08-21: "in the report also show pending gate review and pending for

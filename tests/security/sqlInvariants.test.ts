@@ -1069,7 +1069,36 @@ describe('064 — the pass number carries the department', () => {
   it('keeps the advisory lock and the prefix scan — a plain max()+1 collides', () => {
     const body = finalBody('set_pass_number');
     expect(body).toMatch(/pg_advisory_xact_lock/i);
-    expect(body).toMatch(/pass_number like prefix \|\| '-%'/i);
+    // THE SCAN MOVED OUT, THE RULE DID NOT (migration 074). `set_pass_number`
+    // no longer holds the `like prefix || '-%'` itself — it delegates to
+    // `next_pass_serial`, which is the ONE definition of "the next number for
+    // this prefix" and is called by the trigger and by `reserve_pass_number`
+    // alike. That sharing is the whole point: a reserved number and a raised
+    // one must be counted by the same statement or the two collide.
+    expect(body).toMatch(/next_pass_serial/i);
+  });
+
+  // 074's counter, and the reason the reservation table cannot hand out a
+  // number a pass already carries — or vice versa. Both arms are load-bearing:
+  // dropping either one silently reissues a live pass number.
+  it('counts BOTH raised passes and outstanding reservations for the next serial', () => {
+    const body = finalBody('next_pass_serial');
+    expect(body).toMatch(/from gatepass\.gate_passes/i);
+    expect(body).toMatch(/from gatepass\.pass_number_reservations/i);
+    expect(body).toMatch(/pass_number like p_prefix \|\| '-%'/i);
+  });
+
+  // The client may SEND a pass number since 074, so the trigger is where it is
+  // proved to have been theirs. Every clause below is what stops a crafted
+  // p_pass_number pre-registering a label, stealing a colleague's reservation,
+  // or labelling the wrong department's pass.
+  it('honours a reserved number only when the caller really reserved it', () => {
+    const body = finalBody('set_pass_number');
+    expect(body).toMatch(/update gatepass\.pass_number_reservations/i);
+    expect(body).toMatch(/reserved_by\s*=\s*auth\.uid\(\)/i);
+    expect(body).toMatch(/consumed_at\s+is null/i);
+    expect(body).toMatch(/expires_at\s*>\s*now\(\)/i);
+    expect(body).toMatch(/department_id\s*=\s*new\.department_id/i);
   });
 
   it('still owns the columns a client must never choose', () => {

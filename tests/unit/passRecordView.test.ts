@@ -89,7 +89,11 @@ describe('itemReturnStage', () => {
   });
 
   it('names every stage', () => {
-    expect(ITEM_RETURN_STYLES.closed.label).toBe('Closed');
+    // The NRGP line says what the NRGP PASS's badge says (client, 2026-09-01).
+    // `itemReturnStage` reaches `closed` for exactly one thing — a line on a
+    // pass that is never coming back — so a word of its own here was a second
+    // vocabulary for one fact, and the two read as different states.
+    expect(ITEM_RETURN_STYLES.closed.label).toBe('Out — No Return Due');
     expect(ITEM_RETURN_STYLES.pending.label).toBe('Pending');
     expect(ITEM_RETURN_STYLES.partial.label).toBe('Partially Returned');
     expect(ITEM_RETURN_STYLES.returned.label).toBe('Returned');

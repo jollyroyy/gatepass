@@ -1,10 +1,14 @@
-// RENAMED TWICE ON 2026-08-21, and this is the second pass. Every assertion
-// here that read "Out — Not Returned" briefly read "In Progress" and now
-// reads "Partially Returned" — the one word the client settled on for the
-// whole return leg ("replace the 'in progress' with 'partially returned'
-// across all the reporting everywhere in all the views"). Both open stages
-// therefore carry the SAME label and the same style; only the labels moved,
-// and no stage, tone or precedence rule changed with them.
+// RENAMED THREE TIMES. 2026-08-21 collapsed both open stages onto one word,
+// "Partially Returned" ("replace the 'in progress' with 'partially returned'
+// across all the reporting everywhere in all the views"), and this file's
+// assertions read that word for years. 2026-09-01 SPLIT THEM BACK APART
+// (client: "its status should be changed to returned or partially returned
+// only when any of its items has been returned") — a pass with nothing back
+// now reads "Out — Awaiting Return" and only a pass with at least one line
+// actually home keeps "Partially Returned". The closed stage's own word moved
+// too, from "Closed" to "Returned", so the badge names the material rather
+// than the paperwork. Only the labels moved both times; no stage, tone or
+// precedence rule changed with them.
 // The RGP return loop, as a derived display stage.
 //
 // The business problem this exists for: an RGP has to make TWO trips — out
@@ -81,12 +85,12 @@ describe('rgpStage', () => {
 });
 
 describe('rgpStageStyle', () => {
-  it('labels the open stage with the wording the client chose', () => {
-    expect(rgpStageStyle(pass({ return_status: 'awaiting_return' }))?.label).toBe('Partially Returned');
+  it('labels the open stage with nothing back "Out — Awaiting Return"', () => {
+    expect(rgpStageStyle(pass({ return_status: 'awaiting_return' }))?.label).toBe('Out — Awaiting Return');
   });
 
-  it('labels a closed loop "Closed"', () => {
-    expect(rgpStageStyle(pass({ return_status: 'returned' }))?.label).toBe('Closed');
+  it('labels a closed loop "Returned"', () => {
+    expect(rgpStageStyle(pass({ return_status: 'returned' }))?.label).toBe('Returned');
   });
 
   it('returns null where there is no stage', () => {
@@ -101,12 +105,13 @@ describe('rgpStageStyle', () => {
     const overdue = rgpStageStyle(pass({ return_status: 'awaiting_return', is_overdue: true }));
     const onTime = rgpStageStyle(pass({ return_status: 'awaiting_return', is_overdue: false }));
     expect(overdue?.label).toBe('Overdue');
-    expect(onTime?.label).toBe('Partially Returned');
+    expect(onTime?.label).toBe('Out — Awaiting Return');
     expect(overdue?.bg).not.toBe(onTime?.bg);
   });
 
   it('ignores is_overdue once the loop is closed', () => {
     const style = rgpStageStyle(pass({ return_status: 'returned', is_overdue: true }));
     expect(style).toEqual(RGP_STAGE_STYLES.closed);
+    expect(style?.label).toBe('Returned');
   });
 });

@@ -59,6 +59,53 @@ export interface SignatureBoxView {
   state: BoxState;
   /** The sentence under the rule. Never colour-dependent. */
   caption: string;
+  /** The signer's uploaded signature image, or null (075).
+   *
+   *  NON-NULL ONLY ON A BOX THAT IS ACTUALLY SIGNED — `signed` for a rung, or a
+   *  receiver's box holding a real receipt. See `signatureFor` below: this is
+   *  the field the client's "don't show the signature until and unless I
+   *  approve" lives in, and it is set in exactly one place. */
+  signatureUrl: string | null;
+}
+
+/**
+ * The signature image for each box on ONE pass, keyed by the slot names
+ * `gatepass.get_pass_signatures` (075) returns: 'raised', an office's
+ * `role_key`, 'gate', or 'receiver'.
+ *
+ * A partial record, and usually a very partial one — a person who never
+ * uploaded a signature simply has no entry, which is the ordinary case and not
+ * a failure.
+ */
+export type PassSignatures = Record<string, string | undefined>;
+
+/** Which slot a step's box draws its signature from. The step keys are the
+ *  ladder's own (`raised`, `level-<role_key>`, `gate`); the slots are the
+ *  database's. `office` is what carries the role key on an approval rung —
+ *  parsing it back out of `key` would be the fuzzy string matching this repo
+ *  forbids on enums. */
+function slotOf(step: ApprovalStep): string | null {
+  if (step.key === 'raised') return 'raised';
+  if (step.key === 'gate') return 'gate';
+  return step.office ?? null;
+}
+
+/**
+ * THE ONE PLACE A SIGNATURE IS ATTACHED TO A BOX, and it refuses every box that
+ * is not signed.
+ *
+ * `get_pass_signatures` already returns a mark only where the database holds a
+ * recorded act by that person on this pass, so this is the second of two
+ * independent checks. It is not redundant: it makes the rule true of the
+ * FUNCTION that draws the box rather than of one query, so a future caller
+ * handing in a different map cannot reintroduce a signature under a rejection,
+ * a pending rung, or a level-3 rung nobody had to sign (063).
+ */
+function signatureFor(
+  state: BoxState, slot: string | null, signatures: PassSignatures,
+): string | null {
+  if (state !== 'signed' || !slot) return null;
+  return signatures[slot] ?? null;
 }
 
 /** The rung that is not an approval office and not the gate. It is a deadline,
@@ -189,6 +236,10 @@ export function buildSignatureBoxes(
   steps: ApprovalStep[],
   receipt: ReturnReceipt | null = null,
   withReceiver = true,
+  /** Uploaded signatures for this pass (075). DEFAULTS TO NONE, so every caller
+   *  written before signatures existed keeps printing exactly the slip it
+   *  printed before — an empty map is the same as no map. */
+  signatures: PassSignatures = {},
 ): SignatureBoxView[] {
   const boxes: SignatureBoxView[] = steps
     .filter((s) => s.key !== RETURN_KEY)
@@ -204,18 +255,24 @@ export function buildSignatureBoxes(
         at: step.at,
         state,
         caption: CAPTION[state],
+        signatureUrl: signatureFor(state, slotOf(step), signatures),
       };
     });
 
   if (!withReceiver) return boxes;
 
+  const receiptState: BoxState = receipt ? 'signed' : 'blank';
   boxes.push({
     key: 'receiver',
     label: 'Receiver Signature',
     signer: receipt?.who ?? null,
     at: receipt?.at ?? null,
-    state: receipt ? 'signed' : 'blank',
+    state: receiptState,
     caption: receipt ? RECEIPT_CAPTION : CAPTION.blank,
+    // 'blank' is not 'signed', so an open return prints no mark — the same rule
+    // the tick already follows, and the reason the receiver's box is `blank`
+    // rather than `awaiting` does not matter here: neither is signed.
+    signatureUrl: signatureFor(receiptState, 'receiver', signatures),
   });
 
   return boxes;

@@ -1,10 +1,15 @@
-// RENAMED TWICE ON 2026-08-21, and this is the second pass. Every assertion
-// here that read "Out — Not Returned" briefly read "In Progress" and now
-// reads "Partially Returned" — the one word the client settled on for the
-// whole return leg ("replace the 'in progress' with 'partially returned'
-// across all the reporting everywhere in all the views"). Both open stages
-// therefore carry the SAME label and the same style; only the labels moved,
-// and no stage, tone or precedence rule changed with them.
+// RENAMED THREE TIMES. 2026-08-21 collapsed both open stages onto the SAME
+// word, "Partially Returned", and the closed stage read "Closed" — which the
+// header badge shared with the timeline rail's own closing rung
+// (`passLadderLegs.returnStep`), so a returned RGP printed "Closed" twice on
+// its own detail page. 2026-09-01 split the badge's word away from the rail's:
+// the badge now says "Returned" (client: "its status should be changed to
+// returned or partially returned only when any of its items has been
+// returned") while the rail's closing rung KEEPS "Closed" on purpose — that
+// rung means the end of the paperwork, not the whereabouts of the goods, and
+// the task explicitly leaves it alone. A cleared NRGP's badge moved too, from
+// "Closed" to "Out — No Return Due" (client: "once a NRGP gate pass is
+// cleared out the status of it should show as out, not returned yet").
 // The pass detail page's header badge must agree with the card that opened it.
 //
 // Client, 2026-08-11: "When I'm clicking on the card to see more details, on
@@ -81,31 +86,34 @@ describe('PassDetail header badge', () => {
     verifications = [];
   });
 
-  it('reads "Closed" for a fully returned RGP, never "Matched"', async () => {
+  it('reads "Returned" for a fully returned RGP, never "Matched"', async () => {
     row = pass({ status: 'matched', return_status: 'returned' });
     renderDetail();
-    // TWICE, and deliberately: the header badge, and the rail's own closing
-    // rung, which took the same word on 2026-08-23 so the end of the pass is
-    // named the same thing in both places a reader looks.
-    await waitFor(() => expect(screen.getAllByText('Closed').length).toBe(2));
+    // The header badge and the rail's own closing rung now say DIFFERENT
+    // things on purpose (client, 2026-09-01): the badge names the material
+    // ("Returned"), the rail's rung names the paperwork ("Closed") — one of
+    // each, not the same word twice.
+    await waitFor(() => expect(screen.getByText('Returned')).toBeInTheDocument());
+    expect(screen.getByText('Closed')).toBeInTheDocument();
     expect(screen.queryByText('Matched')).toBeNull();
   });
 
-  it('reads "Partially Returned" for an RGP still outside', async () => {
+  it('reads "Out — Awaiting Return" for an RGP still outside with nothing back', async () => {
     row = pass({ return_status: 'awaiting_return', actual_return_date: null });
     renderDetail();
-    await waitFor(() => expect(screen.getByText('Partially Returned')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Out — Awaiting Return')).toBeInTheDocument());
     expect(screen.queryByText('Matched')).toBeNull();
   });
 
-  it('reads "Closed" for an NRGP, whose outward trip IS its end state', async () => {
+  it('reads "Out — No Return Due" for an NRGP, whose outward trip IS its end state', async () => {
     row = pass({ type: 'NRGP', return_status: 'not_applicable', actual_return_date: null });
     renderDetail();
-    // ONCE, in the header: this pass has no recorded gate event, and the
+    // No "Closed" anywhere: this pass has no recorded gate event, so the
     // ladder's own gate rung is worded as the event — "Cleared by Security" —
-    // not as the pass's resulting state. The rail says "Closed" only where a
-    // recorded clearance actually ends an NRGP.
-    await waitFor(() => expect(screen.getAllByText('Closed').length).toBe(1));
+    // not as the pass's resulting state, and the header no longer borrows the
+    // RGP's closing word (client, 2026-09-01).
+    await waitFor(() => expect(screen.getByText('Out — No Return Due')).toBeInTheDocument());
+    expect(screen.queryByText('Closed')).toBeNull();
     expect(screen.queryByText('Matched')).toBeNull();
   });
 

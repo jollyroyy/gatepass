@@ -124,7 +124,10 @@ describe('the row pill says more than its bucket where more is true', () => {
   // Returned"; it now names the desk it is actually sitting on, in
   // `passStageStyle`'s own words.
   it('otherwise reads the bucket, or the desk a pending pass is on', () => {
-    expect(reportStatusLabel(row({ status: 'matched' }))).toBe('Completed');
+    // A completed pass now prints `passStageStyle`'s own word rather than the
+    // bucket's flat "Completed" (client, 2026-09-01) — here that's the "matched,
+    // no return loop" arm, "Out — No Return Due".
+    expect(reportStatusLabel(row({ status: 'matched' }))).toBe('Out — No Return Due');
     expect(reportStatusLabel(row({ status: 'pending' }))).toBe('Pending Gate Review');
     expect(reportStatusLabel(row({ status: 'matched', return_status: 'partially_returned' })))
       .toBe('Partially Returned');

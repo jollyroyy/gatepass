@@ -17,6 +17,7 @@ import { validateRaiseForm, todayStr, type FormErrors } from '../../lib/raisePas
 import { safeErrorMessage } from '../../lib/errors';
 import { notifyApproval } from '../../lib/notifyApproval';
 import { useReraisePass, voidSupersededPass } from './useReraisePass';
+import { useReservedPassNumber } from './useReservedPassNumber';
 import { useRaiseDepartments } from './useRaiseDepartments';
 import { createPass } from './raisePassRequest';
 import { officeRaises, homeFor } from '../../lib/roleRoutes';
@@ -94,6 +95,10 @@ export default function RaisePass({ office = null, role = null }: RaisePassProps
     ?? (picksDepartment ? undefined : depts[0]);
   const deptName = chosenDept ? `${chosenDept.name} (${chosenDept.code})` : '';
   const { sourceId, source, prefill } = useReraisePass(todayStr());
+  // THE REAL REFERENCE NUMBER, held for the life of this form (074). Keyed on
+  // the two things the number is made of, so a type toggle or a COO changing
+  // department swaps it rather than leaving a number naming a different pass.
+  const reservedNumber = useReservedPassNumber(form.type, chosenDept?.id);
 
   // Merged, never assigned wholesale: the department effect below may already
   // have chosen a department by the time the pre-fill arrives, and replacing the
@@ -196,7 +201,7 @@ export default function RaisePass({ office = null, role = null }: RaisePassProps
       if (!userId) throw new Error('Could not determine your user account. Please sign in again.');
       const departmentId = form.department_id || depts[0]?.id;
       if (!departmentId) throw new Error('Choose the department this pass is raised for.');
-      const created = await createPass(form, departmentId);
+      const created = await createPass(form, departmentId, reservedNumber);
       setSubmittedPass(created);
       // The pass is raised. Now tell the office it landed on, and copy this HOD.
       // NOT AWAITED, and it cannot throw: `notifyApproval` swallows everything,
@@ -273,6 +278,7 @@ export default function RaisePass({ office = null, role = null }: RaisePassProps
           onUpdate={update}
           departments={picksDepartment ? depts : undefined}
           deptCode={chosenDept?.code}
+          reservedNumber={reservedNumber}
         />
 
         <MaterialItemsCard

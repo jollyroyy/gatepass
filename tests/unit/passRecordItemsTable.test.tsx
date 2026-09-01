@@ -96,8 +96,16 @@ describe('Serial / ID', () => {
   });
 
   it('leaves the cell empty when no serial was recorded — never an em dash', () => {
-    const { container } = draw(pass(), [line({ serial_no: null })]);
-    expect(container.textContent).not.toContain('—');
+    draw(pass(), [line({ serial_no: null })]);
+    // Scoped to the Serial / ID CELL, not the whole table: the status badge
+    // beside it now legitimately reads "Out — Awaiting Return", which itself
+    // contains an em dash (2026-09-01) — a table-wide search would catch that
+    // word rather than the empty-cell rule this test actually pins.
+    const heads = screen.getAllByRole('columnheader').map((h) => h.textContent);
+    const serialCol = heads.indexOf('Serial / ID');
+    const dataRow = screen.getAllByRole('row')[1];
+    const cells = within(dataRow).getAllByRole('cell');
+    expect(cells[serialCol].textContent).toBe('');
   });
 });
 
@@ -118,7 +126,7 @@ describe('the return status', () => {
     expect(within(row).queryByText(/2026/)).not.toBeInTheDocument();
   });
 
-  it('reads Closed on an NRGP, which keeps the column but loses the action', () => {
+  it('reads Out — No Return Due on an NRGP, which keeps the column but loses the action', () => {
     render(
       <PassRecordItems
         pass={pass({ type: 'NRGP', return_status: 'not_applicable' })}
@@ -131,7 +139,10 @@ describe('the return status', () => {
     expect(heads).toContain('Status');
     expect(heads).not.toContain('Return Status');
     expect(heads).not.toContain('Action');
-    expect(screen.getByText('Closed')).toBeInTheDocument();
+    // Was "Closed" (client, 2026-09-01: "once a NRGP gate pass is cleared out
+    // the status of it should show as out, not returned yet") — it no longer
+    // borrows the RGP's own closing word.
+    expect(screen.getByText('Out — No Return Due')).toBeInTheDocument();
   });
 });
 

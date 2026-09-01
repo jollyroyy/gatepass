@@ -33,8 +33,10 @@
 //                     outward. `return_status` is pinned to 'not_applicable'
 //                     for every NRGP and for anything still at the gate, so
 //                     this arm simply does not fire for them.
-//   4. Closed       — `matched` with no return loop is an NRGP through the
-//                     gate: finished. It reads "Closed", never "Matched".
+//   4. Out, no      — `matched` with no return loop is an NRGP through the
+//      return due     gate: finished. It reads "Out — No Return Due", never
+//                     "Matched" and (since 2026-09-01) never the RGP's own
+//                     closing word either.
 //   5. Awaiting     — a `pending` pass that has NOT finished climbing the
 //      approval       approval ladder. It reads "Pending Approval", never
 //                     "Pending Gate Review" (client, 2026-08-20: "the passes
@@ -49,7 +51,7 @@
 import type { GatePassView, PassStatus } from '../types';
 import type { StatusStyle } from './statusStyles';
 import { AWAITING_APPROVAL_STYLE, EXPIRED_STYLE, STATUS_STYLES, isExpiredPending } from './statusStyles';
-import { RGP_STAGE_STYLES, rgpStageStyle } from './rgpLifecycle';
+import { NO_RETURN_DUE_STYLE, rgpStageStyle } from './rgpLifecycle';
 
 /** States that demand a decision, and so must never be hidden behind the
  *  routine return loop. A `Record<PassStatus, boolean>` rather than an array
@@ -77,7 +79,13 @@ export function passStageStyle(
   // is the END of it — the material is not coming back. Client, 2026-08-18: no
   // surface says "Matched"; it names the outward clearance, which is a moment in
   // the timeline, not a state anybody is waiting on.
-  if (p.status === 'matched') return RGP_STAGE_STYLES.closed;
+  //
+  // It reads "Out — No Return Due" rather than borrowing the RGP's closing
+  // word (client, 2026-09-01). Sharing `RGP_STAGE_STYLES.closed` meant a pass
+  // that had gone out for ever and one whose goods had all come back printed
+  // the same word, and the difference between those two is the whole point of
+  // having two pass types.
+  if (p.status === 'matched') return NO_RETURN_DUE_STYLE;
   // The ladder outranks the gate, and only for a `pending` pass: `hod_reviewed`
   // is the HOD overriding a flag the gate itself raised, which cannot have
   // happened to a pass the gate was never allowed to see. A MISSING

@@ -1,10 +1,14 @@
-// RENAMED TWICE ON 2026-08-21, and this is the second pass. Every assertion
-// here that read "Out — Not Returned" briefly read "In Progress" and now
-// reads "Partially Returned" — the one word the client settled on for the
-// whole return leg ("replace the 'in progress' with 'partially returned'
-// across all the reporting everywhere in all the views"). Both open stages
-// therefore carry the SAME label and the same style; only the labels moved,
-// and no stage, tone or precedence rule changed with them.
+// RENAMED THREE TIMES. 2026-08-21 collapsed both open stages onto the SAME
+// word, "Partially Returned" ("replace the 'in progress' with 'partially
+// returned' across all the reporting everywhere in all the views"), and the
+// closed stage read "Closed". 2026-09-01 undid the collapse (client: "its
+// status should be changed to returned or partially returned only when any
+// of its items has been returned" and "once a NRGP gate pass is cleared out
+// the status of it should show as out, not returned yet") — an RGP with
+// nothing back now reads "Out — Awaiting Return", a fully returned RGP reads
+// "Returned", and a cleared NRGP reads "Out — No Return Due" instead of
+// sharing the RGP's old "Closed" word. Only the labels moved; no stage, tone
+// or precedence rule changed with them.
 // ONE badge per pass, and it says where the pass is NOW.
 //
 // Client complaint, 2026-08-11 (second round): "In the card section if the
@@ -34,25 +38,29 @@ function pass(over: Partial<GatePassView>): GatePassView {
 }
 
 describe('passStageStyle — the single latest-state badge', () => {
-  it('reads "Closed" for a fully returned RGP, never "Matched"', () => {
-    expect(passStageStyle(pass({ return_status: 'returned' })).label).toBe('Closed');
+  it('reads "Returned" for a fully returned RGP, never "Matched"', () => {
+    expect(passStageStyle(pass({ return_status: 'returned' })).label).toBe('Returned');
   });
 
-  it('reads "Partially Returned" for an RGP the gate cleared outward', () => {
-    expect(passStageStyle(pass({ return_status: 'awaiting_return' })).label).toBe('Partially Returned');
+  it('reads "Out — Awaiting Return" for an RGP the gate cleared outward with nothing back', () => {
+    expect(passStageStyle(pass({ return_status: 'awaiting_return' })).label).toBe('Out — Awaiting Return');
   });
 
-  it('reads "Partially Returned" in between', () => {
+  it('reads "Partially Returned" once a line is actually back', () => {
     expect(passStageStyle(pass({ return_status: 'partially_returned' })).label).toBe('Partially Returned');
   });
 
-  // An NRGP never comes back, so the outward match IS its final state — and the
-  // word for a finished pass is "Closed" (client, 2026-08-18: nothing reads
-  // "Matched"; the match is a moment in the timeline, not a state).
-  it('reads "Closed" for a cleared NRGP, never "Matched"', () => {
+  // An NRGP never comes back, so the outward match IS its final state — and
+  // the word for a finished NRGP is "Out — No Return Due" (client, 2026-08-18:
+  // nothing reads "Matched"; the match is a moment in the timeline, not a
+  // state — and client, 2026-09-01: "once a NRGP gate pass is cleared out the
+  // status of it should show as out, not returned yet"). It no longer borrows
+  // the RGP's own closing word, "Returned" — an NRGP owes nothing back, which
+  // "Returned" would misstate.
+  it('reads "Out — No Return Due" for a cleared NRGP, never "Matched"', () => {
     expect(
       passStageStyle(pass({ type: 'NRGP', status: 'matched', return_status: 'not_applicable' })).label,
-    ).toBe('Closed');
+    ).toBe('Out — No Return Due');
   });
 
   it('falls back to the status badge before the pass reaches the gate', () => {
@@ -144,7 +152,7 @@ describe('passStageStyle — the single latest-state badge', () => {
 
   it('does not tone a closed pass as overdue — the obligation is discharged', () => {
     const s = passStageStyle(pass({ return_status: 'returned', is_overdue: true }));
-    expect(s.label).toBe('Closed');
+    expect(s.label).toBe('Returned');
     expect(s.text).not.toContain('overdue');
   });
 });

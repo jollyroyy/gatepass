@@ -38,7 +38,14 @@ export function itemReturnStage(
 export const ITEM_RETURN_STYLES: Record<ItemReturnStage, StatusStyle> = {
   // Green, the same hue RGP_STAGE_STYLES.closed uses — an NRGP line that is
   // out of the gate is as finished as an RGP whose material came back.
-  closed: { bg: 'bg-matched-50', text: 'text-matched-700', dot: 'bg-matched-500', label: 'Closed' },
+  //
+  // It says the same words the PASS's badge says (client, 2026-09-01), because
+  // `itemReturnStage` reaches this stage for exactly one thing: a line on an
+  // NRGP, which is never coming back. A line reading "Closed" under a pass
+  // reading "Out — No Return Due" was two vocabularies for one fact.
+  closed: {
+    bg: 'bg-matched-50', text: 'text-matched-700', dot: 'bg-matched-500', label: 'Out — No Return Due',
+  },
   pending: { bg: 'bg-pending-50', text: 'text-pending-700', dot: 'bg-pending-500', label: 'Pending' },
   partial: {
     bg: 'bg-accent-50', text: 'text-accent-700', dot: 'bg-accent-500', label: 'Partially Returned',

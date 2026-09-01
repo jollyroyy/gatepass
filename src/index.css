@@ -987,7 +987,14 @@
      their columns, and visibly inert — a field the HOD must not try to type in.
      `read-only`, not `disabled`: it stays selectable and copyable. */
   .rp-ref {
-    @apply font-mono tracking-tight bg-surface-100 text-navy-700 cursor-default;
+    /* A SIZE UP FROM THE FIELDS AROUND IT (client, 2026-09-01: the reference
+       number must be "visible fully" while the pass is being written). It is
+       the one value on this form the person is expected to read back, quote on
+       a phone call and write on a docket, and since migration 074 it is the
+       pass's real number rather than a shape. Mono so a 0 cannot be read as an
+       O, and `tracking-tight` so the longest form — NRGP-XXXXX-10000 — still
+       fits the field at this size without ellipsis. */
+    @apply font-mono text-base font-semibold tracking-tight bg-surface-100 text-navy-700 cursor-default;
   }
 
   /* Pass Type — two wide radio plates. */
