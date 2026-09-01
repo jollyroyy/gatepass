@@ -82,7 +82,10 @@ describe('PassSubmittedModal — at-a-glance fields', () => {
         />
       </MemoryRouter>,
     );
-    expect(screen.getByText('—')).toBeInTheDocument();
+    // The popup states every fact the pass carries now, so more than one can
+    // be blank on a fixture this thin — what matters is that a missing value
+    // reads as a dash rather than an empty cell.
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
   });
 });
 

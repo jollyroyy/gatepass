@@ -5030,3 +5030,33 @@ decision (unit tests).
 
 **Gate:** `npm run check` — **193 files, 2505 tests, green**, typecheck clean, with all four sessions'
 work in the tree. `APPLY_ALL.sql` regenerated at 78 sections.
+
+---
+
+## 2026-09-01 — The confirmation popup states the whole pass
+
+Client: "once the gate pass is raised … in the success pop-up you show all the details, like how
+many quantities, what is the material item, everything … how much worth of item".
+
+**F1 `src/pages/HOD/PassSubmittedModal.tsx`** printed "Line Items 3 / Total Quantity —" and no
+lines at all. The dash was not a formatting slip: **`raise_pass` returns a `gatepass.gate_passes`
+ROW**, and every roll-up (`item_count`, `total_quantity`, `total_value`, `material_summary`) lives
+on `v_gate_passes`. The popup was rendering a column that does not exist on what it was handed.
+
+- **F2 `raisePassRequest.ts`** — the narrow post-RPC read that used to fetch `awaits_approval`
+  alone now fetches the roll-ups with it, and merges **named fields only**. A blind
+  `{...created, ...row}` was the first attempt and it broke `reraisePass.test.tsx`: the view row
+  can carry `pass_number`, and a read must never rewrite the identity of the pass the RPC just
+  created. The sums stay the VIEW's — never re-summed in TypeScript (CLAUDE.md).
+- **F3 `src/pages/HOD/SubmittedItemsList.tsx`** (new) — every material line, read back through
+  `usePassItems` (the same one-pass item read the record and the gate use), each with its own
+  `quantityCell(qty, unit)` and `formatCurrency(approx_value)`. An unpriced line prints nothing
+  rather than ₹0, and `total_value === 0` prints a dash, for `formatCurrency`'s own reason.
+- F1 also gained Purpose, Expected Return, and the vendor's **Contact Number** and Address —
+  already in `visitor_company`'s packed blob, never rendered. `Fact` took a `wide` variant so a
+  sentence wraps instead of truncating into half a column.
+
+Tests: `tests/unit/passSubmittedDetails.test.tsx` (new, written failing first);
+`passSubmittedModal.test.tsx`'s em-dash assertion widened — more than one fact can be blank now.
+
+**Gate:** `npm run check` — 194 files, 2509 tests, green.

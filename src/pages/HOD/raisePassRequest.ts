@@ -76,22 +76,32 @@ export async function createPass(
   if (error) throw error;
   const created = data as unknown as GatePassView;
   // `raise_pass` returns a `gatepass.gate_passes` ROW, not a view row, so it
-  // carries no `awaits_approval` — and the confirmation badge would say
-  // "Pending Gate Review" over a pass the gate is not even allowed to see
-  // yet. One narrow read of the view fixes the one field that matters here.
+  // carries neither `awaits_approval` nor a single ROLL-UP — and the
+  // confirmation badge would say "Pending Gate Review" over a pass the gate is
+  // not even allowed to see yet, above a "Total Quantity" that is an em dash.
+  // One narrow read of the view fixes both.
+  //
+  // The roll-ups are READ, never recomputed here: `total_value` is the view's
+  // sum of the lines' `approx_value` and is defined there and nowhere else
+  // (CLAUDE.md), so the confirmation, the card and the overdue KPI cannot
+  // disagree about what a pass is worth.
+  //
   // FAILURE IS TOLERATED on purpose: the pass is already raised, and a
   // confirmation modal is not worth a red error over a badge word.
-  let awaits: boolean | undefined;
   try {
     const { data: view } = await gp()
       .from('v_gate_passes')
-      .select('awaits_approval')
+      .select('awaits_approval, item_count, total_quantity, returned_quantity, total_value, material_summary')
       .eq('id', created.id)
       .limit(1);
-    const row = (Array.isArray(view) ? view[0] : view) as { awaits_approval?: boolean } | null;
-    awaits = row?.awaits_approval;
+    const row = (Array.isArray(view) ? view[0] : view) as Partial<GatePassView> | null;
+    if (!row) return created;
+    // NAMED FIELDS, not a blind spread: the RPC's row is the authority on the
+    // pass's identity, and merging a whole view row over it would let a read
+    // rewrite the pass number this confirmation is quoting.
+    const { awaits_approval, item_count, total_quantity, returned_quantity, total_value, material_summary } = row;
+    return { ...created, awaits_approval, item_count, total_quantity, returned_quantity, total_value, material_summary } as GatePassView;
   } catch {
-    awaits = undefined;
+    return created;
   }
-  return awaits === undefined ? created : { ...created, awaits_approval: awaits };
 }

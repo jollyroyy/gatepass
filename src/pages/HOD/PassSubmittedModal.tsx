@@ -11,9 +11,11 @@ import { Link } from 'react-router-dom';
 import type { GatePassView } from '../../types';
 import { passStageStyle } from '../../lib/passStage';
 import { parseCompanyInfo } from '../../lib/companyInfo';
-import { formatDateTime } from '../../lib/formatDate';
+import { formatDateTime, formatDateOnly } from '../../lib/formatDate';
+import { formatCurrency } from '../../lib/formatCurrency';
 import Badge, { TypeChip } from '../../components/Badge';
 import ModalShell from '../../components/ModalShell';
+import SubmittedItemsList from './SubmittedItemsList';
 import SendToVendorButton from '../../components/SendToVendorButton';
 
 interface PassSubmittedModalProps {
@@ -25,12 +27,19 @@ interface PassSubmittedModalProps {
 
 /** One labelled fact inside a grouped block. `emphasize` bumps it to the
  *  weight a guard-facing "read this first" field needs (vehicle number). */
-function Fact({ label, value, emphasize }: { label: string; value: React.ReactNode; emphasize?: boolean }): React.ReactElement {
+function Fact({ label, value, emphasize, wide }: {
+  label: string;
+  value: React.ReactNode;
+  emphasize?: boolean;
+  /** A fact whose value is a sentence (purpose, address) spans the whole block
+   *  and wraps — truncating it into half a column hides the answer. */
+  wide?: boolean;
+}): React.ReactElement {
   const shown = value === null || value === undefined || value === '' ? '—' : value;
   return (
-    <div className="min-w-0">
+    <div className={`min-w-0 ${wide ? 'col-span-2' : ''}`}>
       <dt className="text-[10px] font-bold text-navy-500 uppercase tracking-wider">{label}</dt>
-      <dd className={`mt-0.5 truncate ${emphasize ? 'text-base font-bold text-navy-950' : 'text-sm font-medium text-navy-700'}`}>
+      <dd className={`mt-0.5 ${wide ? 'break-words' : 'truncate'} ${emphasize ? 'text-base font-bold text-navy-950' : 'text-sm font-medium text-navy-700'}`}>
         {shown}
       </dd>
     </div>
@@ -89,16 +98,37 @@ export default function PassSubmittedModal({
         <FactBlock title="Vehicle &amp; Department">
           <Fact label="Vehicle Number" value={submittedPass.vehicle_number} emphasize />
           <Fact label="Department" value={deptName} />
+          {submittedPass.expected_return_date && (
+            <Fact label="Expected Return" value={formatDateOnly(submittedPass.expected_return_date)} />
+          )}
+          <Fact label="Purpose" value={submittedPass.purpose} wide />
         </FactBlock>
 
         <FactBlock title="Vendor &amp; Authorized Person">
           <Fact label="Authorized Person's Name" value={submittedPass.visitor_name} />
           <Fact label="Vendor / Company" value={company.name} />
+          <Fact label="Contact Number" value={company.phone} />
+          <Fact label="Address" value={company.address} wide />
         </FactBlock>
 
+        {/* WHAT WAS ACTUALLY RAISED, not a count of it (client, 2026-09-01).
+            The roll-ups are the VIEW's — `createPass` reads them back after the
+            RPC, because `raise_pass` returns a base-table row that carries
+            none — and the lines under them are read from the database, so the
+            confirmation and the pass record can never disagree. `total_value`
+            is 0 when no line was priced, which prints a dash: "nothing was
+            declared" is not "this is worth nothing". */}
         <FactBlock title="Material">
-          <Fact label="Line Items" value={itemCount} />
+          <Fact label="Line Items" value={submittedPass.item_count ?? itemCount} />
           <Fact label="Total Quantity" value={submittedPass.total_quantity} />
+          <Fact
+            label="Total Value"
+            value={submittedPass.total_value > 0 ? formatCurrency(submittedPass.total_value) : null}
+            wide
+          />
+          <dd className="col-span-2">
+            <SubmittedItemsList passId={submittedPass.id} />
+          </dd>
         </FactBlock>
       </div>
 
