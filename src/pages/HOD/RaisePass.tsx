@@ -240,8 +240,15 @@ export default function RaisePass({ office = null, role = null }: RaisePassProps
           under the field it belongs to. */}
       <form onSubmit={handleSubmit} className="rp-sheet" noValidate>
         <div className="rp-head">
-          <h1 className="rp-title">{sourceId ? 'Raise Gate Pass Again' : 'Raise Gate Pass'}</h1>
-          <p className="rp-subtitle">Fill in the details to raise a new gate pass request.</p>
+          {/* "Issue RGP / NRGP Gate Pass" (client, 2026-09-01). The heading
+              names the two pass types this one form raises, because the type
+              is chosen INSIDE it — there is no separate RGP screen to land on.
+              The sidebar tab and the dashboard tile keep the shorter "Raise
+              Gate Pass": they are the route to here, not the form's title. */}
+          <h1 className="rp-title">
+            {sourceId ? 'Issue RGP / NRGP Gate Pass Again' : 'Issue RGP / NRGP Gate Pass'}
+          </h1>
+          <p className="rp-subtitle">Fill in the details to issue a new gate pass request.</p>
         </div>
 
         {/* The mismatch reason is repeated here on purpose. The HOD read it one

@@ -149,7 +149,7 @@ describe('the raise form, arrived at from a mismatch', () => {
     // acts on the reason, and a correction made from memory is how the same
     // pass gets flagged twice.
     renderReraise();
-    expect(await screen.findByRole('heading', { name: 'Raise Gate Pass Again' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Issue RGP / NRGP Gate Pass Again' })).toBeInTheDocument();
     expect(screen.getByText(/RGP-OUT-20260817-0009/)).toBeInTheDocument();
     expect(screen.getByText(/Two ladders loaded, three on the slip/)).toBeInTheDocument();
   });
@@ -227,7 +227,7 @@ describe('the raise form, arrived at from a mismatch', () => {
 describe('the raise form, arrived at normally', () => {
   it('carries no correction banner and supersedes nothing', async () => {
     renderFresh();
-    expect(await screen.findByRole('heading', { name: 'Raise Gate Pass' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Issue RGP / NRGP Gate Pass' })).toBeInTheDocument();
     expect(screen.queryByText(/Correcting/)).not.toBeInTheDocument();
     // One empty line, not the source pass's two.
     await waitFor(() => expect(screen.queryByDisplayValue('Ladder')).not.toBeInTheDocument());

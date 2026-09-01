@@ -9,7 +9,7 @@
 // Column order is the client's mock-up (2026-08-19), left to right:
 //
 //   #  ·  Item Description  ·  Quantity  ·  Unit  ·  Approx. Value (Rs)  ·
-//   Make / Model / Size  ·  Serial / Asset Tag  ·  Invoice / Reference No.  ·
+//   Make / Model / Size  ·  Serial / Asset Tag  ·  Order No.  ·
 //   Remarks  ·  Expected Return Date (RGP only)  ·  Action
 //
 // THE UNIT COLUMN IS BACK, beside the quantity it qualifies (client,

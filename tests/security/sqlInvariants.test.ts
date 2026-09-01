@@ -141,29 +141,28 @@ describe('SQL invariants', () => {
     }
   });
 
-  it('gatepass.normalize_material and gatepass.site_tz are declared immutable', () => {
-    // gate_passes_one_pending_per_material_idx (migration 008) is a unique index
-    // built on normalize_material's output; Postgres trusts an IMMUTABLE
-    // function's result to never change for the same input. site_tz feeds the
-    // expiry window computation that depends on the same trust. If either loses
-    // IMMUTABLE, Postgres either stops letting the index use it, or — worse —
-    // keeps trusting a stale answer without complaint.
+  it('gatepass.site_tz is declared immutable', () => {
+    // site_tz feeds the expiry window computation, and Postgres trusts an
+    // IMMUTABLE function's result to never change for the same input. If it
+    // loses IMMUTABLE, a stale answer is kept without complaint.
+    //
+    // `normalize_material` was checked here for the same reason until 073
+    // dropped it with the last index built over it — see the material-index
+    // test above for why that rule is gone.
     const migrations = allMigrationsText();
     const fns = extractFunctions(migrations);
 
-    for (const name of ['gatepass.normalize_material', 'gatepass.site_tz']) {
-      const definitions = fns.filter((fn) => fn.name === name);
-      expect(definitions.length, `no migration defines ${name}`).toBeGreaterThan(0);
-      const final = definitions[definitions.length - 1]; // highest-numbered migration wins
+    const name = 'gatepass.site_tz';
+    const definitions = fns.filter((fn) => fn.name === name);
+    expect(definitions.length, `no migration defines ${name}`).toBeGreaterThan(0);
+    const final = definitions[definitions.length - 1]; // highest-numbered migration wins
 
-      expect(
-        /\bimmutable\b/i.test(final.body),
-        `${name}'s final definition (in ${final.file}) is not declared IMMUTABLE. ` +
-          `gate_passes_one_pending_per_material_idx depends on normalize_material, and site_tz feeds ` +
-          `expires_at — a non-immutable function backing either is a correctness risk Postgres will not ` +
-          `catch for you: the index (or the expiry window) can silently disagree with a re-evaluated result.`
-      ).toBe(true);
-    }
+    expect(
+      /\bimmutable\b/i.test(final.body),
+      `${name}'s final definition (in ${final.file}) is not declared IMMUTABLE. site_tz feeds ` +
+        `expires_at — a non-immutable function behind it is a correctness risk Postgres will not ` +
+        `catch for you: the expiry window can silently disagree with a re-evaluated result.`
+    ).toBe(true);
   });
 
   it("no migration references the enum value 'cancelled' where Postgres evaluates it at DDL time " +
@@ -327,74 +326,55 @@ describe('SQL invariants', () => {
     }
   });
 
-  it('the material-uniqueness index blocks a second pass while an earlier one is still OUT, not merely while it is pending', () => {
-    // Migration 008 keyed this index on `where status = 'pending'` alone, which
-    // covers only the window between raising a pass and the guard verifying it.
-    // The moment a guard MATCHES an RGP the row becomes matched/awaiting_return,
-    // drops out of that predicate, and a second pass could be raised for material
-    // that is still physically outside the mall. Since migration 020 the index
-    // uses `is_open` (trigger-maintained — true for pending, awaiting_return, and
-    // partially_returned), which is the canonical condition. The migration 013/020
-    // DDL must mention `awaiting_return` either in the index body or as a comment
-    // on the index so that a reader (and this test) can verify the "still out" case
-    // is covered.
+  it('no unique index over normalize_material survives — a pass may list one material twice (073)', () => {
+    // THIS TEST IS THE INVERSE OF THE ONE IT REPLACES. Until 073 the invariant
+    // was that SOME unique index over `normalize_material(...)` had to be in
+    // force, scoped to material still out (`is_open`), so the same material
+    // could not be listed twice. The client retired that rule on 2026-09-01
+    // ("make sure same material type can be typed in the items multiple
+    // times") — two lines reading "Laptop" are two laptops with their own
+    // serial, make/model, order number and return date, and merging them into
+    // one line of quantity 2 destroys every one of those facts.
+    //
+    // So what has to be pinned now is that nothing quietly puts the index
+    // back: it would refuse, at submit with a 23505, a pass the form accepts.
+    // Statements are read in FILE ORDER, creates and drops interleaved —
+    // migration 037 drops this index and re-creates it under the same name
+    // within one file, so collecting all creates before all drops would report
+    // it retired while it was live.
     const migrations = allMigrationsText();
+    const stmt =
+      /create\s+unique\s+index\s+(?:if not exists\s+)?(\w+)\s+on\s+gatepass\.(?:gate_passes|gate_pass_items)([\s\S]*?);|drop\s+index\s+(?:if exists\s+)?gatepass\.(\w+)/gi;
 
-    const re =
-      /create\s+unique\s+index\s+(?:if not exists\s+)?(\w+)\s+on\s+gatepass\.gate_passes([\s\S]*?);/gi;
-    const indexes: { name: string; file: string; body: string }[] = [];
-    // Also scan the items table index (moved there in 013, scoped per-pass in 020).
-    const reItems =
-      /create\s+unique\s+index\s+(?:if not exists\s+)?(\w+)\s+on\s+gatepass\.gate_pass_items([\s\S]*?);/gi;
-    for (const { name, sql } of migrations) {
-      for (const m of sql.matchAll(re)) {
-        indexes.push({ name: m[1], file: name, body: m[0] });
-      }
-      for (const m of sql.matchAll(reItems)) {
-        indexes.push({ name: m[1], file: name, body: m[0] });
+    let live: { name: string; file: string } | null = null;
+    let everCreated = false;
+    for (const { name: file, sql } of migrations) {
+      for (const m of sql.matchAll(stmt)) {
+        if (m[1]) {
+          if (/normalize_material/i.test(m[0])) {
+            live = { name: m[1], file };
+            everCreated = true;
+          }
+        } else if (m[3] && live && m[3] === live.name) {
+          live = null;
+        }
       }
     }
 
-    const materialIndexes = indexes.filter((i) => /normalize_material/i.test(i.body));
+    // The regex must still be finding these statements at all, or this test
+    // passes vacuously the day someone reformats the DDL.
     expect(
-      materialIndexes.length,
-      'no unique index on gatepass.gate_passes or gate_pass_items is built over ' +
-        'normalize_material — the one-pass-per-item rule has no enforcement at all, or ' +
-        'the extraction regex is broken'
-    ).toBeGreaterThan(0);
-
-    const live = materialIndexes[materialIndexes.length - 1]; // highest-numbered migration wins
-
-    // Migration 020 uses `is_open` (trigger-maintained, true for pending +
-    // awaiting_return + partially_returned) as the WHERE predicate. The test
-    // accepts either the literal string 'awaiting_return' or 'is_open' — both
-    // prove the index covers the "still out" case and not just 'pending'.
-    const mentionsAwaiting = /awaiting_return/i.test(live.body);
-    const usesIsOpen = /\bis_open\b/i.test(live.body);
-    expect(
-      mentionsAwaiting || usesIsOpen,
-      `the live material-uniqueness index (${live.name}, in ${live.file}) neither mentions ` +
-        `awaiting_return nor uses is_open (trigger-maintained). Without one of these its predicate ` +
-        `stops applying the instant a guard matches the pass — a second RGP could then be raised for ` +
-        `material that has not come back yet.`
+      everCreated,
+      'no migration was seen creating a unique index over normalize_material — the extraction ' +
+        'regex is broken, and this test is no longer checking anything'
     ).toBe(true);
 
-    // A dropped index is not enforcement. If 012 retired the pending-only index,
-    // no migration may leave it live afterwards.
-    const droppedPendingIdx = migrations.some(({ sql }) =>
-      /drop\s+index\s+(?:if exists\s+)?gatepass\.gate_passes_one_pending_per_material_idx/i.test(sql)
-    );
-    const pendingIdxCreated = materialIndexes.some(
-      (i) => i.name === 'gate_passes_one_pending_per_material_idx'
-    );
-    if (pendingIdxCreated) {
-      expect(
-        droppedPendingIdx,
-        'gate_passes_one_pending_per_material_idx (008) is still created and never dropped, but a ' +
-          'wider replacement exists — two overlapping unique indexes on the same key means the ' +
-          'narrow one still rejects inserts the wide one was rewritten to allow'
-      ).toBe(true);
-    }
+    expect(
+      live,
+      `${live?.name} (created in ${live?.file}) is a live unique index over normalize_material. ` +
+        `It refuses a second line naming the same material, which is exactly what migration 073 ` +
+        `retired at the client's request.`
+    ).toBeNull();
   });
 
   it('gatepass.validate_pass is plpgsql, because it necessarily names the enum value \'cancelled\'', () => {

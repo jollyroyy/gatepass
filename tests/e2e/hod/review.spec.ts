@@ -86,7 +86,7 @@ test.describe('Mismatch Review — the pass is closed, not decidable', () => {
     await settled(page);
     await page.getByRole('button', { name: 'Raise It Again' }).click();
     await expectPath(page, '/raise');
-    await expect(page.getByRole('heading', { name: /Raise Gate Pass Again/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Issue RGP \/ NRGP Gate Pass Again/ })).toBeVisible();
     await expect(page.getByText(new RegExp(`^Correcting ${passNumber.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`))).toBeVisible();
     await expect.poll(async () => (await page.locator('#rp-vendor').inputValue()).length, { timeout: 15_000 }).toBeGreaterThan(0);
   });

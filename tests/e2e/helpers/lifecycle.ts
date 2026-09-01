@@ -83,7 +83,7 @@ export async function raisePass(page: Page, opts: RaiseOptions = {}): Promise<{ 
     await row.getByLabel('Make / Model / Size').fill(item.makeModel ?? 'Model X');
     if (item.value) await row.getByLabel('Approx. Value (Rs)').fill(item.value);
     if (item.serial) await row.getByLabel('Serial / Asset Tag').fill(item.serial);
-    if (item.invoice) await row.getByLabel('Invoice / Reference No.').fill(item.invoice);
+    if (item.invoice) await row.getByLabel('Order No.').fill(item.invoice);
     if (type === 'RGP') await row.getByLabel('Expected Return Date').fill(item.returnDate ?? tomorrow());
   }
 

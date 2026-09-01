@@ -709,7 +709,7 @@ documented gap rather than seeded ad hoc.
 | Network failure (`Failed to fetch`/`NetworkError`/`network request failed`) | "Network error. Check your connection and try again." |
 | Opaque message (`{}`,`[]`,etc.) | falls through to caller's fallback |
 | Constraint `gate_passes_one_pending_per_material_idx` | "A pending gate pass already exists for this material in this department. Void it or have it verified at the gate before raising another." (dead index today, kept for un-migrated envs) |
-| Constraint `gate_pass_items_one_open_per_material_idx` | "This pass already has a line for the same material. Combine them into one line and increase the quantity instead." |
+| Constraint `gate_pass_items_one_open_per_material_idx` | *(retired — migration 073 dropped the index; the same material may be listed on as many lines as needed)* |
 | Constraint `gate_pass_items_one_open_per_department_material_idx` | "Another open gate pass in this department already lists the same material. It must be returned or verified at the gate before this one can be raised." |
 | Constraint `profiles_full_name_charset` | "A name can contain only letters, spaces, full stops, apostrophes and hyphens — no digits or other symbols." |
 | Constraint `profiles_full_name_length` | "A name must be between 2 and 80 characters long." |

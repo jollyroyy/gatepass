@@ -305,7 +305,7 @@ Starts with **2 empty rows** (`STARTING_ITEMS = 2`, `RaisePass.tsx:26,48`).
 
 Header labels (verbatim, `*` decoration is `aria-hidden`, NOT proof of enforced validation):
 `#`, `Item Description*`, `Quantity*`, `Unit*`, `Approx. Value (Rs)`, `Make / Model / Size*`,
-`Serial / Asset Tag`, `Invoice / Reference No.`, `Remarks`, then (**RGP only**) `Expected Return
+`Serial / Asset Tag`, `Order No.`, `Remarks`, then (**RGP only**) `Expected Return
 Date*`, then `Action`.
 
 **Add row**: `<button type="button" className="rp-add-row">` text **"Add Another Item"**
@@ -326,7 +326,7 @@ clears ALL `item_*` errors across the whole grid, not just that row.
 | Approx. Value (Rs) | "Approx. Value (Rs)" | `type="number"` `min="0"` `step="0.01"` | No | only checked if non-blank: NaN or <0 → `'Enter a value of 0 or more, or leave it blank.'`; no upper bound |
 | Make / Model / Size | "Make / Model / Size" | text | Yes | empty → `'Make / model / size is required.'` |
 | Serial / Asset Tag | "Serial / Asset Tag" | text | No | none |
-| Invoice / Reference No. | "Invoice / Reference No." | text | No | none |
+| Order No. | "Order No." | text | No | none |
 | Remarks | "Remarks" | text | No | none |
 | Expected Return Date | "Expected Return Date" | `type="date"`, `min={todayStr()}` | Yes, **RGP only** — column absent for NRGP | empty → `'Return date is required for a Returnable Gate Pass.'`; date < today → `'Return date cannot be in the past.'` (re-checked in JS even though the native picker floors at today) |
 
@@ -344,7 +344,7 @@ Grid-level error `'At least one material item is required.'` is effectively unre
 |---|---|---|---|
 | Cancel | "Cancel" | `page.getByRole('button', { name: 'Cancel' })` | `type="button"`, navigates to `/dashboard`, **no unsaved-changes confirmation** |
 | Submit | "Submit Request" (busy: "Submitting…") | `page.getByRole('button', { name: 'Submit Request' })` | `type="submit"`, `disabled={submitting}` |
-| Form heading | "Raise Gate Pass" or "Raise Gate Pass Again" (when re-raising) | `page.getByRole('heading', { name: /Raise Gate Pass/ })` | — |
+| Form heading | "Issue RGP / NRGP Gate Pass" or "… Again" (when re-raising) | `page.getByRole('heading', { name: /Issue RGP \/ NRGP Gate Pass/ })` | — |
 | Re-raise banner | starts "Correcting {pass_number}..." | — | only when `sourceId` truthy |
 | Department error | whole-form `.alert-error` | — | when no department |
 | Submit error | whole-form `.alert-error` | — | on RPC failure |
@@ -964,7 +964,7 @@ gone and so is the UI: there is no settled/idle split and no confirm panel left 
 
 **P1-34 — Raise It Again pre-fills `/raise` without consuming the pass.** Click "Raise It
 Again". Assert: URL is `/raise`; Vendor Name and item rows are pre-filled from the source pass
-(wait for the async prefill, per the landmine in §6g); the "Raise Gate Pass Again" heading and
+(wait for the async prefill, per the landmine in §6g); the "Issue RGP / NRGP Gate Pass Again" heading and
 "Correcting {pass_number}..." banner are present. Revisiting `/mismatch/:id` afterward (without
 submitting the re-raise) shows the exact same screen — nothing on this page is consumed by
 navigating away.

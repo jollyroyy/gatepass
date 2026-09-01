@@ -66,7 +66,7 @@ export function earliestReturnDate(items: NewGatePassItem[]): string | null {
  *  client's 2026-08-19 "Raise Gate Pass" drawing puts a red asterisk on Vendor
  *  Name, Person Who Will Carry, Mobile Number, Purpose / Description, and — per
  *  line — Item Description, Quantity and Make / Model / Size. Everything else it
- *  draws (Vendor Address, Serial / Asset Tag, Invoice / Reference No., Remarks)
+ *  draws (Vendor Address, Serial / Asset Tag, Order No., Remarks)
  *  carries no asterisk and is optional here.
  *
  *  THE RETURN DATE IS PER LINE AGAIN (client, 2026-08-19: "we would expect a

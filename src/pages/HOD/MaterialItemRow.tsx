@@ -157,11 +157,15 @@ export default function MaterialItemRow({
         />
       </div>
 
-      <div className="item-cell" data-label="Invoice / Reference No.">
+      {/* ORDER NO. — the client's own word for this box (2026-09-01), and the
+          word the column has always meant: `invoice_no` is where the order /
+          reference number the material came in on is typed. The COLUMN keeps
+          its name; renaming it would be a migration for a caption. */}
+      <div className="item-cell" data-label="Order No.">
         <input
           className="input text-sm w-full"
-          aria-label="Invoice / Reference No."
-          placeholder="Enter invoice / ref. no."
+          aria-label="Order No."
+          placeholder="Enter order no."
           value={item.invoice_no}
           onChange={(e) => onChange('invoice_no', e.target.value)}
         />

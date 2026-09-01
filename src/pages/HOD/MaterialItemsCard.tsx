@@ -36,7 +36,9 @@ const HEADERS: { label: string; required?: boolean }[] = [
   { label: 'Approx. Value (Rs)' },
   { label: 'Make / Model / Size', required: true },
   { label: 'Serial / Asset Tag' },
-  { label: 'Invoice / Reference No.' },
+  // The client's word for it since 2026-09-01. The column behind it is still
+  // `invoice_no` — see MaterialItemRow.
+  { label: 'Order No.' },
   { label: 'Remarks' },
 ];
 

@@ -6,7 +6,7 @@
 // Column order, left to right (see materialItemGrid.ts):
 //
 //   #  ·  Item Description  ·  Quantity  ·  Unit  ·  Make / Model / Size  ·
-//   Serial / Asset Tag  ·  Invoice / Reference No.  ·  Remarks  ·
+//   Serial / Asset Tag  ·  Order No.  ·  Remarks  ·
 //   Expected Return Date (RGP only)  ·  Action
 //
 // THE UNIT COLUMN IS BACK (client, 2026-08-20) — this file used to hold that
@@ -41,7 +41,7 @@ const HEADER_LABELS = [
   'Unit',
   'Make / Model / Size',
   'Serial / Asset Tag',
-  'Invoice / Reference No.',
+  'Order No.',
   'Remarks',
   'Action',
 ];
@@ -50,7 +50,7 @@ describe('materialItemGrid — one column template, one RGP-only variant', () =>
   // REWRITTEN 2026-08-20: it used to hold NINE tracks. The tenth is
   // "Approx. Value (Rs)", back on both pass types (client: "make a field for
   // the HOD to input the approx value for each item in our GP and RGP form").
-  it('has ten columns: # · Item Description · Quantity · Unit · Approx. Value · Make/Model/Size · Serial/Asset Tag · Invoice/Ref No. · Remarks · Action', () => {
+  it('has ten columns: # · Item Description · Quantity · Unit · Approx. Value · Make/Model/Size · Serial/Asset Tag · Order No. · Remarks · Action', () => {
     expect(itemGridColumns(false).split(' ')).toHaveLength(10);
   });
 
@@ -115,7 +115,7 @@ describe('MaterialItemsCard — every row carries one input per column', () => {
     expect(screen.getAllByLabelText('Quantity')).toHaveLength(3);
     expect(screen.getAllByLabelText('Make / Model / Size')).toHaveLength(3);
     expect(screen.getAllByLabelText('Serial / Asset Tag')).toHaveLength(3);
-    expect(screen.getAllByLabelText('Invoice / Reference No.')).toHaveLength(3);
+    expect(screen.getAllByLabelText('Order No.')).toHaveLength(3);
     expect(screen.getAllByLabelText('Remarks')).toHaveLength(3);
   });
 

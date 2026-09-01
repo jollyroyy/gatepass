@@ -4610,3 +4610,45 @@ scope), `public/sw.js`, the CSP's `worker-src`, and `AppShell`'s mobile drawer. 
 silences the banner for the same 7 days — that contradicts `InstallModal`'s own comment, and which
 of the two should win is a product call. The client bundle is one 824kB chunk (232kB gzipped); route
 -level `React.lazy` would cut what a guard's phone downloads on first launch and has not been done.
+
+## 2026-09-01 — The form issues RGP/NRGP, in order numbers, and the same material twice
+
+Client, 2026-09-01: "change the invoice to order no in the raise rgp/nrgp pass page, modify raise
+rgp gate pass to issue rgp/nrgp gate pass and make sure same material type can be typed in the
+items multiple times."
+
+**The heading and the caption are wording; the third one was a unique index.**
+
+- `src/pages/HOD/RaisePass.tsx` — the `<h1>` is now "Issue RGP / NRGP Gate Pass" ("… Again" when
+  re-raising), and the subtitle says *issue*. The sidebar tab and the HOD dashboard tile keep the
+  shorter "Raise Gate Pass": they are the route to the form, not its title.
+- "Invoice / Reference No." is **"Order No."** on the raise form — header cell, `data-label`,
+  `aria-label` and placeholder (`MaterialItemsCard`, `MaterialItemRow`, `materialItemGrid`'s column
+  note). The COLUMN is still `gate_pass_items.invoice_no`; renaming it would be a migration for a
+  caption, and `passTextSearch` already called it "the client's order number". The record, the
+  printed slip and the guard's view still read `Inv/Ref:` — the client asked about the raise page,
+  and those were left alone deliberately.
+- **Migration `073` drops `gate_pass_items_one_open_per_material_idx`** (and the pre-037
+  department-scoped spelling, by its real name — 037's lesson about `if exists` on a name that is
+  not in `pg_indexes`). Two lines reading "Laptop" on one pass are two laptops: different serial,
+  make/model, order number, value, and on an RGP a different return date. The index forced them into
+  one line of quantity 2, which throws every one of those facts away and leaves the gate a line it
+  cannot check serial by serial. `gatepass.normalize_material(text)` is dropped with it — 013 moved
+  the last other index off it, so it was unreachable schema every authenticated role still held
+  EXECUTE on. `gate_pass_items.department_id` and `is_open` STAY: both grew other callers (the
+  select policy, `apply_item_returns`). `gate_pass_items_line_unique (gate_pass_id, line_no)` is
+  untouched, so the duplicate lines still have the stable numbers a guard reads off the slip.
+- `src/lib/errors.ts` lost the two messages that explained that index — "combine them into one line
+  and increase the quantity instead" now contradicts what the form allows.
+
+**Gate:** `npm run check` — 182 files, 2319 tests, green. `tests/unit/raiseDuplicateMaterial.test.tsx`
+(new, 3) holds that `validateRaiseForm` accepts two identical descriptions, that the card renders
+them as two independently editable lines, and — reading the migrations in FILE order, creates and
+drops interleaved, because 037 drops and re-creates the same name in one file — that no unique index
+over `normalize_material` survives. `sqlInvariants`'s material test is INVERTED to that same rule and
+its immutability test now covers `site_tz` alone; the `errors` duplicate-material block is gone.
+
+**Not applied to the database.** `supabase/APPLY_ALL.sql` is regenerated (73 sections) but 073 has
+not been run against `oxzzeonftrmohdrancex` — until it is, a second line naming the same material
+still fails at submit with a 23505, and now with the generic "That record already exists." because
+the specific message went with the rule.
