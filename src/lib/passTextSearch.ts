@@ -54,6 +54,12 @@ export const MIN_TEXT_QUERY_CHARS = 2;
  *  direction in the number (migration 010). */
 const PASS_NUMBER_RE = /^[A-Za-z]{2,5}-[A-Za-z]{2,4}-\d{4,10}-\d{1,8}$/;
 const LEGACY_PASS_NUMBER_RE = /^[A-Za-z]{2,5}-\d{4,10}-\d{1,8}$/;
+/** The LIVE shape — `TYPE-DEPTCODE-NNNN`, e.g. `RGP-IT-0200` (migration 064).
+ *  The counter is padded to four digits AT MINIMUM, which is what keeps a typed
+ *  `Dell-XPS-13` out of the code branch. `OUT` / `IN` are excluded because that middle segment is the DIRECTION of a
+ *  legacy four-part number (042 dropped it), so `RGP-OUT-2026` is half of an old
+ *  number and belongs to the text search, not to `lookup_pass`. */
+const CURRENT_PASS_NUMBER_RE = /^[A-Za-z]{2,5}-(?!OUT-|IN-)[A-Za-z0-9]{2,10}-\d{4,8}$/i;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -74,7 +80,68 @@ export function isPassCodeQuery(raw: string): boolean {
   const t = raw.trim();
   if (!t) return false;
   if (/^https?:\/\//i.test(t)) return true;
-  return UUID_RE.test(t) || PASS_NUMBER_RE.test(t) || LEGACY_PASS_NUMBER_RE.test(t);
+  return (
+    UUID_RE.test(t)
+    || PASS_NUMBER_RE.test(t)
+    || LEGACY_PASS_NUMBER_RE.test(t)
+    || CURRENT_PASS_NUMBER_RE.test(t)
+  );
+}
+
+// ─── PASS TYPE, THE ONE COLLISION A SUBSTRING SEARCH CANNOT SURVIVE ──────────
+//
+// `NRGP-IT-0200` ENDS WITH the whole of `RGP-IT-0200`, so `ilike *RGP-IT-0200*`
+// — and `includes(q)` on the client — answer a search for the RGP pass with the
+// NRGP one beside it (client, 2026-09-01: "searching RGP 0200 should not fetch
+// NRGP 0200"). Every place a pass number is matched against typed text goes
+// through the two helpers below, so the rule is written once.
+
+/** Type tokens in the order they must be tested — LONGEST FIRST, because the
+ *  short one is a suffix of the long one. IGP/OGP are unreachable enum labels
+ *  (they cannot be dropped) and are listed so an old number still reads. */
+export const PASS_TYPE_PREFIXES = ['NRGP', 'RGP', 'IGP', 'OGP'] as const;
+
+/** The type a pass number carries, or null for anything not shaped like one. */
+export function passTypeOf(passNumber: string | null | undefined): string | null {
+  const head = (passNumber ?? '').trim().toUpperCase().split('-')[0];
+  return PASS_TYPE_PREFIXES.find((p) => p === head) ?? null;
+}
+
+/** The type a QUERY names — a bare `NRGP`, or anything starting `RGP-`. A query
+ *  that is only digits ("0200") names no type and stays a broad search. */
+export function passNumberQueryType(raw: string): string | null {
+  const q = raw.trim().toUpperCase();
+  return PASS_TYPE_PREFIXES.find((p) => q === p || q.startsWith(`${p}-`)) ?? null;
+}
+
+/** Does this pass number answer this query? A plain contains, EXCEPT that a
+ *  query naming a type may only match that type. */
+export function passNumberMatches(passNumber: string | null | undefined, raw: string): boolean {
+  const n = (passNumber ?? '').toUpperCase();
+  const q = raw.trim().toUpperCase();
+  if (!q) return true;
+  const type = passNumberQueryType(q);
+  if (type && passTypeOf(n) !== type) return false;
+  return n.includes(q);
+}
+
+/**
+ * Narrow a set of matched passes to what the query actually asked for.
+ *
+ *   1. A WHOLE pass number is an EXACT question — answer with that pass alone,
+ *      never with the other type's pass of the same serial.
+ *   2. A query naming a type ("RGP-IT-02") drops the other types entirely, even
+ *      if a row matched on some other column: the guard typed a pass number.
+ *   3. Anything else is free text and is left exactly as it came.
+ */
+export function refinePassResults<T extends { pass_number: string }>(rows: T[], raw: string): T[] {
+  const q = raw.trim().toUpperCase();
+  if (!q) return rows;
+  const exact = rows.filter((r) => (r.pass_number ?? '').toUpperCase() === q);
+  if (exact.length > 0) return exact;
+  const type = passNumberQueryType(q);
+  if (!type) return rows;
+  return rows.filter((r) => passTypeOf(r.pass_number) === type);
 }
 
 /**

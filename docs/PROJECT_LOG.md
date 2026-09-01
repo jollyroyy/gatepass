@@ -4652,3 +4652,38 @@ its immutability test now covers `site_tz` alone; the `errors` duplicate-materia
 not been run against `oxzzeonftrmohdrancex` — until it is, a second line naming the same material
 still fails at submit with a 23505, and now with the generic "That record already exists." because
 the specific message went with the rule.
+
+---
+
+## 2026-09-01 — An exact pass number answers with that pass alone
+
+**Client:** "searching with RGP 0200 should only fetch RGP 0200, it should not fetch NRGP 0200 —
+fix it everywhere across all the views."
+
+`NRGP-IT-0200` ENDS WITH the whole of `RGP-IT-0200`, so every substring match — PostgREST's
+`pass_number.ilike.*term*` on the gate search and `pass_number.includes(q)` on the two client-side
+filters — answered a search for the RGP pass with the NRGP one beside it.
+
+- `src/lib/passTextSearch.ts` is where the rule now lives, once: `passTypeOf` (the token at the head
+  of a number), `passNumberQueryType` (the type a QUERY names — a bare `NRGP`, or anything starting
+  `RGP-`; digits alone name none), `passNumberMatches` (contains, EXCEPT that a query naming a type
+  may only match that type) and `refinePassResults` (a WHOLE number answers with the exact pass
+  alone; a type-prefixed partial drops the other types; free text is untouched).
+- `isPassCodeQuery` gained the LIVE `TYPE-DEPTCODE-NNNN` shape (064). It recognised only the two
+  pre-064 formats, so a full current number — the one thing most likely to be typed or scanned —
+  never reached `lookup_pass`, which matches `pass_number = upper(code)` EXACTLY and fires the
+  blacklist alert. The counter's four-digit minimum keeps `Dell-XPS-13` out of the code branch, and
+  `OUT`/`IN` are excluded so the legacy partial `RGP-OUT-2026` still falls to the text search.
+- Applied at all three places a pass number meets typed text: `searchPassesByText`
+  (`src/lib/searchPasses.ts`, at every return), `matchesSearch` (`src/lib/pendingApprovals.ts`, the
+  approver queue) and `applyActivityFilters` (`src/lib/activityLog.ts`, the admin log).
+
+**Gate:** `npm run check` — 183 files, 2329 tests, green. `tests/unit/passNumberExactSearch.test.ts`
+(new, 10) is the collision written down.
+
+**Also, live data only (no migration):** six person-named demo HODs renamed in `public.profiles`
+to their department — `hod.it` Priya Sharma → HOD IT, `hod.hr` Raj Kumar Das → HOD HR, `hod.fin`
+Meena Patel → HOD FIN, `head@demo.vms` Abinash Mishra → HOD HS, `questhod@demo.quest` Harsh Sharma
+→ HOD DEV, `demi@vms.com` Demi → HOD SE. The sidebar name, the profile page and `raised_by_name`
+all read `profiles.full_name`, so one write covers every view — and VMS sees it too. The e2e cast,
+the office holders and the duplicate-department accounts were deliberately left alone.

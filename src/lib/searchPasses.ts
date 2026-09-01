@@ -13,6 +13,7 @@ import {
   mergeMatches,
   orFilter,
   PASS_TEXT_FIELDS,
+  refinePassResults,
   sanitizeTerm,
 } from './passTextSearch';
 
@@ -68,7 +69,10 @@ export async function searchPassesByText(raw: string): Promise<GatePassView[]> {
 
   if (passRes.error) throw passRes.error;
   const direct = (passRes.data as GatePassView[] | null) ?? [];
-  if (itemRes.error) return direct.slice(0, SEARCH_LIMIT);
+  // A WHOLE pass number is an exact question and a typed type is a narrowing —
+  // `NRGP-IT-0200` contains `RGP-IT-0200`, so the ilike above over-answers.
+  const refine = (rows: GatePassView[]) => refinePassResults(rows, raw).slice(0, SEARCH_LIMIT);
+  if (itemRes.error) return refine(direct);
 
   const known = new Set(direct.map((p) => p.id));
   const extra = [
@@ -79,7 +83,7 @@ export async function searchPassesByText(raw: string): Promise<GatePassView[]> {
     ),
   ].slice(0, SEARCH_LIMIT);
 
-  if (extra.length === 0) return direct.slice(0, SEARCH_LIMIT);
+  if (extra.length === 0) return refine(direct);
 
   const byLine = await gp()
     .from('v_gate_passes')
@@ -90,5 +94,5 @@ export async function searchPassesByText(raw: string): Promise<GatePassView[]> {
   // Same rule as above: the lines told us WHICH passes; if reading them back
   // fails, the passes we already have are still the answer.
   const lineRows = byLine.error ? [] : ((byLine.data as GatePassView[] | null) ?? []);
-  return mergeMatches(direct, lineRows).slice(0, SEARCH_LIMIT);
+  return refine(mergeMatches(direct, lineRows));
 }

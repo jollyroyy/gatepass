@@ -29,6 +29,7 @@ import {
   type ActingOffices,
 } from './approvalDecision';
 import { partyOf } from './guardBoard';
+import { passNumberMatches } from './passTextSearch';
 import { holdsFallbackOffice, isPassStuck } from './superAdminFallback';
 
 /** One row of `gatepass.pass_approvals` — a single office's decision on a
@@ -131,7 +132,7 @@ export function matchesSearch(pass: GatePassView, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   return (
-    pass.pass_number.toLowerCase().includes(q)
+    passNumberMatches(pass.pass_number, q)
     || partyOf(pass).toLowerCase().includes(q)
     || (pass.purpose ?? '').toLowerCase().includes(q)
   );

@@ -26,6 +26,7 @@
 //     of scans.
 import type { GatePassView, VerifyAction } from '../types';
 import { APPROVAL_ROLE_TITLES, type ApprovalRoleKey } from './approvalLadder';
+import { passNumberMatches } from './passTextSearch';
 import { raisedEventLabel, raisingOfficeOf } from './raisedByOffice';
 
 /** One thing that happened, to one pass, at one moment. */
@@ -179,7 +180,7 @@ export function applyActivityFilters(
     if (f.day && localDay(r.at) !== f.day) return false;
     if (!q) return true;
     return (
-      r.passNumber.toLowerCase().includes(q) ||
+      passNumberMatches(r.passNumber, q) ||
       (r.who ?? '').toLowerCase().includes(q) ||
       r.event.toLowerCase().includes(q) ||
       (r.detail ?? '').toLowerCase().includes(q)
