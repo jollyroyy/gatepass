@@ -9,6 +9,26 @@ import { MemoryRouter } from 'react-router-dom';
 import PassSubmittedModal from '../../src/pages/HOD/PassSubmittedModal';
 import type { GatePassView } from '../../src/types';
 
+// THE POPUP REACHES THE DATABASE NOW, through Send to Vendor: the button reads
+// what the printed slip is made of so it can photograph it. Nothing in this
+// spec presses it — but the import alone would build a real Supabase client
+// and demand VITE_SUPABASE_URL, which turns a missing local `.env` into a
+// failing unit test. The reads are stubbed to nothing, which is exactly the
+// "no items yet" shape, and the button still renders on the pass it is handed.
+vi.mock('../../src/supabaseClient', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const builder: any = {};
+  for (const m of ['select', 'eq', 'order']) builder[m] = () => builder;
+  builder.maybeSingle = () => Promise.resolve({ data: null, error: null });
+  builder.then = (ok: (v: unknown) => unknown, err?: (e: unknown) => unknown) =>
+    Promise.resolve({ data: [], error: null }).then(ok, err);
+  return {
+    gp: () => ({ from: () => builder, rpc: () => Promise.resolve({ data: [], error: null }) }),
+    pub: () => ({ from: () => builder }),
+    supabase: { auth: { getUser: () => Promise.resolve({ data: { user: null } }) } },
+  };
+});
+
 const PASS = {
   id: 'p1',
   pass_number: 'RGP-OUT-20260810-0007',
