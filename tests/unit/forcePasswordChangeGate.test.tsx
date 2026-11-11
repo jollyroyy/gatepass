@@ -68,8 +68,11 @@ vi.mock('../../src/lib/profiles', () => ({
 }));
 
 import App from '../../src/App';
+import { beginIdleSession, clearIdleSession } from '../../src/lib/idleSession';
 
 beforeEach(() => {
+  clearIdleSession();
+  beginIdleSession();
   authCallbacks.length = 0;
   getSession.mockResolvedValue({ data: { session: FAKE_SESSION } });
   getUserRole.mockResolvedValue('guard');

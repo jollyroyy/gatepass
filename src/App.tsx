@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, getUserRole } from './supabaseClient';
@@ -12,6 +12,8 @@ import type { ApprovalRoleKey } from './lib/approvalLadder';
 import { fetchAccessState } from './lib/profiles';
 import { ThemeProvider } from './lib/theme';
 import AppShell from './components/layout/AppShell';
+import SessionTimeout from './components/SessionTimeout';
+import { beginIdleSession, clearIdleSession, idleState } from './lib/idleSession';
 
 import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
@@ -115,6 +117,8 @@ function FullPageLoader(): React.ReactElement {
 export default function App(): React.ReactElement {
   const { pathname, search } = useLocation();
   const [session, setSession] = useState<Session | null>(null);
+  const bootstrapped = useRef(false);
+  const signingOutForIdle = useRef(false);
   const [role, setRole] = useState<UserRole | null>(null);
   const [resolving, setResolving] = useState(true);
   // Does the signed-in user still owe us a password change (admin reset)?
@@ -148,6 +152,24 @@ export default function App(): React.ReactElement {
 
   useEffect(() => {
     let cancelled = false;
+
+    const acceptSession = (candidate: Session | null, initial: boolean): Session | null => {
+      if (!candidate) return null;
+      const phase = idleState().phase;
+      // A refresh after the idle deadline must never restart the grace period.
+      // Existing tabs may still show their warning until its absolute deadline.
+      if (phase === 'missing' || phase === 'expired' || (initial && phase === 'prompt')) {
+        if (!signingOutForIdle.current) {
+          signingOutForIdle.current = true;
+          clearIdleSession();
+          void supabase.auth.signOut({ scope: 'local' });
+        }
+        return null;
+      }
+      // A later explicit login starts a new session in this mounted App.
+      signingOutForIdle.current = false;
+      return candidate;
+    };
 
     const resolve = async (s: Session | null) => {
       if (!s) {
@@ -189,20 +211,22 @@ export default function App(): React.ReactElement {
 
     void supabase.auth.getSession().then(({ data }) => {
       if (cancelled) return;
-      setSession(data.session);
-      void resolve(data.session);
+      const accepted = acceptSession(data.session, true);
+      bootstrapped.current = true;
+      setSession(accepted);
+      void resolve(accepted);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      if (event === 'PASSWORD_RECOVERY') beginIdleSession();
+      if (event === 'SIGNED_OUT') clearIdleSession();
+      const accepted = acceptSession(s, !bootstrapped.current);
+      setSession(accepted);
       // Deliberately does NOT set `resolving`. That renders FullPageLoader, which
-      // unmounts the whole AppShell tree — including SessionTimeout, whose idle
-      // clock then restarts from zero on remount. supabase-js fires
-      // TOKEN_REFRESHED / SIGNED_IN on token refresh AND on tab visibility
-      // recovery, so switching away from the tab and back silently reset the
-      // timer and the idle timeout could never elapse. Only the initial
-      // resolution above gates the app; afterwards the role updates in place.
-      void resolve(s);
+      // unmounts the signed-in tree. Supabase emits TOKEN_REFRESHED / SIGNED_IN
+      // on token refresh and tab visibility recovery; neither is user activity.
+      // Only initial resolution gates the app; later roles update in place.
+      void resolve(accepted);
     });
 
     return () => {
@@ -239,13 +263,17 @@ export default function App(): React.ReactElement {
     );
   }
 
+  // Mounted for every authenticated route, including the chrome-free print
+  // page and password-change screen. Every open tab therefore has an idle clock.
+  const timeout = <SessionTimeout />;
+
   // An administrator reset this person's password. They must choose their own
   // before they can reach ANYTHING else — no role routing, no deep link, no
   // AppShell. This check has no pathname condition, so typing any URL still
   // lands here; it only ever clears via ForcePasswordChange confirming the
   // flag is false after a real set_my_password call.
   if (mustChangePassword) {
-    return <ForcePasswordChange onCleared={() => setMustChangePassword(false)} />;
+    return <>{timeout}<ForcePasswordChange onCleared={() => setMustChangePassword(false)} /></>;
   }
 
   // Signed in with a real role, and an admin has suspended the account (040).
@@ -254,7 +282,7 @@ export default function App(): React.ReactElement {
   // this branch they would reach the console and every panel would render empty,
   // because RLS refuses their reads and nothing on screen would say why.
   if (deactivated) {
-    return <NoAccess deactivated />;
+    return <>{timeout}<NoAccess deactivated /></>;
   }
 
   // Signed in, but the role has no place in this app (e.g. VMS `staff`) AND no
@@ -272,21 +300,21 @@ export default function App(): React.ReactElement {
     && isForbidden('/console', role)
     && isForbidden('/admin', role)
   ) {
-    return <NoAccess />;
+    return <>{timeout}<NoAccess /></>;
   }
 
   // Print page — outside AppShell so sidebar, notification bell, and all other
   // chrome are completely absent. Clean, full-width print sheet.
   if (pathname.includes('/print')) {
     return (
-      <Routes>
+      <>{timeout}<Routes>
         <Route path="/pass/:id/print" element={<PassPrint />} />
-      </Routes>
+      </Routes></>
     );
   }
 
   return (
-    <AppShell
+    <>{timeout}<AppShell
       session={session}
       role={role}
       isApprover={office !== null}
@@ -402,7 +430,7 @@ export default function App(): React.ReactElement {
           <Route path="*" element={<Navigate to={homeFor(role, office, raises)} replace />} />
         </Routes>
       </RouteGuard>
-    </AppShell>
+    </AppShell></>
   );
 }
 

@@ -6,6 +6,14 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import ModalShell from '../../src/components/ModalShell';
 
 describe('ModalShell', () => {
+  it('keeps a forced decision open on Escape and hides its close button', () => {
+    const onClose = vi.fn();
+    render(<ModalShell onClose={onClose} dismissible={false}><span>Choose an action</span></ModalShell>);
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText('Choose an action')).toBeInTheDocument();
+  });
   it('renders a real, keyboard-reachable close button in the top-right corner', () => {
     render(
       <ModalShell onClose={vi.fn()}>

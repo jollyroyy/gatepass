@@ -6,6 +6,12 @@ For current rules and architecture, see CLAUDE.md.
 
 ## Current state (session-by-session history)
 
+## 2026-11-11 — idle sessions expire across tabs and refreshes
+
+The configured session timeout (five minutes by default) is now an absolute last-activity deadline kept in local storage and shared by every tab. Activity in any tab renews the deadline before it arrives; after it arrives, only the visible **Keep session** button can extend it. The 60-second warning is measured against wall time, so a sleeping tab signs out when it wakes. Closing, Escape, and backdrop clicks no longer dismiss that warning. The timeout runs on print and password-change screens as well as the main shell.
+
+Before App restores a saved Supabase session on refresh, it checks the shared deadline. A missing or elapsed record clears the local auth session and sends the reader to Login; refreshing during the warning cannot reset the timer. Signing in writes the timestamp before Supabase emits auth events. Expiration removes the shared record and signs out the current browser session, with the storage event prompting every other tab to sign out too. This is a browser-side idle rule; Supabase's token lifetime and RLS still govern server access.
+
 ## 2026-11-11 — remove camera capture from item images
 
 The HOD item row and pass record now offer only the paperclip file chooser for saved images. The camera control and its `capture="environment"` input were removed after the client reported an unwanted black camera side panel. Existing item photos and per-item attachment permissions are unchanged.

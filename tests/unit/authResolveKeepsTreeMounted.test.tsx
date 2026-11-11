@@ -2,10 +2,9 @@
 //
 // App used to call setResolving(true) inside onAuthStateChange. `resolving`
 // makes App return <FullPageLoader/>, which unmounts AppShell and everything
-// under it — including SessionTimeout, whose idle clock then restarts from zero
-// on remount. supabase-js fires TOKEN_REFRESHED/SIGNED_IN on token refresh and
-// on tab visibility recovery, so simply switching away from the tab and back
-// reset the idle timer and the 5-minute timeout could never elapse.
+// under it, including the signed-in idle clock. Supabase fires
+// TOKEN_REFRESHED/SIGNED_IN on token refresh and tab visibility recovery; these
+// are not user activity and must never extend the shared idle deadline.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, waitFor } from '@testing-library/react';
@@ -13,10 +12,11 @@ import { MemoryRouter } from 'react-router-dom';
 
 type AuthCb = (event: string, session: unknown) => void;
 
-const { authCallbacks, getSession, getUserRole } = vi.hoisted(() => ({
+const { authCallbacks, getSession, getUserRole, signOut } = vi.hoisted(() => ({
   authCallbacks: [] as AuthCb[],
   getSession: vi.fn(),
   getUserRole: vi.fn(),
+  signOut: vi.fn(() => Promise.resolve({ error: null })),
 }));
 
 const FAKE_SESSION = { user: { id: 'u1', email: 'guard@demo.vms', app_metadata: { role: 'guard' } } };
@@ -30,7 +30,7 @@ vi.mock('../../src/supabaseClient', () => ({
         authCallbacks.push(cb);
         return { data: { subscription: { unsubscribe: () => undefined } } };
       },
-      signOut: () => Promise.resolve({ error: null }),
+      signOut,
     },
     channel: () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,14 +64,42 @@ vi.mock('../../src/lib/profiles', () => ({
 }));
 
 import App from '../../src/App';
+import { beginIdleSession, clearIdleSession } from '../../src/lib/idleSession';
+import { IDLE_TIMEOUT_MS } from '../../src/components/SessionTimeout';
 
 beforeEach(() => {
+  clearIdleSession();
+  beginIdleSession();
   authCallbacks.length = 0;
   getSession.mockResolvedValue({ data: { session: FAKE_SESSION } });
   getUserRole.mockResolvedValue('guard');
+  signOut.mockClear();
 });
 
 describe('App auth resolution', () => {
+  it('shows login on refresh after the persisted idle deadline', async () => {
+    beginIdleSession(Date.now() - IDLE_TIMEOUT_MS - 1);
+    render(
+      <MemoryRouter initialEntries={['/console']}>
+        <App />
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeInTheDocument());
+    expect(screen.queryByRole('heading', { name: 'Search Pass' })).not.toBeInTheDocument();
+    expect(signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
+  it('refuses a saved session with no idle timestamp', async () => {
+    clearIdleSession();
+    render(
+      <MemoryRouter initialEntries={['/console']}>
+        <App />
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeInTheDocument());
+    expect(signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
   it('keeps the signed-in tree mounted across a token refresh', async () => {
     render(
       <MemoryRouter initialEntries={['/console']}>
@@ -93,8 +121,8 @@ describe('App auth resolution', () => {
       authCallbacks.forEach((cb) => cb('TOKEN_REFRESHED', FAKE_SESSION));
     });
 
-    // If this regresses, the tree flips to the full-page loader and every
-    // mounted timer — SessionTimeout's included — restarts from zero.
+    // If this regresses, the tree flips to the full-page loader even though
+    // nothing about the user's signed-in state or activity changed.
     expect(screen.getByRole('heading', { name: 'Search Pass' })).toBeInTheDocument();
 
     await act(async () => {

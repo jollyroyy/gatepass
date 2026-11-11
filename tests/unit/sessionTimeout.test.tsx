@@ -20,13 +20,16 @@ vi.mock('../../src/supabaseClient', () => ({
 }));
 
 import SessionTimeout, { IDLE_TIMEOUT_MS, COUNTDOWN_SEC } from '../../src/components/SessionTimeout';
+import { beginIdleSession, clearIdleSession, IDLE_SESSION_KEY } from '../../src/lib/idleSession';
 
 beforeEach(() => {
   vi.useFakeTimers();
   signOut.mockClear();
+  beginIdleSession();
 });
 
 afterEach(() => {
+  clearIdleSession();
   vi.useRealTimers();
 });
 
@@ -96,6 +99,39 @@ describe('SessionTimeout', () => {
     expect(signOut).not.toHaveBeenCalled();
   });
 
+  it('does not let activity after the warning extend the deadline', () => {
+    render(<SessionTimeout />);
+    advance(IDLE_TIMEOUT_MS);
+    act(() => document.dispatchEvent(new Event('mousedown')));
+    advance(COUNTDOWN_SEC * 1000);
+    expect(signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
+  it('takes another tab’s activity into account before the warning', () => {
+    render(<SessionTimeout />);
+    advance(IDLE_TIMEOUT_MS - 10_000);
+    beginIdleSession(); // another tab has renewed the shared timestamp
+    act(() => window.dispatchEvent(new StorageEvent('storage', { key: IDLE_SESSION_KEY })));
+    advance(10_000);
+    expect(screen.queryByText('Session Timeout')).not.toBeInTheDocument();
+  });
+
+  it('signs this tab out when another tab removes the shared session', () => {
+    render(<SessionTimeout />);
+    clearIdleSession();
+    act(() => window.dispatchEvent(new StorageEvent('storage', { key: IDLE_SESSION_KEY })));
+    expect(signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
+  it('signs out on wake after a sleeping tab passes its absolute deadline', () => {
+    render(<SessionTimeout />);
+    act(() => {
+      vi.setSystemTime(Date.now() + IDLE_TIMEOUT_MS + COUNTDOWN_SEC * 1000 + 1);
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
   it('signs out immediately on "Sign out"', () => {
     render(<SessionTimeout />);
     advance(IDLE_TIMEOUT_MS);
@@ -103,23 +139,19 @@ describe('SessionTimeout', () => {
     expect(signOut).toHaveBeenCalled();
   });
 
-  it('has a × close button that keeps the session, never signs out', () => {
+  it('does not offer a close button that could silently extend the session', () => {
     render(<SessionTimeout />);
     advance(IDLE_TIMEOUT_MS);
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
-
-    expect(screen.queryByText('Session Timeout')).not.toBeInTheDocument();
-    expect(signOut).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
     advance(COUNTDOWN_SEC * 1000);
-    expect(signOut).not.toHaveBeenCalled();
+    expect(signOut).toHaveBeenCalled();
   });
 
-  it('Escape also keeps the session rather than signing out', () => {
+  it('Escape cannot dismiss the warning', () => {
     render(<SessionTimeout />);
     advance(IDLE_TIMEOUT_MS);
     fireEvent.keyDown(document, { key: 'Escape' });
-
-    expect(screen.queryByText('Session Timeout')).not.toBeInTheDocument();
+    expect(screen.getByText('Session Timeout')).toBeInTheDocument();
     expect(signOut).not.toHaveBeenCalled();
   });
 

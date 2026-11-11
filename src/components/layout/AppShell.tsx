@@ -5,7 +5,6 @@ import type { ApprovalRoleKey, LadderRungKey } from '../../lib/approvalLadder';
 import { DEPARTMENT_HOD_RUNG } from '../../lib/approvalLadder';
 import Sidebar from './Sidebar';
 import NotificationBell from './NotificationBell';
-import SessionTimeout from '../SessionTimeout';
 import OfflineBanner from '../OfflineBanner';
 import InstallAppBanner from '../InstallAppBanner';
 import InstallModal from '../InstallModal';
@@ -60,7 +59,6 @@ export default function AppShell({ session, role, isApprover = false, office = n
 
   return (
     <NotificationProvider session={session} role={noticeRole} offices={noticeRungs}>
-      <SessionTimeout />
       <div className="min-h-screen bg-surface-50">
         <Sidebar session={session} role={role} isApprover={isApprover} office={office} raises={raises} collapsed={collapsed} onCollapsedChange={setCollapsed} />
 

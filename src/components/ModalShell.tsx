@@ -20,13 +20,15 @@ interface ModalShellProps {
   overlayClassName?: string;
   /** id of the element that names this dialog, wired to aria-labelledby. */
   labelledBy?: string;
+  /** A forced decision (such as idle timeout) cannot close via ×, Escape, or backdrop. */
+  dismissible?: boolean;
 }
 
-export default function ModalShell({ onClose, children, className, overlayClassName, labelledBy }: ModalShellProps): React.ReactElement {
-  useEscapeKey(onClose);
+export default function ModalShell({ onClose, children, className, overlayClassName, labelledBy, dismissible = true }: ModalShellProps): React.ReactElement {
+  useEscapeKey(onClose, dismissible);
 
   return (
-    <div className={`modal-overlay${overlayClassName ? ` ${overlayClassName}` : ''}`} onClick={onClose}>
+    <div className={`modal-overlay${overlayClassName ? ` ${overlayClassName}` : ''}`} onClick={dismissible ? onClose : undefined}>
       <div
         className={`modal-content relative p-6${className ? ` ${className}` : ''}`}
         role="dialog"
@@ -34,11 +36,11 @@ export default function ModalShell({ onClose, children, className, overlayClassN
         aria-labelledby={labelledBy}
         onClick={(e) => e.stopPropagation()}
       >
-        <button type="button" onClick={onClose} aria-label="Close" className="modal-close-btn">
+        {dismissible && <button type="button" onClick={onClose} aria-label="Close" className="modal-close-btn">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
-        </button>
+        </button>}
         {children}
       </div>
     </div>

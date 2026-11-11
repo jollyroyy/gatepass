@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { safeErrorMessage } from '../lib/errors';
+import { beginIdleSession, clearIdleSession } from '../lib/idleSession';
 import AuthField from '../components/AuthField';
 import { QuestLockup } from '../components/QuestMark';
 import InstallHint from '../components/InstallHint';
@@ -61,12 +62,14 @@ export default function Login(): React.ReactElement {
     setError('');
     setBusy(true);
     try {
+      beginIdleSession();
       const { error: err } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
       if (err) throw err;
     } catch (err) {
+      clearIdleSession();
       setError(safeErrorMessage(err, 'Could not sign in.'));
     } finally {
       setBusy(false);
