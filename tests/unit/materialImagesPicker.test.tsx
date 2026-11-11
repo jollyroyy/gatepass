@@ -5,12 +5,12 @@ import ItemImagePicker from '../../src/components/ItemImagePicker';
 import { materialImageError } from '../../src/lib/materialImages';
 
 describe('vendor material images', () => {
-  it('offers camera capture and a multiple image chooser', () => {
+  it('offers only a multiple image chooser', () => {
     render(<ItemImagePicker itemNumber={2} files={[]} onChange={() => {}} />);
-    const camera = screen.getByLabelText('Take photo of item 2');
     const chooser = screen.getByLabelText('Choose images for item 2');
-    expect(camera).toHaveAttribute('capture', 'environment');
     expect(chooser).toHaveAttribute('multiple');
+    expect(chooser).not.toHaveAttribute('capture');
+    expect(screen.queryByLabelText('Take photo of item 2')).not.toBeInTheDocument();
   });
 
   it('rejects unsupported and oversized files before upload', () => {

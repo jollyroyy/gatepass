@@ -120,7 +120,7 @@ describe('MaterialItemsCard — every row carries one input per column', () => {
     expect(screen.getAllByLabelText('Order No.')).toHaveLength(3);
     expect(screen.getAllByLabelText('Remarks')).toHaveLength(3);
     expect(screen.getAllByLabelText(/Choose images for item/)).toHaveLength(3);
-    expect(screen.getAllByLabelText(/Take photo of item/)).toHaveLength(3);
+    expect(screen.queryByLabelText(/Take photo of item/)).not.toBeInTheDocument();
   });
 
   it('the Quantity input takes whole numbers only — every line raised here is nos', () => {

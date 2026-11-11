@@ -37,20 +37,12 @@ export default function ItemImagePicker({
   return (
     <div className="flex flex-col gap-2 min-w-0">
       <div className="flex gap-1">
-        <label className="rp-image-action" title={`Choose images for item ${itemNumber}`}>
+        <label className="rp-image-action" title={`Attach saved images to item ${itemNumber}`}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="m20.5 11.5-8.2 8.2a5 5 0 0 1-7.1-7.1l9.2-9.2a3.5 3.5 0 0 1 5 5l-9.3 9.3a2 2 0 0 1-2.8-2.8l8.1-8.1" />
           </svg>
           <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only"
             aria-label={`Choose images for item ${itemNumber}`} disabled={disabled || maxFiles <= files.length}
-            onChange={(event) => { add(event.target.files); event.target.value = ''; }} />
-        </label>
-        <label className="rp-image-action" title={`Take photo of item ${itemNumber}`}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M3 7h4l2-2h6l2 2h4v12H3z" /><circle cx="12" cy="13" r="3.5" />
-          </svg>
-          <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only"
-            aria-label={`Take photo of item ${itemNumber}`} disabled={disabled || maxFiles <= files.length}
             onChange={(event) => { add(event.target.files); event.target.value = ''; }} />
         </label>
       </div>

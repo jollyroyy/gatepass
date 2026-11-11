@@ -6,6 +6,10 @@ For current rules and architecture, see CLAUDE.md.
 
 ## Current state (session-by-session history)
 
+## 2026-11-11 — remove camera capture from item images
+
+The HOD item row and pass record now offer only the paperclip file chooser for saved images. The camera control and its `capture="environment"` input were removed after the client reported an unwanted black camera side panel. Existing item photos and per-item attachment permissions are unchanged.
+
 ## 2026-11-11 — item-specific photos and complete table heading (080)
 
 The HOD raise form now places **Item Images** after Action on every RGP and NRGP material row. Each row has a paperclip for existing photos and a camera control for a new photo; selected thumbnails stay with that row when another row is added or removed. There is no pass-wide attachment control. After the pass is raised, the selected files are mapped to the saved item IDs by line number and uploaded to `<pass>/<item>/<photo>`; the pass record displays and permits additional photos on that item only until approval begins. Older pass-wide photos remain visible in a read-only legacy section.
