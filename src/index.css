@@ -847,7 +847,7 @@
   .table-base thead th {
     @apply text-caption font-semibold tracking-wider text-brand-800 dark:text-brand-300
            uppercase text-left px-4 py-3.5
-           border-b border-surface-200 whitespace-nowrap;
+           border-b border-surface-200 whitespace-nowrap bg-surface-100;
   }
   .table-base tbody td {
     @apply px-4 py-3.5 border-b border-surface-100 text-navy-700 text-body align-middle tabular;
@@ -1083,6 +1083,15 @@
   }
   .rp-trash svg {
     @apply w-4 h-4;
+  }
+  .rp-image-action {
+    @apply w-11 h-11 grid place-items-center rounded-md border border-surface-200 text-accent-600 cursor-pointer transition-colors;
+  }
+  .rp-image-action:hover, .rp-image-action:focus-within {
+    @apply bg-accent-50 border-accent-300;
+  }
+  .rp-image-action svg {
+    @apply w-5 h-5;
   }
   .rp-add-row {
     @apply w-full mt-3 py-2.5 rounded-lg border border-dashed border-surface-300 text-sm font-medium text-accent-600 flex items-center justify-center gap-2 transition-colors;
@@ -4258,6 +4267,12 @@
     z-index: 3;
     background: rgb(var(--glass-bg));
   }
+  .table-base thead .sticky-action {
+    background: rgb(var(--c-surface-100));
+  }
+  .table-base .pass-item-action {
+    right: 128px;
+  }
   .gb-board .sticky-action,
   .gb-main .sticky-action,
   .gb-stack .sticky-action,
@@ -4274,4 +4289,8 @@
   .gb-table thead .sticky-action {
     background: var(--gb-head);
   }
+}
+.table-base .pass-item-image {
+  min-width: 128px;
+  width: 128px;
 }

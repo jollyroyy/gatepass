@@ -6,6 +6,12 @@ For current rules and architecture, see CLAUDE.md.
 
 ## Current state (session-by-session history)
 
+## 2026-11-11 — item-specific photos and complete table heading (080)
+
+The HOD raise form now places **Item Images** after Action on every RGP and NRGP material row. Each row has a paperclip for existing photos and a camera control for a new photo; selected thumbnails stay with that row when another row is added or removed. There is no pass-wide attachment control. After the pass is raised, the selected files are mapped to the saved item IDs by line number and uploaded to `<pass>/<item>/<photo>`; the pass record displays and permits additional photos on that item only until approval begins. Older pass-wide photos remain visible in a read-only legacy section.
+
+Migration 080 changes the private Storage insert policy to require a valid item of the pass and enforces ten photos per item. The raise form's shared grid minimum now includes both the Action and Item Images columns plus its horizontal padding, so the gray heading background extends over the complete table width. Return-flow tests stub the new image cells so they exercise only returns, and the AppShell layout test stubs Realtime to avoid an unrelated WebSocket connection outliving jsdom.
+
 ## 2026-11-11 — material photos and approval-gated printing (079, applied)
 
 HODs can capture or choose up to ten JPEG, PNG, or WebP photos for either RGP or NRGP while raising a pass, then view them on the pass record. The raiser or a HOD assigned to that department can add photos until an approval decision is made. Storage remains private; migration 079 limits uploads to the pass folder, authorized users, 5 MB per file, and ten objects per pass. The gallery uses short-lived signed links. A failed upload does not erase a successfully raised pass; the confirmation shows a warning and the record allows a retry while approval has not started.

@@ -37,6 +37,10 @@ import type { GatePassItemView, GatePassView } from '../../src/types';
 import { EMPTY_DRAFT, type ReturnDraft } from '../../src/lib/returnDraft';
 import PassRecordReturns from '../../src/components/passview/PassRecordReturns';
 
+vi.mock('../../src/components/passview/PassItemImagesCell', () => ({
+  default: () => null,
+}));
+
 function pass(over: Partial<GatePassView> = {}): GatePassView {
   return {
     id: 'p1', pass_number: 'RGP-20260810-0007', type: 'RGP', direction: 'out',

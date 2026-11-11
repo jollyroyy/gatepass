@@ -108,7 +108,7 @@ describe('an RGP line carries its own return entry', () => {
     // name against each item across all the views".
     expect(heads).toEqual([
       '#', 'Item', 'Description', 'Make / Model', 'Serial / ID', 'Quantity', 'Value',
-      'Return Status', 'Action',
+      'Return Status', 'Action', 'Item Images',
     ]);
   });
 

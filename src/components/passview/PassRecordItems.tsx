@@ -41,6 +41,7 @@ import { unitLabel } from '../../lib/units';
 import { itemLineView, itemReturnStage, passWasRejected, returnProgress } from '../../lib/passRecordView';
 import { effectiveReturned, effectiveOutstanding, formatQty, type ReturnDraft } from '../../lib/returnDraft';
 import Badge from '../Badge';
+import PassItemImagesCell from './PassItemImagesCell';
 
 type Props = {
   pass: GatePassView;
@@ -126,7 +127,8 @@ export default function PassRecordItems({
                 <th>Quantity</th>
                 <th>Value</th>
                 <th>{isRgp && !rejected ? 'Return Status' : 'Status'}</th>
-                {isRgp && !rejected && <th className="sticky-action">Action</th>}
+                {isRgp && !rejected && <th className="sticky-action pass-item-action">Action</th>}
+                <th className="sticky-action pass-item-image">Item Images</th>
               </tr>
             </thead>
             <tbody>
@@ -204,7 +206,7 @@ export default function PassRecordItems({
                       )}
                     </td>
                     {isRgp && !rejected && (
-                      <td className="sticky-action">
+                      <td className="sticky-action pass-item-action">
                         {canRecord && owes && onAdd ? (
                           <button
                             type="button"
@@ -226,6 +228,7 @@ export default function PassRecordItems({
                         )}
                       </td>
                     )}
+                    <td className="sticky-action pass-item-image"><PassItemImagesCell passId={pass.id} itemId={item.id} itemNumber={index + 1} /></td>
                   </tr>
                 );
               })}
@@ -237,7 +240,7 @@ export default function PassRecordItems({
                   <td data-testid="items-total-value" className="tabular font-semibold text-navy-900">
                     {formatCurrency(totalValue)}
                   </td>
-                  <td colSpan={isRgp && !rejected ? 2 : 1} />
+                  <td colSpan={isRgp && !rejected ? 3 : 2} />
                 </tr>
               </tfoot>
             )}

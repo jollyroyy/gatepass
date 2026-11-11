@@ -10,7 +10,7 @@
 //
 //   #  ·  Item Description  ·  Quantity  ·  Unit  ·  Approx. Value (Rs)  ·
 //   Make / Model / Size  ·  Serial / Asset Tag  ·  Order No.  ·
-//   Remarks  ·  Expected Return Date (RGP only)  ·  Action
+//   Remarks  ·  Expected Return Date (RGP only)  ·  Action  ·  Item Images
 //
 // THE UNIT COLUMN IS BACK, beside the quantity it qualifies (client,
 // 2026-08-20: "add unit field as dropdown to select different types of unit
@@ -39,12 +39,15 @@ const BASE =
 const RETURN_DATE = 'minmax(150px,1.3fr)';
 
 export function itemGridColumns(showReturnDate: boolean): string {
-  return [BASE, ...(showReturnDate ? [RETURN_DATE] : []), '56px'].join(' ');
+  return [BASE, ...(showReturnDate ? [RETURN_DATE] : []), '56px', '112px'].join(' ');
 }
 
 /** The gap between columns, in px — must match `.item-grid`'s column-gap
  *  (`gap: 0.75rem 1rem`) in index.css. */
 const COLUMN_GAP_PX = 16;
+// Both the header and every row have 12px padding on each side. Without it,
+// the last grid cell extends beyond the header's painted background.
+const ROW_PADDING_PX = 24;
 
 /** The narrowest the grid can be drawn without a column shrinking below its
  *  own minimum: every track's minimum, plus the gaps between them.
@@ -63,7 +66,7 @@ export function itemGridMinWidth(showReturnDate: boolean): string {
     const min = track.startsWith('minmax(') ? track.slice(7).split(',')[0] : track;
     return sum + parseFloat(min);
   }, 0);
-  return `${total + COLUMN_GAP_PX * (tracks.length - 1)}px`;
+  return `${total + COLUMN_GAP_PX * (tracks.length - 1) + ROW_PADDING_PX}px`;
 }
 
 /** Inline style carrying the grid template as a CSS custom property — shared

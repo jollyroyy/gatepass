@@ -21,6 +21,9 @@ interface MaterialItemsCardProps {
    *  Passed down to every row AND to the grid template, so the header and the
    *  rows always agree on how many columns there are. */
   showReturnDate: boolean;
+  itemImages?: File[][];
+  onItemImagesChange?: (idx: number, files: File[]) => void;
+  disabled?: boolean;
 }
 
 /** Column name, and whether the mock marks it required. Same order as
@@ -46,6 +49,7 @@ const HEADERS: { label: string; required?: boolean }[] = [
  *  out on a returnable pass has to be due back on a day. */
 const RETURN_DATE_HEADER = { label: 'Expected Return Date', required: true };
 const ACTION_HEADER: { label: string; required?: boolean } = { label: 'Action' };
+const IMAGES_HEADER: { label: string; required?: boolean } = { label: 'Item Images' };
 
 export default function MaterialItemsCard({
   items,
@@ -54,8 +58,11 @@ export default function MaterialItemsCard({
   onRemoveItem,
   onAddItem,
   showReturnDate,
+  itemImages = [],
+  onItemImagesChange = () => {},
+  disabled = false,
 }: MaterialItemsCardProps): React.ReactElement {
-  const headers = [...HEADERS, ...(showReturnDate ? [RETURN_DATE_HEADER] : []), ACTION_HEADER];
+  const headers = [...HEADERS, ...(showReturnDate ? [RETURN_DATE_HEADER] : []), ACTION_HEADER, IMAGES_HEADER];
   return (
     <section className="rp-section">
       <h2 className="rp-legend">Item-wise Details</h2>
@@ -95,6 +102,9 @@ export default function MaterialItemsCard({
                 onRemove={() => onRemoveItem(idx)}
                 canRemove={items.length > 1}
                 showReturnDate={showReturnDate}
+                images={itemImages[idx] ?? []}
+                onImagesChange={(files) => onItemImagesChange(idx, files)}
+                disabled={disabled}
               />
             ))}
           </div>

@@ -7,7 +7,7 @@
 //
 //   #  ·  Item Description  ·  Quantity  ·  Unit  ·  Make / Model / Size  ·
 //   Serial / Asset Tag  ·  Order No.  ·  Remarks  ·
-//   Expected Return Date (RGP only)  ·  Action
+//   Expected Return Date (RGP only)  ·  Action  ·  Item Images
 //
 // THE UNIT COLUMN IS BACK (client, 2026-08-20) — this file used to hold that
 // there was none, which is exactly what left every line `nos`. There is still
@@ -44,18 +44,19 @@ const HEADER_LABELS = [
   'Order No.',
   'Remarks',
   'Action',
+  'Item Images',
 ];
 
 describe('materialItemGrid — one column template, one RGP-only variant', () => {
   // REWRITTEN 2026-08-20: it used to hold NINE tracks. The tenth is
   // "Approx. Value (Rs)", back on both pass types (client: "make a field for
   // the HOD to input the approx value for each item in our GP and RGP form").
-  it('has ten columns: # · Item Description · Quantity · Unit · Approx. Value · Make/Model/Size · Serial/Asset Tag · Order No. · Remarks · Action', () => {
-    expect(itemGridColumns(false).split(' ')).toHaveLength(10);
+  it('has an image column after Action on NRGP', () => {
+    expect(itemGridColumns(false).split(' ')).toHaveLength(11);
   });
 
   it('an RGP splices the per-line return date in before Action', () => {
-    expect(itemGridColumns(true).split(' ')).toHaveLength(11);
+    expect(itemGridColumns(true).split(' ')).toHaveLength(12);
   });
 });
 
@@ -71,6 +72,7 @@ describe('MaterialItemsCard — the row frame is as wide as the columns it holds
     const track = document.querySelector('.item-grid-track') as HTMLElement;
     expect(track).not.toBeNull();
     expect(track.style.minWidth).toBe(itemGridMinWidth(false));
+    expect(parseFloat(track.style.minWidth)).toBe(1448); // tracks + gaps + both 12px side paddings
   });
 
   it('the header and every row live inside that one track, so they scroll together', () => {
@@ -117,6 +119,8 @@ describe('MaterialItemsCard — every row carries one input per column', () => {
     expect(screen.getAllByLabelText('Serial / Asset Tag')).toHaveLength(3);
     expect(screen.getAllByLabelText('Order No.')).toHaveLength(3);
     expect(screen.getAllByLabelText('Remarks')).toHaveLength(3);
+    expect(screen.getAllByLabelText(/Choose images for item/)).toHaveLength(3);
+    expect(screen.getAllByLabelText(/Take photo of item/)).toHaveLength(3);
   });
 
   it('the Quantity input takes whole numbers only — every line raised here is nos', () => {
@@ -125,6 +129,16 @@ describe('MaterialItemsCard — every row carries one input per column', () => {
     expect(qty.type).toBe('number');
     expect(qty.step).toBe('1');
     expect(qty.min).toBe('1');
+  });
+
+  it('sends an image chosen on the second row only to item 2', () => {
+    const chosen: Array<{ idx: number; files: File[] }> = [];
+    render(<MaterialItemsCard items={[{ ...EMPTY_ITEM }, { ...EMPTY_ITEM }]} errors={{}}
+      onItemChange={() => {}} onRemoveItem={() => {}} onAddItem={() => {}}
+      onItemImagesChange={(idx, files) => chosen.push({ idx, files })} showReturnDate={false} />);
+    const file = new File(['photo'], 'item-two.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('Choose images for item 2'), { target: { files: [file] } });
+    expect(chosen).toEqual([{ idx: 1, files: [file] }]);
   });
 });
 

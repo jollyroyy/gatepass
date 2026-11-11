@@ -17,6 +17,12 @@ vi.mock('../../src/components/layout/NotificationBell', () => ({
   default: () => <div data-testid="notification-bell-stub" />,
 }));
 
+// Shell layout tests do not need Realtime; a live subscription can outlive
+// jsdom and create an unrelated WebSocket error after a test completes.
+vi.mock('../../src/lib/notifications', () => ({
+  NotificationProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 function fakeSession(email: string): Session {
   return { user: { id: 'user-1', email } } as unknown as Session;
 }

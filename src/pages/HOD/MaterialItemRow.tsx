@@ -35,6 +35,7 @@ import type { NewGatePassItem } from '../../types';
 import { itemGridStyle } from './materialItemGrid';
 import { todayStr } from '../../lib/raisePassForm';
 import { UNIT_OPTIONS, isWholeUnit } from '../../lib/units';
+import ItemImagePicker from '../../components/ItemImagePicker';
 
 interface MaterialItemRowErrors {
   name?: string;
@@ -53,6 +54,9 @@ interface MaterialItemRowProps {
   canRemove: boolean;
   /** RGP only — an NRGP draws no date column at all. */
   showReturnDate: boolean;
+  images: File[];
+  onImagesChange: (files: File[]) => void;
+  disabled?: boolean;
 }
 
 export default function MaterialItemRow({
@@ -63,6 +67,9 @@ export default function MaterialItemRow({
   onRemove,
   canRemove,
   showReturnDate,
+  images,
+  onImagesChange,
+  disabled = false,
 }: MaterialItemRowProps): React.ReactElement {
   const whole = isWholeUnit(item.unit);
   return (
@@ -215,6 +222,9 @@ export default function MaterialItemRow({
         ) : (
           <span aria-hidden="true" />
         )}
+      </div>
+      <div className="item-cell" data-label="Item Images">
+        <ItemImagePicker itemNumber={idx + 1} files={images} onChange={onImagesChange} disabled={disabled} />
       </div>
     </div>
   );

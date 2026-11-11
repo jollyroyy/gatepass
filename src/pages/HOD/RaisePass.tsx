@@ -26,8 +26,7 @@ import type { RaisingGrant } from '../../lib/passRaising';
 import PassSubmittedModal from './PassSubmittedModal';
 import PassDetailsCards from './PassDetailsCards';
 import MaterialItemsCard from './MaterialItemsCard';
-import MaterialImagesPicker from '../../components/MaterialImagesPicker';
-import { uploadMaterialImages } from '../../lib/materialImages';
+import { uploadRaisedItemImages } from '../../lib/materialImages';
 
 /** The mock draws TWO blank lines before anything is typed — a gate pass for a
  *  single item is the exception here, and one empty row reads as a limit. */
@@ -90,7 +89,7 @@ export default function RaisePass({ office = null, role = null, grant = null }: 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submittedPass, setSubmittedPass] = useState<GatePassView | null>(null);
   const [supersedeWarning, setSupersedeWarning] = useState<string | null>(null);
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [itemImages, setItemImages] = useState<File[][]>(() => Array.from({ length: STARTING_ITEMS }, () => []));
   const [imageWarning, setImageWarning] = useState<string | null>(null);
   // Does this reader CHOOSE a department, or is theirs captured for them?
   const picksDepartment = officeRaises(office);
@@ -120,6 +119,7 @@ export default function RaisePass({ office = null, role = null, grant = null }: 
   useEffect(() => {
     if (!prefill) return;
     setForm((f) => ({ ...f, ...prefill }));
+    if (prefill.items) setItemImages(prefill.items.map(() => []));
   }, [prefill]);
 
   useEffect(() => {
@@ -175,6 +175,7 @@ export default function RaisePass({ office = null, role = null, grant = null }: 
 
   function addItem() {
     setForm((f) => ({ ...f, items: [...f.items, { ...EMPTY_ITEM }] }));
+    setItemImages((images) => [...images, []]);
     setErrors((e) => {
       const next = { ...e };
       Object.keys(next).forEach((key) => { if (key.startsWith('item_')) delete next[key]; });
@@ -185,6 +186,7 @@ export default function RaisePass({ office = null, role = null, grant = null }: 
 
   function removeItem(idx: number) {
     setForm((f) => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
+    setItemImages((images) => images.filter((_, i) => i !== idx));
     setErrors((e) => {
       const next = { ...e };
       Object.keys(next).forEach((key) => { if (key.startsWith('item_')) delete next[key]; });
@@ -216,13 +218,13 @@ export default function RaisePass({ office = null, role = null, grant = null }: 
       const departmentId = form.department_id || depts[0]?.id;
       if (!departmentId) throw new Error('Choose the department this pass is raised for.');
       const created = await createPass(form, departmentId, reservedNumber);
-      if (imageFiles.length) {
+      if (itemImages.some((files) => files.length > 0)) {
         try {
-          await uploadMaterialImages(created.id, imageFiles);
-          setImageFiles([]);
+          await uploadRaisedItemImages(created.id, itemImages);
+          setItemImages(form.items.map(() => []));
           setImageWarning(null);
         } catch (uploadError) {
-          setImageWarning(`The pass was raised, but some images could not be attached: ${safeErrorMessage(uploadError)}. Open the pass to retry before approval starts.`);
+          setImageWarning(`The pass was raised, but some item images could not be attached: ${safeErrorMessage(uploadError)}. Open the pass to retry on the affected item before approval starts.`);
         }
       }
       setSubmittedPass(created);
@@ -311,9 +313,10 @@ export default function RaisePass({ office = null, role = null, grant = null }: 
           onRemoveItem={removeItem}
           onAddItem={addItem}
           showReturnDate={requiresReturnDate(form.type)}
+          itemImages={itemImages}
+          onItemImagesChange={(idx, files) => setItemImages((images) => images.map((current, i) => i === idx ? files : current))}
+          disabled={submitting}
         />
-
-        <MaterialImagesPicker files={imageFiles} onChange={setImageFiles} disabled={submitting} />
 
         {/* The department is no longer a field on this form (client: "it will
             be automatically captured"), so the one thing that can go wrong with
