@@ -26,6 +26,8 @@ import type { RaisingGrant } from '../../lib/passRaising';
 import PassSubmittedModal from './PassSubmittedModal';
 import PassDetailsCards from './PassDetailsCards';
 import MaterialItemsCard from './MaterialItemsCard';
+import MaterialImagesPicker from '../../components/MaterialImagesPicker';
+import { uploadMaterialImages } from '../../lib/materialImages';
 
 /** The mock draws TWO blank lines before anything is typed — a gate pass for a
  *  single item is the exception here, and one empty row reads as a limit. */
@@ -88,6 +90,8 @@ export default function RaisePass({ office = null, role = null, grant = null }: 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submittedPass, setSubmittedPass] = useState<GatePassView | null>(null);
   const [supersedeWarning, setSupersedeWarning] = useState<string | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imageWarning, setImageWarning] = useState<string | null>(null);
   // Does this reader CHOOSE a department, or is theirs captured for them?
   const picksDepartment = officeRaises(office);
   const { depts, autoSelect, error: deptError } = useRaiseDepartments(
@@ -212,6 +216,15 @@ export default function RaisePass({ office = null, role = null, grant = null }: 
       const departmentId = form.department_id || depts[0]?.id;
       if (!departmentId) throw new Error('Choose the department this pass is raised for.');
       const created = await createPass(form, departmentId, reservedNumber);
+      if (imageFiles.length) {
+        try {
+          await uploadMaterialImages(created.id, imageFiles);
+          setImageFiles([]);
+          setImageWarning(null);
+        } catch (uploadError) {
+          setImageWarning(`The pass was raised, but some images could not be attached: ${safeErrorMessage(uploadError)}. Open the pass to retry before approval starts.`);
+        }
+      }
       setSubmittedPass(created);
       // The pass is raised. Now tell the office it landed on, and copy this HOD.
       // NOT AWAITED, and it cannot throw: `notifyApproval` swallows everything,
@@ -300,6 +313,8 @@ export default function RaisePass({ office = null, role = null, grant = null }: 
           showReturnDate={requiresReturnDate(form.type)}
         />
 
+        <MaterialImagesPicker files={imageFiles} onChange={setImageFiles} disabled={submitting} />
+
         {/* The department is no longer a field on this form (client: "it will
             be automatically captured"), so the one thing that can go wrong with
             it — an HOD assigned to none — has nowhere of its own to report.
@@ -326,12 +341,14 @@ export default function RaisePass({ office = null, role = null, grant = null }: 
       </form>
 
       {supersedeWarning && <div className="alert-warning mt-4">{supersedeWarning}</div>}
+      {imageWarning && <div role="alert" className="alert-warning mt-4">{imageWarning}</div>}
 
       {submittedPass && (
         <PassSubmittedModal
           submittedPass={submittedPass}
           deptName={deptName}
           itemCount={form.items.length}
+          imageWarning={imageWarning}
           onClose={() => setSubmittedPass(null)}
         />
       )}

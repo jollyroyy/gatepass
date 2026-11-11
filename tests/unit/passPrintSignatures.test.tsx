@@ -69,7 +69,9 @@ vi.mock('../../src/supabaseClient', () => ({
           : thenable(current.pass),
     rpc: (name: string) =>
       thenable(
-        name === 'get_pass_approvals'
+        name === 'can_print_pass'
+          ? true
+          : name === 'get_pass_approvals'
           ? current.approvals
           : name === 'get_approval_ladder'
             ? current.roles

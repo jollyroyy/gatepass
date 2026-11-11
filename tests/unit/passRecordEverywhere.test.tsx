@@ -60,7 +60,10 @@ vi.mock('../../src/supabaseClient', () => {
     return o;
   };
   return {
-    gp: () => ({ from: (t: string) => builder(t) }),
+    gp: () => ({
+      from: (t: string) => builder(t),
+      rpc: (name: string) => Promise.resolve({ data: name === 'can_print_pass' ? true : [], error: null }),
+    }),
     supabase: {
       auth: { getUser: () => Promise.resolve({ data: { user: { id: 'u1' } } }) },
       rpc: () => Promise.resolve({ data: null, error: null }),
@@ -128,10 +131,10 @@ describe('/pass/:id renders the Search Pass record, not a second format', () => 
   // 2026-08-19: Print Pass was overlapping the bell in the guard's view). The
   // record's title row is not a `.page-header`, so it must make the same 76px
   // reservation itself — this is the test that fails if it is dropped.
-  it('keeps Print Pass clear of the fixed notification bell', async () => {
+  it('keeps the action row clear of the fixed notification bell', async () => {
     renderDetail();
     await waitFor(() => expect(screen.getByTestId('pass-record')).toBeInTheDocument());
-    const head = screen.getByRole('link', { name: /Print Pass/ }).closest('div')?.parentElement;
+    const head = screen.getByRole('heading', { name: 'RGP Gate Pass Details' }).parentElement?.parentElement?.parentElement;
     expect(head?.className).toContain('pr-[76px]');
   });
 

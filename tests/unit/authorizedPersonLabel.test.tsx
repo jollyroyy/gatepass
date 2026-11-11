@@ -32,7 +32,10 @@ vi.mock('../../src/supabaseClient', () => {
   builder.then = (ok: (v: unknown) => unknown) =>
     Promise.resolve({ data: detailItems, error: null }).then(ok);
   return {
-    gp: () => ({ from: () => builder }),
+    gp: () => ({
+      from: () => builder,
+      rpc: (name: string) => Promise.resolve({ data: name === 'can_print_pass' ? true : [], error: null }),
+    }),
     pub: () => ({ from: () => builder }),
     supabase: { auth: { getUser: () => Promise.resolve({ data: { user: { id: 'u1' } } }) } },
   };

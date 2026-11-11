@@ -27,7 +27,7 @@ vi.mock('../../src/supabaseClient', () => ({
       table === 'v_gate_pass_items'
         ? thenable(current.items)
         : thenable(current.pass),
-    rpc: () => thenable(null),
+    rpc: (name: string) => thenable(name === 'can_print_pass' ? true : null),
   }),
   pub: () => ({ from: () => thenable([]) }),
   supabase: { auth: { getUser: () => Promise.resolve({ data: { user: { id: 'u1' } } }) } },

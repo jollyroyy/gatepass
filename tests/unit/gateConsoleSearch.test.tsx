@@ -136,6 +136,7 @@ vi.mock('../../src/supabaseClient', () => {
       from: (table: string) => builder(table),
       rpc: (name: string) => {
         rpcCalls.push(name);
+        if (name === 'can_print_pass') return Promise.resolve({ data: true, error: null });
         return Promise.resolve({ data: [{ outcome: 'ok', pass_id: 'p1', blacklist_match: null }], error: null });
       },
     }),

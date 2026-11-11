@@ -94,13 +94,7 @@ export default function PassDetail({
     <div className="flex flex-col gap-5">
       {showCreated && (
         <div className="alert-success justify-between">
-          <span>
-            Gate pass raised. It is now in the security queue.{' '}
-            <Link to={`/pass/${pass.id}/print`} className="font-semibold underline">
-              Print it now
-            </Link>
-            .
-          </span>
+          <span>Gate pass raised. It is awaiting the required approvals. Printing opens when they are complete.</span>
           <button type="button" className="btn-icon" onClick={dismissCreated} aria-label="Dismiss">
             ×
           </button>

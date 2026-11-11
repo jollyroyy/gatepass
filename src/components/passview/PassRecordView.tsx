@@ -10,7 +10,8 @@
 // Print Pass; the fact strip; the material table (which is also where a return
 // is entered) with ONE timeline down its right — the approval ladder and the
 // gate's own activity on a single rail (client, 2026-08-19) — and the guard's
-// action bar at the FOOT of all of it. NOTHING ELSE — the explanatory strip under the
+// action bar at the FOOT of all of it. The material image gallery sits after the
+// fact strip. The explanatory strip under the
 // table saying the four signatures are collected on paper was deleted at the
 // client's word (2026-08-19: "don't put any extra words other than the ones I
 // gave you"). The ladder's own states are the statement.
@@ -50,6 +51,8 @@ import PassRecordReturns from './PassRecordReturns';
 import PassTimeline from './PassTimeline';
 import ApprovalDecisionBar from './ApprovalDecisionBar';
 import EmergencyReleaseBar from './EmergencyReleaseBar';
+import PassMaterialImages from './PassMaterialImages';
+import { useCanPrintPass } from '../../lib/useCanPrintPass';
 
 type Props = {
   record: GatePassRecord;
@@ -83,6 +86,7 @@ export default function PassRecordView({
   // before any office was designated carries none, and the ladder falls back to
   // grading the org chart — see approvalLadder.ts.
   const rawApprovals = usePassApprovals(pass.id);
+  const canPrint = useCanPrintPass(pass.id, pass.awaits_approval);
   // WHEN A SHARED RUNG BECOMES THE SECOND OFFICE'S TO SIGN (063). Derived here,
   // once, so the ladder's note and the Approve / Reject bar underneath it read
   // the same clock — `approve_pass_level` enforces the same window itself, and
@@ -107,7 +111,7 @@ export default function PassRecordView({
   // ladder of its own: for a guard the signed slip is in hand, so all four
   // levels are approved (client). A real pending row outranks that.
   //
-  // AN OFFICE HOLDER IS NEVER THE GATE AND NEVER THE RAISING DESK, whatever
+// AN OFFICE HOLDER IS NEVER THE GATE AND NEVER THE RAISING DESK, whatever
   // their VMS role says (client, 2026-08-22: "I do see that the security head
   // is able to do all the returns. This is a flag flag completely"). Migration
   // 043 lets the Security Head be a `guard` account, so this record was handing
@@ -143,6 +147,7 @@ export default function PassRecordView({
         pass={pass}
         stage={stage}
         canShare={canShare}
+        canPrint={canPrint === true}
         items={items}
         onClear={onClear}
       />
@@ -170,6 +175,7 @@ export default function PassRecordView({
       )}
 
       <PassRecordSummary pass={pass} gateName={gateName} />
+      <PassMaterialImages passId={pass.id} />
 
       {/* THE OFFICE HOLDER'S OWN PRESS SITS RIGHT BELOW THE PASS, not at the
           foot of the record (client, 2026-08-23: "just below the pass, show

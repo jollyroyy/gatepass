@@ -21,6 +21,7 @@ type Props = {
    *  side only. The control decides for itself whether the pass carries a
    *  usable number, and draws nothing when it does not. */
   canShare: boolean;
+  canPrint: boolean;
   /** The material lines, so the forwarded message names every one of them. */
   items: GatePassItemView[];
   onClear?: () => void;
@@ -41,7 +42,7 @@ const PrinterGlyph = (
 // carries its own spacing inside the record's flex column), so it makes
 // the reservation itself.
 export default function PassRecordHeader({
-  pass, stage, canShare, items, onClear,
+  pass, stage, canShare, canPrint, items, onClear,
 }: Props): React.ReactElement {
   return (
       <div className="flex flex-wrap items-start justify-between gap-3 pr-[76px]">
@@ -73,10 +74,12 @@ export default function PassRecordHeader({
               and the QR code goes to the gate on the printed sheet the link
               beside this one produces. */}
           {canShare && <SendToVendorButton pass={pass} items={items} />}
-          <Link to={`/pass/${pass.id}/print`} className="btn-secondary inline-flex items-center gap-2">
-            {PrinterGlyph}
-            Print Pass
-          </Link>
+          {canPrint ? (
+            <Link to={`/pass/${pass.id}/print`} className="btn-secondary inline-flex items-center gap-2">
+              {PrinterGlyph}
+              Print Pass
+            </Link>
+          ) : <span className="text-xs text-navy-500">Printing opens after all required approvals.</span>}
           {onClear && (
             <button type="button" className="btn-ghost" onClick={onClear}>
               Clear

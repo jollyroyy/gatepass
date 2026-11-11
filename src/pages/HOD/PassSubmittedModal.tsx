@@ -17,11 +17,13 @@ import Badge, { TypeChip } from '../../components/Badge';
 import ModalShell from '../../components/ModalShell';
 import SubmittedItemsList from './SubmittedItemsList';
 import SendToVendorButton from '../../components/SendToVendorButton';
+import { useCanPrintPass } from '../../lib/useCanPrintPass';
 
 interface PassSubmittedModalProps {
   submittedPass: GatePassView;
   deptName: string;
   itemCount: number;
+  imageWarning?: string | null;
   onClose: () => void;
 }
 
@@ -61,9 +63,11 @@ export default function PassSubmittedModal({
   submittedPass,
   deptName,
   itemCount,
+  imageWarning,
   onClose,
 }: PassSubmittedModalProps): React.ReactElement {
   const company = parseCompanyInfo(submittedPass.visitor_company);
+  const canPrint = useCanPrintPass(submittedPass.id);
 
   return (
     <ModalShell onClose={onClose} className="max-w-lg" labelledBy="pass-submitted-title">
@@ -136,8 +140,9 @@ export default function PassSubmittedModal({
           the pass-detail Raised → Mismatch → Override timeline. */}
       <div className="flex items-center gap-2 text-xs text-navy-500 mb-5">
         <span className="w-1.5 h-1.5 rounded-full bg-pending-500 shrink-0" />
-        Raised {formatDateTime(submittedPass.created_at)} — now in the security queue.
+        Raised {formatDateTime(submittedPass.created_at)} — awaiting required approvals.
       </div>
+      {imageWarning && <div role="alert" className="alert-warning mb-4">{imageWarning}</div>}
 
       {/* FORWARDING IT, THE MOMENT IT IS RAISED (client, 2026-08-22: "the hod,
           after raising the pass, should have the option to send the pass … have
@@ -149,15 +154,16 @@ export default function PassSubmittedModal({
           their own WhatsApp. No vendor number on the pass, no button ("if it
           is available").
 
-          Print Pass stays beside it: the QR code the gate scans travels on
-          paper, because a chat link cannot carry a picture. */}
+          Print Pass appears after the required offices approve the pass. */}
       <div className="flex flex-wrap gap-3">
         <Link to={`/pass/${submittedPass.id}`} className="btn-primary flex-1 text-center">
           View Pass
         </Link>
-        <Link to={`/pass/${submittedPass.id}/print`} className="btn-secondary flex-1 text-center">
-          Print Pass
-        </Link>
+        {canPrint === true && (
+          <Link to={`/pass/${submittedPass.id}/print`} className="btn-secondary flex-1 text-center">
+            Print Pass
+          </Link>
+        )}
         <SendToVendorButton
           pass={submittedPass}
           className="btn-secondary flex-1 inline-flex items-center justify-center gap-2"
@@ -166,6 +172,7 @@ export default function PassSubmittedModal({
           Dashboard
         </Link>
       </div>
+      {canPrint === false && <p className="text-xs text-navy-500 mt-3">Printing opens after all required approvals.</p>}
     </ModalShell>
   );
 }

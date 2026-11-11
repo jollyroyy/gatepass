@@ -51,6 +51,12 @@ const TODAY = (() => {
   const p2 = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
 })();
+const NEXT_YEAR = (() => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() + 1);
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+})();
 
 function pass(over: Partial<GatePassView>): GatePassView {
   return {
@@ -106,9 +112,9 @@ function resetRows(): void {
            return_status: 'partially_returned', expected_return_date: '2026-05-18',
            due_state: 'overdue', is_overdue: true, material_summary: 'Timber Planks',
            total_quantity: 150, returned_quantity: 50 }),
-    // Due in October: a real obligation, deliberately counted by neither figure.
+    // Due next year: a real obligation, deliberately counted by neither figure.
     pass({ id: 'r3', pass_number: 'RGP-20261001-0099', status: 'matched',
-           return_status: 'awaiting_return', expected_return_date: '2026-10-01',
+           return_status: 'awaiting_return', expected_return_date: NEXT_YEAR,
            material_summary: 'Wall Putty', due_state: 'ok' }),
   ];
   OPEN_ITEMS = [
@@ -120,7 +126,7 @@ function resetRows(): void {
     item({ id: 'i3', gate_pass_id: 'r2', line_no: 1, name: 'Timber Plank' }),
     item({ id: 'i4', gate_pass_id: 'r2', line_no: 2, name: 'Nail Box',
            returned_qty: 100, outstanding_qty: 0 }),
-    // r3 is due in October — outstanding, but not late.
+    // r3 is due next year — outstanding, but not late.
     item({ id: 'i5', gate_pass_id: 'r3', line_no: 1, name: 'Wall Putty Tub' }),
   ];
 }

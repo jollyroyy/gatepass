@@ -148,9 +148,9 @@ describe('PassSubmittedModal — sending it on', () => {
     expect(screen.queryByRole('link', { name: /Send to Vendor/ })).toBeNull();
   });
 
-  it('offers the printed sheet too — the boxes are what the vendor is sent', () => {
+  it('waits for the required approvals before offering the printed sheet', async () => {
     renderModal();
-    const print = screen.getByRole('link', { name: 'Print Pass' }) as HTMLAnchorElement;
-    expect(print.getAttribute('href')).toBe('/pass/p1/print');
+    expect(screen.queryByRole('link', { name: 'Print Pass' })).not.toBeInTheDocument();
+    expect(await screen.findByText(/Printing opens after all required approvals/)).toBeInTheDocument();
   });
 });

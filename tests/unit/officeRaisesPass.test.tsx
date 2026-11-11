@@ -115,7 +115,10 @@ async function fillRequiredFields() {
   names.forEach((el, i) => fireEvent.change(el, { target: { value: `Item ${i + 1}` } }));
   makeModels.forEach((el, i) => fireEvent.change(el, { target: { value: `Model ${i + 1}` } }));
   qtys.forEach((el) => fireEvent.change(el, { target: { value: '1' } }));
-  dates.forEach((el) => fireEvent.change(el, { target: { value: '2026-09-15' } }));
+  const nextYear = new Date();
+  nextYear.setFullYear(nextYear.getFullYear() + 1);
+  const returnDate = `${nextYear.getFullYear()}-${String(nextYear.getMonth() + 1).padStart(2, '0')}-${String(nextYear.getDate()).padStart(2, '0')}`;
+  dates.forEach((el) => fireEvent.change(el, { target: { value: returnDate } }));
 }
 
 beforeEach(() => {
