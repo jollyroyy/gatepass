@@ -6,13 +6,13 @@ For current rules and architecture, see CLAUDE.md.
 
 ## Current state (session-by-session history)
 
-## 2026-11-11 — material photos and approval-gated printing (079, local only)
+## 2026-11-11 — material photos and approval-gated printing (079, applied)
 
 HODs can capture or choose up to ten JPEG, PNG, or WebP photos for either RGP or NRGP while raising a pass, then view them on the pass record. The raiser or a HOD assigned to that department can add photos until an approval decision is made. Storage remains private; migration 079 limits uploads to the pass folder, authorized users, 5 MB per file, and ten objects per pass. The gallery uses short-lived signed links. A failed upload does not erase a successfully raised pass; the confirmation shows a warning and the record allows a retry while approval has not started.
 
 The print link and slip now depend on `gatepass.can_print_pass`. It requires a visible pass with an approval snapshot, every required row approved, and no pending/rejected, emergency-released, or grandfathered row. The unused half of the shared COO/CEO rung may be `not_required`. The print route hides the slip while blocked and checks the RPC again when Print is pressed. A direct URL therefore does not expose a printable slip before signatures are complete.
 
-Migration 079 was added to `APPLY_ALL.sql` but has **not** been applied to the live Supabase project. The deployed Vercel site has not been updated or verified in this session: browser access to its origin was denied by the browser permission gate. Local verification: `npm run build:sql`, `npm run build`, and the full Vitest suite (2,507 tests) passed. No live SQL query was run against the unapplied migration.
+Migration 079 was added to `APPLY_ALL.sql`, validated in a rolled-back production transaction, then applied through `psql --single-transaction`. Live catalog probes confirmed the private 5 MB JPEG/PNG/WebP bucket and both new RPCs. A simulated authenticated admin read found 74 printable passes among 413 visible passes and zero printable passes with pending approval rows. `main` was pushed as `jollyroyy` at `3ce3f31`; GitHub reported Vercel deployment completed for that commit. Local verification: `npm run build:sql`, `npm run build`, and the full Vitest suite (2,507 tests) passed. Browser access to the deployed origin was denied by the browser permission gate, so live UI flows remain unverified.
 
 ## 2026-09-01 (latest) — the vendor is sent the printed pass itself, on WhatsApp
 
